@@ -1,0 +1,7 @@
+jsmind
+freemind
+mindmap
+
+hizzgdev
+
+camelcase
