@@ -2,7 +2,6 @@
     "editor.codeActionsOnSave": {
         "source.fixAll.eslint": "explicit"
     },
-    "eslint.validate": ["javascript"],
     "cSpell.customDictionaries": {
         "project-words": {
             "name": "project-words",
@@ -12,5 +11,7 @@
           },
           "custom": true,
           "internal-terms": false
-    }
+    },
+    "eslint.validate": ["javascript"],
+    "eslint.useFlatConfig": true
 }

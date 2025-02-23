@@ -1,43 +1,52 @@
-import globals from "globals";
-import js from "@eslint/js";
-import json from "@eslint/json";
+import globals from 'globals';
+import js from '@eslint/js';
+import json from '@eslint/json';
+import stylistic from '@stylistic/eslint-plugin';
 
 export default [
     {
-        plugins: {
-            json
-        }
+        ignores: ["node_modules/*", 'coverage/*'],
     },
-    js.configs.recommended,
     {
+        plugins: {
+            '@stylistic': stylistic,
+            json,
+        },
+    },
+    {
+        files: ['**/*.js'],
+        ...stylistic.configs.recommended,
+        ...js.configs.recommended,
         languageOptions: {
-            ecmaVersion: 6,
-            sourceType: "module",
+            ecmaVersion: 2018,
+            sourceType: 'module',
             globals: globals.browser,
         },
         rules: {
-            camelcase: "error",
-            "lines-between-class-members": "error",
-            "indent": ["error", 4],
-            "no-console": "off",
-            "no-var": "error",
-            "prefer-const": "error",
-            semi: "error",
-            "semi-spacing": "error",
-        } 
+            'camelcase': 'error',
+            'no-console': 'off',
+            'no-var': 'error',
+            'prefer-const': 'error',
+            '@stylistic/lines-between-class-members': 'error',
+            '@stylistic/indent': ['error', 4],
+            '@stylistic/semi': 'error',
+            '@stylistic/semi-spacing': 'error',
+        },
     },
     {
-        files: ["__tests__/**/*"],
+        files: ['**/*.css'],
+        ...stylistic.configs.recommended
+    },
+    {
+        files: ['**/*.json'],
+        ignores: ['package-lock.json'],
+        language: 'json/json',
+        ...json.configs.recommended,
+    },
+    {
+        files: ['__tests__/**/*'],
         languageOptions: {
-            globals: globals.jest
-        }
+            globals: globals.jest,
+        },
     },
-    {
-        // files: ['**/*.json'],
-        // language: 'json/json',
-        // rules: {
-        //     'json/no-duplicate-keys': 'error',
-        //     'no-irregular-whitespace': 'off'
-        // },
-    }
 ];
