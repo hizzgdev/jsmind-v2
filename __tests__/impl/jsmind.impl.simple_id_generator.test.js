@@ -24,4 +24,3 @@ test('SimpleIdGenerator with null prefix', () => {
 }
 );
 
-

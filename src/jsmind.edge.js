@@ -3,7 +3,7 @@ import { JsMindError } from './jsmind.error';
 import { config } from './jsmind.config';
 
 /**
- * Edge of the mind map
+ * Edge of mind map
  */
 export class JmEdge {
     /**

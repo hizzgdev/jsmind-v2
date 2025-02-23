@@ -6,6 +6,8 @@ Development Environment
 
 - IDE: VS Code
 - Plugins:
-    - ESLint (dbaeumer.vscode-eslint)
-    - Jest (orta.vscode-jest)
+    - [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
+    - [Jest](https://marketplace.visualstudio.com/items?itemName=Orta.vscode-jest)
 - Node.js (for dev): v20.11.1
+
+
