@@ -1,13 +1,7 @@
-import { __author__, __version__ } from './jsmind.meta';
-
 class JsMind {
-    static get Version() {
-        return __version__;
-    }
+    static get Version() { return '2.0'; }
 
-    static get Author() {
-        return __author__;
-    }
+    static get Author() { return 'hizzgdev@163.com'; }
 
     constructor(options) {
         const a = options.a;

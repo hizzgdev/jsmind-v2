@@ -1,4 +1,3 @@
-import { config } from './jsmind.config';
 import { JmEdge } from './jsmind.edge';
 import { JsMindError } from './jsmind.error';
 
@@ -9,51 +8,32 @@ export class JmNode {
     /**
      * create a node
      * @param {String} id
-     * @param {JmNode} parent
-     * @param {String} topic
      */
-    constructor(id, parent, topic) {
+    constructor(id) {
         if (!id) {
             throw new JsMindError('invalid node id');
         }
-        if (parent && !(parent instanceof JmNode)) {
-            throw new JsMindError('invalid parent node');
-        }
         this.id = id;
-        this.topic = topic;
-        this.parent = parent;
+        this.topic = null;
+        this.parent = null;
         this.edges = [];
         this.folded = false;
+        this._data = {};
     }
 
     /**
-     * create a root node
-     * @param {String} topic
-     * @returns A root node instance of JmNode
+     * create a node
+     * @param {String} nodeId
+     * @returns {JmNode} node instance
      */
-    static createRootNode(topic) {
-        const id = config.nodeIdGenerator.newId();
-        const node = new JmNode(id, null, topic);
-        return node;
-    }
-
-    /**
-     * create a child node of this node
-     * @param {String} topic
-     * @returns A child node instance of this node
-     */
-    createSubNode(topic) {
-        const id = config.nodeIdGenerator.newId();
-        const node = new JmNode(id, this, topic);
-        const edge = JmEdge.createChildEdge(node);
-        this._addEdge(edge);
-        return node;
+    static create(nodeId) {
+        return new JmNode(nodeId);
     }
 
     /**
      * set topic of this node
      * @param {String} topic
-     * @returns node's self
+     * @returns {JmNode} node's self
      */
     setTopic(topic) {
         this.topic = topic;
@@ -61,9 +41,22 @@ export class JmNode {
     }
 
     /**
+     * set parent of this node
+     * @param {JmNode} parent
+     * @returns {JmNode} node's self
+     */
+    setParent(parent) {
+        if (parent && !(parent instanceof JmNode)) {
+            throw new JsMindError('invalid parent node');
+        }
+        this.parent = parent;
+        return this;
+    }
+
+    /**
      * set folded state of this node
      * @param {boolean} folded
-     * @returns node's self
+     * @returns {JmNode} node's self
      */
     setFolded(folded) {
         this.folded = !!folded;
@@ -71,16 +64,18 @@ export class JmNode {
     }
 
     /**
-     * add an edge to this node
+     * add a sub node
      * @param {JmEdge} edge
-     * @returns node's self
+     * @returns {JmNode} node's self
      */
-    _addEdge(edge) {
-        if (this.edges == null) {
+    addEdge(edge) {
+        if(!this.edges) {
             this.edges = [];
         }
+        if (!edge || !(edge instanceof JmEdge)) {
+            throw new JsMindError('invalid edge');
+        }
         this.edges.push(edge);
-        return this;
     }
 
     /**
@@ -89,5 +84,28 @@ export class JmNode {
      */
     isRootNode() {
         return this.parent === null;
+    }
+}
+
+export class JmNodeEventListener {
+    /**
+     * @param {JmNode} node
+     */
+    onNodeCreated(node) {
+        throw new Error('not implemented');
+    }
+
+    /**
+     * @param {JmNode} node
+     */
+    onNodeRemoved(node) {
+        throw new Error('not implemented');
+    }
+
+    /**
+     * @param {JmNode} node
+     */
+    onNodeUpdated(node) {
+        throw new Error('not implemented');
     }
 }

@@ -36,6 +36,7 @@ export default [
             '@stylistic/no-trailing-spaces': 'error',
             '@stylistic/semi': 'error',
             '@stylistic/semi-spacing': 'error',
+            '@stylistic/space-before-blocks': 'error',
         },
     },
     {

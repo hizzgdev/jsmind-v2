@@ -1,104 +1,95 @@
-import { jest, test } from '@jest/globals';
-import { JmEdgeType } from '../src/jsmind.edge';
+import { JmEdge } from '../src/jsmind.edge';
 import { JmNode } from '../src/jsmind.node';
-import { config } from '../src/jsmind.config';
-
-const mockNodeIdGenerate = jest.fn();
-
-beforeAll(() => {
-    config.nodeIdGenerator = {
-        newId: mockNodeIdGenerate,
-    };
-});
 
 test('JmNode', () => {
-    const node = new JmNode('1', null, 'root');
+    const node = new JmNode('1');
     expect(node).not.toBeNull();
     expect(node.id).toBe('1');
-    expect(node.topic).toBe('root');
+    expect(node.topic).toBeNull();
     expect(node.parent).toBeNull();
     expect(node.edges).not.toBeNull();
     expect(node.folded).toBe(false);
 }
 );
 
-test('JmNode with invalid parent', () => {
-    expect(() => {
-        new JmNode('1', 'invalid parent', 'root');
-    }).toThrow();
-}
-);
-
 test('JmNode with null id', () => {
-    const node = new JmNode('1', null, 'root');
     expect(() => {
-        new JmNode(null, node, 'root');
+        new JmNode();
     }).toThrow();
 }
 );
 
-test('JmNode.createRootNode', () => {
-    mockNodeIdGenerate.mockReturnValue('1');
-    const root = JmNode.createRootNode('root2');
-    expect(root).not.toBeNull();
-    expect(root.id).toBe('1');
-    expect(root.topic).toBe('root2');
-    expect(root.parent).toBeNull();
-    expect(root.edges).not.toBeNull();
-    expect(root.folded).toBe(false);
+test('JmNode.create', () => {
+    const node = JmNode.create('1');
+    const node2 = new JmNode('1');
+    expect(node).not.toBeNull();
+    expect(node).toEqual(node2);
 }
 );
 
-test('JmNode.createSubNode', () => {
-    mockNodeIdGenerate.mockReturnValue('1');
-    const node = JmNode.createRootNode('root');
-    mockNodeIdGenerate.mockReturnValue('2');
-    const sub = node.createSubNode('sub2');
-    expect(sub).not.toBeNull();
-    expect(sub.id).toBe('2');
-    expect(sub.topic).toBe('sub2');
-    expect(sub.parent).toBe(node);
-    expect(sub.folded).toBe(false);
-    expect(sub.edges).not.toBeNull();
-    expect(node.edges.length).toBe(1);
-    expect(node.edges[0].target).toBe(sub);
-    expect(node.edges[0].type).toBe(JmEdgeType.CHILD);
+test('JmNode.create with null id', () => {
+    expect(() => {
+        JmNode.create();
+    }).toThrow();
 }
 );
 
-test('JmNode.createSubNode with edges not initialized', () => {
-    mockNodeIdGenerate.mockReturnValue('1');
-    const node = new JmNode('1', null, 'root');
-    node.edges = null;
-    mockNodeIdGenerate.mockReturnValue('2');
-    const sub = node.createSubNode('sub2');
-    expect(sub).not.toBeNull();
-    expect(node.edges.length).toBe(1);
-    expect(node.edges[0].target).toBe(sub);
-    expect(node.edges[0].type).toBe(JmEdgeType.CHILD);
+
+test('JmNode.setTopic', () => {
+    const node = JmNode.create('root').setTopic('root');
+    expect(node.topic).toBe('root');
 }
 );
 
-test('JmNode.isRootNode', () => {
-    const node = JmNode.createRootNode('root');
-    expect(node.isRootNode()).toBe(true);
-    const sub = node.createSubNode('sub2');
-    expect(sub.isRootNode()).toBe(false);
+test('JmNode.setParent', () => {
+    const node = JmNode.create('root');
+    expect(node.parent).toBeNull();
+    const parent = JmNode.create('parent');
+    node.setParent(parent);
+    expect(node.parent).toBe(parent);
+}
+);
+
+test('JmNode.setParent with invalid parent', () => {
+    const node = JmNode.create('root');
+    expect(() => {
+        node.setParent('invalid parent');
+    }).toThrow();
 }
 );
 
 test('JmNode.setFolded', () => {
-    const node = JmNode.createRootNode('root');
+    const node = JmNode.create('root');
     expect(node.folded).toBe(false);
     node.setFolded(true);
     expect(node.folded).toBe(true);
 }
 );
 
-test('JmNode.setTopic', () => {
-    const node = JmNode.createRootNode('root');
-    expect(node.topic).toBe('root');
-    node.setTopic('new topic');
-    expect(node.topic).toBe('new topic');
+test('JmNode.addEdge', () => {
+    const node = JmNode.create('root');
+    expect(node.edges).not.toBeNull();
+    expect(node.edges.length).toBe(0);
+    const node2 = JmNode.create('node2');
+    const edge = JmEdge.createChildEdge('1', node2);
+    node.addEdge(edge);
+    expect(node.edges.length).toBe(1);
+    expect(node.edges[0]).toBe(edge);
+}
+);
+
+test('JmNode.addEdge with invalid edge', () => {
+    const node = JmNode.create('root');
+    expect(() => {
+        node.addEdge('invalid edge');
+    }).toThrow();
+}
+);
+
+test('JmNode.isRootNode', () => {
+    const node = JmNode.create('root');
+    expect(node.isRootNode()).toBe(true);
+    const sub = JmNode.create('sub').setParent(node);
+    expect(sub.isRootNode()).toBe(false);
 }
 );

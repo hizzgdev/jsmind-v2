@@ -1,4 +1,4 @@
-import { IdGenerator } from '../jsmind.interfaces';
+import { IdGenerator } from '../jsmind.id_generator';
 
 export class SimpleIdGenerator extends IdGenerator {
     constructor(prefix) {

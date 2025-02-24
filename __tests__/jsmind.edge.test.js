@@ -1,16 +1,8 @@
-import { jest } from '@jest/globals';
 import { JmNode } from '../src/jsmind.node';
 import { JmEdge, JmEdgeType } from '../src/jsmind.edge';
-import { config } from '../src/jsmind.config';
 
-const mockNode = JmNode.createRootNode('root');
-const mockEdgeIdGenerate = jest.fn();
+const mockNode = JmNode.create('root');
 
-beforeAll(() => {
-    config.edgeIdGenerator = {
-        newId: mockEdgeIdGenerate,
-    };
-});
 
 test('JmEdge', () => {
     const edge = new JmEdge('1', mockNode, JmEdgeType.CHILD);
@@ -43,8 +35,7 @@ test('JmEdge with invalid type', () => {
 );
 
 test('JmEdge.createChildEdge', () => {
-    mockEdgeIdGenerate.mockReturnValue('1');
-    const edge = JmEdge.createChildEdge(mockNode);
+    const edge = JmEdge.createChildEdge('1', mockNode);
     expect(edge).not.toBeNull();
     expect(edge.id).toBe('1');
     expect(edge.target).toBe(mockNode);

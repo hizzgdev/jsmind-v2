@@ -1,6 +1,5 @@
 import { JmNode } from './jsmind.node';
 import { JsMindError } from './jsmind.error';
-import { config } from './jsmind.config';
 
 /**
  * Edge of mind map
@@ -29,11 +28,11 @@ export class JmEdge {
 
     /**
      * create a child edge
+     * @param {String} id
      * @param {JmNode} target
      * @returns child edge instance of JmEdge
      */
-    static createChildEdge(target) {
-        const id = config.edgeIdGenerator.newId();
+    static createChildEdge(id, target) {
         return new JmEdge(id, target, JmEdgeType.CHILD);
     }
 }

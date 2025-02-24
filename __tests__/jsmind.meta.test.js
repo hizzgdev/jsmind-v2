@@ -1,7 +1,17 @@
-import { __author__, __version__ } from "../src/jsmind.meta";
+import { metadata } from "../src/jsmind.meta";
 
-test('meta', () => {
-    expect(__author__).not.toBeNull();
-    expect(__version__).not.toBeNull();
+test('metadata', () => {
+    const meta = metadata();
+    expect(meta).not.toBeNull();
+    expect(meta.name).not.toBeNull();
+    expect(meta.version).not.toBeNull();
+    expect(meta.author).not.toBeNull();
+}
+);
+
+test('metadata is not shared object', () => {
+    const meta1 = metadata();
+    const meta2 = metadata();
+    expect(meta1).not.toBe(meta2);
 }
 );
