@@ -1,8 +1,10 @@
-import { JsMindError } from '../src/jsmind.error';
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { JsMindError } from '../src/jsmind.error.js';
 
 test('JsMindError', () => {
     const error = new JsMindError('test');
-    expect(error).not.toBeNull();
-    expect(error.message).toBe('test');
+    assert.ok(error);
+    assert.strictEqual(error.message, 'test');
 }
 );

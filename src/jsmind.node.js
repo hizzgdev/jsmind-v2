@@ -1,5 +1,5 @@
-import { JmEdge } from './jsmind.edge';
-import { JsMindError } from './jsmind.error';
+import { JmEdge } from './jsmind.edge.js';
+import { JsMindError } from './jsmind.error.js';
 
 /**
  * Node of mind map

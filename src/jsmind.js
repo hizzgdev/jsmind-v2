@@ -1,5 +1,3 @@
-import { JmMind } from "./jsmind.mind";
-
 class JsMind {
     static get Version() { return '2.0'; }
 

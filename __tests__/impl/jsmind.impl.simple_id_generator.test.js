@@ -1,26 +1,28 @@
-import { SimpleIdGenerator } from '../../src/impl/jsmind.impl.simple_id_generator';
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { SimpleIdGenerator } from '../../src/impl/jsmind.impl.simple_id_generator.js';
 
 test('SimpleIdGenerator', () => {
     const generator = new SimpleIdGenerator('test_');
-    expect(generator).not.toBeNull();
+    assert.ok(generator);
     const idCollection = new Set();
     for(let i = 0; i < 100; i++) {
         const id = generator.newId();
-        expect(id).toMatch(/^test_.+/);
+        assert.match(id, /^test_.+/);
         idCollection.add(id);
     }
-    expect(idCollection.size).toBe(100);
+    assert.strictEqual(idCollection.size, 100);
 }
 );
 
 test('SimpleIdGenerator with null prefix', () => {
     const generator = new SimpleIdGenerator(null);
-    expect(generator).not.toBeNull();
+    assert.ok(generator);
     const idCollection = new Set();
     for(let i = 0; i < 100; i++) {
         idCollection.add(generator.newId());
     }
-    expect(idCollection.size).toBe(100);
+    assert.strictEqual(idCollection.size, 100);
 }
 );
 

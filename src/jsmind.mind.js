@@ -1,7 +1,7 @@
-import { JmObserverManager } from "./event/jsmind.observer.manager";
-import { JmEdge } from "./jsmind.edge";
-import { metadata } from "./jsmind.meta";
-import { JmNode } from "./jsmind.node";
+import { JmObserverManager } from "./event/jsmind.observer.manager.js";
+import { JmEdge } from "./jsmind.edge.js";
+import { metadata } from "./jsmind.meta.js";
+import { JmNode } from "./jsmind.node.js";
 
 export class JmMind {
     constructor(mindOptions) {

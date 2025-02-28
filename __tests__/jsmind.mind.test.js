@@ -1,45 +1,49 @@
-import { expect, jest } from '@jest/globals';
-import { metadata } from "../src/jsmind.meta";
-import { JmMind } from "../src/jsmind.mind";
-
-const mockNodeIdGenerate = jest.fn();
-const mockEdgeIdGenerate = jest.fn();
+import assert from 'node:assert/strict';
+import test, {mock} from 'node:test';
+import { metadata } from "../src/jsmind.meta.js";
+import { JmMind } from "../src/jsmind.mind.js";
 
 const mindOptions = {
     nodeIdGenerator: {
-        newId: mockNodeIdGenerate
+        newId: mock.fn(()=>'node_1')
     },
     edgeIdGenerator: {
-        newId: mockEdgeIdGenerate
+        newId: mock.fn(()=>'edge_1')
     }
 };
 
 test('JmMind', () => {
-    mockNodeIdGenerate.mockReturnValue('node_1');
     const mind = new JmMind(mindOptions);
-    expect(mind).not.toBeNull();
-    expect(mind.options).not.toBeNull();
-    expect(mind.options.nodeIdGenerator).not.toBeNull();
-    expect(mind.options.edgeIdGenerator).not.toBeNull();
+    assert.ok(mind);
+    assert.ok(mind.options);
+    assert.ok(mind.options.nodeIdGenerator);
+    assert.ok(mind.options.edgeIdGenerator);
 
-    expect(mind.meta).not.toBeNull();
-    expect(mind.meta).toEqual(metadata());
+    assert.ok(mind.meta);
+    assert.deepStrictEqual(mind.meta, metadata());
 
-    expect(mind.root).not.toBeNull();
-    expect(mind.root.id).toBe('node_1');
-    expect(mind.root.topic).toBe(mind.meta.name);
+    assert.ok(mind.root);
+    assert.strictEqual(mind.root.id, 'node_1');
+    assert.strictEqual(mind.root.topic, mind.meta.name);
 }
 );
 
 test('JmMind.addSubNode', () => {
-    mockNodeIdGenerate.mockReturnValue('node_1');
-    mockEdgeIdGenerate.mockReturnValue('edge_1');
     const mind = new JmMind(mindOptions);
-    mockNodeIdGenerate.mockReturnValue('node_2');
+    mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'node_2');
     const child = mind.addSubNode(mind.root, 'child');
-    expect(child).not.toBeNull();
-    expect(child.id).toBe('node_2');
-    expect(child.topic).toBe('child');
-    expect(child.parent).toBe(mind.root);
+    assert.ok(child);
+    assert.strictEqual(child.id, 'node_2');
+    assert.strictEqual(child.topic, 'child');
+    assert.strictEqual(child.parent, mind.root);
+}
+);
+
+test('JsMind observer', () => {
+    const mind = new JmMind(mindOptions);
+    const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
+    mind.addSubNode(mind.root, 'child');
+    mind.addSubNode(mind.root, 'child');
+    assert.strictEqual(mockedNotifyObservers.mock.callCount(), 2);
 }
 );

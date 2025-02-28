@@ -1,15 +1,17 @@
-import JsMind from '../src/jsmind';
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import JsMind from '../src/jsmind.js';
 
 
 test('JsMind static', () => {
-    expect(JsMind.Version).not.toBeNull();
-    expect(JsMind.Author).not.toBeNull();
+    assert.ok(JsMind.Version);
+    assert.ok(JsMind.Author);
 }
 );
 
 test('jsmind', () => {
     const opts = { a: 'test' };
     const jm = new JsMind(opts);
-    expect(jm).not.toBeNull();
-    expect(JsMind.Version).toBe('2.0');
+    assert.ok(jm);
+    assert.strictEqual(JsMind.Version, '2.0');
 });

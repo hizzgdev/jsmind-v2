@@ -1,5 +1,5 @@
-import { JmSize } from "./jsmind.data";
-import { JmNode } from "./jsmind.node";
+import { JmSize } from "./jsmind.data.js";
+import { JmNode } from "./jsmind.node.js";
 
 /**
  * @interface JmView

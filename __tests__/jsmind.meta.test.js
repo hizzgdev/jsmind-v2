@@ -1,17 +1,19 @@
-import { metadata } from "../src/jsmind.meta";
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { metadata } from "../src/jsmind.meta.js";
 
 test('metadata', () => {
     const meta = metadata();
-    expect(meta).not.toBeNull();
-    expect(meta.name).not.toBeNull();
-    expect(meta.version).not.toBeNull();
-    expect(meta.author).not.toBeNull();
+    assert.ok(meta);
+    assert.ok(meta.name);
+    assert.ok(meta.version);
+    assert.ok(meta.author);
 }
 );
 
 test('metadata is not shared object', () => {
     const meta1 = metadata();
     const meta2 = metadata();
-    expect(meta1).not.toBe(meta2);
+    assert.notEqual(meta1, meta2);
 }
 );

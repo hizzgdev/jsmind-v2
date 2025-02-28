@@ -1,95 +1,97 @@
-import { JmEdge } from '../src/jsmind.edge';
-import { JmNode } from '../src/jsmind.node';
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { JmEdge } from '../src/jsmind.edge.js';
+import { JmNode } from '../src/jsmind.node.js';
 
 test('JmNode', () => {
     const node = new JmNode('1');
-    expect(node).not.toBeNull();
-    expect(node.id).toBe('1');
-    expect(node.topic).toBeNull();
-    expect(node.parent).toBeNull();
-    expect(node.edges).not.toBeNull();
-    expect(node.folded).toBe(false);
+    assert.ok(node);
+    assert.strictEqual(node.id, '1');
+    assert.strictEqual(node.topic, null);
+    assert.strictEqual(node.parent, null);
+    assert.ok(node.edges);
+    assert.strictEqual(node.folded, false);
 }
 );
 
 test('JmNode with null id', () => {
-    expect(() => {
+    assert.throws(() => {
         new JmNode();
-    }).toThrow();
+    });
 }
 );
 
 test('JmNode.create', () => {
     const node = JmNode.create('1');
     const node2 = new JmNode('1');
-    expect(node).not.toBeNull();
-    expect(node).toEqual(node2);
+    assert.ok(node);
+    assert.deepEqual(node, node2);
 }
 );
 
 test('JmNode.create with null id', () => {
-    expect(() => {
+    assert.throws(() => {
         JmNode.create();
-    }).toThrow();
+    });
 }
 );
 
 
 test('JmNode.setTopic', () => {
     const node = JmNode.create('root').setTopic('root');
-    expect(node.topic).toBe('root');
+    assert.strictEqual(node.topic, 'root');
 }
 );
 
 test('JmNode.setParent', () => {
     const node = JmNode.create('root');
-    expect(node.parent).toBeNull();
+    assert.strictEqual(node.parent, null);
     const parent = JmNode.create('parent');
     node.setParent(parent);
-    expect(node.parent).toBe(parent);
+    assert.strictEqual(node.parent, parent);
 }
 );
 
 test('JmNode.setParent with invalid parent', () => {
     const node = JmNode.create('root');
-    expect(() => {
+    assert.throws(() => {
         node.setParent('invalid parent');
-    }).toThrow();
+    });
 }
 );
 
 test('JmNode.setFolded', () => {
     const node = JmNode.create('root');
-    expect(node.folded).toBe(false);
+    assert.strictEqual(node.folded, false);
     node.setFolded(true);
-    expect(node.folded).toBe(true);
+    assert.strictEqual(node.folded, true);
 }
 );
 
 test('JmNode.addEdge', () => {
     const node = JmNode.create('root');
-    expect(node.edges).not.toBeNull();
-    expect(node.edges.length).toBe(0);
+    assert.ok(node.edges);
+    assert.strictEqual(node.edges.length, 0);
     const node2 = JmNode.create('node2');
     const edge = JmEdge.createChildEdge('1', node2);
     node.addEdge(edge);
-    expect(node.edges.length).toBe(1);
-    expect(node.edges[0]).toBe(edge);
+    assert.strictEqual(node.edges.length, 1);
+    assert.strictEqual(node.edges[0], edge);
 }
 );
 
 test('JmNode.addEdge with invalid edge', () => {
     const node = JmNode.create('root');
-    expect(() => {
+    assert.throws(() => {
         node.addEdge('invalid edge');
-    }).toThrow();
+    });
 }
 );
 
 test('JmNode.isRootNode', () => {
     const node = JmNode.create('root');
-    expect(node.isRootNode()).toBe(true);
+    assert.strictEqual(node.isRootNode(), true);
     const sub = JmNode.create('sub').setParent(node);
-    expect(sub.isRootNode()).toBe(false);
+    assert.strictEqual(sub.isRootNode(), false);
 }
 );

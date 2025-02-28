@@ -15,7 +15,7 @@
     "scripts": {
         "server": "http-server",
         "build": "rollup -c .config/rollup.config.js",
-        "test": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+        "test": "node --test",
         "format": "npx eslint --fix",
         "format-check": "npx eslint"
     },

@@ -49,10 +49,4 @@ export default [
         language: 'json/json',
         ...json.configs.recommended,
     },
-    {
-        files: ['__tests__/**/*'],
-        languageOptions: {
-            globals: globals.jest,
-        },
-    },
 ];
