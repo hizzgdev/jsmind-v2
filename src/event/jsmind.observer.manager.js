@@ -1,24 +1,28 @@
+import { JsMindError } from '../jsmind.error.js';
+
 export class JmObserverManager {
     constructor(observedObject) {
         this.observedObject = observedObject;
-        this.observers = [];
+        this._observers = [];
     }
 
     addObserver(observer) {
-        observer;
-        this.observers.push(observer);
+        if(!observer || !observer.update || typeof observer.update !== 'function') {
+            throw new JsMindError('observer is not an valid Object');
+        }
+        this._observers.push(observer);
     }
 
     removeObserver(observer) {
-        this.observers = this.observers.filter(o => o !== observer);
+        this._observers = this._observers.filter(o => o !== observer);
     }
 
     clearObservers() {
-        this.observers = [];
+        this._observers = [];
     }
 
     async notifyObservers(event) {
-        this.observers.forEach(async (observer) => {
+        this._observers.forEach(async (observer) => {
             await new Promise((resolve) => {
                 setTimeout(() => {
                     observer.update(this.observedObject, event);

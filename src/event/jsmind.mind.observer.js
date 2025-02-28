@@ -1,3 +1,8 @@
+import { JmObserver } from './jsmind.observer.js';
+
+/**
+ * @class JmObserverManager
+ */
 export class JmMindEventListener extends JmObserver {
     /**
      * @param {JmMindEvent} event
@@ -26,6 +31,5 @@ export class JmMindEvent {
 }
 
 export const JmMindEventType = {
-    MindCreated: 1,
-    MindUpdated: 2,
+    NodeAdded: 1,
 };

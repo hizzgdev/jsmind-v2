@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
 import { metadata } from "../src/jsmind.meta.js";
 import { JmMind } from "../src/jsmind.mind.js";
+import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.observer.js';
+import { JmNode } from '../src/jsmind.node.js';
 
 const mindOptions = {
     nodeIdGenerator: {
@@ -39,11 +41,19 @@ test('JmMind.addSubNode', () => {
 }
 );
 
-test('JsMind observer', () => {
+test('JsMind.observer', () => {
     const mind = new JmMind(mindOptions);
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
-    mind.addSubNode(mind.root, 'child');
-    mind.addSubNode(mind.root, 'child');
+    mind.addSubNode(mind.root, 'child1');
+    mind.addSubNode(mind.root, 'child2');
     assert.strictEqual(mockedNotifyObservers.mock.callCount(), 2);
+
+    const event1 = mockedNotifyObservers.mock.calls[0].arguments[0];
+    assert.ok(event1 instanceof JmMindEvent);
+    assert.strictEqual(event1.type, JmMindEventType.NodeAdded);
+
+    assert.ok(event1.data instanceof JmNode);
+    assert.strictEqual(event1.data.topic, 'child1');
+    assert.strictEqual(event1.data.parent, mind.root);
 }
 );

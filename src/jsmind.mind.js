@@ -2,6 +2,7 @@ import { JmObserverManager } from "./event/jsmind.observer.manager.js";
 import { JmEdge } from "./jsmind.edge.js";
 import { metadata } from "./jsmind.meta.js";
 import { JmNode } from "./jsmind.node.js";
+import { JmMindEvent, JmMindEventType } from "./event/jsmind.mind.observer.js";
 
 export class JmMind {
     constructor(mindOptions) {
@@ -35,15 +36,7 @@ export class JmMind {
 
         parent.addEdge(edge);
 
-        this.observerManager.notifyObservers(new JmMindEvent('add_node', node));
+        this.observerManager.notifyObservers(new JmMindEvent(JmMindEventType.NodeAdded, node));
         return node;
-    }
-}
-
-
-export class JmMindEvent {
-    constructor(type, data) {
-        this.type = type;
-        this.data = data;
     }
 }
