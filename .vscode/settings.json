@@ -13,5 +13,7 @@
           "internal-terms": false
     },
     "eslint.validate": ["javascript"],
-    "eslint.useFlatConfig": true
+    "eslint.useFlatConfig": true,
+    "cSpell.ignoreRandomStrings": true,
+    "cSpell.minRandomLength": 30
 }
