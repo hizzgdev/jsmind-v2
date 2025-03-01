@@ -1,17 +1,20 @@
 import { JmObserver } from './jsmind.observer.js';
 
 /**
- * @class JmObserverManager
+ * @interface
+ * It's an interface inherited from JmObserver
  */
 export class JmMindEventListener extends JmObserver {
     /**
+     * @param {JmMind} observedObject
      * @param {JmMindEvent} event
      */
-    update(observedObject, event) {
+    onStateChanged(observedObject, event) {
         this.onMindChanged(observedObject, event);
     }
 
     /**
+     * @param {JmMind} sender
      * @param {JmMindEvent} event
      */
     onMindChanged(sender, event) {
@@ -19,6 +22,10 @@ export class JmMindEventListener extends JmObserver {
     }
 }
 
+/**
+ * @class
+ * Event data containing the state change in JmMind.
+ */
 export class JmMindEvent {
     /**
      * @param {JmMindEventType} type
@@ -30,6 +37,9 @@ export class JmMindEvent {
     }
 }
 
+/**
+ * @enum
+ */
 export const JmMindEventType = {
     NodeAdded: 1,
 };

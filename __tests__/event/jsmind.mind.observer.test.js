@@ -17,7 +17,7 @@ test('JmMindEventListener.update', () => {
     const listener = new TestJmMindEventListener();
     const observedObject = new Object();
     const event = new Object();
-    listener.update(observedObject, event);
+    listener.onStateChanged(observedObject, event);
     assert.ok(mockOnMindChanged.mock.calls.length === 1);
     assert.ok(mockOnMindChanged.mock.calls[0].arguments[0] === observedObject);
     assert.ok(mockOnMindChanged.mock.calls[0].arguments[1] === event);

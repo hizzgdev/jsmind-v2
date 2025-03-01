@@ -14,7 +14,7 @@ test('JmObserverManager.addObserver', () => {
     const observerManager = new JmObserverManager(new Object());
     const invalidObserver = new Object();
     const validObserver = {
-        update: () => { }
+        onStateChanged: () => { }
     };
 
     assert.throws(() => {
@@ -28,11 +28,11 @@ test('JmObserverManager.addObserver', () => {
 test('JmObserverManager.removeObserver', () => {
     const observerManager = new JmObserverManager(new Object());
     const observer1 = {
-        update: () => { }
+        onStateChanged: () => { }
     };
 
     const observer2 = {
-        update: () => { }
+        onStateChanged: () => { }
     };
 
     observerManager.addObserver(observer1);
@@ -49,11 +49,11 @@ test('JmObserverManager.removeObserver', () => {
 test('JmObserverManager.clearObservers', () => {
     const observerManager = new JmObserverManager(new Object());
     const observer1 = {
-        update: () => { }
+        onStateChanged: () => { }
     };
 
     const observer2 = {
-        update: () => { }
+        onStateChanged: () => { }
     };
 
     observerManager.addObserver(observer1);
@@ -68,11 +68,11 @@ test('JmObserverManager.clearObservers', () => {
 test('JmObserverManager.notifyObservers', async () => {
     const observerManager = new JmObserverManager(new Object());
     const observer1 = {
-        update: mock.fn()
+        onStateChanged: mock.fn()
     };
 
     const observer2 = {
-        update: mock.fn()
+        onStateChanged: mock.fn()
     };
 
     observerManager.addObserver(observer1);
@@ -86,15 +86,15 @@ test('JmObserverManager.notifyObservers', async () => {
     await observerManager.notifyObservers(event);
     mock.timers.runAll();
 
-    assert.strictEqual(observer1.update.mock.callCount(), 1);
-    assert.strictEqual(observer2.update.mock.callCount(), 1);
+    assert.strictEqual(observer1.onStateChanged.mock.callCount(), 1);
+    assert.strictEqual(observer2.onStateChanged.mock.callCount(), 1);
 
-    const arg1 = observer1.update.mock.calls[0].arguments;
+    const arg1 = observer1.onStateChanged.mock.calls[0].arguments;
     assert.strictEqual(arg1.length, 2);
     assert.strictEqual(arg1[0], observerManager.observedObject);
     assert.strictEqual(arg1[1], event);
 
-    const arg2 = observer1.update.mock.calls[0].arguments;
+    const arg2 = observer1.onStateChanged.mock.calls[0].arguments;
     assert.strictEqual(arg2.length, 2);
     assert.strictEqual(arg2[0], observerManager.observedObject);
     assert.strictEqual(arg2[1], event);
