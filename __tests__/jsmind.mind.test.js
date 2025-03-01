@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
-import { metadata } from "../src/jsmind.meta.js";
-import { JmMind } from "../src/jsmind.mind.js";
+import { metadata } from '../src/jsmind.meta.js';
+import { JmMind } from '../src/jsmind.mind.js';
 import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.observer.js';
 import { JmNode } from '../src/jsmind.node.js';
 

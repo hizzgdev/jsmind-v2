@@ -1,8 +1,5 @@
-import { JmSize } from "./jsmind.data.js";
-import { JmNode } from "./jsmind.node.js";
-
 /**
- * @interface JmView
+ * @interface
  * View of mind map
  */
 export class JmView extends JmMindEventListener {
@@ -12,7 +9,7 @@ export class JmView extends JmMindEventListener {
      * @returns {JmSize} size of the node
      */
     measure(node) {
-        throw new Error('not implemented');
+        throw new Error('not implemented', node);
     }
 
     onMindChanged(sender, event) {

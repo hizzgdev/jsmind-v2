@@ -73,7 +73,7 @@ test('JmNode.addEdge', () => {
     assert.ok(node.edges);
     assert.strictEqual(node.edges.length, 0);
     const node2 = JmNode.create('node2');
-    const edge = JmEdge.createChildEdge('1', node2);
+    const edge = JmEdge.createChildEdge('1', node, node2);
     node.addEdge(edge);
     assert.strictEqual(node.edges.length, 1);
     assert.strictEqual(node.edges[0], edge);

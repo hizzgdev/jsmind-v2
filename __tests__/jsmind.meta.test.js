@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { metadata } from "../src/jsmind.meta.js";
+import { metadata } from '../src/jsmind.meta.js';
 
 test('metadata', () => {
     const meta = metadata();

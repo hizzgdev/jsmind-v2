@@ -5,7 +5,7 @@ import stylistic from '@stylistic/eslint-plugin';
 
 export default [
     {
-        ignores: ["node_modules/*", 'coverage/*'],
+        ignores: ['node_modules/*', 'coverage/*'],
     },
     {
         plugins: {
@@ -26,14 +26,16 @@ export default [
             'camelcase': 'error',
             'no-console': 'off',
             'no-var': 'error',
+            'no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
             'prefer-const': 'error',
             '@stylistic/comma-spacing': 'error',
-            '@stylistic/eol-last': ["error", "always"],
+            '@stylistic/eol-last': ['error', 'always'],
             '@stylistic/indent': ['error', 4],
             '@stylistic/lines-between-class-members': 'error',
             '@stylistic/no-multiple-empty-lines': ['error', {'max': 2, 'maxEOF': 1}],
             '@stylistic/no-multi-spaces': 'error',
             '@stylistic/no-trailing-spaces': 'error',
+            '@stylistic/quotes': ['error', 'single'],
             '@stylistic/semi': 'error',
             '@stylistic/semi-spacing': 'error',
             '@stylistic/space-before-blocks': 'error',

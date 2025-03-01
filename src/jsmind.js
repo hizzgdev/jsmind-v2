@@ -4,6 +4,7 @@ class JsMind {
     static get Author() { return 'hizzgdev@163.com'; }
 
     constructor(options) {
+        console.log(options);
     }
 }
 

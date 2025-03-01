@@ -86,26 +86,3 @@ export class JmNode {
         return this.parent === null;
     }
 }
-
-export class JmNodeEventListener {
-    /**
-     * @param {JmNode} node
-     */
-    onNodeCreated(node) {
-        throw new Error('not implemented');
-    }
-
-    /**
-     * @param {JmNode} node
-     */
-    onNodeRemoved(node) {
-        throw new Error('not implemented');
-    }
-
-    /**
-     * @param {JmNode} node
-     */
-    onNodeUpdated(node) {
-        throw new Error('not implemented');
-    }
-}

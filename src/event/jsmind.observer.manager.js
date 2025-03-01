@@ -1,6 +1,4 @@
 import { JsMindError } from '../jsmind.error.js';
-import { JmObserver } from './jsmind.observer.js';
-
 
 /**
  * @class

@@ -18,7 +18,7 @@ export class JmMindEventListener extends JmObserver {
      * @param {JmMindEvent} event
      */
     onMindChanged(sender, event) {
-        throw new Error('not implemented');
+        throw new Error('not implemented', sender, event);
     }
 }
 
