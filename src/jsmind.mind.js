@@ -1,5 +1,5 @@
 import { JmObserverManager } from './event/jsmind.observer.manager.js';
-import { JmEdge } from './jsmind.edge.js';
+import { JmEdge, JmEdgeType } from './jsmind.edge.js';
 import { metadata } from './jsmind.meta.js';
 import { JmNode } from './jsmind.node.js';
 import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.observer.js';
@@ -9,6 +9,7 @@ export class JmMind {
         this.options = mindOptions;
         this.observerManager = new JmObserverManager();
         this._nodes = {};
+        this._edges = [];
         this._initMindmap();
     }
 
@@ -24,7 +25,7 @@ export class JmMind {
 
     _newNode() {
         const id = this.options.nodeIdGenerator.newId();
-        const node = JmNode.create(id);
+        const node = new JmNode(id);
         this._nodes[id] = node;
         return node;
     }
@@ -35,23 +36,42 @@ export class JmMind {
      * @param {String} topic
      * @returns {JmNode} child node
      */
-    addSubNode(parent, topic) {
+    addChildNode(parent, topic) {
         const node = this._newNode().setTopic(topic).setParent(parent);
+        parent.addChildNode(node);
 
         const edgeId = this.options.edgeIdGenerator.newId();
-        const edge = JmEdge.createChildEdge(edgeId, parent, node);
-
-        parent.addEdge(edge);
+        const edge = new JmEdge(edgeId, parent, node, JmEdgeType.CHILD);
+        this._edges.push(edge);
 
         this.observerManager.notifyObservers(new JmMindEvent(JmMindEventType.NodeAdded, node));
         return node;
     }
 
     /**
-     * remove node by nodeId
-     * @param {String} nodeId
+     * remove node
+     * @param {JmNode} node
      */
-    removeNodeById(nodeId) {
-        console.log(nodeId);
+    removeNode(node) {
+        this._removeChildNodes(node);
+        this._removeReversedEdges(node);
+        this._removeEdgeByTarget(node);
+        delete this._nodes[node.id];
+    }
+
+    /**
+     * remove child nodes
+     * @param {JmNode} node
+     */
+    _removeChildNodes(node) {
+        node.getChildNodes().forEach(n=>this.removeNode(n));
+    }
+
+    _removeReversedEdges(node) {
+        node.getSourceNodes();
+    }
+
+    _removeEdgeByTarget(node) {
+        node.getChildNodes();
     }
 }

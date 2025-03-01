@@ -30,10 +30,10 @@ test('JmMind', () => {
 }
 );
 
-test('JmMind.addSubNode', () => {
+test('JmMind.addChildNode', () => {
     const mind = new JmMind(mindOptions);
     mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'node_2');
-    const child = mind.addSubNode(mind.root, 'child');
+    const child = mind.addChildNode(mind.root, 'child');
     assert.ok(child);
     assert.strictEqual(child.id, 'node_2');
     assert.strictEqual(child.topic, 'child');
@@ -44,8 +44,8 @@ test('JmMind.addSubNode', () => {
 test('JsMind.observer', () => {
     const mind = new JmMind(mindOptions);
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
-    mind.addSubNode(mind.root, 'child1');
-    mind.addSubNode(mind.root, 'child2');
+    mind.addChildNode(mind.root, 'child1');
+    mind.addChildNode(mind.root, 'child2');
     assert.strictEqual(mockedNotifyObservers.mock.callCount(), 2);
 
     const event1 = mockedNotifyObservers.mock.calls[0].arguments[0];

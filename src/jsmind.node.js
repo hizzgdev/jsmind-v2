@@ -1,4 +1,3 @@
-import { JmEdge } from './jsmind.edge.js';
 import { JsMindError } from './jsmind.error.js';
 
 /**
@@ -16,18 +15,9 @@ export class JmNode {
         this.id = id;
         this.topic = null;
         this.parent = null;
-        this.edges = [];
+        this.children = [];
         this.folded = false;
         this._data = {};
-    }
-
-    /**
-     * create a node
-     * @param {String} nodeId
-     * @returns {JmNode} node instance
-     */
-    static create(nodeId) {
-        return new JmNode(nodeId);
     }
 
     /**
@@ -42,14 +32,14 @@ export class JmNode {
 
     /**
      * set parent of this node
-     * @param {JmNode} parent
+     * @param {JmNode} node parent node
      * @returns {JmNode} node's self
      */
-    setParent(parent) {
-        if (parent && !(parent instanceof JmNode)) {
+    setParent(node) {
+        if (node && !(node instanceof JmNode)) {
             throw new JsMindError('invalid parent node');
         }
-        this.parent = parent;
+        this.parent = node;
         return this;
     }
 
@@ -64,18 +54,26 @@ export class JmNode {
     }
 
     /**
-     * add a sub node
-     * @param {JmEdge} edge
+     * add child node to this node
+     * @param {JmNode} node child node
      * @returns {JmNode} node's self
      */
-    addEdge(edge) {
-        if(!this.edges) {
-            this.edges = [];
+    addChildNode(node) {
+        this.children.push(node);
+        return this;
+    }
+
+    /**
+     * remove a child node
+     * @param {JmNode} node
+     * @returns {JmNode} node's self
+     */
+    removeChildNode(node) {
+        const idx = this.children.indexOf(node);
+        if(idx>=0) {
+            this.children.splice(idx, 1);
         }
-        if (!edge || !(edge instanceof JmEdge)) {
-            throw new JsMindError('invalid edge');
-        }
-        this.edges.push(edge);
+        return this;
     }
 
     /**
@@ -84,5 +82,16 @@ export class JmNode {
      */
     isRootNode() {
         return this.parent === null;
+    }
+
+    /**
+     * list all subnodes
+     * @returns {Array<JmNode>}
+     */
+    getAllSubnodes() {
+        const nodes = [];
+        nodes.push(...this.children);
+        this.children.forEach((node) => nodes.push(...node.getAllSubnodes()));
+        return nodes;
     }
 }
