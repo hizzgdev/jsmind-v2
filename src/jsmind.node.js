@@ -17,6 +17,7 @@ export class JmNode {
         this.parent = null;
         this.children = [];
         this.folded = false;
+        this.position = null;
         this._data = {};
     }
 
@@ -50,6 +51,16 @@ export class JmNode {
      */
     setFolded(folded) {
         this.folded = !!folded;
+        return this;
+    }
+
+    /**
+     * set position of this node
+     * @param {JmNodePosition} position
+     * @returns {JmNode} node's self
+     */
+    setPosition(position) {
+        this.position = position;
         return this;
     }
 
@@ -95,3 +106,9 @@ export class JmNode {
         return nodes;
     }
 }
+
+export const JmNodePosition = {
+    Left: -1,
+    Center: 0,
+    Right: 1,
+};

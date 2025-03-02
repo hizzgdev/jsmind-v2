@@ -42,4 +42,5 @@ export class JmMindEvent {
  */
 export const JmMindEventType = {
     NodeAdded: 1,
+    NodeRemoved: 2,
 };

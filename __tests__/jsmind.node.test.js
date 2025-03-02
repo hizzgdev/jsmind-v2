@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmNode } from '../src/jsmind.node.js';
+import { JmNode, JmNodePosition } from '../src/jsmind.node.js';
 
 test('JmNode', () => {
     const node = new JmNode('1');
@@ -8,6 +8,7 @@ test('JmNode', () => {
     assert.strictEqual(node.id, '1');
     assert.strictEqual(node.topic, null);
     assert.strictEqual(node.parent, null);
+    assert.strictEqual(node.position, null);
     assert.strictEqual(node.children.length, 0);
     assert.strictEqual(node.folded, false);
     assert.deepEqual(node._data, {});
@@ -20,7 +21,8 @@ test('JmNode with null id', () => {
 });
 
 test('JmNode.setTopic', () => {
-    const node = new JmNode('root').setTopic('root');
+    const node = new JmNode('root')
+        .setTopic('root');
     assert.strictEqual(node.topic, 'root');
 });
 
@@ -46,6 +48,16 @@ test('JmNode.setFolded', () => {
     assert.strictEqual(node.folded, true);
 });
 
+test('JmNode.setPosition', ()=>{
+    const node = new JmNode('root');
+    node.setPosition(JmNodePosition.Left);
+    assert.strictEqual(node.position, JmNodePosition.Left);
+    node.setPosition(JmNodePosition.Right);
+    assert.strictEqual(node.position, JmNodePosition.Right);
+    node.setPosition(JmNodePosition.Center);
+    assert.strictEqual(node.position, JmNodePosition.Center);
+});
+
 test('JmNode.addChildNode', () => {
     const node = new JmNode('root');
     const child1 = new JmNode('child1');
@@ -68,7 +80,11 @@ test('JmNode.removeChildNode', () => {
     const child4 = new JmNode('child4');
     const child5 = new JmNode('child5');
 
-    node.addChildNode(child1).addChildNode(child2).addChildNode(child3).addChildNode(child4).addChildNode(child5);
+    node.addChildNode(child1)
+        .addChildNode(child2)
+        .addChildNode(child3)
+        .addChildNode(child4)
+        .addChildNode(child5);
     assert.strictEqual(node.children.length, 5);
     assert.deepStrictEqual(node.children.map(n=>n.id), ['child1', 'child2', 'child3', 'child4', 'child5']);
 
@@ -88,7 +104,8 @@ test('JmNode.removeChildNode', () => {
 test('JmNode.isRootNode', () => {
     const node = new JmNode('root');
     assert.strictEqual(node.isRootNode(), true);
-    const child1 = new JmNode('child').setParent(node);
+    const child1 = new JmNode('child')
+        .setParent(node);
     assert.strictEqual(child1.isRootNode(), false);
 });
 

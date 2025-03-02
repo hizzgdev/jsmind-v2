@@ -9,7 +9,7 @@ export class JmMind {
         this.options = mindOptions;
         this.observerManager = new JmObserverManager();
         this._nodes = {};
-        this._edges = [];
+        this._edges = {};
         this._initMindmap();
     }
 
@@ -20,14 +20,42 @@ export class JmMind {
     }
 
     _createRootNode() {
-        return this._newNode().setTopic(this.meta.name);
+        return this._newNode()
+            .setTopic(this.meta.name);
     }
 
+    /**
+     * create a new node, and add it to the mind
+     * @returns node
+     */
     _newNode() {
         const id = this.options.nodeIdGenerator.newId();
         const node = new JmNode(id);
         this._nodes[id] = node;
         return node;
+    }
+
+    /**
+     * create a new edge, add add it to the mind
+     * @param {JmNode} source
+     * @param {JmNode} target
+     * @param {JmEdgeType} type
+     */
+    _newEdge(source, target, type) {
+        const edgeId = this.options.edgeIdGenerator.newId();
+        const edge = new JmEdge(edgeId, source.id, target.id, type);
+        this._edges[edgeId] = edge;
+        return edge;
+    }
+
+    /**
+     * retrieve a node from the mindmap given a node id
+     * @param {String} nodeId the given node id
+     * @returns the corresponding node in this mindmap if exist, otherwise null
+     */
+    getNodeById(nodeId) {
+        const node = this._nodes[nodeId];
+        return !!node ? node : null;
     }
 
     /**
@@ -37,14 +65,15 @@ export class JmMind {
      * @returns {JmNode} child node
      */
     addChildNode(parent, topic) {
-        const node = this._newNode().setTopic(topic).setParent(parent);
+        // create and init a node
+        const node = this._newNode()
+            .setTopic(topic)
+            .setParent(parent);
         parent.addChildNode(node);
-
-        const edgeId = this.options.edgeIdGenerator.newId();
-        const edge = new JmEdge(edgeId, parent, node, JmEdgeType.CHILD);
-        this._edges.push(edge);
-
-        this.observerManager.notifyObservers(new JmMindEvent(JmMindEventType.NodeAdded, node));
+        // create a an edge
+        const edge = this._newEdge(parent, node, JmEdgeType.Child);
+        // emit event
+        this.observerManager.notifyObservers(new JmMindEvent(JmMindEventType.NodeAdded, {'node': node, 'edge': edge}));
         return node;
     }
 
@@ -53,25 +82,24 @@ export class JmMind {
      * @param {JmNode} node
      */
     removeNode(node) {
-        this._removeChildNodes(node);
-        this._removeReversedEdges(node);
-        this._removeEdgeByTarget(node);
-        delete this._nodes[node.id];
-    }
+        // remove node from parent's children
+        node.parent.removeChildNode(node);
 
-    /**
-     * remove child nodes
-     * @param {JmNode} node
-     */
-    _removeChildNodes(node) {
-        node.getChildNodes().forEach(n=>this.removeNode(n));
-    }
+        // identify all nodes that need to be cleared
+        const nodes = node.getAllSubnodes();
+        const nodeIds = new Set(nodes.map((n)=>n.id));
+        nodeIds.add(node.id);
 
-    _removeReversedEdges(node) {
-        node.getSourceNodes();
-    }
+        // remove those nodes
+        nodeIds.forEach((id)=> delete this._nodes[id]);
 
-    _removeEdgeByTarget(node) {
-        node.getChildNodes();
+        // remove all relevant edges
+        const edgeIds = Object.values(this._edges)
+            .filter((e)=>nodeIds.has(e.sourceNodeId) || nodeIds.has(e.targetNodeId))
+            .map((e) => e.id);
+        edgeIds.forEach((id) => delete this._edges[id]);
+
+        // emit event
+        this.observerManager.notifyObservers(new JmMindEvent(JmMindEventType.NodeRemoved, {'node': node, 'removedNodeIds': nodeIds, 'removedEdgeIds': new Set(edgeIds)}));
     }
 }

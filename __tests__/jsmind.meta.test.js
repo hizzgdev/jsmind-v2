@@ -15,5 +15,4 @@ test('metadata is not shared object', () => {
     const meta1 = metadata();
     const meta2 = metadata();
     assert.notEqual(meta1, meta2);
-}
-);
+});

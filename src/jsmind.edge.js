@@ -35,5 +35,5 @@ export class JmEdge {
  * Type of edge
  */
 export const JmEdgeType = {
-    CHILD: 1,
+    Child: 1,
 };
