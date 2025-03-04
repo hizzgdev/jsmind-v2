@@ -10,7 +10,7 @@ export class JmObserver {
      * @param {Object} observedObject
      * @param {Object} event
      */
-    onStateChanged(observedObject, event) {
+    update(observedObject, event) {
         throw new Error('not implemented', observedObject, event);
     }
 }

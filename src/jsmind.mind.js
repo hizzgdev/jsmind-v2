@@ -2,13 +2,19 @@ import { JmObserverManager } from './event/jsmind.observer.manager.js';
 import { JmEdge, JmEdgeType } from './jsmind.edge.js';
 import { metadata } from './jsmind.meta.js';
 import { JmNode } from './jsmind.node.js';
-import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.observer.js';
+import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.event.js';
 
 export class JmMind {
     constructor(mindOptions) {
         this.options = mindOptions;
-        this.observerManager = new JmObserverManager();
+        this.observerManager = new JmObserverManager(this);
+        /**
+         * @type {Object.<string, JmNode>}
+         */
         this._nodes = {};
+        /**
+         * @type {Object.<string, JmEdge>}
+         */
         this._edges = {};
         this._initMindmap();
     }
@@ -50,18 +56,18 @@ export class JmMind {
 
     /**
      * retrieve a node from the mindmap given a node id
-     * @param {String} nodeId the given node id
+     * @param {string} nodeId the given node id
      * @returns the corresponding node in this mindmap if exist, otherwise null
      */
     getNodeById(nodeId) {
         const node = this._nodes[nodeId];
-        return !!node ? node : null;
+        return !!node ? node.toReadonlyNode() : null;
     }
 
     /**
      * add a child node to the parent node
      * @param {JmNode} parent
-     * @param {String} topic
+     * @param {string} topic
      * @returns {JmNode} child node
      */
     addChildNode(parent, topic) {

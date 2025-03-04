@@ -6,7 +6,7 @@ import { JsMindError } from './jsmind.error.js';
 export class JmNode {
     /**
      * create a node
-     * @param {String} id
+     * @param {string} id
      */
     constructor(id) {
         if (!id) {
@@ -23,7 +23,7 @@ export class JmNode {
 
     /**
      * set topic of this node
-     * @param {String} topic
+     * @param {string} topic
      * @returns {JmNode} node's self
      */
     setTopic(topic) {
@@ -105,6 +105,14 @@ export class JmNode {
         this.children.forEach((node) => nodes.push(...node.getAllSubnodes()));
         return nodes;
     }
+
+    /**
+     * wrap this instance to make it readonly
+     * @returns {ReadonlyNode} readonly node
+     */
+    toReadonlyNode() {
+        return new ReadonlyNode(this);
+    }
 }
 
 export const JmNodePosition = {
@@ -112,3 +120,34 @@ export const JmNodePosition = {
     Center: 0,
     Right: 1,
 };
+
+
+export class ReadonlyNode {
+    constructor(node) {
+        this.node = node;
+    }
+
+    get id() {
+        return this.node.id;
+    }
+
+    get topic() {
+        return this.node.topic;
+    }
+
+    get parent() {
+        return !!this.node.parent ? new ReadonlyNode(this.node.parent) : null;
+    }
+
+    get children() {
+        return this.node.children.map(n=>new ReadonlyNode(n));
+    }
+
+    get folded() {
+        return this.node.folded;
+    }
+
+    get position() {
+        return this.node.position;
+    }
+}

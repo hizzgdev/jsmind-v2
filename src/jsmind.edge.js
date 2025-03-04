@@ -6,9 +6,9 @@ import { JsMindError } from './jsmind.error.js';
 export class JmEdge {
     /**
      * create an edge
-     * @param {String} id
-     * @param {String} sourceNodeId
-     * @param {String} targetNodeId
+     * @param {string} id
+     * @param {string} sourceNodeId
+     * @param {string} targetNodeId
      * @param {JmEdgeType} type
      */
     constructor(id, sourceNodeId, targetNodeId, type) {

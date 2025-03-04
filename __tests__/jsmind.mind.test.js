@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
 import { metadata } from '../src/jsmind.meta.js';
 import { JmMind } from '../src/jsmind.mind.js';
-import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.observer.js';
-import { JmNode } from '../src/jsmind.node.js';
+import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.event.js';
+import { JmNode, ReadonlyNode } from '../src/jsmind.node.js';
 import { JmEdge, JmEdgeType } from '../src/jsmind.edge.js';
 
 const mindOptions = {
@@ -35,13 +35,16 @@ test('construct JmMind', () => {
 test('JmMind.getNodeById', ()=>{
     mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
     const mind = new JmMind(mindOptions);
-    assert.strictEqual(mind.getNodeById('root'), mind.root);
+    const fetchedRoot = mind.getNodeById('root');
+    assert.ok(fetchedRoot instanceof ReadonlyNode);
+    const expectedRoot = mind.root.toReadonlyNode();
+    assert.deepStrictEqual(fetchedRoot, expectedRoot);
 
     mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'child1');
     const child1 = mind.addChildNode(mind.root, 'child1');
-    assert.strictEqual(mind.getNodeById('child1'), child1);
+    assert.deepStrictEqual(mind.getNodeById('child1'), child1.toReadonlyNode());
 
-    assert.strictEqual(mind.getNodeById('id-not-existing'), null);
+    assert.deepStrictEqual(mind.getNodeById('id-not-existing'), null);
 });
 
 test('JmMind.addChildNode', () => {

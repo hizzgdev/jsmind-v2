@@ -1,46 +1,24 @@
 import { JmObserver } from './jsmind.observer.js';
 
 /**
- * @interface
- * It's an interface inherited from JmObserver
+ * @class Observer of JmMind
  */
-export class JmMindEventListener extends JmObserver {
+export class JmMindObserver extends JmObserver {
+
+    /**
+     * create an observer on JmMind with a JmView instance
+     * @param {JmView} jmView
+     */
+    constructor(jmView) {
+        super();
+        this.view = jmView;
+    }
+
     /**
      * @param {JmMind} observedObject
      * @param {JmMindEvent} event
      */
-    onStateChanged(observedObject, event) {
-        this.onMindChanged(observedObject, event);
-    }
-
-    /**
-     * @param {JmMind} sender
-     * @param {JmMindEvent} event
-     */
-    onMindChanged(sender, event) {
-        throw new Error('not implemented', sender, event);
+    update(observedObject, event) {
+        throw new Error('not implemented', observedObject, event);
     }
 }
-
-/**
- * @class
- * Event data containing the state change in JmMind.
- */
-export class JmMindEvent {
-    /**
-     * @param {JmMindEventType} type
-     * @param {Object} data
-     */
-    constructor(type, data) {
-        this.type = type;
-        this.data = data;
-    }
-}
-
-/**
- * @enum
- */
-export const JmMindEventType = {
-    NodeAdded: 1,
-    NodeRemoved: 2,
-};

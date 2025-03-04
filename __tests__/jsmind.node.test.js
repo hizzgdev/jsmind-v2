@@ -124,3 +124,27 @@ test('JmNode.getAllSubnodes', () => {
     const allSubnodesOfChild1 = child1.getAllSubnodes();
     assert.deepStrictEqual(allSubnodesOfChild1.map(n=>n.id), ['child11', 'child12', 'child111', 'child112']);
 });
+
+test('JmNode.toReadonlyNode', ()=>{
+    const node1 = new JmNode('id-2') .setTopic('topic-2');
+    const node2 = new JmNode('id-3') .setTopic('topic-3');
+
+    const node = new JmNode('id-1')
+        .setTopic('topic')
+        .setParent()
+        .setFolded(true)
+        .setPosition(JmNodePosition.Left);
+
+    node.addChildNode(node1);
+    node.addChildNode(node2);
+    node1.setParent(node);
+    node2.setParent(node);
+
+    const readonlyNode = node.toReadonlyNode();
+
+    assert.throws(() => { readonlyNode.id = 'id-3'; });
+    assert.throws(() => { readonlyNode.topic = 'topic-1111'; });
+    assert.throws(() => { readonlyNode.parent = 'new parent';});
+    assert.throws(() => { readonlyNode.folded = true;});
+    assert.throws(() => { readonlyNode.position = JmNodePosition.Center;});
+});
