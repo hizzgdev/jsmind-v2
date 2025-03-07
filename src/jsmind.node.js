@@ -10,144 +10,76 @@ export class JmNode {
      */
     constructor(id) {
         if (!id) {
-            throw new JsMindError('invalid node id');
+            throw new JsMindError('Invalid node id');
         }
+        /**
+         * @member {string} id
+         */
         this.id = id;
+        /**
+         * @member {string}
+         */
         this.topic = null;
+        /**
+         * @member {JmNode}
+         */
         this.parent = null;
+        /**
+         * @member {JmNode[]}
+         */
         this.children = [];
+        /**
+         * @member {boolean}
+         */
         this.folded = false;
+        /**
+         * @member {JmNodePosition}
+         */
         this.position = null;
-        this._data = {};
+        /**
+         * @member {object}
+         */
+        this.data = {};
     }
 
     /**
-     * set topic of this node
-     * @param {string} topic
-     * @returns {JmNode} node's self
+     * List all subnode IDs
+     * @returns {string[]}
      */
-    setTopic(topic) {
-        this.topic = topic;
-        return this;
-    }
-
-    /**
-     * set parent of this node
-     * @param {JmNode} node parent node
-     * @returns {JmNode} node's self
-     */
-    setParent(node) {
-        if (node && !(node instanceof JmNode)) {
-            throw new JsMindError('invalid parent node');
+    getAllSubnodeIds() {
+        const nodeIds = [];
+        if(this.children.length>0) {
+            this.children.forEach((node)=>{
+                nodeIds.push(node.id);
+                nodeIds.push(...node.getAllSubnodeIds());
+            });
         }
-        this.parent = node;
-        return this;
+        return nodeIds;
     }
 
     /**
-     * set folded state of this node
-     * @param {boolean} folded
-     * @returns {JmNode} node's self
+     * Compare with other node
+     * @param {JmNode} other
+     * @returns {boolean} return true if they are equal, return false if not.
      */
-    setFolded(folded) {
-        this.folded = !!folded;
-        return this;
-    }
-
-    /**
-     * set position of this node
-     * @param {JmNodePosition} position
-     * @returns {JmNode} node's self
-     */
-    setPosition(position) {
-        this.position = position;
-        return this;
-    }
-
-    /**
-     * add child node to this node
-     * @param {JmNode} node child node
-     * @returns {JmNode} node's self
-     */
-    addChildNode(node) {
-        this.children.push(node);
-        return this;
-    }
-
-    /**
-     * remove a child node
-     * @param {JmNode} node
-     * @returns {JmNode} node's self
-     */
-    removeChildNode(node) {
-        const idx = this.children.indexOf(node);
-        if(idx>=0) {
-            this.children.splice(idx, 1);
-        }
-        return this;
-    }
-
-    /**
-     * indicates whether this node is root node
-     * @returns true if this node is root node
-     */
-    isRootNode() {
-        return this.parent === null;
-    }
-
-    /**
-     * list all subnodes
-     * @returns {Array<JmNode>}
-     */
-    getAllSubnodes() {
-        const nodes = [];
-        nodes.push(...this.children);
-        this.children.forEach((node) => nodes.push(...node.getAllSubnodes()));
-        return nodes;
-    }
-
-    /**
-     * wrap this instance to make it readonly
-     * @returns {ReadonlyNode} readonly node
-     */
-    toReadonlyNode() {
-        return new ReadonlyNode(this);
+    equals(other) {
+        return this.id === other.id
+        && this.topic === other.topic
+        && this.folded === other.folded
+        && this.position === other.position
+        && ((this.parent === null && other.parent === null) || (this.parent.id === other.parent.id))
+        && this.children.length === other.children.length
+        && this.children.every((child, idx, _)=>{ return child.id === other.children[idx].id; });
     }
 }
 
+/**
+ * Enum for positions of node
+ * @readonly
+ * @enum {number}
+ */
 export const JmNodePosition = {
     Left: -1,
     Center: 0,
     Right: 1,
 };
-
-
-export class ReadonlyNode {
-    constructor(node) {
-        this.node = node;
-    }
-
-    get id() {
-        return this.node.id;
-    }
-
-    get topic() {
-        return this.node.topic;
-    }
-
-    get parent() {
-        return !!this.node.parent ? new ReadonlyNode(this.node.parent) : null;
-    }
-
-    get children() {
-        return this.node.children.map(n=>new ReadonlyNode(n));
-    }
-
-    get folded() {
-        return this.node.folded;
-    }
-
-    get position() {
-        return this.node.position;
-    }
-}

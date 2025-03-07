@@ -11,7 +11,7 @@ test('JmNode', () => {
     assert.strictEqual(node.position, null);
     assert.strictEqual(node.children.length, 0);
     assert.strictEqual(node.folded, false);
-    assert.deepEqual(node._data, {});
+    assert.deepEqual(node.data, {});
 });
 
 test('JmNode with null id', () => {
@@ -20,96 +20,7 @@ test('JmNode with null id', () => {
     });
 });
 
-test('JmNode.setTopic', () => {
-    const node = new JmNode('root')
-        .setTopic('root');
-    assert.strictEqual(node.topic, 'root');
-});
-
-test('JmNode.setParent', () => {
-    const node = new JmNode('root');
-    assert.strictEqual(node.parent, null);
-    const parent = new JmNode('parent');
-    node.setParent(parent);
-    assert.strictEqual(node.parent, parent);
-});
-
-test('JmNode.setParent with invalid parent', () => {
-    const node = new JmNode('root');
-    assert.throws(() => {
-        node.setParent('invalid parent');
-    });
-});
-
-test('JmNode.setFolded', () => {
-    const node = new JmNode('root');
-    assert.strictEqual(node.folded, false);
-    node.setFolded(true);
-    assert.strictEqual(node.folded, true);
-});
-
-test('JmNode.setPosition', ()=>{
-    const node = new JmNode('root');
-    node.setPosition(JmNodePosition.Left);
-    assert.strictEqual(node.position, JmNodePosition.Left);
-    node.setPosition(JmNodePosition.Right);
-    assert.strictEqual(node.position, JmNodePosition.Right);
-    node.setPosition(JmNodePosition.Center);
-    assert.strictEqual(node.position, JmNodePosition.Center);
-});
-
-test('JmNode.addChildNode', () => {
-    const node = new JmNode('root');
-    const child1 = new JmNode('child1');
-    const child2 = new JmNode('child2');
-
-    node.addChildNode(child1);
-    assert.strictEqual(node.children.length, 1);
-    assert.strictEqual(node.children[0], child1);
-
-    node.addChildNode(child2);
-    assert.strictEqual(node.children.length, 2);
-    assert.strictEqual(node.children[1], child2);
-});
-
-test('JmNode.removeChildNode', () => {
-    const node = new JmNode('root');
-    const child1 = new JmNode('child1');
-    const child2 = new JmNode('child2');
-    const child3 = new JmNode('child3');
-    const child4 = new JmNode('child4');
-    const child5 = new JmNode('child5');
-
-    node.addChildNode(child1)
-        .addChildNode(child2)
-        .addChildNode(child3)
-        .addChildNode(child4)
-        .addChildNode(child5);
-    assert.strictEqual(node.children.length, 5);
-    assert.deepStrictEqual(node.children.map(n=>n.id), ['child1', 'child2', 'child3', 'child4', 'child5']);
-
-    node.removeChildNode(child1);
-    assert.strictEqual(node.children.length, 4);
-    assert.deepStrictEqual(node.children.map(n=>n.id), ['child2', 'child3', 'child4', 'child5']);
-
-    node.removeChildNode(child5);
-    assert.strictEqual(node.children.length, 3);
-    assert.deepStrictEqual(node.children.map(n=>n.id), ['child2', 'child3', 'child4']);
-
-    node.removeChildNode(child3);
-    assert.strictEqual(node.children.length, 2);
-    assert.deepStrictEqual(node.children.map(n=>n.id), ['child2', 'child4']);
-});
-
-test('JmNode.isRootNode', () => {
-    const node = new JmNode('root');
-    assert.strictEqual(node.isRootNode(), true);
-    const child1 = new JmNode('child')
-        .setParent(node);
-    assert.strictEqual(child1.isRootNode(), false);
-});
-
-test('JmNode.getAllSubnodes', () => {
+test('JmNode.getAllSubnodeIds', () => {
     const node = new JmNode('root');
     const child1 = new JmNode('child1');
     const child12 = new JmNode('child12');
@@ -117,34 +28,88 @@ test('JmNode.getAllSubnodes', () => {
     const child111 = new JmNode('child111');
     const child112 = new JmNode('child112');
 
-    child11.addChildNode(child111).addChildNode(child112);
-    child1.addChildNode(child11).addChildNode(child12);
-    node.addChildNode(child1);
+    child11.children.push(child111, child112);
+    child1.children.push(child11, child12);
+    node.children.push(child1);
 
-    const allSubnodesOfChild1 = child1.getAllSubnodes();
-    assert.deepStrictEqual(allSubnodesOfChild1.map(n=>n.id), ['child11', 'child12', 'child111', 'child112']);
+    assert.deepStrictEqual(child1.getAllSubnodeIds(), ['child11', 'child111', 'child112', 'child12']);
 });
 
-test('JmNode.toReadonlyNode', ()=>{
-    const node1 = new JmNode('id-2') .setTopic('topic-2');
-    const node2 = new JmNode('id-3') .setTopic('topic-3');
+test('JmNode.equals returns true', () => {
+    const root = new JmNode('root');
+    assert.ok(root.equals(root));
 
-    const node = new JmNode('id-1')
-        .setTopic('topic')
-        .setParent()
-        .setFolded(true)
-        .setPosition(JmNodePosition.Left);
+    const node1A = new JmNode('node1');
+    const node1B = new JmNode('node1');
+    assert.ok(node1A.equals(node1B));
 
-    node.addChildNode(node1);
-    node.addChildNode(node2);
-    node1.setParent(node);
-    node2.setParent(node);
+    root.children.push(node1A, node1B);
+    node1A.parent = root;
+    node1B.parent = root;
+    assert.ok(root.equals(root));
+    assert.ok(node1A.equals(node1B));
 
-    const readonlyNode = node.toReadonlyNode();
+    const node2 = new JmNode('node2');
+    node1A.children.push(node2);
+    node1B.children.push(node2);
+    assert.ok(root.equals(root));
+    assert.ok(node1A.equals(node1B));
 
-    assert.throws(() => { readonlyNode.id = 'id-3'; });
-    assert.throws(() => { readonlyNode.topic = 'topic-1111'; });
-    assert.throws(() => { readonlyNode.parent = 'new parent';});
-    assert.throws(() => { readonlyNode.folded = true;});
-    assert.throws(() => { readonlyNode.position = JmNodePosition.Center;});
+    node1A.topic = 'topic';
+    node1A.position = JmNodePosition.Left;
+    node1A.folded = false;
+    node1B.topic = 'topic';
+    node1B.position = JmNodePosition.Left;
+    node1B.folded = false;
+    assert.ok(node1A.equals(node1B));
+});
+
+test('JmNode.equals returns false', () => {
+    const node1A = new JmNode('node1');
+    const node1B = new JmNode('node1B');
+    assert.ok(!node1A.equals(node1B));
+
+    node1B.id = 'node1';
+    node1A.topic = 'topic1';
+    node1B.topic = 'topic1B';
+    assert.ok(!node1A.equals(node1B));
+
+    node1B.topic = 'topic1';
+    assert.ok(node1A.equals(node1B));
+
+    const node2 = new JmNode('node2');
+    const node3 = new JmNode('node3');
+    node1A.children.push(node2, node3);
+    node1B.children.push(node2);
+    assert.ok(!node1A.equals(node1B));
+
+    node1B.children.push(node3);
+    assert.ok(node1A.equals(node1B));
+
+    const root1 = new JmNode('root1');
+    const root2 = new JmNode('root2');
+    node1A.parent = root1;
+    node1B.parent = root2;
+    assert.ok(!node1A.equals(node1B));
+
+    root2.id = 'root1';
+    assert.ok(node1A.equals(node1B));
+
+    node1A.topic = 'topic';
+    node1B.topic = 'topic2';
+    assert.ok(!node1A.equals(node1B));
+
+    node1B.topic = 'topic';
+    assert.ok(node1A.equals(node1B));
+
+    node1A.position = JmNodePosition.Left;
+    node1B.position = JmNodePosition.Right;
+    assert.ok(!node1A.equals(node1B));
+
+    node1B.position = JmNodePosition.Left;
+    assert.ok(node1A.equals(node1B));
+
+    node1A.folded = false;
+    node1B.folded = true;
+    assert.ok(!node1A.equals(node1B));
 });
