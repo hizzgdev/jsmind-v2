@@ -5,6 +5,7 @@ import { JmMind } from '../src/jsmind.mind.js';
 import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.event.js';
 import { JmNode, JmNodePosition} from '../src/jsmind.node.js';
 import { JmEdge, JmEdgeType } from '../src/jsmind.edge.js';
+import { createTextContent } from '../src/jsmind.node.content.js';
 
 const mindOptions = {
     seq: 1,
@@ -29,7 +30,7 @@ test('construct JmMind', () => {
 
     assert.ok(mind.root);
     assert.strictEqual(mind.root.id, 'root');
-    assert.strictEqual(mind.root.topic, mind.meta.name);
+    assert.strictEqual(mind.root.content.value, mind.meta.name);
 });
 
 test('JmMind.findNodeById', ()=>{
@@ -55,12 +56,12 @@ test('JmMind.addChildNode', () => {
 
     assert.ok(child);
     assert.strictEqual(child.id, 'node1');
-    assert.strictEqual(child.topic, 'child');
+    assert.strictEqual(child.content.value, 'child');
     assert.strictEqual(child.parent.id, mind.root.id);
 
     const retrievedNode = mind.findNodeById(child.id);
     assert.strictEqual(retrievedNode.id, child.id);
-    assert.strictEqual(retrievedNode.topic, child.topic);
+    assert.strictEqual(retrievedNode.content.value, child.content.value);
 
     const edge1 = mind._edges['edge1'];
     assert.ok(edge1);
@@ -82,7 +83,7 @@ test('Observe adding nodes', () => {
     const eventData = event1.data;
     assert.ok(eventData.node);
     assert.ok(eventData.node instanceof JmNode);
-    assert.strictEqual(eventData.node.topic, 'child1');
+    assert.strictEqual(eventData.node.content.value, 'child1');
     assert.ok(eventData.node.parent.equals(mind.root));
     assert.ok(eventData.edge);
     assert.ok(eventData.edge instanceof JmEdge);
@@ -243,7 +244,7 @@ test('Observe update node', () => {
     const mind = new JmMind(mindOptions);
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
     const node1 = mind.addChildNode(mind.root.id, 'node1');
-    node1.topic = 'new name of node1';
+    node1.content = createTextContent('new name of node1');
     node1.position = JmNodePosition.Right;
     node1.folded = true;
     node1.data['a'] = 'b';
@@ -257,9 +258,9 @@ test('Observe update node', () => {
     }));
 
     assert.equal(events[0].data.node.id, node1.id);
-    assert.equal(events[0].data.property, 'topic');
-    assert.equal(events[0].data.originValue, 'node1');
-    assert.equal(events[0].data.newValue, 'new name of node1');
+    assert.equal(events[0].data.property, 'content');
+    assert.equal(events[0].data.originValue.value, 'node1');
+    assert.equal(events[0].data.newValue.value, 'new name of node1');
 
     assert.equal(events[1].data.node.id, node1.id);
     assert.equal(events[1].data.property, 'position');

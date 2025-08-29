@@ -10,7 +10,7 @@ test('JmNode', () => {
     const node = new JmNode('1', testContent);
     assert.ok(node);
     assert.strictEqual(node.id, '1');
-    assert.strictEqual(node.topic, '');
+    assert.strictEqual(node.content.value, '');
     assert.strictEqual(node.parent, null);
     assert.strictEqual(node.position, null);
     assert.strictEqual(node.children.length, 0);
@@ -59,10 +59,10 @@ test('JmNode.equals returns true', () => {
     assert.ok(root.equals(root));
     assert.ok(node1A.equals(node1B));
 
-    node1A.topic = 'topic';
+    node1A.content = createTextContent('topic');
     node1A.position = JmNodePosition.Left;
     node1A.folded = false;
-    node1B.topic = 'topic';
+    node1B.content = createTextContent('topic');
     node1B.position = JmNodePosition.Left;
     node1B.folded = false;
     assert.ok(node1A.equals(node1B));
@@ -74,11 +74,11 @@ test('JmNode.equals returns false', () => {
     assert.ok(!node1A.equals(node1B));
 
     node1B.id = 'node1';
-    node1A.topic = 'topic1';
-    node1B.topic = 'topic1B';
+    node1A.content = createTextContent('topic1');
+    node1B.content = createTextContent('topic1B');
     assert.ok(!node1A.equals(node1B));
 
-    node1B.topic = 'topic1';
+    node1B.content = createTextContent('topic1');
     assert.ok(node1A.equals(node1B));
 
     const node2 = new JmNode('node2', testContent);
@@ -99,11 +99,11 @@ test('JmNode.equals returns false', () => {
     root2.id = 'root1';
     assert.ok(node1A.equals(node1B));
 
-    node1A.topic = 'topic';
-    node1B.topic = 'topic2';
+    node1A.content = createTextContent('topic');
+    node1B.content = createTextContent('topic2');
     assert.ok(!node1A.equals(node1B));
 
-    node1B.topic = 'topic';
+    node1B.content = createTextContent('topic');
     assert.ok(node1A.equals(node1B));
 
     node1A.position = JmNodePosition.Left;

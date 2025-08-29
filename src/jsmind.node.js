@@ -48,26 +48,6 @@ export class JmNode {
     }
 
     /**
-     * Getter for topic (backward compatibility)
-     * @returns {string|null}
-     */
-    get topic() {
-        return this.content && this.content.type === 'text' ? this.content.value : null;
-    }
-
-    /**
-     * Setter for topic (backward compatibility)
-     * @param {string} value
-     */
-    set topic(value) {
-        if (value !== null && value !== undefined) {
-            this.content = { type: 'text', value: value };
-        } else {
-            this.content = null;
-        }
-    }
-
-    /**
      * List all subnode IDs
      * @returns {string[]}
      */
