@@ -7,21 +7,26 @@ export class JmNode {
     /**
      * create a node
      * @param {string} id
+     * @param {JmNodeContent} content
      */
-    constructor(id) {
+    constructor(id, content) {
         if (!id) {
             throw new JsMindError('Invalid node id');
         }
+        if (!content) {
+            throw new JsMindError('Content is required');
+        }
+
         /**
          * @member {string} id
          */
         this.id = id;
         /**
-         * @member {string}
+         * @member {JmNodeContent}
          */
-        this.topic = null;
+        this.content = content;
         /**
-         * @member {JmNode}
+         * @member {JmNode|null}
          */
         this.parent = null;
         /**
@@ -40,6 +45,26 @@ export class JmNode {
          * @member {object}
          */
         this.data = {};
+    }
+
+    /**
+     * Getter for topic (backward compatibility)
+     * @returns {string|null}
+     */
+    get topic() {
+        return this.content && this.content.type === 'text' ? this.content.value : null;
+    }
+
+    /**
+     * Setter for topic (backward compatibility)
+     * @param {string} value
+     */
+    set topic(value) {
+        if (value !== null && value !== undefined) {
+            this.content = { type: 'text', value: value };
+        } else {
+            this.content = null;
+        }
     }
 
     /**
@@ -64,7 +89,8 @@ export class JmNode {
      */
     equals(other) {
         return this.id === other.id
-        && this.topic === other.topic
+        && this.content.type === other.content.type
+        && this.content.value === other.content.value
         && this.folded === other.folded
         && this.position === other.position
         && ((this.parent === null && other.parent === null) || (this.parent.id === other.parent.id))

@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JmNode, JmNodePosition } from '../src/jsmind.node.js';
+import { createTextContent } from '../src/jsmind.node.content.js';
+
+// Shared test content for tests
+const testContent = createTextContent('');
 
 test('JmNode', () => {
-    const node = new JmNode('1');
+    const node = new JmNode('1', testContent);
     assert.ok(node);
     assert.strictEqual(node.id, '1');
-    assert.strictEqual(node.topic, null);
+    assert.strictEqual(node.topic, '');
     assert.strictEqual(node.parent, null);
     assert.strictEqual(node.position, null);
     assert.strictEqual(node.children.length, 0);
@@ -21,12 +25,12 @@ test('JmNode with null id', () => {
 });
 
 test('JmNode.getAllSubnodeIds', () => {
-    const node = new JmNode('root');
-    const child1 = new JmNode('child1');
-    const child12 = new JmNode('child12');
-    const child11 = new JmNode('child11');
-    const child111 = new JmNode('child111');
-    const child112 = new JmNode('child112');
+    const node = new JmNode('root', testContent);
+    const child1 = new JmNode('child1', testContent);
+    const child12 = new JmNode('child12', testContent);
+    const child11 = new JmNode('child11', testContent);
+    const child111 = new JmNode('child111', testContent);
+    const child112 = new JmNode('child112', testContent);
 
     child11.children.push(child111, child112);
     child1.children.push(child11, child12);
@@ -36,11 +40,11 @@ test('JmNode.getAllSubnodeIds', () => {
 });
 
 test('JmNode.equals returns true', () => {
-    const root = new JmNode('root');
+    const root = new JmNode('root', testContent);
     assert.ok(root.equals(root));
 
-    const node1A = new JmNode('node1');
-    const node1B = new JmNode('node1');
+    const node1A = new JmNode('node1', testContent);
+    const node1B = new JmNode('node1', testContent);
     assert.ok(node1A.equals(node1B));
 
     root.children.push(node1A, node1B);
@@ -49,7 +53,7 @@ test('JmNode.equals returns true', () => {
     assert.ok(root.equals(root));
     assert.ok(node1A.equals(node1B));
 
-    const node2 = new JmNode('node2');
+    const node2 = new JmNode('node2', testContent);
     node1A.children.push(node2);
     node1B.children.push(node2);
     assert.ok(root.equals(root));
@@ -65,8 +69,8 @@ test('JmNode.equals returns true', () => {
 });
 
 test('JmNode.equals returns false', () => {
-    const node1A = new JmNode('node1');
-    const node1B = new JmNode('node1B');
+    const node1A = new JmNode('node1', testContent);
+    const node1B = new JmNode('node1B', testContent);
     assert.ok(!node1A.equals(node1B));
 
     node1B.id = 'node1';
@@ -77,8 +81,8 @@ test('JmNode.equals returns false', () => {
     node1B.topic = 'topic1';
     assert.ok(node1A.equals(node1B));
 
-    const node2 = new JmNode('node2');
-    const node3 = new JmNode('node3');
+    const node2 = new JmNode('node2', testContent);
+    const node3 = new JmNode('node3', testContent);
     node1A.children.push(node2, node3);
     node1B.children.push(node2);
     assert.ok(!node1A.equals(node1B));
@@ -86,8 +90,8 @@ test('JmNode.equals returns false', () => {
     node1B.children.push(node3);
     assert.ok(node1A.equals(node1B));
 
-    const root1 = new JmNode('root1');
-    const root2 = new JmNode('root2');
+    const root1 = new JmNode('root1', testContent);
+    const root2 = new JmNode('root2', testContent);
     node1A.parent = root1;
     node1B.parent = root2;
     assert.ok(!node1A.equals(node1B));
