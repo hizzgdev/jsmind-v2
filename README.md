@@ -11,3 +11,8 @@ Development Environment
 - Node.js (for dev): v23.9.0
 
 
+
+TODO
+---
+
+- Serialization in node_tree and freemind format, the AI-generated serialization should be rewritten.
