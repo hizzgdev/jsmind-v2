@@ -3,14 +3,22 @@ import { JmEdge, JmEdgeType } from './jsmind.edge.js';
 import { DEFAULT_METADATA } from './jsmind.meta.js';
 import { JmNode } from './jsmind.node.js';
 import { JmNodeContent } from './jsmind.node.content.js';
+import { DEFAULT_OPTIONS } from './jsmind.options.js';
 
 import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.event.js';
 import { JsMindError } from './jsmind.error.js';
 import { JmMindSerializationManager } from './serialization/jsmind.serialization.manager.js';
 
 export class JmMind {
+    /**
+     * Create a new mind map
+     * @param {import('./jsmind.options.js').MindOptions} [mindOptions] - Configuration options for the mind map
+     */
     constructor(mindOptions) {
-        this.options = mindOptions;
+        /**
+         * @type {import('./jsmind.options.js').MindOptions}
+         */
+        this.options = this._mergeOptions(mindOptions);
         this.observerManager = new JmObserverManager(this);
         this.nodeManager = new JmNodeManager(this);
         /**
@@ -28,6 +36,25 @@ export class JmMind {
         this._initMindmap();
     }
 
+    /**
+     * Merge user options with default options
+     * @param {import('./jsmind.options.js').MindOptions} [userOptions] - User-provided options
+     * @returns {import('./jsmind.options.js').MindOptions} Merged options
+     * @private
+     */
+    _mergeOptions(userOptions) {
+        const defaultOptions = DEFAULT_OPTIONS.mind;
+
+        if (!userOptions) {
+            return { ...defaultOptions };
+        }
+
+        return {
+            ...defaultOptions,
+            ...userOptions
+        };
+    }
+
     _initMindmap() {
         this.meta = DEFAULT_METADATA;
         this._root = this._createRootNode();
@@ -35,30 +62,31 @@ export class JmMind {
     }
 
     _createRootNode() {
-        const node = this._newNode(JmNodeContent.createText(this.meta.name));
+        const node = this._newNode(this.options.rootNodeId, JmNodeContent.createText(this.meta.name));
         return node;
     }
 
     /**
      * create a new node, and add it to the mind
+     * @param {string} nodeId - The ID for the new node
      * @param {JmNodeContent} content - Content for the node
-     * @returns node
+     * @returns {JmNode} The created node
      */
-    _newNode(content) {
-        const id = this.options.nodeIdGenerator.newId();
-        const node = new JmNode(id, content);
-        this._nodes[id] = node;
+    _newNode(nodeId, content) {
+        const node = new JmNode(nodeId, content);
+        this._nodes[nodeId] = node;
         return node;
     }
 
     /**
-     * create a new edge, add add it to the mind
-     * @param {JmNode} source
-     * @param {JmNode} target
-     * @param {JmEdgeType} type
+     * create a new edge, and add it to the mind
+     * @param {string} edgeId - The ID for the new edge
+     * @param {JmNode} source - The source node
+     * @param {JmNode} target - The target node
+     * @param {JmEdgeType} type - The type of edge
+     * @returns {JmEdge} The created edge
      */
-    _newEdge(source, target, type) {
-        const edgeId = this.options.edgeIdGenerator.newId();
+    _newEdge(edgeId, source, target, type) {
         const edge = new JmEdge(edgeId, source.id, target.id, type);
         this._edges[edgeId] = edge;
         return edge;
@@ -105,12 +133,14 @@ export class JmMind {
     addChildNode(parentId, content) {
         const existedParent = this._getNodeById(parentId);
         // create and init a node
-        const node = this._newNode(content);
+        const nodeId = this.options.nodeIdGenerator.newId();
+        const node = this._newNode(nodeId, content);
         node.parent = existedParent;
         // add to parent's children
         existedParent.children.push(node);
-        // create a an edge
-        const edge = this._newEdge(existedParent, node, JmEdgeType.Child);
+        // create an edge
+        const edgeId = this.options.edgeIdGenerator.newId();
+        const edge = this._newEdge(edgeId, existedParent, node, JmEdgeType.Child);
         // emit event
         this.observerManager.notifyObservers(new JmMindEvent(
             JmMindEventType.NodeAdded,

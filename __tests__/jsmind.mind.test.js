@@ -33,6 +33,65 @@ test('construct JmMind', () => {
     assert.strictEqual(mind.root.content.value, mind.meta.name);
 });
 
+test('construct JmMind with no options - uses defaults', () => {
+    const mind = new JmMind();
+    assert.ok(mind);
+    assert.ok(mind.options);
+    assert.ok(mind.options.nodeIdGenerator);
+    assert.ok(mind.options.edgeIdGenerator);
+    assert.strictEqual(mind.options.rootNodeId, 'root');
+
+    // Check root node ID
+    assert.strictEqual(mind.root.id, 'root');
+
+    // Add a child node and check its ID and edge ID
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+    assert.ok(child);
+    assert.ok(child.id.startsWith('node_')); // Default ID generator pattern starts with 'node_'
+    assert.strictEqual(child.content.value, 'child1');
+
+    // Check that an edge was created with the correct pattern
+    const edgeIds = Object.keys(mind._edges);
+    assert.strictEqual(edgeIds.length, 1);
+    assert.ok(edgeIds[0].startsWith('edge_')); // Default edge ID generator pattern starts with 'edge_'
+});
+
+test('construct JmMind with partial options - merges with defaults', () => {
+    const customNodeIdGenerator = {
+        newId: mock.fn(() => 'custom_node_1')
+    };
+    const customEdgeIdGenerator = {
+        newId: mock.fn(() => 'custom_edge_1')
+    };
+
+    const mind = new JmMind({
+        nodeIdGenerator: customNodeIdGenerator,
+        edgeIdGenerator: customEdgeIdGenerator,
+        rootNodeId: 'custom_root'
+    });
+
+    assert.ok(mind);
+    assert.ok(mind.options);
+    // Custom options should be used
+    assert.strictEqual(mind.options.nodeIdGenerator, customNodeIdGenerator);
+    assert.strictEqual(mind.options.edgeIdGenerator, customEdgeIdGenerator);
+    assert.strictEqual(mind.options.rootNodeId, 'custom_root');
+
+    // Check root node ID (should use custom value)
+    assert.strictEqual(mind.root.id, 'custom_root');
+
+    // Add a child node and check its ID and edge ID (should use custom generators)
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+    assert.ok(child);
+    assert.strictEqual(child.id, 'custom_node_1'); // Custom ID generator should be used
+    assert.strictEqual(child.content.value, 'child1');
+
+    // Check that an edge was created with the custom ID
+    const edgeIds = Object.keys(mind._edges);
+    assert.strictEqual(edgeIds.length, 1);
+    assert.strictEqual(edgeIds[0], 'custom_edge_1'); // Custom edge ID generator should be used
+});
+
 test('JmMind.findNodeById', ()=>{
     mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
     const mind = new JmMind(mindOptions);
