@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JmNode, JmNodePosition } from '../src/jsmind.node.js';
-import { createTextContent } from '../src/jsmind.node.content.js';
+import { JmNodeContent } from '../src/jsmind.node.content.js';
 
 // Shared test content for tests
-const testContent = createTextContent('');
+const testContent = JmNodeContent.createText('');
 
 test('JmNode', () => {
     const node = new JmNode('1', testContent);
@@ -59,10 +59,10 @@ test('JmNode.equals returns true', () => {
     assert.ok(root.equals(root));
     assert.ok(node1A.equals(node1B));
 
-    node1A.content = createTextContent('topic');
+    node1A.content = JmNodeContent.createText('topic');
     node1A.position = JmNodePosition.Left;
     node1A.folded = false;
-    node1B.content = createTextContent('topic');
+    node1B.content = JmNodeContent.createText('topic');
     node1B.position = JmNodePosition.Left;
     node1B.folded = false;
     assert.ok(node1A.equals(node1B));
@@ -74,11 +74,11 @@ test('JmNode.equals returns false', () => {
     assert.ok(!node1A.equals(node1B));
 
     node1B.id = 'node1';
-    node1A.content = createTextContent('topic1');
-    node1B.content = createTextContent('topic1B');
+    node1A.content = JmNodeContent.createText('topic1');
+    node1B.content = JmNodeContent.createText('topic1B');
     assert.ok(!node1A.equals(node1B));
 
-    node1B.content = createTextContent('topic1');
+    node1B.content = JmNodeContent.createText('topic1');
     assert.ok(node1A.equals(node1B));
 
     const node2 = new JmNode('node2', testContent);
@@ -99,11 +99,11 @@ test('JmNode.equals returns false', () => {
     root2.id = 'root1';
     assert.ok(node1A.equals(node1B));
 
-    node1A.content = createTextContent('topic');
-    node1B.content = createTextContent('topic2');
+    node1A.content = JmNodeContent.createText('topic');
+    node1B.content = JmNodeContent.createText('topic2');
     assert.ok(!node1A.equals(node1B));
 
-    node1B.content = createTextContent('topic');
+    node1B.content = JmNodeContent.createText('topic');
     assert.ok(node1A.equals(node1B));
 
     node1A.position = JmNodePosition.Left;

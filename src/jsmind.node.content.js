@@ -45,13 +45,13 @@ export class JmNodeContent {
     isText() {
         return this.hasType(JmNodeContentType.Text);
     }
-}
 
-/**
- * Create a text content object
- * @param {string} text - The text content
- * @returns {JmNodeContent} The content object
- */
-export function createTextContent(text) {
-    return new JmNodeContent(JmNodeContentType.Text, text);
+    /**
+     * Create a text content object
+     * @param {string} text - The text content
+     * @returns {JmNodeContent} The content object
+     */
+    static createText(text) {
+        return new JmNodeContent(JmNodeContentType.Text, text);
+    }
 }

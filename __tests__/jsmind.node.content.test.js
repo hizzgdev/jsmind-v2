@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmNodeContentType, JmNodeContent, createTextContent } from '../src/jsmind.node.content.js';
+import { JmNodeContentType, JmNodeContent } from '../src/jsmind.node.content.js';
 
 test('JmNodeContentType enum', () => {
     assert.ok(JmNodeContentType);
@@ -92,44 +92,44 @@ test('JmNodeContent.isText with non-text type', () => {
     assert.ok(content.isText());
 });
 
-test('createTextContent with string', () => {
-    const content = createTextContent('Hello World');
+test('JmNodeContent.createText with string', () => {
+    const content = JmNodeContent.createText('Hello World');
     assert.ok(content instanceof JmNodeContent);
     assert.strictEqual(content.type, JmNodeContentType.Text);
     assert.strictEqual(content.value, 'Hello World');
 });
 
-test('createTextContent with empty string', () => {
-    const content = createTextContent('');
+test('JmNodeContent.createText with empty string', () => {
+    const content = JmNodeContent.createText('');
     assert.ok(content instanceof JmNodeContent);
     assert.strictEqual(content.type, JmNodeContentType.Text);
     assert.strictEqual(content.value, '');
 });
 
-test('createTextContent with null', () => {
-    const content = createTextContent(null);
+test('JmNodeContent.createText with null', () => {
+    const content = JmNodeContent.createText(null);
     assert.ok(content instanceof JmNodeContent);
     assert.strictEqual(content.type, JmNodeContentType.Text);
     assert.strictEqual(content.value, null);
 });
 
-test('createTextContent with undefined', () => {
-    const content = createTextContent(undefined);
+test('JmNodeContent.createText with undefined', () => {
+    const content = JmNodeContent.createText(undefined);
     assert.ok(content instanceof JmNodeContent);
     assert.strictEqual(content.type, JmNodeContentType.Text);
     assert.strictEqual(content.value, undefined);
 });
 
-test('createTextContent with number', () => {
-    const content = createTextContent(42);
+test('JmNodeContent.createText with number', () => {
+    const content = JmNodeContent.createText(42);
     assert.ok(content instanceof JmNodeContent);
     assert.strictEqual(content.type, JmNodeContentType.Text);
     assert.strictEqual(content.value, 42);
 });
 
-test('createTextContent with object', () => {
+test('JmNodeContent.createText with object', () => {
     const obj = { name: 'test', value: 123 };
-    const content = createTextContent(obj);
+    const content = JmNodeContent.createText(obj);
     assert.ok(content instanceof JmNodeContent);
     assert.strictEqual(content.type, JmNodeContentType.Text);
     assert.deepStrictEqual(content.value, obj);

@@ -2,7 +2,8 @@ import { JmObserverManager } from './event/jsmind.observer.manager.js';
 import { JmEdge, JmEdgeType } from './jsmind.edge.js';
 import { DEFAULT_METADATA } from './jsmind.meta.js';
 import { JmNode } from './jsmind.node.js';
-import { createTextContent } from './jsmind.node.content.js';
+import { JmNodeContent } from './jsmind.node.content.js';
+
 import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.event.js';
 import { JsMindError } from './jsmind.error.js';
 
@@ -29,7 +30,7 @@ export class JmMind {
     }
 
     _createRootNode() {
-        const node = this._newNode(createTextContent(this.meta.name));
+        const node = this._newNode(JmNodeContent.createText(this.meta.name));
         return node;
     }
 
@@ -93,13 +94,13 @@ export class JmMind {
     /**
      * add a child node to the parent node
      * @param {string} parentId parent node Id
-     * @param {string} topic
+     * @param {JmNodeContent} content
      * @returns {JmNode} the added child node
      */
-    addChildNode(parentId, topic) {
+    addChildNode(parentId, content) {
         const existedParent = this._getNodeById(parentId);
         // create and init a node
-        const node = this._newNode(createTextContent(topic));
+        const node = this._newNode(content);
         node.parent = existedParent;
         // add to parent's children
         existedParent.children.push(node);

@@ -5,7 +5,7 @@ import { JmMind } from '../src/jsmind.mind.js';
 import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.event.js';
 import { JmNode, JmNodePosition} from '../src/jsmind.node.js';
 import { JmEdge, JmEdgeType } from '../src/jsmind.edge.js';
-import { createTextContent } from '../src/jsmind.node.content.js';
+import { JmNodeContent } from '../src/jsmind.node.content.js';
 
 const mindOptions = {
     seq: 1,
@@ -40,7 +40,7 @@ test('JmMind.findNodeById', ()=>{
     assert.ok(fetchedRoot);
 
     mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'child1');
-    const child1 = mind.addChildNode(mind.root.id, 'child1');
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const foundChild1 = mind.findNodeById('child1');
     assert.strictEqual(foundChild1.id, child1.id);
 
@@ -52,7 +52,7 @@ test('JmMind.addChildNode', () => {
     const mind = new JmMind(mindOptions);
     mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'node1');
     mindOptions.edgeIdGenerator.newId.mock.mockImplementationOnce(()=>'edge1');
-    const child = mind.addChildNode('root', 'child');
+    const child = mind.addChildNode('root', JmNodeContent.createText('child'));
 
     assert.ok(child);
     assert.strictEqual(child.id, 'node1');
@@ -72,8 +72,8 @@ test('JmMind.addChildNode', () => {
 test('Observe adding nodes', () => {
     const mind = new JmMind(mindOptions);
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
-    const child1 = mind.addChildNode(mind.root.id, 'child1');
-    mind.addChildNode(mind.root.id, 'child2');
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+    mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
     assert.strictEqual(mockedNotifyObservers.mock.callCount(), 2);
 
     const event1 = mockedNotifyObservers.mock.calls[0].arguments[0];
@@ -94,15 +94,15 @@ test('Observe adding nodes', () => {
 
 test('JmMind.removeNode', ()=>{
     const mind = new JmMind(mindOptions);
-    const child1 = mind.addChildNode(mind.root.id, 'child-1');
-    const child2 = mind.addChildNode(mind.root.id, 'child-2');
-    const child3 = mind.addChildNode(mind.root.id, 'child-3');
-    const child21 = mind.addChildNode(child2.id, 'child-2-1');
-    const child22 = mind.addChildNode(child2.id, 'child-2-2');
-    const child211 = mind.addChildNode(child21.id, 'child-2-1-1');
-    const child212 = mind.addChildNode(child21.id, 'child-2-1-2');
-    const child221 = mind.addChildNode(child21.id, 'child-2-2-1');
-    const child222 = mind.addChildNode(child21.id, 'child-2-2-2');
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child-1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child-2'));
+    const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child-3'));
+    const child21 = mind.addChildNode(child2.id, JmNodeContent.createText('child-2-1'));
+    const child22 = mind.addChildNode(child2.id, JmNodeContent.createText('child-2-2'));
+    const child211 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-1-1'));
+    const child212 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-1-2'));
+    const child221 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-2-1'));
+    const child222 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-2-2'));
 
     assert.strictEqual(mind.root.children.length, 3);
     assert.strictEqual(Object.keys(mind._edges).length, 9);
@@ -145,13 +145,13 @@ test('JmMind.removeNode', ()=>{
 test('Observe removing nodes', () => {
     const mind = new JmMind(mindOptions);
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
-    const child2 = mind.addChildNode(mind.root.id, 'child-2');
-    const child21 = mind.addChildNode(child2.id, 'child-2-1');
-    const child22 = mind.addChildNode(child2.id, 'child-2-2');
-    const child211 = mind.addChildNode(child21.id, 'child-2-1-1');
-    const child212 = mind.addChildNode(child21.id, 'child-2-1-2');
-    const child221 = mind.addChildNode(child21.id, 'child-2-2-1');
-    const child222 = mind.addChildNode(child21.id, 'child-2-2-2');
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child-2'));
+    const child21 = mind.addChildNode(child2.id, JmNodeContent.createText('child-2-1'));
+    const child22 = mind.addChildNode(child2.id, JmNodeContent.createText('child-2-2'));
+    const child211 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-1-1'));
+    const child212 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-1-2'));
+    const child221 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-2-1'));
+    const child222 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-2-2'));
 
     const expectedRemovedEdgeIds = new Set(Object.keys(mind._edges));
 
@@ -179,8 +179,8 @@ test('Observe removing nodes', () => {
 test('managed node equals to original node', ()=>{
     const mind = new JmMind(mindOptions);
     const root = mind.root;
-    const node1 = mind.addChildNode(root.id, 'node-sub-1');
-    const node2 = mind.addChildNode(root.id, 'node-sub-2');
+    const node1 = mind.addChildNode(root.id, JmNodeContent.createText('node-sub-1'));
+    const node2 = mind.addChildNode(root.id, JmNodeContent.createText('node-sub-2'));
     const foundNode1 = mind.findNodeById(node1.id);
     const foundNode2 = mind.findNodeById(node2.id);
 
@@ -193,7 +193,7 @@ test('managed node equals to original node', ()=>{
 
 test('managed node contains readonly fields', ()=>{
     const mind = new JmMind(mindOptions);
-    const node1 = mind.addChildNode(mind.root.id, 'node-sub-1');
+    const node1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('node-sub-1'));
     const managedNode1 = mind.findNodeById(node1.id);
 
     assert.throws(()=>{mind.root.id = 'other-id';});
@@ -228,7 +228,7 @@ test('managed node children is immutable', ()=>{
     assert.throws(()=>{mind.root.children.sort();});
     assert.throws(()=>{mind.root.children.splice();});
 
-    const node = mind.addChildNode(mind.root.id, 'node-sub-1');
+    const node = mind.addChildNode(mind.root.id, JmNodeContent.createText('node-sub-1'));
     assert.throws(()=>{node.children.fill('a');});
     assert.throws(()=>{node.children.pop();});
     assert.throws(()=>{node.children.push('a');});
@@ -243,8 +243,8 @@ test('managed node children is immutable', ()=>{
 test('Observe update node', () => {
     const mind = new JmMind(mindOptions);
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
-    const node1 = mind.addChildNode(mind.root.id, 'node1');
-    node1.content = createTextContent('new name of node1');
+    const node1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('node1'));
+    node1.content = JmNodeContent.createText('new name of node1');
     node1.position = JmNodePosition.Right;
     node1.folded = true;
     node1.data['a'] = 'b';
