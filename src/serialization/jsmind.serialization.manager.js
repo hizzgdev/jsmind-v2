@@ -3,10 +3,10 @@
  * @package
  */
 
-import { JsMindError } from './jsmind.error.js';
+import { JsMindError } from '../jsmind.error.js';
 import { JmMindSerializer } from './jsmind.serializer.js';
-import { JmMindJsonSerializer } from './impl/jsmind.json.serializer.js';
-import { JmMindFreeMindSerializer } from './impl/jsmind.freemind.serializer.js';
+import { JmMindJsonSerializer } from './jsmind.json.serializer.js';
+import { JmMindFreeMindSerializer } from './jsmind.freemind.serializer.js';
 
 /**
  * Manager for mind map serialization operations

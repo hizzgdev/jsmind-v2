@@ -4,11 +4,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { JmMind } from '../src/jsmind.mind.js';
-import { JmNodeContent } from '../src/jsmind.node.content.js';
-import { JmMindSerializationManager } from '../src/jsmind.serialization.manager.js';
-import { JmMindJsonSerializer } from '../src/impl/jsmind.json.serializer.js';
-import { JmMindFreeMindSerializer } from '../src/impl/jsmind.freemind.serializer.js';
+import { JmMind } from '../../src/jsmind.mind.js';
+import { JmNodeContent } from '../../src/jsmind.node.content.js';
+import { JmMindSerializationManager } from '../../src/serialization/jsmind.serialization.manager.js';
+import { JmMindJsonSerializer } from '../../src/serialization/jsmind.json.serializer.js';
+import { JmMindFreeMindSerializer } from '../../src/serialization/jsmind.freemind.serializer.js';
 
 test('JmMindSerializationManager - singleton pattern', (_t) => {
     const manager1 = JmMindSerializationManager.getInstance();

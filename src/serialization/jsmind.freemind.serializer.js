@@ -3,7 +3,7 @@
  * @package
  */
 
-import { JmMindSerializer } from '../jsmind.serializer.js';
+import { JmMindSerializer } from './jsmind.serializer.js';
 import { JsMindError } from '../jsmind.error.js';
 
 /**

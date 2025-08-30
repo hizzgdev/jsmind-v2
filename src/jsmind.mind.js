@@ -6,7 +6,7 @@ import { JmNodeContent } from './jsmind.node.content.js';
 
 import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.event.js';
 import { JsMindError } from './jsmind.error.js';
-import { JmMindSerializationManager } from './jsmind.serialization.manager.js';
+import { JmMindSerializationManager } from './serialization/jsmind.serialization.manager.js';
 
 export class JmMind {
     constructor(mindOptions) {
