@@ -6,8 +6,8 @@
 import { JmMindSerializer } from './jsmind.serializer.js';
 import { JmMind } from '../jsmind.mind.js';
 import { JmNode } from '../jsmind.node.js';
-import { JmNodeContent, JmNodeContentType } from '../jsmind.node.content.js';
-import { JmEdge, JmEdgeType } from '../jsmind.edge.js';
+import { JmNodeContent } from '../jsmind.node.content.js';
+import { JmEdge } from '../jsmind.edge.js';
 import { JsMindError } from '../jsmind.error.js';
 
 /**

@@ -24,7 +24,7 @@ export class JmMindFreeMindSerializer extends JmMindSerializer {
      * @returns {any} The serialized data
      */
     serialize(mind) {
-        throw new JsMindError('FreeMind serialization is not yet implemented');
+        throw new JsMindError('FreeMind serialization is not yet implemented', { cause: mind });
     }
 
     /**
@@ -33,7 +33,7 @@ export class JmMindFreeMindSerializer extends JmMindSerializer {
      * @returns {JmMind} The deserialized mind map
      */
     deserialize(data) {
-        throw new JsMindError('FreeMind deserialization is not yet implemented');
+        throw new JsMindError('FreeMind deserialization is not yet implemented', { cause: data });
     }
 
     /**
@@ -43,6 +43,9 @@ export class JmMindFreeMindSerializer extends JmMindSerializer {
      */
     validate(data) {
         // Basic validation - will be implemented later
+        if (data) {
+            // This is a placeholder - will be implemented later
+        }
         return false;
     }
 }

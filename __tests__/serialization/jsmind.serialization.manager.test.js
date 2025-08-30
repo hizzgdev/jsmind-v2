@@ -62,7 +62,7 @@ test('JmMindSerializationManager - static property isolation', (_t) => {
     assert.notStrictEqual(newInstance, originalInstance, 'New instance should be different from singleton');
 });
 
-test('JmMindSerializationManager - register and get serializer', (t) => {
+test('JmMindSerializationManager - register and get serializer', (_t) => {
     const manager = JmMindSerializationManager.getInstance();
     const jsonSerializer = new JmMindJsonSerializer();
 
@@ -73,7 +73,7 @@ test('JmMindSerializationManager - register and get serializer', (t) => {
     assert.strictEqual(manager.isFormatSupported('json'), true, 'Should support json format');
 });
 
-test('JmMindSerializationManager - get supported formats', (t) => {
+test('JmMindSerializationManager - get supported formats', () => {
     const manager = JmMindSerializationManager.getInstance();
 
     // Should have default serializers automatically
@@ -84,7 +84,7 @@ test('JmMindSerializationManager - get supported formats', (t) => {
     assert(formats.includes('freemind'), 'Should include freemind format');
 });
 
-test('JmMindSerializationManager - unsupported format error', (t) => {
+test('JmMindSerializationManager - unsupported format error', () => {
     const manager = JmMindSerializationManager.getInstance();
 
     assert.throws(() => {
@@ -92,7 +92,7 @@ test('JmMindSerializationManager - unsupported format error', (t) => {
     }, /Format 'unsupported' is not supported/, 'Should throw error for unsupported format');
 });
 
-test('JmMind - serialization integration', (t) => {
+test('JmMind - serialization integration', () => {
     const mindOptions = {
         nodeIdGenerator: { newId: () => 'test' },
         edgeIdGenerator: { newId: () => 'test' }
@@ -118,7 +118,7 @@ test('JmMind - serialization integration', (t) => {
     assert.strictEqual(typeof mind.serializationManager.serialize, 'function', 'Serialization manager should have serialize method');
 });
 
-test('JmMind - serialization manager access', (t) => {
+test('JmMind - serialization manager access', () => {
     const mindOptions = {
         nodeIdGenerator: { newId: () => 'test' },
         edgeIdGenerator: { newId: () => 'test' }
@@ -136,7 +136,7 @@ test('JmMind - serialization manager access', (t) => {
     assert.ok(jsonData.root, 'Should have root node');
 });
 
-test('JmMindJsonSerializer - serialize and deserialize', (t) => {
+test('JmMindJsonSerializer - serialize and deserialize', () => {
     const serializer = new JmMindJsonSerializer();
 
     // Create a simple mind map
@@ -170,7 +170,7 @@ test('JmMindJsonSerializer - serialize and deserialize', (t) => {
     assert(deserializedMind.root, 'Should have root node');
 });
 
-test('JmMindFreeMindSerializer - placeholder implementation', (t) => {
+test('JmMindFreeMindSerializer - placeholder implementation', () => {
     const serializer = new JmMindFreeMindSerializer();
 
     assert.strictEqual(serializer.getFormatName(), 'freemind', 'Should return freemind format name');
@@ -194,7 +194,7 @@ test('JmMindFreeMindSerializer - placeholder implementation', (t) => {
     assert.strictEqual(serializer.validate({}), false, 'Should not validate any data yet');
 });
 
-test('JmMindSerializationManager - automatic default serializers', (t) => {
+test('JmMindSerializationManager - automatic default serializers', () => {
     // Get a fresh manager instance
     const manager = JmMindSerializationManager.getInstance();
 
@@ -211,7 +211,7 @@ test('JmMindSerializationManager - automatic default serializers', (t) => {
     assert.strictEqual(manager.isFormatSupported('custom'), true, 'Should support custom format');
 });
 
-test('JmMindSerializationManager - automatic registration on first access', (t) => {
+test('JmMindSerializationManager - automatic registration on first access', () => {
     // Get the manager instance which should automatically register default serializers
     const manager = JmMindSerializationManager.getInstance();
 

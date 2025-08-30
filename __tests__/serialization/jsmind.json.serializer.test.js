@@ -11,12 +11,12 @@ import { JmNode } from '../../src/jsmind.node.js';
 import { JmEdge, JmEdgeType } from '../../src/jsmind.edge.js';
 import { JsMindError } from '../../src/jsmind.error.js';
 
-test('JmMindJsonSerializer - getFormatName', (_t) => {
+test('JmMindJsonSerializer - getFormatName', () => {
     const serializer = new JmMindJsonSerializer();
     assert.strictEqual(serializer.getFormatName(), 'json');
 });
 
-test('JmMindJsonSerializer - serialize with null mind', (_t) => {
+test('JmMindJsonSerializer - serialize with null mind', () => {
     const serializer = new JmMindJsonSerializer();
 
     assert.throws(() => {
@@ -28,7 +28,7 @@ test('JmMindJsonSerializer - serialize with null mind', (_t) => {
     }, JsMindError, 'Should throw error for undefined mind');
 });
 
-test('JmMindJsonSerializer - serialize basic mind map', (_t) => {
+test('JmMindJsonSerializer - serialize basic mind map', () => {
     const serializer = new JmMindJsonSerializer();
 
     // Create a simple mind map
@@ -39,7 +39,7 @@ test('JmMindJsonSerializer - serialize basic mind map', (_t) => {
     };
 
     const mind = new JmMind(mindOptions);
-    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
+    mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
 
     const serialized = serializer.serialize(mind);
 
@@ -67,7 +67,7 @@ test('JmMindJsonSerializer - serialize basic mind map', (_t) => {
     assert.deepStrictEqual(childData.children, []);
 });
 
-test('JmMindJsonSerializer - serialize node with all properties', (_t) => {
+test('JmMindJsonSerializer - serialize node with all properties', () => {
     const serializer = new JmMindJsonSerializer();
 
     // Create a node with all properties set
@@ -87,7 +87,7 @@ test('JmMindJsonSerializer - serialize node with all properties', (_t) => {
     assert.deepStrictEqual(serialized.data, { custom: 'value', number: 42 });
 });
 
-test('JmMindJsonSerializer - serialize edge', (_t) => {
+test('JmMindJsonSerializer - serialize edge', () => {
     const serializer = new JmMindJsonSerializer();
 
     const edge = new JmEdge('edge1', 'source', 'target', JmEdgeType.Child);
@@ -99,7 +99,7 @@ test('JmMindJsonSerializer - serialize edge', (_t) => {
     assert.strictEqual(serialized.type, JmEdgeType.Child);
 });
 
-test('JmMindJsonSerializer - validate with valid data', (_t) => {
+test('JmMindJsonSerializer - validate with valid data', () => {
     const serializer = new JmMindJsonSerializer();
 
     const validData = {
@@ -112,7 +112,7 @@ test('JmMindJsonSerializer - validate with valid data', (_t) => {
     assert.strictEqual(serializer.validate(validData), true, 'Should validate correct data');
 });
 
-test('JmMindJsonSerializer - validate with invalid data', (_t) => {
+test('JmMindJsonSerializer - validate with invalid data', () => {
     const serializer = new JmMindJsonSerializer();
 
     // Test null/undefined
@@ -139,7 +139,7 @@ test('JmMindJsonSerializer - validate with invalid data', (_t) => {
     assert.strictEqual(serializer.validate(invalidRootData), false, 'Should reject invalid root reference');
 });
 
-test('JmMindJsonSerializer - deserialize with invalid data', (_t) => {
+test('JmMindJsonSerializer - deserialize with invalid data', () => {
     const serializer = new JmMindJsonSerializer();
 
     assert.throws(() => {
@@ -151,7 +151,7 @@ test('JmMindJsonSerializer - deserialize with invalid data', (_t) => {
     }, JsMindError, 'Should throw error for invalid data');
 });
 
-test('JmMindJsonSerializer - deserialize basic mind map', (_t) => {
+test('JmMindJsonSerializer - deserialize basic mind map', () => {
     const serializer = new JmMindJsonSerializer();
 
     const testData = {
@@ -207,7 +207,7 @@ test('JmMindJsonSerializer - deserialize basic mind map', (_t) => {
     assert.strictEqual(deserialized._edges['edge1'].targetNodeId, 'child1');
 });
 
-test('JmMindJsonSerializer - deserialize node', (_t) => {
+test('JmMindJsonSerializer - deserialize node', () => {
     const serializer = new JmMindJsonSerializer();
 
     const nodeData = {
@@ -228,7 +228,7 @@ test('JmMindJsonSerializer - deserialize node', (_t) => {
     assert.deepStrictEqual(node.data, { key: 'value' });
 });
 
-test('JmMindJsonSerializer - deserialize edge', (_t) => {
+test('JmMindJsonSerializer - deserialize edge', () => {
     const serializer = new JmMindJsonSerializer();
 
     const edgeData = {
@@ -246,7 +246,7 @@ test('JmMindJsonSerializer - deserialize edge', (_t) => {
     assert.strictEqual(edge.type, JmEdgeType.Child);
 });
 
-test('JmMindJsonSerializer - round trip serialization', (_t) => {
+test('JmMindJsonSerializer - round trip serialization', () => {
     const serializer = new JmMindJsonSerializer();
 
     // Create a simple mind map
@@ -257,7 +257,7 @@ test('JmMindJsonSerializer - round trip serialization', (_t) => {
     };
 
     const mind = new JmMind(mindOptions);
-    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
+    mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
 
     // Serialize
     const serialized = serializer.serialize(mind);
@@ -285,7 +285,7 @@ test('JmMindJsonSerializer - round trip serialization', (_t) => {
     assert.strictEqual(childNode.content.value, 'Child');
 });
 
-test('JmMindJsonSerializer - handle missing optional properties', (_t) => {
+test('JmMindJsonSerializer - handle missing optional properties', () => {
     const serializer = new JmMindJsonSerializer();
 
     const nodeData = {
@@ -303,7 +303,7 @@ test('JmMindJsonSerializer - handle missing optional properties', (_t) => {
     assert.deepStrictEqual(node.data, {}); // Missing property defaults to empty object
 });
 
-test('JmMindJsonSerializer - handle null/undefined values in node data', (_t) => {
+test('JmMindJsonSerializer - handle null/undefined values in node data', () => {
     const serializer = new JmMindJsonSerializer();
 
     const nodeData = {
