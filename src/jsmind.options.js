@@ -1,4 +1,4 @@
-import { SimpleIdGenerator } from './impl/jsmind.impl.simple_id_generator.js';
+import { SimpleIdGenerator } from './generation/jsmind.simple.id_generator.js';
 
 export const options = {
     mind: {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { SimpleIdGenerator } from '../../src/impl/jsmind.impl.simple_id_generator.js';
+import { SimpleIdGenerator } from '../../src/generation/jsmind.simple.id_generator.js';
 
 test('SimpleIdGenerator', () => {
     const generator = new SimpleIdGenerator('test_');
