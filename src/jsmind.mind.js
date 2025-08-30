@@ -6,6 +6,7 @@ import { JmNodeContent } from './jsmind.node.content.js';
 
 import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.event.js';
 import { JsMindError } from './jsmind.error.js';
+import { JmMindSerializationManager } from './jsmind.serialization.manager.js';
 
 export class JmMind {
     constructor(mindOptions) {
@@ -20,6 +21,10 @@ export class JmMind {
          * @type {Object.<string, JmEdge>}
          */
         this._edges = {};
+
+        // Initialize serialization system
+        this.serializationManager = JmMindSerializationManager.getInstance();
+
         this._initMindmap();
     }
 
@@ -167,6 +172,23 @@ export class JmMind {
         );
     }
 
+    /**
+     * Serialize the mind map to a specific format
+     * @param {string} format - The target format (default: 'json')
+     * @returns {any} The serialized data
+     *
+     * @example
+     * // Serialize to JSON format
+     * const mind = new JmMind(options);
+     * const jsonData = mind.serialize('json');
+     * console.log(jsonData.meta.name); // "untitled jsmind mindmap"
+     *
+     * // Serialize to FreeMind format (when implemented)
+     * const freemindData = mind.serialize('freemind');
+     */
+    serialize(format = 'json') {
+        return this.serializationManager.serialize(this, format);
+    }
 }
 
 class JmNodeManager {
