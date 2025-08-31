@@ -223,6 +223,147 @@ export class JmMind {
     }
 
     /**
+     * Move a node to a new parent and position
+     * @param {string} nodeId - The ID of the node to move
+     * @param {import('./jsmind.node.js').NodeMoveOptions} options - Move options
+     * @returns {JmNode} The moved node
+     */
+    moveNode(nodeId, options) {
+        if (!options || Object.keys(options).length === 0) {
+            throw new JsMindError('Options are required for moveNode operation');
+        }
+
+        const node = this._getNodeById(nodeId);
+        if (!node) {
+            throw new JsMindError(`Node with ID '${nodeId}' not found`);
+        }
+
+        // Skip all logic for root node - it cannot be moved
+        if (node === this.root) {
+            return this.nodeManager.manage(node);
+        }
+
+        // Extract options
+        const targetParentId = options.parentId;
+        const targetPosition = options.position;
+        const targetDirection = options.direction;
+
+        // Capture original values before any changes
+        const oldParent = node.parent;
+        const oldPosition = node.parent ? node.parent.children.indexOf(node) : -1;
+        const oldDirection = node.direction;
+
+        // 1. Update parent and position if the node parent is provided and changed
+        if (targetParentId && (!node.parent || node.parent.id !== targetParentId)) {
+            const targetParent = this._getNodeById(targetParentId);
+            if (!targetParent) {
+                throw new JsMindError(`Target parent with ID '${targetParentId}' not found`);
+            }
+
+            // Validate that we're not moving a node to be its own descendant
+            if (targetParent.isDescendant(node)) {
+                throw new JsMindError('Cannot move a node to be its own descendant');
+            }
+
+            // Remove from current parent
+            this._removeNodeFromParent(node);
+
+            // Add to new parent at specified position and create edge
+            this._addNodeToParent(node, targetParent, targetPosition);
+        }
+
+        // 2. Reposition if the node parent is not provided or is not changed, and the targetPosition is provided and changed
+        if ((!targetParentId || (node.parent && node.parent.id === targetParentId)) &&
+            targetPosition !== undefined && targetPosition !== null) {
+            this._repositionNodeInSameParent(node, targetPosition);
+        }
+
+        // 3. Update direction if the target direction is provided and changed
+        if (targetDirection !== undefined && targetDirection !== null) {
+            node.direction = targetDirection;
+        }
+
+        // 4. Emit event only if something actually changed
+        this._emitNodeMovedEventIfChanged(node, oldParent, oldPosition, oldDirection);
+
+        return this.nodeManager.manage(node);
+    }
+
+    /**
+     * Remove a node from its current parent
+     * @private
+     * @param {JmNode} node - The node to remove from parent
+     */
+    _removeNodeFromParent(node) {
+        if (!node.parent) {
+            return;
+        }
+
+        const parent = node.parent;
+        const index = parent.children.indexOf(node);
+        if (index > -1) {
+            parent.children.splice(index, 1);
+        }
+        node.parent = null;
+
+        // Remove the edge from the parent to this node
+        Object.values(this._edges)
+            .filter(edge => edge.sourceNodeId === parent.id &&
+                           edge.targetNodeId === node.id &&
+                           edge.type === JmEdgeType.Child)
+            .forEach(edge => delete this._edges[edge.id]);
+    }
+
+    /**
+     * Add a node to a new parent at a specific position
+     * @private
+     * @param {JmNode} node - The node to add
+     * @param {JmNode} targetParent - The new parent node
+     * @param {number} targetPosition - The position index among siblings
+     */
+    _addNodeToParent(node, targetParent, targetPosition) {
+        node.parent = targetParent;
+
+        if (targetPosition === undefined || targetPosition === null) {
+            // Add to the end if no position specified
+            targetParent.children.push(node);
+        } else {
+            // Insert at specific position
+            const position = Math.max(0, Math.min(targetPosition, targetParent.children.length));
+            targetParent.children.splice(position, 0, node);
+        }
+
+        // Create edge between parent and child
+        const edgeId = this.options.edgeIdGenerator.newId();
+        this._newEdge(edgeId, targetParent, node, JmEdgeType.Child);
+    }
+
+    /**
+     * Reposition a node within the same parent (optimized operation)
+     * @private
+     * @param {JmNode} node - The node to reposition
+     * @param {number} targetPosition - The new position index among siblings
+     */
+    _repositionNodeInSameParent(node, targetPosition) {
+        // Do nothing if targetPosition is not provided or is null
+        if (targetPosition === undefined || targetPosition === null) {
+            return;
+        }
+
+        const parent = node.parent;
+        const currentIndex = parent.children.indexOf(node);
+        const newPosition = Math.max(0, Math.min(targetPosition, parent.children.length));
+
+        // Only move if position actually changed
+        if (currentIndex !== newPosition) {
+            // Remove from current position
+            parent.children.splice(currentIndex, 1);
+            // Insert at new position
+            parent.children.splice(newPosition, 0, node);
+        }
+    }
+
+    /**
      * Serialize the mind map to a specific format
      * @param {string} format - The target format (default: 'json')
      * @returns {any} The serialized data
@@ -238,6 +379,43 @@ export class JmMind {
      */
     serialize(format = 'json') {
         return this.serializationManager.serialize(this, format);
+    }
+
+    /**
+     * Emit NodeMoved event only if something actually changed
+     * @private
+     * @param {JmNode} node - The node that was moved
+     * @param {JmNode} oldParent - The old parent node
+     * @param {number} oldPosition - The old position index
+     * @param {JmNodeDirection} oldDirection - The old direction
+     */
+    _emitNodeMovedEventIfChanged(node, oldParent, oldPosition, oldDirection) {
+        // Compare actual updated node properties with old values
+        const parentChanged = oldParent.id !== node.parent.id;
+        const positionChanged = oldPosition !== node.parent.children.indexOf(node);
+        const directionChanged = oldDirection !== node.direction;
+
+        if (parentChanged || positionChanged || directionChanged) {
+            const eventData = {
+                'node': node
+            };
+
+            // Only include changed properties in event data
+            if (parentChanged) {
+                eventData.oldParentId = oldParent.id;
+            }
+            if (positionChanged) {
+                eventData.oldPosition = oldPosition;
+            }
+            if (directionChanged) {
+                eventData.oldDirection = oldDirection;
+            }
+
+            this.observerManager.notifyObservers(new JmMindEvent(
+                JmMindEventType.NodeMoved,
+                eventData
+            ));
+        }
     }
 }
 

@@ -6,6 +6,7 @@ import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.event.js'
 import { JmNode, JmNodeDirection} from '../src/jsmind.node.js';
 import { JmEdge, JmEdgeType } from '../src/jsmind.edge.js';
 import { JmNodeContent } from '../src/jsmind.node.content.js';
+import { JsMindError } from '../src/jsmind.error.js';
 
 const mindOptions = {
     seq: 1,
@@ -414,6 +415,235 @@ test('managed node children is immutable', ()=>{
     assert.throws(()=>{node.children.splice();});
 });
 
+test('JmMind.moveNode - basic functionality', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Create a simple structure: root -> parent1 -> child1, child2
+    const parent1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Parent 1'));
+    const child1 = mind.addChildNode(parent1.id, JmNodeContent.createText('Child 1'));
+    const child2 = mind.addChildNode(parent1.id, JmNodeContent.createText('Child 2'));
+
+    // Move child1 to be a direct child of root at position 0
+    const movedNode = mind.moveNode(child1.id, {
+        parentId: mind.root.id,
+        position: 0,
+        direction: JmNodeDirection.Right
+    });
+
+    // Verify the move
+    assert.strictEqual(movedNode.id, child1.id);
+    assert.strictEqual(movedNode.parent.id, mind.root.id);
+    assert.strictEqual(mind.root.children[0].id, child1.id);
+    assert.strictEqual(movedNode.direction, JmNodeDirection.Right);
+
+    // Verify parent1 no longer has child1
+    assert.strictEqual(parent1.children.length, 1);
+    assert.strictEqual(parent1.children[0].id, child2.id);
+});
+
+test('JmMind.moveNode - move to different position', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Create structure: root -> child1, child2, child3
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 2'));
+    const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 3'));
+
+    // Move child3 to position 0 (first)
+    const movedNode = mind.moveNode(child3.id, {
+        parentId: mind.root.id,
+        position: 0,
+        direction: JmNodeDirection.Left
+    });
+
+    // Verify the new order: child3, child1, child2
+    assert.strictEqual(mind.root.children[0].id, child3.id);
+    assert.strictEqual(mind.root.children[1].id, child1.id);
+    assert.strictEqual(mind.root.children[2].id, child2.id);
+    assert.strictEqual(movedNode.direction, JmNodeDirection.Left);
+});
+
+test('JmMind.moveNode - move with null position (no reposition)', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Create structure: root -> child1, child2
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 2'));
+
+    // Move child1 with null position (should not reposition)
+    const movedNode = mind.moveNode(child1.id, {
+        parentId: mind.root.id,
+        position: null,
+        direction: JmNodeDirection.Center
+    });
+
+    // Verify the order remains the same: child1, child2
+    assert.strictEqual(mind.root.children[0].id, child1.id);
+    assert.strictEqual(mind.root.children[1].id, child2.id);
+    assert.strictEqual(movedNode.direction, JmNodeDirection.Center);
+});
+
+test('JmMind.moveNode - move with undefined direction (preserve current)', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Create a child with a specific direction
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
+    child.direction = JmNodeDirection.Right;
+
+    // Move without specifying direction
+    const movedNode = mind.moveNode(child.id, {
+        parentId: mind.root.id,
+        position: 0
+        // direction not specified - should preserve current
+    });
+
+    // Verify direction is preserved
+    assert.strictEqual(movedNode.direction, JmNodeDirection.Right);
+});
+
+test('JmMind.moveNode - error cases', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Test moving non-existent node
+    assert.throws(() => {
+        mind.moveNode('non-existent', {
+            parentId: mind.root.id,
+            position: 0,
+            direction: JmNodeDirection.Right
+        });
+    }, JsMindError, 'Should throw error for non-existent node');
+
+    // Test moving to non-existent parent
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
+    assert.throws(() => {
+        mind.moveNode(child.id, {
+            parentId: 'non-existent-parent',
+            position: 0,
+            direction: JmNodeDirection.Right
+        });
+    }, JsMindError, 'Should throw error for non-existent parent');
+
+    // Test moving node to be its own descendant
+    const parent = mind.addChildNode(mind.root.id, JmNodeContent.createText('Parent'));
+    const grandchild = mind.addChildNode(parent.id, JmNodeContent.createText('Grandchild'));
+
+    assert.throws(() => {
+        mind.moveNode(parent.id, {
+            parentId: grandchild.id,
+            position: 0,
+            direction: JmNodeDirection.Right
+        });
+    }, JsMindError, 'Should throw error for moving to descendant');
+
+    // Test moving with empty options object
+    assert.throws(() => {
+        mind.moveNode(child.id, {});
+    }, JsMindError, 'Should throw error for empty options object');
+});
+
+test('JmMind.moveNode - edge management', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Create structure: root -> parent -> child
+    const parent = mind.addChildNode(mind.root.id, JmNodeContent.createText('Parent'));
+    const child = mind.addChildNode(parent.id, JmNodeContent.createText('Child'));
+
+    // Count initial edges
+    const initialEdgeCount = Object.keys(mind._edges).length;
+
+    // Move child to root
+    mind.moveNode(child.id, {
+        parentId: mind.root.id,
+        position: 0,
+        direction: JmNodeDirection.Right
+    });
+
+    // Verify edge count remains the same (old edge removed, new edge created)
+    assert.strictEqual(Object.keys(mind._edges).length, initialEdgeCount);
+
+    // Verify the edge points to the new parent
+    const edgeToChild = Object.values(mind._edges).find(edge => edge.targetNodeId === child.id);
+    assert.ok(edgeToChild, 'Should have edge to moved child');
+    assert.strictEqual(edgeToChild.sourceNodeId, mind.root.id);
+});
+
+test('JmMind.moveNode - same parent optimization (reposition only)', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Create structure: root -> child1, child2, child3
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 2'));
+    const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 3'));
+
+    // Reposition child3 to position 0 (first) within the same parent
+    const movedNode = mind.moveNode(child3.id, {
+        parentId: mind.root.id,
+        position: 0,
+        direction: JmNodeDirection.Left
+    });
+
+    // Verify the new order: child3, child1, child2
+    assert.strictEqual(mind.root.children[0].id, child3.id);
+    assert.strictEqual(mind.root.children[1].id, child1.id);
+    assert.strictEqual(mind.root.children[2].id, child2.id);
+    assert.strictEqual(movedNode.direction, JmNodeDirection.Left);
+
+    // Verify no edges were created/removed (same parent operation)
+    const edgeCount = Object.keys(mind._edges).length;
+    assert.strictEqual(edgeCount, 3); // root->child1, root->child2, root->child3
+});
+
+test('JmMind.moveNode - same parent with only direction change', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Create a child with default direction
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
+
+    // Change only direction, same parent, same position
+    const updatedNode = mind.moveNode(child.id, {
+        parentId: mind.root.id,
+        // position not specified - should keep current
+        direction: JmNodeDirection.Right
+    });
+
+    // Verify direction changed
+    assert.strictEqual(updatedNode.direction, JmNodeDirection.Right);
+    // Verify position unchanged (should still be at index 0)
+    assert.strictEqual(mind.root.children[0].id, child.id);
+    // Verify parent unchanged
+    assert.strictEqual(updatedNode.parent.id, mind.root.id);
+});
+
+test('JmMind.moveNode - only direction change (no parent/position)', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Create a child with default direction
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
+
+    // Change only direction, no parent or position specified
+    const updatedNode = mind.moveNode(child.id, {
+        direction: JmNodeDirection.Left
+    });
+
+    // Verify direction changed
+    assert.strictEqual(updatedNode.direction, JmNodeDirection.Left);
+    // Verify position unchanged
+    assert.strictEqual(mind.root.children[0].id, child.id);
+    // Verify parent unchanged
+    assert.strictEqual(updatedNode.parent.id, mind.root.id);
+});
+
+test('JmMind.moveNode - no options (should throw error)', () => {
+    const mind = new JmMind(mindOptions);
+
+    // Create a child
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
+
+    // Call moveNode with no options should throw error
+    assert.throws(() => {
+        mind.moveNode(child.id);
+    }, JsMindError, 'Should throw error when no options provided');
+});
 
 test('Observe update node', () => {
     const mind = new JmMind(mindOptions);

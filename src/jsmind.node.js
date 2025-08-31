@@ -9,6 +9,13 @@ import { JsMindError } from './jsmind.error.js';
  */
 
 /**
+ * @typedef {Object} NodeMoveOptions
+ * @property {string} [parentId] - The ID of the target parent node (if not provided, keeps current parent)
+ * @property {number} [position] - The position index among siblings (if not provided, keeps current position)
+ * @property {JmNodeDirection} [direction] - The direction of the node (if not provided, keeps current direction)
+ */
+
+/**
  * Node of mind map
  */
 export class JmNode {
@@ -84,6 +91,27 @@ export class JmNode {
         && ((this.parent === null && other.parent === null) || (this.parent.id === other.parent.id))
         && this.children.length === other.children.length
         && this.children.every((child, idx, _)=>{ return child.id === other.children[idx].id; });
+    }
+
+    /**
+     * Check if this node is a descendant of another node
+     * @param {JmNode} potentialAncestor - The potential ancestor node
+     * @returns {boolean} True if this node is a descendant of potentialAncestor
+     */
+    isDescendant(potentialAncestor) {
+        if (!potentialAncestor || !potentialAncestor.children) {
+            return false;
+        }
+
+        for (const child of potentialAncestor.children) {
+            if (child.id === this.id) {
+                return true;
+            }
+            if (this.isDescendant(child)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
