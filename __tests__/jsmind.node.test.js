@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmNode, JmNodePosition } from '../src/jsmind.node.js';
+import { JmNode, JmNodeDirection } from '../src/jsmind.node.js';
 import { JmNodeContent } from '../src/jsmind.node.content.js';
 
 // Shared test content for tests
@@ -12,7 +12,7 @@ test('JmNode', () => {
     assert.strictEqual(node.id, '1');
     assert.strictEqual(node.content.value, '');
     assert.strictEqual(node.parent, null);
-    assert.strictEqual(node.position, null);
+    assert.strictEqual(node.direction, null);
     assert.strictEqual(node.children.length, 0);
     assert.strictEqual(node.folded, false);
     assert.deepEqual(node.data, {});
@@ -60,10 +60,10 @@ test('JmNode.equals returns true', () => {
     assert.ok(node1A.equals(node1B));
 
     node1A.content = JmNodeContent.createText('topic');
-    node1A.position = JmNodePosition.Left;
+    node1A.direction = JmNodeDirection.Left;
     node1A.folded = false;
     node1B.content = JmNodeContent.createText('topic');
-    node1B.position = JmNodePosition.Left;
+    node1B.direction = JmNodeDirection.Left;
     node1B.folded = false;
     assert.ok(node1A.equals(node1B));
 });
@@ -106,11 +106,11 @@ test('JmNode.equals returns false', () => {
     node1B.content = JmNodeContent.createText('topic');
     assert.ok(node1A.equals(node1B));
 
-    node1A.position = JmNodePosition.Left;
-    node1B.position = JmNodePosition.Right;
+    node1A.direction = JmNodeDirection.Left;
+    node1B.direction = JmNodeDirection.Right;
     assert.ok(!node1A.equals(node1B));
 
-    node1B.position = JmNodePosition.Left;
+    node1B.direction = JmNodeDirection.Left;
     assert.ok(node1A.equals(node1B));
 
     node1A.folded = false;

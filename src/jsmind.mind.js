@@ -147,8 +147,8 @@ export class JmMind {
             if (options.folded !== undefined) {
                 node.folded = options.folded;
             }
-            if (options.position !== undefined) {
-                node.position = options.position;
+            if (options.direction !== undefined) {
+                node.direction = options.direction;
             }
             if (options.data !== undefined) {
                 node.data = options.data;

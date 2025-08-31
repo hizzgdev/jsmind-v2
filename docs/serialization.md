@@ -414,7 +414,7 @@ The JSON format produces the following structure:
     "parent": null,
     "children": ["child-1-id", "child-2-id"],
     "folded": false,
-    "position": null,
+    "direction": null,
     "data": {}
   },
   "nodes": {
@@ -427,7 +427,7 @@ The JSON format produces the following structure:
       "parent": "parent-id",
       "children": [],
       "folded": false,
-      "position": null,
+      "direction": null,
       "data": {}
     }
   },

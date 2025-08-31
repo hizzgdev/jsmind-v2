@@ -131,7 +131,7 @@ export class JmMindJsonSerializer extends JmMindSerializer {
             parent: node.parent ? node.parent.id : null,
             children: node.children.map(child => child.id),
             folded: node.folded,
-            position: node.position,
+            direction: node.direction,
             data: { ...node.data }
         };
     }
@@ -147,7 +147,7 @@ export class JmMindJsonSerializer extends JmMindSerializer {
         const node = new JmNode(nodeData.id, content);
 
         node.folded = nodeData.folded;
-        node.position = nodeData.position;
+        node.direction = nodeData.direction;
         node.data = { ...nodeData.data };
 
         return node;

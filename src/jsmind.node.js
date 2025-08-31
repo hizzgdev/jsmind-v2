@@ -4,7 +4,7 @@ import { JsMindError } from './jsmind.error.js';
  * @typedef {Object} NodeCreationOptions
  * @property {string} [nodeId] - Optional custom node ID
  * @property {boolean} [folded] - Whether the node is folded (default: false)
- * @property {JmNodePosition} [position] - Position of the node (default: null)
+ * @property {JmNodeDirection} [direction] - Direction of the node (default: null)
  * @property {Object} [data] - Additional data for the node (default: {})
  */
 
@@ -46,9 +46,9 @@ export class JmNode {
          */
         this.folded = false;
         /**
-         * @member {JmNodePosition}
+         * @member {JmNodeDirection}
          */
-        this.position = null;
+        this.direction = null;
         /**
          * @member {object}
          */
@@ -80,7 +80,7 @@ export class JmNode {
         && this.content.type === other.content.type
         && this.content.value === other.content.value
         && this.folded === other.folded
-        && this.position === other.position
+        && this.direction === other.direction
         && ((this.parent === null && other.parent === null) || (this.parent.id === other.parent.id))
         && this.children.length === other.children.length
         && this.children.every((child, idx, _)=>{ return child.id === other.children[idx].id; });
@@ -88,11 +88,11 @@ export class JmNode {
 }
 
 /**
- * Enum for positions of node
+ * Enum for directions of node
  * @readonly
  * @enum {number}
  */
-export const JmNodePosition = {
+export const JmNodeDirection = {
     Left: -1,
     Center: 0,
     Right: 1,

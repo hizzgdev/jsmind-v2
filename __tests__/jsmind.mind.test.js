@@ -3,7 +3,7 @@ import test, {mock} from 'node:test';
 import { DEFAULT_METADATA } from '../src/jsmind.meta.js';
 import { JmMind } from '../src/jsmind.mind.js';
 import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.event.js';
-import { JmNode, JmNodePosition} from '../src/jsmind.node.js';
+import { JmNode, JmNodeDirection} from '../src/jsmind.node.js';
 import { JmEdge, JmEdgeType } from '../src/jsmind.edge.js';
 import { JmNodeContent } from '../src/jsmind.node.content.js';
 
@@ -125,7 +125,7 @@ test('addChildNode with NodeCreationOptions - sets all options', () => {
     const options = {
         nodeId: 'custom_node_456',
         folded: true,
-        position: 1, // Right position
+        direction: 1, // Right direction
         data: { customField: 'customValue', count: 42 }
     };
 
@@ -135,7 +135,7 @@ test('addChildNode with NodeCreationOptions - sets all options', () => {
     assert.strictEqual(child.id, 'custom_node_456');
     assert.strictEqual(child.content.value, 'node with options');
     assert.strictEqual(child.folded, true);
-    assert.strictEqual(child.position, 1);
+    assert.strictEqual(child.direction, 1);
     assert.deepStrictEqual(child.data, { customField: 'customValue', count: 42 });
 
     // Verify the node exists in the mind's node collection
@@ -150,7 +150,7 @@ test('addChildNode with partial NodeCreationOptions - preserves defaults', () =>
     const options = {
         nodeId: 'partial_node_789',
         folded: true
-        // position and data are omitted, should preserve JmNode constructor defaults
+        // direction and data are omitted, should preserve JmNode constructor defaults
     };
 
     const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('partial options'), options);
@@ -159,7 +159,7 @@ test('addChildNode with partial NodeCreationOptions - preserves defaults', () =>
     assert.strictEqual(child.id, 'partial_node_789');
     assert.strictEqual(child.content.value, 'partial options');
     assert.strictEqual(child.folded, true); // Explicitly set
-    assert.strictEqual(child.position, null); // Preserved from JmNode constructor default
+    assert.strictEqual(child.direction, null); // Preserved from JmNode constructor default
     assert.deepStrictEqual(child.data, {}); // Preserved from JmNode constructor default
 });
 
@@ -173,7 +173,7 @@ test('addChildNode without options - preserves all constructor defaults', () => 
     assert.ok(child.id.startsWith('node_')); // Generated ID
     assert.strictEqual(child.content.value, 'no options');
     assert.strictEqual(child.folded, false); // JmNode constructor default
-    assert.strictEqual(child.position, null); // JmNode constructor default
+    assert.strictEqual(child.direction, null); // JmNode constructor default
     assert.deepStrictEqual(child.data, {}); // JmNode constructor default
 });
 
@@ -420,7 +420,7 @@ test('Observe update node', () => {
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
     const node1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('node1'));
     node1.content = JmNodeContent.createText('new name of node1');
-    node1.position = JmNodePosition.Right;
+    node1.direction = JmNodeDirection.Right;
     node1.folded = true;
     node1.data['a'] = 'b';
     assert.strictEqual(mockedNotifyObservers.mock.callCount(), 4);
@@ -438,9 +438,9 @@ test('Observe update node', () => {
     assert.equal(events[0].data.newValue.value, 'new name of node1');
 
     assert.equal(events[1].data.node.id, node1.id);
-    assert.equal(events[1].data.property, 'position');
+    assert.equal(events[1].data.property, 'direction');
     assert.equal(events[1].data.originValue, null);
-    assert.equal(events[1].data.newValue, JmNodePosition.Right);
+    assert.equal(events[1].data.newValue, JmNodeDirection.Right);
 
     assert.equal(events[2].data.node.id, node1.id);
     assert.equal(events[2].data.property, 'folded');

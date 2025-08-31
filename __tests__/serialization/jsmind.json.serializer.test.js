@@ -74,7 +74,7 @@ test('JmMindJsonSerializer - serialize node with all properties', () => {
     const content = JmNodeContent.createText('Test Node');
     const node = new JmNode('test', content);
     node.folded = true;
-    node.position = 1; // Right
+    node.direction = 1; // Right
     node.data = { custom: 'value', number: 42 };
 
     const serialized = serializer._serializeNode(node);
@@ -83,7 +83,7 @@ test('JmMindJsonSerializer - serialize node with all properties', () => {
     assert.strictEqual(serialized.content.type, 'text');
     assert.strictEqual(serialized.content.value, 'Test Node');
     assert.strictEqual(serialized.folded, true);
-    assert.strictEqual(serialized.position, 1);
+    assert.strictEqual(serialized.direction, 1);
     assert.deepStrictEqual(serialized.data, { custom: 'value', number: 42 });
 });
 
@@ -164,7 +164,7 @@ test('JmMindJsonSerializer - deserialize basic mind map', () => {
                 parent: null,
                 children: [],
                 folded: false,
-                position: 0,
+                direction: 0,
                 data: {}
             },
             child1: {
@@ -173,7 +173,7 @@ test('JmMindJsonSerializer - deserialize basic mind map', () => {
                 parent: 'root',
                 children: [],
                 folded: true,
-                position: -1,
+                direction: -1,
                 data: { custom: 'value' }
             }
         },
@@ -214,7 +214,7 @@ test('JmMindJsonSerializer - deserialize node', () => {
         id: 'test',
         content: { type: 'text', value: 'Test Node' },
         folded: true,
-        position: -1,
+        direction: -1,
         data: { key: 'value' }
     };
 
@@ -224,7 +224,7 @@ test('JmMindJsonSerializer - deserialize node', () => {
     assert.strictEqual(node.content.type, 'text');
     assert.strictEqual(node.content.value, 'Test Node');
     assert.strictEqual(node.folded, true);
-    assert.strictEqual(node.position, -1);
+    assert.strictEqual(node.direction, -1);
     assert.deepStrictEqual(node.data, { key: 'value' });
 });
 
@@ -291,7 +291,7 @@ test('JmMindJsonSerializer - handle missing optional properties', () => {
     const nodeData = {
         id: 'test',
         content: { type: 'text', value: 'Test' }
-        // Missing folded, position, data
+        // Missing folded, direction, data
     };
 
     const node = serializer._deserializeNode(nodeData);
@@ -299,7 +299,7 @@ test('JmMindJsonSerializer - handle missing optional properties', () => {
     assert.strictEqual(node.id, 'test');
     assert.strictEqual(node.content.value, 'Test');
     assert.strictEqual(node.folded, undefined); // Missing property
-    assert.strictEqual(node.position, undefined); // Missing property
+    assert.strictEqual(node.direction, undefined); // Missing property
     assert.deepStrictEqual(node.data, {}); // Missing property defaults to empty object
 });
 
@@ -310,7 +310,7 @@ test('JmMindJsonSerializer - handle null/undefined values in node data', () => {
         id: 'test',
         content: { type: 'text', value: 'Test' },
         folded: null,
-        position: undefined,
+        direction: undefined,
         data: null
     };
 
@@ -319,6 +319,6 @@ test('JmMindJsonSerializer - handle null/undefined values in node data', () => {
     assert.strictEqual(node.id, 'test');
     assert.strictEqual(node.content.value, 'Test');
     assert.strictEqual(node.folded, null);
-    assert.strictEqual(node.position, undefined);
+    assert.strictEqual(node.direction, undefined);
     assert.deepStrictEqual(node.data, {}); // null value is converted to empty object
 });
