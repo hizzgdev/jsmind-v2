@@ -92,6 +92,122 @@ test('construct JmMind with partial options - merges with defaults', () => {
     assert.strictEqual(edgeIds[0], 'custom_edge_1'); // Custom edge ID generator should be used
 });
 
+test('addChildNode with custom nodeId', () => {
+    // Create a mind with a mock nodeIdGenerator to track calls
+    const mockNodeIdGenerator = {
+        newId: mock.fn(() => 'generated_id')
+    };
+
+    const mind = new JmMind({
+        nodeIdGenerator: mockNodeIdGenerator
+    });
+
+    // Add a child node with a custom ID
+    const customNodeId = 'custom_child_123';
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('custom child'), { nodeId: customNodeId });
+
+    assert.ok(child);
+    assert.strictEqual(child.id, customNodeId);
+    assert.strictEqual(child.content.value, 'custom child');
+
+    // Verify the node exists in the mind's node collection
+    assert.ok(mind._nodes[customNodeId]);
+    assert.strictEqual(mind._nodes[customNodeId].id, customNodeId);
+
+    // Verify that nodeIdGenerator.newId() was NOT called since we provided a custom ID
+    assert.strictEqual(mockNodeIdGenerator.newId.mock.callCount(), 0);
+});
+
+test('addChildNode with NodeCreationOptions - sets all options', () => {
+    const mind = new JmMind();
+
+    // Add a child node with all options
+    const options = {
+        nodeId: 'custom_node_456',
+        folded: true,
+        position: 1, // Right position
+        data: { customField: 'customValue', count: 42 }
+    };
+
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('node with options'), options);
+
+    assert.ok(child);
+    assert.strictEqual(child.id, 'custom_node_456');
+    assert.strictEqual(child.content.value, 'node with options');
+    assert.strictEqual(child.folded, true);
+    assert.strictEqual(child.position, 1);
+    assert.deepStrictEqual(child.data, { customField: 'customValue', count: 42 });
+
+    // Verify the node exists in the mind's node collection
+    assert.ok(mind._nodes['custom_node_456']);
+    assert.strictEqual(mind._nodes['custom_node_456'].id, 'custom_node_456');
+});
+
+test('addChildNode with partial NodeCreationOptions - preserves defaults', () => {
+    const mind = new JmMind();
+
+    // Add a child node with only some options
+    const options = {
+        nodeId: 'partial_node_789',
+        folded: true
+        // position and data are omitted, should preserve JmNode constructor defaults
+    };
+
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('partial options'), options);
+
+    assert.ok(child);
+    assert.strictEqual(child.id, 'partial_node_789');
+    assert.strictEqual(child.content.value, 'partial options');
+    assert.strictEqual(child.folded, true); // Explicitly set
+    assert.strictEqual(child.position, null); // Preserved from JmNode constructor default
+    assert.deepStrictEqual(child.data, {}); // Preserved from JmNode constructor default
+});
+
+test('addChildNode without options - preserves all constructor defaults', () => {
+    const mind = new JmMind();
+
+    // Add a child node without any options
+    const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('no options'));
+
+    assert.ok(child);
+    assert.ok(child.id.startsWith('node_')); // Generated ID
+    assert.strictEqual(child.content.value, 'no options');
+    assert.strictEqual(child.folded, false); // JmNode constructor default
+    assert.strictEqual(child.position, null); // JmNode constructor default
+    assert.deepStrictEqual(child.data, {}); // JmNode constructor default
+});
+
+test('construct JmMind with empty rootNodeId - generates new ID', () => {
+    // Create a mind with empty rootNodeId
+    const mind = new JmMind({
+        rootNodeId: ''
+    });
+
+    assert.ok(mind);
+    assert.ok(mind.options);
+    assert.strictEqual(mind.options.rootNodeId, '');
+
+    // Root node should have a generated ID (not empty)
+    assert.ok(mind.root.id);
+    assert.notStrictEqual(mind.root.id, '');
+    assert.ok(mind.root.id.startsWith('node_')); // Should follow default pattern
+});
+
+test('construct JmMind with undefined rootNodeId - generates new ID', () => {
+    // Create a mind with undefined rootNodeId
+    const mind = new JmMind({
+        rootNodeId: undefined
+    });
+
+    assert.ok(mind);
+    assert.ok(mind.options);
+    assert.strictEqual(mind.options.rootNodeId, undefined);
+
+    // Root node should have a generated ID
+    assert.ok(mind.root.id);
+    assert.ok(mind.root.id.startsWith('node_')); // Should follow default pattern
+});
+
 test('JmMind.findNodeById', ()=>{
     mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
     const mind = new JmMind(mindOptions);

@@ -62,7 +62,9 @@ export class JmMind {
     }
 
     _createRootNode() {
-        const node = this._newNode(this.options.rootNodeId, JmNodeContent.createText(this.meta.name));
+        // Check if rootNodeId is empty and generate a new one if needed
+        const rootNodeId = this.options.rootNodeId || this.options.nodeIdGenerator.newId();
+        const node = this._newNode(rootNodeId, JmNodeContent.createText(this.meta.name));
         return node;
     }
 
@@ -128,13 +130,31 @@ export class JmMind {
      * add a child node to the parent node
      * @param {string} parentId parent node Id
      * @param {JmNodeContent} content
+     * @param {import('./jsmind.node.js').NodeCreationOptions} [options] optional node creation options
      * @returns {JmNode} the added child node
      */
-    addChildNode(parentId, content) {
+    addChildNode(parentId, content, options) {
         const existedParent = this._getNodeById(parentId);
+
+        // Extract options with defaults
+        const nodeId = (options && options.nodeId) || this.options.nodeIdGenerator.newId();
+
         // create and init a node
-        const nodeId = this.options.nodeIdGenerator.newId();
         const node = this._newNode(nodeId, content);
+
+        // Set additional properties only if provided in options
+        if (options) {
+            if (options.folded !== undefined) {
+                node.folded = options.folded;
+            }
+            if (options.position !== undefined) {
+                node.position = options.position;
+            }
+            if (options.data !== undefined) {
+                node.data = options.data;
+            }
+        }
+
         node.parent = existedParent;
         // add to parent's children
         existedParent.children.push(node);

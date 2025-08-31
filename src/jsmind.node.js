@@ -1,6 +1,14 @@
 import { JsMindError } from './jsmind.error.js';
 
 /**
+ * @typedef {Object} NodeCreationOptions
+ * @property {string} [nodeId] - Optional custom node ID
+ * @property {boolean} [folded] - Whether the node is folded (default: false)
+ * @property {JmNodePosition} [position] - Position of the node (default: null)
+ * @property {Object} [data] - Additional data for the node (default: {})
+ */
+
+/**
  * Node of mind map
  */
 export class JmNode {
