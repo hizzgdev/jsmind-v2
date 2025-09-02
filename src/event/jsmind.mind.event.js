@@ -21,4 +21,6 @@ export const JmMindEventType = {
     NodeRemoved: 2,
     NodeUpdated: 3,
     NodeMoved: 4,
+    EdgeAdded: 5,
+    EdgeRemoved: 6,
 };

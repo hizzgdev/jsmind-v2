@@ -10,8 +10,9 @@ export class JmEdge {
      * @param {string} sourceNodeId
      * @param {string} targetNodeId
      * @param {JmEdgeType} type
+     * @param {string} [label] - Optional label for the edge
      */
-    constructor(id, sourceNodeId, targetNodeId, type) {
+    constructor(id, sourceNodeId, targetNodeId, type, label = null) {
         if (!id) {
             throw new JsMindError('invalid edge id');
         }
@@ -28,12 +29,13 @@ export class JmEdge {
         this.sourceNodeId = sourceNodeId;
         this.targetNodeId = targetNodeId;
         this.type = type;
+        this.label = label;
     }
 }
 
 /**
- * Type of edge
+ * Type of edge - only for additional relationships (not parent-child)
  */
 export const JmEdgeType = {
-    Child: 1,
+    Link: 'link',
 };

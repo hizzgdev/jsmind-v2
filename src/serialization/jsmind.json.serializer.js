@@ -44,7 +44,7 @@ export class JmMindJsonSerializer extends JmMindSerializer {
             serializedData.nodes[node.id] = this._serializeNode(node);
         });
 
-        // Serialize all edges
+        // Serialize all additional edges
         Object.values(mind._edges).forEach(edge => {
             serializedData.edges[edge.id] = this._serializeEdge(edge);
         });
@@ -79,11 +79,13 @@ export class JmMindJsonSerializer extends JmMindSerializer {
             mind._nodes[node.id] = node;
         });
 
-        // Restore edges
-        Object.values(data.edges).forEach(edgeData => {
-            const edge = this._deserializeEdge(edgeData);
-            mind._edges[edge.id] = edge;
-        });
+        // Restore additional edges
+        if (data.edges) {
+            Object.values(data.edges).forEach(edgeData => {
+                const edge = this._deserializeEdge(edgeData);
+                mind._edges[edge.id] = edge;
+            });
+        }
 
         // Restore root
         mind._root = mind._nodes[data.root.id];
@@ -164,7 +166,8 @@ export class JmMindJsonSerializer extends JmMindSerializer {
             id: edge.id,
             sourceNodeId: edge.sourceNodeId,
             targetNodeId: edge.targetNodeId,
-            type: edge.type
+            type: edge.type,
+            label: edge.label
         };
     }
 
@@ -179,7 +182,8 @@ export class JmMindJsonSerializer extends JmMindSerializer {
             edgeData.id,
             edgeData.sourceNodeId,
             edgeData.targetNodeId,
-            edgeData.type
+            edgeData.type,
+            edgeData.label
         );
     }
 
@@ -188,24 +192,9 @@ export class JmMindJsonSerializer extends JmMindSerializer {
      * @param {JmMind} mind - The mind map to restore relationships for
      * @private
      */
-    _restoreNodeRelationships(mind) {
-        Object.values(mind._nodes).forEach(node => {
-            const nodeData = mind._nodes[node.id];
-
-            // Restore parent relationship
-            if (nodeData.parent) {
-                const parentNode = mind._nodes[nodeData.parent];
-                if (parentNode) {
-                    node.parent = parentNode;
-                }
-            }
-
-            // Restore children relationships
-            if (nodeData.children && Array.isArray(nodeData.children)) {
-                node.children = nodeData.children
-                    .map(childId => mind._nodes[childId])
-                    .filter(child => child !== undefined);
-            }
-        });
+    _restoreNodeRelationships(_mind) {
+        // This method is no longer needed since parent-child relationships
+        // are now stored directly in the nodes and serialized/deserialized
+        // as part of the node data itself
     }
 }

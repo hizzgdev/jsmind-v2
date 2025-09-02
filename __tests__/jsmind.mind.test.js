@@ -4,7 +4,7 @@ import { DEFAULT_METADATA } from '../src/jsmind.meta.js';
 import { JmMind } from '../src/jsmind.mind.js';
 import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.event.js';
 import { JmNode, JmNodeDirection} from '../src/jsmind.node.js';
-import { JmEdge, JmEdgeType } from '../src/jsmind.edge.js';
+import { JmEdgeType } from '../src/jsmind.edge.js';
 import { JmNodeContent } from '../src/jsmind.node.content.js';
 import { JsMindError } from '../src/jsmind.error.js';
 
@@ -51,10 +51,9 @@ test('construct JmMind with no options - uses defaults', () => {
     assert.ok(child.id.startsWith('node_')); // Default ID generator pattern starts with 'node_'
     assert.strictEqual(child.content.value, 'child1');
 
-    // Check that an edge was created with the correct pattern
+    // Check that no edges were created (parent-child relationships use direct fields)
     const edgeIds = Object.keys(mind._edges);
-    assert.strictEqual(edgeIds.length, 1);
-    assert.ok(edgeIds[0].startsWith('edge_')); // Default edge ID generator pattern starts with 'edge_'
+    assert.strictEqual(edgeIds.length, 0);
 });
 
 test('construct JmMind with partial options - merges with defaults', () => {
@@ -87,10 +86,9 @@ test('construct JmMind with partial options - merges with defaults', () => {
     assert.strictEqual(child.id, 'custom_node_1'); // Custom ID generator should be used
     assert.strictEqual(child.content.value, 'child1');
 
-    // Check that an edge was created with the custom ID
+    // Check that no edges were created (parent-child relationships use direct fields)
     const edgeIds = Object.keys(mind._edges);
-    assert.strictEqual(edgeIds.length, 1);
-    assert.strictEqual(edgeIds[0], 'custom_edge_1'); // Custom edge ID generator should be used
+    assert.strictEqual(edgeIds.length, 0);
 });
 
 test('addChildNode with custom nodeId', () => {
@@ -239,10 +237,9 @@ test('JmMind.addChildNode', () => {
     assert.strictEqual(retrievedNode.id, child.id);
     assert.strictEqual(retrievedNode.content.value, child.content.value);
 
-    const edge1 = mind._edges['edge1'];
-    assert.ok(edge1);
-    assert.strictEqual(edge1.sourceNodeId, 'root');
-    assert.strictEqual(edge1.targetNodeId, 'node1');
+    // No edges should be created for parent-child relationships
+    const edgeIds = Object.keys(mind._edges);
+    assert.strictEqual(edgeIds.length, 0);
 });
 
 test('Observe adding nodes', () => {
@@ -259,13 +256,8 @@ test('Observe adding nodes', () => {
     const eventData = event1.data;
     assert.ok(eventData.node);
     assert.ok(eventData.node instanceof JmNode);
-    assert.strictEqual(eventData.node.content.value, 'child1');
+    assert.strictEqual(eventData.node.content.value, child1.content.value);
     assert.ok(eventData.node.parent.equals(mind.root));
-    assert.ok(eventData.edge);
-    assert.ok(eventData.edge instanceof JmEdge);
-    assert.strictEqual(eventData.edge.sourceNodeId, mind.root.id);
-    assert.strictEqual(eventData.edge.targetNodeId, child1.id);
-    assert.strictEqual(eventData.edge.type, JmEdgeType.Child);
 });
 
 test('JmMind.removeNode', ()=>{
@@ -281,7 +273,7 @@ test('JmMind.removeNode', ()=>{
     const child222 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-2-2'));
 
     assert.strictEqual(mind.root.children.length, 3);
-    assert.strictEqual(Object.keys(mind._edges).length, 9);
+    assert.strictEqual(Object.keys(mind._edges).length, 0);
     assert.ok(mind.findNodeById(child1.id));
     assert.ok(mind.findNodeById(child2.id));
     assert.ok(mind.findNodeById(child3.id));
@@ -294,7 +286,7 @@ test('JmMind.removeNode', ()=>{
 
     mind.removeNode(child2.id);
     assert.strictEqual(mind.root.children.length, 2);
-    assert.strictEqual(Object.keys(mind._edges).length, 2);
+    assert.strictEqual(Object.keys(mind._edges).length, 0);
     const subnodeIdsOfRoot2 = new Set(mind.root.getAllSubnodeIds());
     const expectedSubnodeIds2 = new Set([child1.id, child3.id]);
     assert.deepStrictEqual(subnodeIdsOfRoot2, expectedSubnodeIds2);
@@ -310,7 +302,7 @@ test('JmMind.removeNode', ()=>{
 
     mind.removeNode(child3.id);
     assert.strictEqual(mind.root.children.length, 1);
-    assert.strictEqual(Object.keys(mind._edges).length, 1);
+    assert.strictEqual(Object.keys(mind._edges).length, 0);
     const subnodeIdsOfRoot3 = mind.root.getAllSubnodeIds();
     const expectedSubnodeIds3 = [child1.id];
     assert.deepStrictEqual(subnodeIdsOfRoot3, expectedSubnodeIds3);
@@ -329,8 +321,6 @@ test('Observe removing nodes', () => {
     const child221 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-2-1'));
     const child222 = mind.addChildNode(child21.id, JmNodeContent.createText('child-2-2-2'));
 
-    const expectedRemovedEdgeIds = new Set(Object.keys(mind._edges));
-
     mind.removeNode(child2.id);
 
     const calls = mockedNotifyObservers.mock.calls;
@@ -348,8 +338,7 @@ test('Observe removing nodes', () => {
     assert.deepStrictEqual(removedNodeIds, expectedRemovedNodeIds);
 
     const removedEdgeIds = new Set(eventData.removedEdgeIds);
-    assert.strictEqual(removedEdgeIds.size, 7);
-    assert.deepStrictEqual(removedEdgeIds, expectedRemovedEdgeIds);
+    assert.strictEqual(removedEdgeIds.size, 0);
 });
 
 test('managed node equals to original node', ()=>{
@@ -548,9 +537,6 @@ test('JmMind.moveNode - edge management', () => {
     const parent = mind.addChildNode(mind.root.id, JmNodeContent.createText('Parent'));
     const child = mind.addChildNode(parent.id, JmNodeContent.createText('Child'));
 
-    // Count initial edges
-    const initialEdgeCount = Object.keys(mind._edges).length;
-
     // Move child to root
     mind.moveNode(child.id, {
         parentId: mind.root.id,
@@ -558,13 +544,8 @@ test('JmMind.moveNode - edge management', () => {
         direction: JmNodeDirection.Right
     });
 
-    // Verify edge count remains the same (old edge removed, new edge created)
-    assert.strictEqual(Object.keys(mind._edges).length, initialEdgeCount);
-
-    // Verify the edge points to the new parent
-    const edgeToChild = Object.values(mind._edges).find(edge => edge.targetNodeId === child.id);
-    assert.ok(edgeToChild, 'Should have edge to moved child');
-    assert.strictEqual(edgeToChild.sourceNodeId, mind.root.id);
+    // Verify no edges are created for parent-child relationships
+    assert.strictEqual(Object.keys(mind._edges).length, 0);
 });
 
 test('JmMind.moveNode - same parent optimization (reposition only)', () => {
@@ -590,7 +571,7 @@ test('JmMind.moveNode - same parent optimization (reposition only)', () => {
 
     // Verify no edges were created/removed (same parent operation)
     const edgeCount = Object.keys(mind._edges).length;
-    assert.strictEqual(edgeCount, 3); // root->child1, root->child2, root->child3
+    assert.strictEqual(edgeCount, 0); // No edges for parent-child relationships
 });
 
 test('JmMind.moveNode - same parent with only direction change', () => {
@@ -676,4 +657,152 @@ test('Observe update node', () => {
     assert.equal(events[2].data.property, 'folded');
     assert.equal(events[2].data.originValue, false);
     assert.equal(events[2].data.newValue, true);
+});
+
+test('JmMind.addEdge', () => {
+    const mind = new JmMind(mindOptions);
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
+
+    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'test link');
+    assert.ok(edge);
+    assert.strictEqual(edge.sourceNodeId, child1.id);
+    assert.strictEqual(edge.targetNodeId, child2.id);
+    assert.strictEqual(edge.type, JmEdgeType.Link);
+    assert.strictEqual(edge.label, 'test link');
+
+    // Check that edge is stored in _edges
+    assert.ok(mind._edges[edge.id]);
+    assert.strictEqual(mind._edges[edge.id], edge);
+});
+
+test('JmMind.addEdge without label', () => {
+    const mind = new JmMind(mindOptions);
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
+
+    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link);
+    assert.strictEqual(edge.label, null);
+});
+
+test('JmMind.addEdge with invalid source node', () => {
+    const mind = new JmMind(mindOptions);
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+
+    assert.throws(() => {
+        mind.addEdge('invalid', child1.id, JmEdgeType.Link);
+    });
+});
+
+test('JmMind.addEdge with invalid target node', () => {
+    const mind = new JmMind(mindOptions);
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+
+    assert.throws(() => {
+        mind.addEdge(child1.id, 'invalid', JmEdgeType.Link);
+    });
+});
+
+test('JmMind.removeEdge', () => {
+    const mind = new JmMind(mindOptions);
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
+
+    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'test link');
+    assert.ok(mind._edges[edge.id]);
+
+    const result = mind.removeEdge(edge.id);
+    assert.strictEqual(result, true);
+    assert.strictEqual(mind._edges[edge.id], undefined);
+});
+
+test('JmMind.removeEdge with invalid edge ID', () => {
+    const mind = new JmMind(mindOptions);
+
+    const result = mind.removeEdge('invalid');
+    assert.strictEqual(result, false);
+});
+
+test('JmMind.getEdges', () => {
+    const mind = new JmMind(mindOptions);
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
+    const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child3'));
+
+    const edge1 = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'link1');
+    const edge2 = mind.addEdge(child2.id, child3.id, JmEdgeType.Link, 'link2');
+    const edge3 = mind.addEdge(child1.id, child3.id, JmEdgeType.Link, 'link3');
+
+    // Get all edges for child1
+    const child1Edges = mind.getEdges(child1.id);
+    assert.strictEqual(child1Edges.length, 2);
+    assert.ok(child1Edges.some(e => e.id === edge1.id));
+    assert.ok(child1Edges.some(e => e.id === edge3.id));
+
+    // Get all edges for child2
+    const child2Edges = mind.getEdges(child2.id);
+    assert.strictEqual(child2Edges.length, 2);
+    assert.ok(child2Edges.some(e => e.id === edge1.id));
+    assert.ok(child2Edges.some(e => e.id === edge2.id));
+
+    // Get edges with type filter
+    const child1LinkEdges = mind.getEdges(child1.id, JmEdgeType.Link);
+    assert.strictEqual(child1LinkEdges.length, 2);
+});
+
+test('JmMind.getEdges with no edges', () => {
+    const mind = new JmMind(mindOptions);
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+
+    const edges = mind.getEdges(child1.id);
+    assert.strictEqual(edges.length, 0);
+});
+
+test('JmMind edge events', () => {
+    const mind = new JmMind(mindOptions);
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
+
+    const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
+
+    // Test addEdge event
+    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'test link');
+
+    const addEventCall = mockedNotifyObservers.mock.calls[mockedNotifyObservers.mock.calls.length - 1];
+    const addEvent = addEventCall.arguments[0];
+    assert.ok(addEvent instanceof JmMindEvent);
+    assert.strictEqual(addEvent.type, JmMindEventType.EdgeAdded);
+    assert.strictEqual(addEvent.data.edge, edge);
+
+    // Test removeEdge event
+    mind.removeEdge(edge.id);
+
+    const removeEventCall = mockedNotifyObservers.mock.calls[mockedNotifyObservers.mock.calls.length - 1];
+    const removeEvent = removeEventCall.arguments[0];
+    assert.ok(removeEvent instanceof JmMindEvent);
+    assert.strictEqual(removeEvent.type, JmMindEventType.EdgeRemoved);
+    assert.strictEqual(removeEvent.data.edge, edge);
+});
+
+test('JmMind.removeNode cleans up edges', () => {
+    const mind = new JmMind(mindOptions);
+    const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
+    const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
+    const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child3'));
+
+    // Create edges involving child2
+    const edge1 = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'link1');
+    const edge2 = mind.addEdge(child2.id, child3.id, JmEdgeType.Link, 'link2');
+    const edge3 = mind.addEdge(child1.id, child3.id, JmEdgeType.Link, 'link3');
+
+    assert.ok(mind._edges[edge1.id]);
+    assert.ok(mind._edges[edge2.id]);
+    assert.ok(mind._edges[edge3.id]);
+
+    // Remove child2 - should remove edge1 and edge2, but not edge3
+    mind.removeNode(child2.id);
+
+    assert.strictEqual(mind._edges[edge1.id], undefined);
+    assert.strictEqual(mind._edges[edge2.id], undefined);
+    assert.ok(mind._edges[edge3.id]); // edge3 should still exist
 });

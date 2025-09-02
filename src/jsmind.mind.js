@@ -1,5 +1,5 @@
 import { JmObserverManager } from './event/jsmind.observer.manager.js';
-import { JmEdge, JmEdgeType } from './jsmind.edge.js';
+import { JmEdge } from './jsmind.edge.js';
 import { DEFAULT_METADATA } from './jsmind.meta.js';
 import { JmNode } from './jsmind.node.js';
 import { JmNodeContent } from './jsmind.node.content.js';
@@ -27,6 +27,7 @@ export class JmMind {
         this._nodes = {};
         /**
          * @type {Object.<string, JmEdge>}
+         * Global store for edges (links, references, etc.)
          */
         this._edges = {};
 
@@ -78,20 +79,6 @@ export class JmMind {
         const node = new JmNode(nodeId, content);
         this._nodes[nodeId] = node;
         return node;
-    }
-
-    /**
-     * create a new edge, and add it to the mind
-     * @param {string} edgeId - The ID for the new edge
-     * @param {JmNode} source - The source node
-     * @param {JmNode} target - The target node
-     * @param {JmEdgeType} type - The type of edge
-     * @returns {JmEdge} The created edge
-     */
-    _newEdge(edgeId, source, target, type) {
-        const edge = new JmEdge(edgeId, source.id, target.id, type);
-        this._edges[edgeId] = edge;
-        return edge;
     }
 
     /**
@@ -158,15 +145,11 @@ export class JmMind {
         node.parent = existedParent;
         // add to parent's children
         existedParent.children.push(node);
-        // create an edge
-        const edgeId = this.options.edgeIdGenerator.newId();
-        const edge = this._newEdge(edgeId, existedParent, node, JmEdgeType.Child);
         // emit event
         this.observerManager.notifyObservers(new JmMindEvent(
             JmMindEventType.NodeAdded,
             {
-                'node': node,
-                'edge': edge
+                'node': node
             })
         );
         return this.nodeManager.manage(node);
@@ -305,13 +288,6 @@ export class JmMind {
             parent.children.splice(index, 1);
         }
         node.parent = null;
-
-        // Remove the edge from the parent to this node
-        Object.values(this._edges)
-            .filter(edge => edge.sourceNodeId === parent.id &&
-                           edge.targetNodeId === node.id &&
-                           edge.type === JmEdgeType.Child)
-            .forEach(edge => delete this._edges[edge.id]);
     }
 
     /**
@@ -332,10 +308,6 @@ export class JmMind {
             const position = Math.max(0, Math.min(targetPosition, targetParent.children.length));
             targetParent.children.splice(position, 0, node);
         }
-
-        // Create edge between parent and child
-        const edgeId = this.options.edgeIdGenerator.newId();
-        this._newEdge(edgeId, targetParent, node, JmEdgeType.Child);
     }
 
     /**
@@ -361,6 +333,75 @@ export class JmMind {
             // Insert at new position
             parent.children.splice(newPosition, 0, node);
         }
+    }
+
+    /**
+     * Get all edges for a specific node
+     * @param {string} nodeId - The node ID
+     * @param {string} [type] - Optional edge type filter
+     * @returns {JmEdge[]} Array of edges involving the node
+     */
+    getEdges(nodeId, type = null) {
+        const edges = [];
+        Object.values(this._edges).forEach(edge => {
+            if (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) {
+                if (!type || edge.type === type) {
+                    edges.push(edge);
+                }
+            }
+        });
+        return edges;
+    }
+
+    /**
+     * Add an edge between two nodes
+     * @param {string} sourceNodeId - The source node ID
+     * @param {string} targetNodeId - The target node ID
+     * @param {JmEdgeType} type - The edge type
+     * @param {string} [label] - Optional label for the edge
+     * @returns {JmEdge} The created edge
+     */
+    addEdge(sourceNodeId, targetNodeId, type, label = null) {
+        // Validate nodes exist
+        this._getNodeById(sourceNodeId);
+        this._getNodeById(targetNodeId);
+
+        const edgeId = this.options.edgeIdGenerator.newId();
+        const edge = new JmEdge(edgeId, sourceNodeId, targetNodeId, type, label);
+        this._edges[edgeId] = edge;
+
+        // Emit event
+        this.observerManager.notifyObservers(new JmMindEvent(
+            JmMindEventType.EdgeAdded,
+            {
+                'edge': edge
+            })
+        );
+
+        return edge;
+    }
+
+    /**
+     * Remove an edge by ID
+     * @param {string} edgeId - The edge ID to remove
+     * @returns {boolean} True if the edge was removed, false if not found
+     */
+    removeEdge(edgeId) {
+        const edge = this._edges[edgeId];
+        if (edge) {
+            delete this._edges[edgeId];
+
+            // Emit event
+            this.observerManager.notifyObservers(new JmMindEvent(
+                JmMindEventType.EdgeRemoved,
+                {
+                    'edge': edge
+                })
+            );
+
+            return true;
+        }
+        return false;
     }
 
     /**

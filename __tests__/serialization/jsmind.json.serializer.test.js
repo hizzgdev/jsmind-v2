@@ -90,13 +90,14 @@ test('JmMindJsonSerializer - serialize node with all properties', () => {
 test('JmMindJsonSerializer - serialize edge', () => {
     const serializer = new JmMindJsonSerializer();
 
-    const edge = new JmEdge('edge1', 'source', 'target', JmEdgeType.Child);
+    const edge = new JmEdge('edge1', 'source', 'target', JmEdgeType.Link, 'test label');
     const serialized = serializer._serializeEdge(edge);
 
     assert.strictEqual(serialized.id, 'edge1');
     assert.strictEqual(serialized.sourceNodeId, 'source');
     assert.strictEqual(serialized.targetNodeId, 'target');
-    assert.strictEqual(serialized.type, JmEdgeType.Child);
+    assert.strictEqual(serialized.type, JmEdgeType.Link);
+    assert.strictEqual(serialized.label, 'test label');
 });
 
 test('JmMindJsonSerializer - validate with valid data', () => {
@@ -182,7 +183,8 @@ test('JmMindJsonSerializer - deserialize basic mind map', () => {
                 id: 'edge1',
                 sourceNodeId: 'root',
                 targetNodeId: 'child1',
-                type: JmEdgeType.Child
+                type: JmEdgeType.Link,
+                label: 'test link'
             }
         }
     };
@@ -235,7 +237,8 @@ test('JmMindJsonSerializer - deserialize edge', () => {
         id: 'edge1',
         sourceNodeId: 'source',
         targetNodeId: 'target',
-        type: JmEdgeType.Child
+        type: JmEdgeType.Link,
+        label: 'test label'
     };
 
     const edge = serializer._deserializeEdge(edgeData);
@@ -243,7 +246,8 @@ test('JmMindJsonSerializer - deserialize edge', () => {
     assert.strictEqual(edge.id, 'edge1');
     assert.strictEqual(edge.sourceNodeId, 'source');
     assert.strictEqual(edge.targetNodeId, 'target');
-    assert.strictEqual(edge.type, JmEdgeType.Child);
+    assert.strictEqual(edge.type, JmEdgeType.Link);
+    assert.strictEqual(edge.label, 'test label');
 });
 
 test('JmMindJsonSerializer - round trip serialization', () => {
