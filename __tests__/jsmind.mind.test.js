@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
-import { DEFAULT_METADATA } from '../src/jsmind.meta.js';
+
 import { JmMind } from '../src/jsmind.mind.js';
 import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.event.js';
 import { JmNode, JmNodeDirection} from '../src/jsmind.node.js';
@@ -8,26 +8,32 @@ import { JmEdgeType } from '../src/jsmind.edge.js';
 import { JmNodeContent } from '../src/jsmind.node.content.js';
 import { JsMindError } from '../src/jsmind.error.js';
 
-const mindOptions = {
+const metadata = {
+    name: 'Test Mind Map',
+    version: '1.0',
+    author: 'test@example.com'
+};
+
+const options = {
     seq: 1,
     nodeIdGenerator: {
-        newId: mock.fn(()=>`node_${mindOptions.seq++}`)
+        newId: mock.fn(()=>`node_${options.seq++}`)
     },
     edgeIdGenerator: {
-        newId: mock.fn(()=>`edge_${mindOptions.seq++}`)
+        newId: mock.fn(()=>`edge_${options.seq++}`)
     }
 };
 
 test('construct JmMind', () => {
-    mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
-    const mind = new JmMind(mindOptions);
+    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
+    const mind = new JmMind(metadata, options);
     assert.ok(mind);
     assert.ok(mind.options);
     assert.ok(mind.options.nodeIdGenerator);
     assert.ok(mind.options.edgeIdGenerator);
 
     assert.ok(mind.meta);
-    assert.deepStrictEqual(mind.meta, DEFAULT_METADATA);
+    assert.deepStrictEqual(mind.meta, metadata);
 
     assert.ok(mind.root);
     assert.strictEqual(mind.root.id, 'root');
@@ -35,7 +41,7 @@ test('construct JmMind', () => {
 });
 
 test('construct JmMind with no options - uses defaults', () => {
-    const mind = new JmMind();
+    const mind = new JmMind(metadata);
     assert.ok(mind);
     assert.ok(mind.options);
     assert.ok(mind.options.nodeIdGenerator);
@@ -64,7 +70,7 @@ test('construct JmMind with partial options - merges with defaults', () => {
         newId: mock.fn(() => 'custom_edge_1')
     };
 
-    const mind = new JmMind({
+    const mind = new JmMind(metadata, {
         nodeIdGenerator: customNodeIdGenerator,
         edgeIdGenerator: customEdgeIdGenerator,
         rootNodeId: 'custom_root'
@@ -97,7 +103,7 @@ test('addChildNode with custom nodeId', () => {
         newId: mock.fn(() => 'generated_id')
     };
 
-    const mind = new JmMind({
+    const mind = new JmMind(metadata, {
         nodeIdGenerator: mockNodeIdGenerator
     });
 
@@ -118,7 +124,7 @@ test('addChildNode with custom nodeId', () => {
 });
 
 test('addChildNode with NodeCreationOptions - sets all options', () => {
-    const mind = new JmMind();
+    const mind = new JmMind(metadata);
 
     // Add a child node with all options
     const options = {
@@ -143,7 +149,7 @@ test('addChildNode with NodeCreationOptions - sets all options', () => {
 });
 
 test('addChildNode with partial NodeCreationOptions - preserves defaults', () => {
-    const mind = new JmMind();
+    const mind = new JmMind(metadata);
 
     // Add a child node with only some options
     const options = {
@@ -163,7 +169,7 @@ test('addChildNode with partial NodeCreationOptions - preserves defaults', () =>
 });
 
 test('addChildNode without options - preserves all constructor defaults', () => {
-    const mind = new JmMind();
+    const mind = new JmMind(metadata);
 
     // Add a child node without any options
     const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('no options'));
@@ -178,7 +184,7 @@ test('addChildNode without options - preserves all constructor defaults', () => 
 
 test('construct JmMind with empty rootNodeId - generates new ID', () => {
     // Create a mind with empty rootNodeId
-    const mind = new JmMind({
+    const mind = new JmMind(metadata, {
         rootNodeId: ''
     });
 
@@ -194,7 +200,7 @@ test('construct JmMind with empty rootNodeId - generates new ID', () => {
 
 test('construct JmMind with undefined rootNodeId - generates new ID', () => {
     // Create a mind with undefined rootNodeId
-    const mind = new JmMind({
+    const mind = new JmMind(metadata, {
         rootNodeId: undefined
     });
 
@@ -208,12 +214,12 @@ test('construct JmMind with undefined rootNodeId - generates new ID', () => {
 });
 
 test('JmMind.findNodeById', ()=>{
-    mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
-    const mind = new JmMind(mindOptions);
+    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
+    const mind = new JmMind(metadata, options);
     const fetchedRoot = mind.findNodeById('root');
     assert.ok(fetchedRoot);
 
-    mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'child1');
+    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'child1');
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const foundChild1 = mind.findNodeById('child1');
     assert.strictEqual(foundChild1.id, child1.id);
@@ -222,10 +228,10 @@ test('JmMind.findNodeById', ()=>{
 });
 
 test('JmMind.addChildNode', () => {
-    mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
-    const mind = new JmMind(mindOptions);
-    mindOptions.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'node1');
-    mindOptions.edgeIdGenerator.newId.mock.mockImplementationOnce(()=>'edge1');
+    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
+    const mind = new JmMind(metadata, options);
+    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'node1');
+    options.edgeIdGenerator.newId.mock.mockImplementationOnce(()=>'edge1');
     const child = mind.addChildNode('root', JmNodeContent.createText('child'));
 
     assert.ok(child);
@@ -243,7 +249,7 @@ test('JmMind.addChildNode', () => {
 });
 
 test('Observe adding nodes', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
@@ -261,7 +267,7 @@ test('Observe adding nodes', () => {
 });
 
 test('JmMind.removeNode', ()=>{
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child-1'));
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child-2'));
     const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child-3'));
@@ -311,7 +317,7 @@ test('JmMind.removeNode', ()=>{
 });
 
 test('Observe removing nodes', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child-2'));
     const child21 = mind.addChildNode(child2.id, JmNodeContent.createText('child-2-1'));
@@ -342,7 +348,7 @@ test('Observe removing nodes', () => {
 });
 
 test('managed node equals to original node', ()=>{
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const root = mind.root;
     const node1 = mind.addChildNode(root.id, JmNodeContent.createText('node-sub-1'));
     const node2 = mind.addChildNode(root.id, JmNodeContent.createText('node-sub-2'));
@@ -357,7 +363,7 @@ test('managed node equals to original node', ()=>{
 });
 
 test('managed node contains readonly fields', ()=>{
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const node1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('node-sub-1'));
     const managedNode1 = mind.findNodeById(node1.id);
 
@@ -383,7 +389,7 @@ test('managed node contains readonly fields', ()=>{
 });
 
 test('managed node children is immutable', ()=>{
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     assert.throws(()=>{mind.root.children.fill('a');});
     assert.throws(()=>{mind.root.children.pop();});
     assert.throws(()=>{mind.root.children.push('a');});
@@ -405,7 +411,7 @@ test('managed node children is immutable', ()=>{
 });
 
 test('JmMind.moveNode - basic functionality', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Create a simple structure: root -> parent1 -> child1, child2
     const parent1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Parent 1'));
@@ -431,7 +437,7 @@ test('JmMind.moveNode - basic functionality', () => {
 });
 
 test('JmMind.moveNode - move to different position', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Create structure: root -> child1, child2, child3
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 1'));
@@ -453,7 +459,7 @@ test('JmMind.moveNode - move to different position', () => {
 });
 
 test('JmMind.moveNode - move with null position (no reposition)', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Create structure: root -> child1, child2
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 1'));
@@ -473,7 +479,7 @@ test('JmMind.moveNode - move with null position (no reposition)', () => {
 });
 
 test('JmMind.moveNode - move with undefined direction (preserve current)', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Create a child with a specific direction
     const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
@@ -491,7 +497,7 @@ test('JmMind.moveNode - move with undefined direction (preserve current)', () =>
 });
 
 test('JmMind.moveNode - error cases', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Test moving non-existent node
     assert.throws(() => {
@@ -531,7 +537,7 @@ test('JmMind.moveNode - error cases', () => {
 });
 
 test('JmMind.moveNode - edge management', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Create structure: root -> parent -> child
     const parent = mind.addChildNode(mind.root.id, JmNodeContent.createText('Parent'));
@@ -549,7 +555,7 @@ test('JmMind.moveNode - edge management', () => {
 });
 
 test('JmMind.moveNode - same parent optimization (reposition only)', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Create structure: root -> child1, child2, child3
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 1'));
@@ -575,7 +581,7 @@ test('JmMind.moveNode - same parent optimization (reposition only)', () => {
 });
 
 test('JmMind.moveNode - same parent with only direction change', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Create a child with default direction
     const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
@@ -596,7 +602,7 @@ test('JmMind.moveNode - same parent with only direction change', () => {
 });
 
 test('JmMind.moveNode - only direction change (no parent/position)', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Create a child with default direction
     const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
@@ -615,7 +621,7 @@ test('JmMind.moveNode - only direction change (no parent/position)', () => {
 });
 
 test('JmMind.moveNode - no options (should throw error)', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     // Create a child
     const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
@@ -627,7 +633,7 @@ test('JmMind.moveNode - no options (should throw error)', () => {
 });
 
 test('Observe update node', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
     const node1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('node1'));
     node1.content = JmNodeContent.createText('new name of node1');
@@ -660,7 +666,7 @@ test('Observe update node', () => {
 });
 
 test('JmMind.addEdge', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
 
@@ -677,7 +683,7 @@ test('JmMind.addEdge', () => {
 });
 
 test('JmMind.addEdge without label', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
 
@@ -686,7 +692,7 @@ test('JmMind.addEdge without label', () => {
 });
 
 test('JmMind.addEdge with invalid source node', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
 
     assert.throws(() => {
@@ -695,7 +701,7 @@ test('JmMind.addEdge with invalid source node', () => {
 });
 
 test('JmMind.addEdge with invalid target node', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
 
     assert.throws(() => {
@@ -704,7 +710,7 @@ test('JmMind.addEdge with invalid target node', () => {
 });
 
 test('JmMind.removeEdge', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
 
@@ -717,14 +723,14 @@ test('JmMind.removeEdge', () => {
 });
 
 test('JmMind.removeEdge with invalid edge ID', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
 
     const result = mind.removeEdge('invalid');
     assert.strictEqual(result, false);
 });
 
 test('JmMind.getEdges', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
     const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child3'));
@@ -751,7 +757,7 @@ test('JmMind.getEdges', () => {
 });
 
 test('JmMind.getEdges with no edges', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
 
     const edges = mind.getEdges(child1.id);
@@ -759,7 +765,7 @@ test('JmMind.getEdges with no edges', () => {
 });
 
 test('JmMind edge events', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
 
@@ -785,7 +791,7 @@ test('JmMind edge events', () => {
 });
 
 test('JmMind.removeNode cleans up edges', () => {
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(metadata, options);
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
     const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child3'));

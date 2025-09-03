@@ -1,9 +1,8 @@
 import { JmObserverManager } from './event/jsmind.observer.manager.js';
 import { JmEdge } from './jsmind.edge.js';
-import { DEFAULT_METADATA } from './jsmind.meta.js';
 import { JmNode } from './jsmind.node.js';
 import { JmNodeContent } from './jsmind.node.content.js';
-import { DEFAULT_OPTIONS } from './jsmind.options.js';
+import { DEFAULT_METADATA, DEFAULT_OPTIONS } from './jsmind.const.js';
 
 import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.event.js';
 import { JsMindError } from './jsmind.error.js';
@@ -12,15 +11,24 @@ import { JmMindSerializationManager } from './serialization/jsmind.serialization
 export class JmMind {
     /**
      * Create a new mind map
-     * @param {import('./jsmind.options.js').MindOptions} [mindOptions] - Configuration options for the mind map
+     * @param {import('./jsmind.const.js').MindMetadata} [metadata] - Metadata for the mind map
+     * @param {import('./jsmind.const.js').MindOptions} [options] - Configuration options for the mind map
      */
-    constructor(mindOptions) {
+    constructor(metadata = {}, options = {}) {
+
         /**
-         * @type {import('./jsmind.options.js').MindOptions}
+         * @type {import('./jsmind.const.js').MindMetadata}
          */
-        this.options = this._mergeOptions(mindOptions);
+        this.meta = this._merge(DEFAULT_METADATA, metadata);
+
+        /**
+         * @type {import('./jsmind.const.js').MindOptions}
+         */
+        this.options = this._merge(DEFAULT_OPTIONS.mind, options);
         this.observerManager = new JmObserverManager(this);
         this.nodeManager = new JmNodeManager(this);
+        this.serializationManager = JmMindSerializationManager.getInstance();
+
         /**
          * @type {Object.<string, JmNode>}
          */
@@ -31,78 +39,7 @@ export class JmMind {
          */
         this._edges = {};
 
-        // Initialize serialization system
-        this.serializationManager = JmMindSerializationManager.getInstance();
-
-        this._initMindmap();
-    }
-
-    /**
-     * Merge user options with default options
-     * @param {import('./jsmind.options.js').MindOptions} [userOptions] - User-provided options
-     * @returns {import('./jsmind.options.js').MindOptions} Merged options
-     * @private
-     */
-    _mergeOptions(userOptions) {
-        const defaultOptions = DEFAULT_OPTIONS.mind;
-
-        if (!userOptions) {
-            return { ...defaultOptions };
-        }
-
-        return {
-            ...defaultOptions,
-            ...userOptions
-        };
-    }
-
-    _initMindmap() {
-        this.meta = DEFAULT_METADATA;
         this._root = this._createRootNode();
-        this._nodes[this._root.id] = this._root;
-    }
-
-    _createRootNode() {
-        // Check if rootNodeId is empty and generate a new one if needed
-        const rootNodeId = this.options.rootNodeId || this.options.nodeIdGenerator.newId();
-        const node = this._newNode(rootNodeId, JmNodeContent.createText(this.meta.name));
-        return node;
-    }
-
-    /**
-     * create a new node, and add it to the mind
-     * @param {string} nodeId - The ID for the new node
-     * @param {JmNodeContent} content - Content for the node
-     * @returns {JmNode} The created node
-     */
-    _newNode(nodeId, content) {
-        const node = new JmNode(nodeId, content);
-        this._nodes[nodeId] = node;
-        return node;
-    }
-
-    /**
-     * retrieve node by node id
-     * @param {string} nodeId
-     * @returns {JmNode} the corresponding node
-     * @throws throw an error if node doesn't exist
-     */
-    _getNodeById(nodeId) {
-        const node = this._nodes[nodeId];
-        if(!!node) {
-            return node;
-        }
-        throw new JsMindError(`node[id=${nodeId}] does not exist`);
-    }
-
-    /**
-     * find a node from the mindmap by the given id
-     * @param {string} nodeId the given node id
-     * @returns {JmNode|null} the corresponding node in this mindmap if exist, otherwise null
-     */
-    findNodeById(nodeId) {
-        const node = this._nodes[nodeId];
-        return !!node ? this.nodeManager.manage(node) : null;
     }
 
     /**
@@ -111,6 +48,34 @@ export class JmMind {
      */
     get root() {
         return this.nodeManager.manage(this._root);
+    }
+
+    /**
+     * Add an edge between two nodes
+     * @param {string} sourceNodeId - The source node ID
+     * @param {string} targetNodeId - The target node ID
+     * @param {JmEdgeType} type - The edge type
+     * @param {string} [label] - Optional label for the edge
+     * @returns {JmEdge} The created edge
+     */
+    addEdge(sourceNodeId, targetNodeId, type, label = null) {
+        // Validate nodes exist
+        this._getNodeById(sourceNodeId);
+        this._getNodeById(targetNodeId);
+
+        const edgeId = this.options.edgeIdGenerator.newId();
+        const edge = new JmEdge(edgeId, sourceNodeId, targetNodeId, type, label);
+        this._edges[edgeId] = edge;
+
+        // Emit event
+        this.observerManager.notifyObservers(new JmMindEvent(
+            JmMindEventType.EdgeAdded,
+            {
+                'edge': edge
+            })
+        );
+
+        return edge;
     }
 
     /**
@@ -156,53 +121,26 @@ export class JmMind {
     }
 
     /**
-     * remove node
-     * @param {string} nodeId
+     * find a node from the mindmap by the given id
+     * @param {string} nodeId the given node id
+     * @returns {JmNode|null} the corresponding node in this mindmap if exist, otherwise null
      */
-    removeNode(nodeId) {
-        const node = this._getNodeById(nodeId);
-        if(nodeId == this._root.id) {
-            throw new JsMindError('root node can not be removed');
-        }
-
-        // remove node from parent's children
-        const nodeIndex = node.parent.children.indexOf(node);
-        node.parent.children.splice(nodeIndex, 1);
-
-        // identify all nodes that need to be cleared
-        const nodeIds = node.getAllSubnodeIds();
-        nodeIds.push(node.id);
-
-        // remove those nodes
-        nodeIds.forEach((id)=> delete this._nodes[id]);
-
-        // remove all relevant edges
-        const edgeIds = Object.values(this._edges)
-            .filter((e)=>nodeIds.includes(e.sourceNodeId) || nodeIds.includes(e.targetNodeId))
-            .map((e) => e.id);
-        edgeIds.forEach((id) => delete this._edges[id]);
-
-        // emit event
-        this.observerManager.notifyObservers(new JmMindEvent(
-            JmMindEventType.NodeRemoved,
-            {
-                'node': node,
-                'removedNodeIds': nodeIds,
-                'removedEdgeIds': edgeIds
-            })
-        );
+    findNodeById(nodeId) {
+        const node = this._nodes[nodeId];
+        return !!node ? this.nodeManager.manage(node) : null;
     }
 
-    _onNodeUpdated(node, prop, originValue, newValue) {
-        this.observerManager.notifyObservers(new JmMindEvent(
-            JmMindEventType.NodeUpdated,
-            {
-                'node': node,
-                'property': prop,
-                'originValue': originValue,
-                'newValue': newValue
-            })
-        );
+    /**
+     * Get all edges for a specific node
+     * @param {string} nodeId - The node ID
+     * @param {string} [type] - Optional edge type filter
+     * @returns {JmEdge[]} Array of edges involving the node
+     */
+    getEdges(nodeId, type = null) {
+        return Object.values(this._edges).filter(edge => {
+            return (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) &&
+                   (!type || edge.type === type);
+        });
     }
 
     /**
@@ -273,115 +211,6 @@ export class JmMind {
     }
 
     /**
-     * Remove a node from its current parent
-     * @private
-     * @param {JmNode} node - The node to remove from parent
-     */
-    _removeNodeFromParent(node) {
-        if (!node.parent) {
-            return;
-        }
-
-        const parent = node.parent;
-        const index = parent.children.indexOf(node);
-        if (index > -1) {
-            parent.children.splice(index, 1);
-        }
-        node.parent = null;
-    }
-
-    /**
-     * Add a node to a new parent at a specific position
-     * @private
-     * @param {JmNode} node - The node to add
-     * @param {JmNode} targetParent - The new parent node
-     * @param {number} targetPosition - The position index among siblings
-     */
-    _addNodeToParent(node, targetParent, targetPosition) {
-        node.parent = targetParent;
-
-        if (targetPosition === undefined || targetPosition === null) {
-            // Add to the end if no position specified
-            targetParent.children.push(node);
-        } else {
-            // Insert at specific position
-            const position = Math.max(0, Math.min(targetPosition, targetParent.children.length));
-            targetParent.children.splice(position, 0, node);
-        }
-    }
-
-    /**
-     * Reposition a node within the same parent (optimized operation)
-     * @private
-     * @param {JmNode} node - The node to reposition
-     * @param {number} targetPosition - The new position index among siblings
-     */
-    _repositionNodeInSameParent(node, targetPosition) {
-        // Do nothing if targetPosition is not provided or is null
-        if (targetPosition === undefined || targetPosition === null) {
-            return;
-        }
-
-        const parent = node.parent;
-        const currentIndex = parent.children.indexOf(node);
-        const newPosition = Math.max(0, Math.min(targetPosition, parent.children.length));
-
-        // Only move if position actually changed
-        if (currentIndex !== newPosition) {
-            // Remove from current position
-            parent.children.splice(currentIndex, 1);
-            // Insert at new position
-            parent.children.splice(newPosition, 0, node);
-        }
-    }
-
-    /**
-     * Get all edges for a specific node
-     * @param {string} nodeId - The node ID
-     * @param {string} [type] - Optional edge type filter
-     * @returns {JmEdge[]} Array of edges involving the node
-     */
-    getEdges(nodeId, type = null) {
-        const edges = [];
-        Object.values(this._edges).forEach(edge => {
-            if (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) {
-                if (!type || edge.type === type) {
-                    edges.push(edge);
-                }
-            }
-        });
-        return edges;
-    }
-
-    /**
-     * Add an edge between two nodes
-     * @param {string} sourceNodeId - The source node ID
-     * @param {string} targetNodeId - The target node ID
-     * @param {JmEdgeType} type - The edge type
-     * @param {string} [label] - Optional label for the edge
-     * @returns {JmEdge} The created edge
-     */
-    addEdge(sourceNodeId, targetNodeId, type, label = null) {
-        // Validate nodes exist
-        this._getNodeById(sourceNodeId);
-        this._getNodeById(targetNodeId);
-
-        const edgeId = this.options.edgeIdGenerator.newId();
-        const edge = new JmEdge(edgeId, sourceNodeId, targetNodeId, type, label);
-        this._edges[edgeId] = edge;
-
-        // Emit event
-        this.observerManager.notifyObservers(new JmMindEvent(
-            JmMindEventType.EdgeAdded,
-            {
-                'edge': edge
-            })
-        );
-
-        return edge;
-    }
-
-    /**
      * Remove an edge by ID
      * @param {string} edgeId - The edge ID to remove
      * @returns {boolean} True if the edge was removed, false if not found
@@ -405,6 +234,44 @@ export class JmMind {
     }
 
     /**
+     * remove node
+     * @param {string} nodeId
+     */
+    removeNode(nodeId) {
+        const node = this._getNodeById(nodeId);
+        if(nodeId == this._root.id) {
+            throw new JsMindError('root node can not be removed');
+        }
+
+        // remove node from parent's children
+        const nodeIndex = node.parent.children.indexOf(node);
+        node.parent.children.splice(nodeIndex, 1);
+
+        // identify all nodes that need to be cleared
+        const nodeIds = node.getAllSubnodeIds();
+        nodeIds.push(node.id);
+
+        // remove those nodes
+        nodeIds.forEach((id)=> delete this._nodes[id]);
+
+        // remove all relevant edges
+        const edgeIds = Object.values(this._edges)
+            .filter((e)=>nodeIds.includes(e.sourceNodeId) || nodeIds.includes(e.targetNodeId))
+            .map((e) => e.id);
+        edgeIds.forEach((id) => delete this._edges[id]);
+
+        // emit event
+        this.observerManager.notifyObservers(new JmMindEvent(
+            JmMindEventType.NodeRemoved,
+            {
+                'node': node,
+                'removedNodeIds': nodeIds,
+                'removedEdgeIds': edgeIds
+            })
+        );
+    }
+
+    /**
      * Serialize the mind map to a specific format
      * @param {string} format - The target format (default: 'json')
      * @returns {any} The serialized data
@@ -420,6 +287,38 @@ export class JmMind {
      */
     serialize(format = 'json') {
         return this.serializationManager.serialize(this, format);
+    }
+
+    /**
+     * Add a node to a new parent at a specific position
+     * @private
+     * @param {JmNode} node - The node to add
+     * @param {JmNode} targetParent - The new parent node
+     * @param {number} targetPosition - The position index among siblings
+     */
+    _addNodeToParent(node, targetParent, targetPosition) {
+        node.parent = targetParent;
+
+        if (targetPosition === undefined || targetPosition === null) {
+            // Add to the end if no position specified
+            targetParent.children.push(node);
+        } else {
+            // Insert at specific position
+            const position = Math.max(0, Math.min(targetPosition, targetParent.children.length));
+            targetParent.children.splice(position, 0, node);
+        }
+    }
+
+    /**
+     * create a new node, and add it to the mind
+     * @param {string} nodeId - The ID for the new node
+     * @param {JmNodeContent} content - Content for the node
+     * @returns {JmNode} The created node
+     */
+    _createRootNode() {
+        // Check if rootNodeId is empty and generate a new one if needed
+        const rootNodeId = this.options.rootNodeId || this.options.nodeIdGenerator.newId();
+        return this._newNode(rootNodeId, JmNodeContent.createText(this.meta.name));
     }
 
     /**
@@ -457,6 +356,105 @@ export class JmMind {
                 eventData
             ));
         }
+    }
+
+    /**
+     * Merge user values with default values
+     * @param {Object} [defaultValues] - default values
+     * @param {Object} [userValues] - User-provided values
+     * @returns {Object} Merged values
+     * @private
+     */
+    _merge(defaultValues, userValues) {
+        if (!userValues) {
+            return { ...defaultValues };
+        }
+
+        return {
+            ...defaultValues,
+            ...userValues
+        };
+    }
+
+    /**
+     * create a new node, and add it to the mind
+     * @param {string} nodeId - The ID for the new node
+     * @param {JmNodeContent} content - Content for the node
+     * @returns {JmNode} The created node
+     */
+    _newNode(nodeId, content) {
+        const node = new JmNode(nodeId, content);
+        this._nodes[nodeId] = node;
+        return node;
+    }
+
+    _onNodeUpdated(node, prop, originValue, newValue) {
+        this.observerManager.notifyObservers(new JmMindEvent(
+            JmMindEventType.NodeUpdated,
+            {
+                'node': node,
+                'property': prop,
+                'originValue': originValue,
+                'newValue': newValue
+            })
+        );
+    }
+
+    /**
+     * Remove a node from its current parent
+     * @private
+     * @param {JmNode} node - The node to remove from parent
+     */
+    _removeNodeFromParent(node) {
+        if (!node.parent) {
+            return;
+        }
+
+        const parent = node.parent;
+        const index = parent.children.indexOf(node);
+        if (index > -1) {
+            parent.children.splice(index, 1);
+        }
+        node.parent = null;
+    }
+
+    /**
+     * Reposition a node within the same parent (optimized operation)
+     * @private
+     * @param {JmNode} node - The node to reposition
+     * @param {number} targetPosition - The new position index among siblings
+     */
+    _repositionNodeInSameParent(node, targetPosition) {
+        // Do nothing if targetPosition is not provided or is null
+        if (targetPosition === undefined || targetPosition === null) {
+            return;
+        }
+
+        const parent = node.parent;
+        const currentIndex = parent.children.indexOf(node);
+        const newPosition = Math.max(0, Math.min(targetPosition, parent.children.length));
+
+        // Only move if position actually changed
+        if (currentIndex !== newPosition) {
+            // Remove from current position
+            parent.children.splice(currentIndex, 1);
+            // Insert at new position
+            parent.children.splice(newPosition, 0, node);
+        }
+    }
+
+    /**
+     * retrieve node by node id
+     * @param {string} nodeId
+     * @returns {JmNode} the corresponding node
+     * @throws throw an error if node doesn't exist
+     */
+    _getNodeById(nodeId) {
+        const node = this._nodes[nodeId];
+        if(!!node) {
+            return node;
+        }
+        throw new JsMindError(`node[id=${nodeId}] does not exist`);
     }
 }
 

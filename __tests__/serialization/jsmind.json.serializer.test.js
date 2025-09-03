@@ -33,12 +33,12 @@ test('JmMindJsonSerializer - serialize basic mind map', () => {
 
     // Create a simple mind map
     let nodeCounter = 0;
-    const mindOptions = {
+    const options = {
         nodeIdGenerator: { newId: () => `node${++nodeCounter}` },
         edgeIdGenerator: { newId: () => 'edge1' }
     };
 
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(undefined, options);
     mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
 
     const serialized = serializer.serialize(mind);
@@ -54,7 +54,7 @@ test('JmMindJsonSerializer - serialize basic mind map', () => {
     assert.ok(rootId, 'Should have a root node');
     assert.strictEqual(serialized.root.id, rootId);
     assert.strictEqual(serialized.root.content.type, 'text');
-    assert.strictEqual(serialized.root.content.value, 'untitled jsmind mindmap');
+    assert.strictEqual(serialized.root.content.value, 'jsMind Mindmap');
     assert.strictEqual(serialized.root.parent, null);
     assert.ok(Array.isArray(serialized.root.children), 'Should have children array');
 
@@ -255,12 +255,12 @@ test('JmMindJsonSerializer - round trip serialization', () => {
 
     // Create a simple mind map
     let nodeCounter = 0;
-    const mindOptions = {
+    const options = {
         nodeIdGenerator: { newId: () => `node${++nodeCounter}` },
         edgeIdGenerator: { newId: () => 'edge' }
     };
 
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(undefined, options);
     mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
 
     // Serialize
@@ -278,7 +278,7 @@ test('JmMindJsonSerializer - round trip serialization', () => {
 
     // Find the root and child nodes by their content
     const rootNode = Object.values(deserialized._nodes).find(node =>
-        node.content.value === 'untitled jsmind mindmap'
+        node.content.value === 'jsMind Mindmap'
     );
     const childNode = Object.values(deserialized._nodes).find(node =>
         node.content.value === 'Child'

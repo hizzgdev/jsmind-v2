@@ -93,12 +93,12 @@ test('JmMindSerializationManager - unsupported format error', () => {
 });
 
 test('JmMind - serialization integration', () => {
-    const mindOptions = {
+    const options = {
         nodeIdGenerator: { newId: () => 'test' },
         edgeIdGenerator: { newId: () => 'test' }
     };
 
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(undefined, options);
 
     // Add a child node
     const childContent = JmNodeContent.createText('Child Node');
@@ -119,12 +119,12 @@ test('JmMind - serialization integration', () => {
 });
 
 test('JmMind - serialization manager access', () => {
-    const mindOptions = {
+    const options = {
         nodeIdGenerator: { newId: () => 'test' },
         edgeIdGenerator: { newId: () => 'test' }
     };
 
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(undefined, options);
 
     // Test that we can access the serialization manager directly
     assert.ok(mind.serializationManager, 'Should have serialization manager');
@@ -140,12 +140,12 @@ test('JmMindJsonSerializer - serialize and deserialize', () => {
     const serializer = new JmMindJsonSerializer();
 
     // Create a simple mind map
-    const mindOptions = {
+    const options = {
         nodeIdGenerator: { newId: () => 'test' },
         edgeIdGenerator: { newId: () => 'test' }
     };
 
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(undefined, options);
     const childContent = JmNodeContent.createText('Child Node');
     mind.addChildNode(mind.root.id, childContent);
 
@@ -176,12 +176,12 @@ test('JmMindFreeMindSerializer - placeholder implementation', () => {
     assert.strictEqual(serializer.getFormatName(), 'freemind', 'Should return freemind format name');
 
     // Test that methods throw appropriate errors
-    const mindOptions = {
+    const options = {
         nodeIdGenerator: { newId: () => 'test' },
         edgeIdGenerator: { newId: () => 'test' }
     };
 
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(undefined, options);
 
     assert.throws(() => {
         serializer.serialize(mind);
@@ -220,12 +220,12 @@ test('JmMindSerializationManager - automatic registration on first access', () =
     assert.strictEqual(manager.isFormatSupported('freemind'), true, 'Should support FreeMind format');
 
     // Create a JmMind instance - no manual registration needed
-    const mindOptions = {
+    const options = {
         nodeIdGenerator: { newId: () => 'test' },
         edgeIdGenerator: { newId: () => 'test' }
     };
 
-    const mind = new JmMind(mindOptions);
+    const mind = new JmMind(undefined, options);
 
     // Serializers should be immediately available without any manual setup
     assert.ok(mind.serializationManager, 'Should have serialization manager');
