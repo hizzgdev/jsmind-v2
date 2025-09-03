@@ -15,4 +15,4 @@ Development Environment
 TODO
 ---
 
-- Serialization in node_tree and freemind format, the AI-generated serialization should be rewritten.
+- Serialization in node_tree and freemind format
