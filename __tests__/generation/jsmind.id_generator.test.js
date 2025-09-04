@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { SimpleIdGenerator } from '../../src/generation/jsmind.simple.id_generator.js';
+import { SimpleIdGenerator, GLOBAL_ID_GENERATOR } from '../../src/generation/jsmind.id_generator.js';
 
 test('SimpleIdGenerator', () => {
     const generator = new SimpleIdGenerator('test_');
@@ -23,6 +23,18 @@ test('SimpleIdGenerator with null prefix', () => {
         idCollection.add(generator.newId());
     }
     assert.strictEqual(idCollection.size, 100);
-}
-);
+});
+
+test('GLOBAL_ID_GENERATOR', () => {
+    assert.ok(GLOBAL_ID_GENERATOR);
+    assert.ok(GLOBAL_ID_GENERATOR.newId);
+    const idCollection = new Set();
+    for(let i = 0; i < 100; i++) {
+        const id = GLOBAL_ID_GENERATOR.newId();
+        assert.ok(id);
+        assert.strictEqual(typeof id, 'string');
+        idCollection.add(id);
+    }
+    assert.strictEqual(idCollection.size, 100);
+});
 

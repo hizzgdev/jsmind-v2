@@ -1,4 +1,4 @@
-import { SimpleIdGenerator } from './generation/jsmind.simple.id_generator.js';
+import { GLOBAL_ID_GENERATOR } from './generation/jsmind.id_generator.js';
 
 /**
  * @typedef {Object} MindMetadata
@@ -33,8 +33,8 @@ export const DEFAULT_METADATA = {
  */
 export const DEFAULT_OPTIONS = {
     mind: {
-        edgeIdGenerator: new SimpleIdGenerator('edge_'),
-        nodeIdGenerator: new SimpleIdGenerator('node_'),
+        edgeIdGenerator: GLOBAL_ID_GENERATOR,
+        nodeIdGenerator: GLOBAL_ID_GENERATOR,
         rootNodeId: 'root'
     }
 };

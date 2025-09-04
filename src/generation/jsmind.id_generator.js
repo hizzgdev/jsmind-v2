@@ -29,3 +29,25 @@ export class IdGenerator {
         throw new Error('not implemented');
     }
 }
+
+/**
+ * Simple implementation of IdGenerator
+ */
+export class SimpleIdGenerator extends IdGenerator {
+    constructor(prefix) {
+        super();
+        this.seed = new Date().getTime();
+        this.seq = 0;
+        this.prefix = prefix || '';
+    }
+
+    newId() {
+        this.seq++;
+        return this.prefix + (this.seed + this.seq).toString(36);
+    }
+}
+
+/**
+ * Global ID generator instance
+ */
+export const GLOBAL_ID_GENERATOR = new SimpleIdGenerator('jm-');
