@@ -62,7 +62,7 @@ export class JmMindJsonSerializer extends JmMindSerializer {
             throw new JsMindError('Invalid JSON data format');
         }
 
-        // Create mind map with basic options (we'll need to handle this properly)
+        // Create mind map with basic options
         const mindOptions = {
             nodeIdGenerator: { newId: () => 'temp' }, // Placeholder
             edgeIdGenerator: { newId: () => 'temp' } // Placeholder

@@ -9,9 +9,9 @@ import { GLOBAL_ID_GENERATOR } from './generation/jsmind.id_generator.js';
 
 /**
  * @typedef {Object} MindOptions
+ * @property {string} rootNodeId - The ID for the root node
  * @property {import('./generation/jsmind.id_generator.js').IdGenerator} nodeIdGenerator - Generator for creating unique node IDs
  * @property {import('./generation/jsmind.id_generator.js').IdGenerator} edgeIdGenerator - Generator for creating unique edge IDs
- * @property {string} rootNodeId - The ID for the root node
  */
 
 /**
@@ -33,8 +33,8 @@ export const DEFAULT_METADATA = {
  */
 export const DEFAULT_OPTIONS = {
     mind: {
-        edgeIdGenerator: GLOBAL_ID_GENERATOR,
+        rootNodeId: 'root',
         nodeIdGenerator: GLOBAL_ID_GENERATOR,
-        rootNodeId: 'root'
+        edgeIdGenerator: GLOBAL_ID_GENERATOR
     }
 };

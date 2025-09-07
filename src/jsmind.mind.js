@@ -6,7 +6,6 @@ import { DEFAULT_METADATA, DEFAULT_OPTIONS } from './jsmind.const.js';
 
 import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.event.js';
 import { JsMindError } from './jsmind.error.js';
-import { JmMindSerializationManager } from './serialization/jsmind.serialization.manager.js';
 
 export class JmMind {
     /**
@@ -27,7 +26,6 @@ export class JmMind {
         this.options = this._merge(DEFAULT_OPTIONS.mind, options);
         this.observerManager = new JmObserverManager(this);
         this.nodeManager = new JmNodeManager(this);
-        this.serializationManager = JmMindSerializationManager.getInstance();
 
         /**
          * @type {Object.<string, JmNode>}
@@ -269,24 +267,6 @@ export class JmMind {
                 'removedEdgeIds': edgeIds
             })
         );
-    }
-
-    /**
-     * Serialize the mind map to a specific format
-     * @param {string} format - The target format (default: 'json')
-     * @returns {any} The serialized data
-     *
-     * @example
-     * // Serialize to JSON format
-     * const mind = new JmMind(options);
-     * const jsonData = mind.serialize('json');
-     * console.log(jsonData.meta.name); // "untitled jsmind mindmap"
-     *
-     * // Serialize to FreeMind format (when implemented)
-     * const freemindData = mind.serialize('freemind');
-     */
-    serialize(format = 'json') {
-        return this.serializationManager.serialize(this, format);
     }
 
     /**
