@@ -318,9 +318,12 @@ console.log(node1.equals(node3)); // false
 The node content system integrates with the serialization system:
 
 ```javascript
+import { JmMindJsonSerializer } from './src/serialization/jsmind.json.serializer.js';
+
 // JSON serialization preserves content structure
 const node = new JmNode('root', JmNodeContent.createText('Root'));
-const serialized = mind.serialize('json');
+const serializer = new JmMindJsonSerializer();
+const serialized = serializer.serialize(mind);
 
 // Content is serialized as:
 // {

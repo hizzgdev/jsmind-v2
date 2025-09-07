@@ -239,14 +239,26 @@ moveNode(nodeId, options = {}) {
 
 Additional edge operations use the global edge store:
 
+#### EdgeCreationOptions
+
+The `addEdge` method accepts an optional `EdgeCreationOptions` parameter:
+
+```typescript
+interface EdgeCreationOptions {
+  edgeId?: string;  // Optional edge ID, will be generated if not provided
+  label?: string;   // Optional label for the edge
+}
+```
+
 #### Adding an Edge
 ```javascript
-addEdge(sourceNodeId, targetNodeId, type, label = null) {
+addEdge(sourceNodeId, targetNodeId, type, options) {
   // Validate nodes exist
   this._getNodeById(sourceNodeId);
   this._getNodeById(targetNodeId);
 
-  const edgeId = this.options.edgeIdGenerator.newId();
+  const edgeId = (options && options.edgeId) || this._idGenerator.newId();
+  const label = (options && options.label) || null;
   const edge = new JmEdge(edgeId, sourceNodeId, targetNodeId, type, label);
   this._edges[edgeId] = edge;
 
@@ -257,6 +269,24 @@ addEdge(sourceNodeId, targetNodeId, type, label = null) {
 
   return edge;
 }
+```
+
+**Usage Examples**:
+
+```javascript
+// Add edge with generated ID and no label
+const edge1 = mind.addEdge(node1.id, node2.id, JmEdgeType.Link);
+
+// Add edge with custom label
+const edge2 = mind.addEdge(node1.id, node2.id, JmEdgeType.Link, { 
+  label: 'Custom Link' 
+});
+
+// Add edge with custom ID and label
+const edge3 = mind.addEdge(node1.id, node2.id, JmEdgeType.Link, { 
+  edgeId: 'custom-edge-1',
+  label: 'Custom Link' 
+});
 ```
 
 #### Removing an Edge
