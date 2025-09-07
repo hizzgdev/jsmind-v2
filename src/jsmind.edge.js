@@ -1,6 +1,12 @@
 import { JsMindError } from './jsmind.error.js';
 
 /**
+ * @typedef {Object} EdgeCreationOptions
+ * @property {string} [edgeId] - Optional edge ID, will be generated if not provided
+ * @property {string} [label] - Optional label for the edge
+ */
+
+/**
  * Edge of mind map
  */
 export class JmEdge {

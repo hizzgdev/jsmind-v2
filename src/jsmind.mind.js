@@ -3,6 +3,7 @@ import { JmEdge } from './jsmind.edge.js';
 import { JmNode } from './jsmind.node.js';
 import { JmNodeContent } from './jsmind.node.content.js';
 import { DEFAULT_METADATA, DEFAULT_OPTIONS } from './jsmind.const.js';
+import { SimpleIdGenerator } from './generation/jsmind.id_generator.js';
 
 import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.event.js';
 import { JsMindError } from './jsmind.error.js';
@@ -26,6 +27,12 @@ export class JmMind {
         this.options = this._merge(DEFAULT_OPTIONS.mind, options);
         this.observerManager = new JmObserverManager(this);
         this.nodeManager = new JmNodeManager(this);
+
+        /**
+         * @type {SimpleIdGenerator}
+         * Internal ID generator for nodes and edges
+         */
+        this._idGenerator = new SimpleIdGenerator('jm-');
 
         /**
          * @type {Object.<string, JmNode>}
@@ -53,15 +60,16 @@ export class JmMind {
      * @param {string} sourceNodeId - The source node ID
      * @param {string} targetNodeId - The target node ID
      * @param {JmEdgeType} type - The edge type
-     * @param {string} [label] - Optional label for the edge
+     * @param {import('./jsmind.edge.js').EdgeCreationOptions} [options] - Optional edge creation options
      * @returns {JmEdge} The created edge
      */
-    addEdge(sourceNodeId, targetNodeId, type, label = null) {
+    addEdge(sourceNodeId, targetNodeId, type, options) {
         // Validate nodes exist
         this._getNodeById(sourceNodeId);
         this._getNodeById(targetNodeId);
 
-        const edgeId = this.options.edgeIdGenerator.newId();
+        const edgeId = (options && options.edgeId) || this._idGenerator.newId();
+        const label = (options && options.label) || null;
         const edge = new JmEdge(edgeId, sourceNodeId, targetNodeId, type, label);
         this._edges[edgeId] = edge;
 
@@ -87,7 +95,7 @@ export class JmMind {
         const existedParent = this._getNodeById(parentId);
 
         // Extract options with defaults
-        const nodeId = (options && options.nodeId) || this.options.nodeIdGenerator.newId();
+        const nodeId = (options && options.nodeId) || this._idGenerator.newId();
 
         // create and init a node
         const node = this._newNode(nodeId, content);
@@ -297,7 +305,7 @@ export class JmMind {
      */
     _createRootNode() {
         // Check if rootNodeId is empty and generate a new one if needed
-        const rootNodeId = this.options.rootNodeId || this.options.nodeIdGenerator.newId();
+        const rootNodeId = this.options.rootNodeId || this._idGenerator.newId();
         return this._newNode(rootNodeId, JmNodeContent.createText(this.meta.name));
     }
 

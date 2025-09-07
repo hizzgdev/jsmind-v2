@@ -15,28 +15,20 @@ const metadata = {
 };
 
 const options = {
-    seq: 1,
-    nodeIdGenerator: {
-        newId: mock.fn(()=>`node_${options.seq++}`)
-    },
-    edgeIdGenerator: {
-        newId: mock.fn(()=>`edge_${options.seq++}`)
-    }
+    rootNodeId: 'test_root'
 };
 
 test('construct JmMind', () => {
-    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
     const mind = new JmMind(metadata, options);
     assert.ok(mind);
     assert.ok(mind.options);
-    assert.ok(mind.options.nodeIdGenerator);
-    assert.ok(mind.options.edgeIdGenerator);
+    assert.ok(mind._idGenerator);
 
     assert.ok(mind.meta);
     assert.deepStrictEqual(mind.meta, metadata);
 
     assert.ok(mind.root);
-    assert.strictEqual(mind.root.id, 'root');
+    assert.strictEqual(mind.root.id, 'test_root');
     assert.strictEqual(mind.root.content.value, mind.meta.name);
 });
 
@@ -44,8 +36,7 @@ test('construct JmMind with no options - uses defaults', () => {
     const mind = new JmMind(metadata);
     assert.ok(mind);
     assert.ok(mind.options);
-    assert.ok(mind.options.nodeIdGenerator);
-    assert.ok(mind.options.edgeIdGenerator);
+    assert.ok(mind._idGenerator);
     assert.strictEqual(mind.options.rootNodeId, 'root');
 
     // Check root node ID
@@ -63,33 +54,22 @@ test('construct JmMind with no options - uses defaults', () => {
 });
 
 test('construct JmMind with partial options - merges with defaults', () => {
-    const customNodeIdGenerator = {
-        newId: mock.fn(() => 'custom_node_1')
-    };
-    const customEdgeIdGenerator = {
-        newId: mock.fn(() => 'custom_edge_1')
-    };
-
     const mind = new JmMind(metadata, {
-        nodeIdGenerator: customNodeIdGenerator,
-        edgeIdGenerator: customEdgeIdGenerator,
         rootNodeId: 'custom_root'
     });
 
     assert.ok(mind);
     assert.ok(mind.options);
-    // Custom options should be used
-    assert.strictEqual(mind.options.nodeIdGenerator, customNodeIdGenerator);
-    assert.strictEqual(mind.options.edgeIdGenerator, customEdgeIdGenerator);
+    assert.ok(mind._idGenerator);
     assert.strictEqual(mind.options.rootNodeId, 'custom_root');
 
     // Check root node ID (should use custom value)
     assert.strictEqual(mind.root.id, 'custom_root');
 
-    // Add a child node and check its ID and edge ID (should use custom generators)
+    // Add a child node and check its ID (should use internal generator)
     const child = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     assert.ok(child);
-    assert.strictEqual(child.id, 'custom_node_1'); // Custom ID generator should be used
+    assert.ok(child.id); // Generated ID should exist
     assert.strictEqual(child.content.value, 'child1');
 
     // Check that no edges were created (parent-child relationships use direct fields)
@@ -98,14 +78,7 @@ test('construct JmMind with partial options - merges with defaults', () => {
 });
 
 test('addChildNode with custom nodeId', () => {
-    // Create a mind with a mock nodeIdGenerator to track calls
-    const mockNodeIdGenerator = {
-        newId: mock.fn(() => 'generated_id')
-    };
-
-    const mind = new JmMind(metadata, {
-        nodeIdGenerator: mockNodeIdGenerator
-    });
+    const mind = new JmMind(metadata);
 
     // Add a child node with a custom ID
     const customNodeId = 'custom_child_123';
@@ -118,9 +91,6 @@ test('addChildNode with custom nodeId', () => {
     // Verify the node exists in the mind's node collection
     assert.ok(mind._nodes[customNodeId]);
     assert.strictEqual(mind._nodes[customNodeId].id, customNodeId);
-
-    // Verify that nodeIdGenerator.newId() was NOT called since we provided a custom ID
-    assert.strictEqual(mockNodeIdGenerator.newId.mock.callCount(), 0);
 });
 
 test('addChildNode with NodeCreationOptions - sets all options', () => {
@@ -214,28 +184,23 @@ test('construct JmMind with undefined rootNodeId - generates new ID', () => {
 });
 
 test('JmMind.findNodeById', ()=>{
-    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
     const mind = new JmMind(metadata, options);
-    const fetchedRoot = mind.findNodeById('root');
+    const fetchedRoot = mind.findNodeById('test_root');
     assert.ok(fetchedRoot);
 
-    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'child1');
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
-    const foundChild1 = mind.findNodeById('child1');
+    const foundChild1 = mind.findNodeById(child1.id);
     assert.strictEqual(foundChild1.id, child1.id);
 
     assert.strictEqual(mind.findNodeById('id-not-existing'), null);
 });
 
 test('JmMind.addChildNode', () => {
-    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'root');
     const mind = new JmMind(metadata, options);
-    options.nodeIdGenerator.newId.mock.mockImplementationOnce(()=>'node1');
-    options.edgeIdGenerator.newId.mock.mockImplementationOnce(()=>'edge1');
-    const child = mind.addChildNode('root', JmNodeContent.createText('child'));
+    const child = mind.addChildNode('test_root', JmNodeContent.createText('child'));
 
     assert.ok(child);
-    assert.strictEqual(child.id, 'node1');
+    assert.ok(child.id); // Generated ID should exist
     assert.strictEqual(child.content.value, 'child');
     assert.strictEqual(child.parent.id, mind.root.id);
 
@@ -670,7 +635,7 @@ test('JmMind.addEdge', () => {
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
 
-    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'test link');
+    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, { label: 'test link' });
     assert.ok(edge);
     assert.strictEqual(edge.sourceNodeId, child1.id);
     assert.strictEqual(edge.targetNodeId, child2.id);
@@ -714,7 +679,7 @@ test('JmMind.removeEdge', () => {
     const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child1'));
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
 
-    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'test link');
+    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, { label: 'test link' });
     assert.ok(mind._edges[edge.id]);
 
     const result = mind.removeEdge(edge.id);
@@ -735,9 +700,9 @@ test('JmMind.getEdges', () => {
     const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child2'));
     const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child3'));
 
-    const edge1 = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'link1');
-    const edge2 = mind.addEdge(child2.id, child3.id, JmEdgeType.Link, 'link2');
-    const edge3 = mind.addEdge(child1.id, child3.id, JmEdgeType.Link, 'link3');
+    const edge1 = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, { label: 'link1' });
+    const edge2 = mind.addEdge(child2.id, child3.id, JmEdgeType.Link, { label: 'link2' });
+    const edge3 = mind.addEdge(child1.id, child3.id, JmEdgeType.Link, { label: 'link3' });
 
     // Get all edges for child1
     const child1Edges = mind.getEdges(child1.id);
@@ -772,7 +737,7 @@ test('JmMind edge events', () => {
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
 
     // Test addEdge event
-    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'test link');
+    const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, { label: 'test link' });
 
     const addEventCall = mockedNotifyObservers.mock.calls[mockedNotifyObservers.mock.calls.length - 1];
     const addEvent = addEventCall.arguments[0];
@@ -797,9 +762,9 @@ test('JmMind.removeNode cleans up edges', () => {
     const child3 = mind.addChildNode(mind.root.id, JmNodeContent.createText('child3'));
 
     // Create edges involving child2
-    const edge1 = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'link1');
-    const edge2 = mind.addEdge(child2.id, child3.id, JmEdgeType.Link, 'link2');
-    const edge3 = mind.addEdge(child1.id, child3.id, JmEdgeType.Link, 'link3');
+    const edge1 = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, { label: 'link1' });
+    const edge2 = mind.addEdge(child2.id, child3.id, JmEdgeType.Link, { label: 'link2' });
+    const edge3 = mind.addEdge(child1.id, child3.id, JmEdgeType.Link, { label: 'link3' });
 
     assert.ok(mind._edges[edge1.id]);
     assert.ok(mind._edges[edge2.id]);
