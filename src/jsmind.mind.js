@@ -196,7 +196,7 @@ export class JmMind {
         // 2. Reposition if the node parent is not provided or is not changed, and the targetPosition is provided and changed
         if ((!targetParentId || (node.parent && node.parent.id === targetParentId)) &&
             targetPosition !== undefined && targetPosition !== null) {
-            this._repositionNodeInSameParent(node, targetPosition);
+            this._repositionNode(node, targetPosition);
         }
 
         // 3. Update direction if the target direction is provided and changed
@@ -424,8 +424,7 @@ export class JmMind {
      * @param {JmNode} node - The node to reposition
      * @param {number} targetPosition - The new position index among siblings
      */
-    _repositionNodeInSameParent(node, targetPosition) {
-        // Do nothing if targetPosition is not provided or is null
+    _repositionNode(node, targetPosition) {
         if (targetPosition === undefined || targetPosition === null) {
             return;
         }
@@ -434,11 +433,8 @@ export class JmMind {
         const currentIndex = parent.children.indexOf(node);
         const newPosition = Math.max(0, Math.min(targetPosition, parent.children.length));
 
-        // Only move if position actually changed
         if (currentIndex !== newPosition) {
-            // Remove from current position
             parent.children.splice(currentIndex, 1);
-            // Insert at new position
             parent.children.splice(newPosition, 0, node);
         }
     }
