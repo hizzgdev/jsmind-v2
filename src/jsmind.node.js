@@ -9,9 +9,9 @@ import { JsMindError } from './jsmind.error.js';
  */
 
 /**
- * @typedef {Object} NodeMoveOptions
- * @property {string} [parentId] - The ID of the target parent node (if not provided, keeps current parent)
- * @property {number} [position] - The position index among siblings (if not provided, keeps current position)
+ * @typedef {Object} NodeDestinationOptions
+ * @property {string} parentId - The ID of the target parent node (required)
+ * @property {number} [position] - The position index among siblings (if not provided, adds to end)
  * @property {JmNodeDirection} [direction] - The direction of the node (if not provided, keeps current direction)
  */
 

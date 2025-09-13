@@ -217,14 +217,14 @@ import { JmNodeContent } from './jsmind.node.content.js';
 const mind = new JmMind(options);
 
 // Add nodes with content
-const child1 = mind.addChildNode(
-    mind.root.id, 
-    JmNodeContent.createText('Child Node 1')
+const child1 = mind.addNode(
+    JmNodeContent.createText('Child Node 1'),
+    { parentId: mind.root.id }
 );
 
-const child2 = mind.addChildNode(
-    mind.root.id, 
-    JmNodeContent.createText('Child Node 2')
+const child2 = mind.addNode(
+    JmNodeContent.createText('Child Node 2'),
+    { parentId: mind.root.id }
 );
 ```
 

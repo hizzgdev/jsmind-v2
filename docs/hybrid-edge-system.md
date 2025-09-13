@@ -173,13 +173,13 @@ Tree operations use direct field manipulation for maximum performance:
 
 #### Adding a Child Node
 ```javascript
-addChildNode(parentId, content, options = {}) {
-  const parent = this._getNodeById(parentId);
+addNode(content, destOptions, nodeOptions = {}) {
+  const parent = this._getNodeById(destOptions.parentId);
   const child = this._newNode(nodeId, content);
   
   // Direct field manipulation - O(1) operation
   child.parent = parent;
-  parent.children.push(child);
+  this._addNodeToParent(child, parent, destOptions.position);
   
   // Emit events, update positions, etc.
   this.observerManager.notifyObservers(new JmMindEvent(
@@ -216,9 +216,9 @@ removeNode(nodeId) {
 
 #### Moving a Node
 ```javascript
-moveNode(nodeId, options = {}) {
+moveNode(nodeId, destOptions = {}) {
   const node = this._getNodeById(nodeId);
-  const targetParent = this._getNodeById(options.parentId);
+  const targetParent = this._getNodeById(destOptions.parentId);
   
   // Remove from current parent - O(1) operation
   if (node.parent) {
@@ -350,8 +350,8 @@ getEdges(nodeId, type = null) {
 const mind = new JmMind(options);
 
 // Add child nodes
-const child1 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 1'));
-const child2 = mind.addChildNode(mind.root.id, JmNodeContent.createText('Child 2'));
+const child1 = mind.addNode(JmNodeContent.createText('Child 1'), { parentId: mind.root.id });
+const child2 = mind.addNode(JmNodeContent.createText('Child 2'), { parentId: mind.root.id });
 
 // Move a node
 mind.moveNode(child1.id, {

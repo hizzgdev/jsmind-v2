@@ -39,7 +39,7 @@ test('JmMindJsonSerializer - serialize basic mind map', () => {
     };
 
     const mind = new JmMind(undefined, options);
-    mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
+    mind.addNode(JmNodeContent.createText('Child'), { parentId: mind.root.id });
 
     const serialized = serializer.serialize(mind);
 
@@ -261,7 +261,7 @@ test('JmMindJsonSerializer - round trip serialization', () => {
     };
 
     const mind = new JmMind(undefined, options);
-    mind.addChildNode(mind.root.id, JmNodeContent.createText('Child'));
+    mind.addNode(JmNodeContent.createText('Child'), { parentId: mind.root.id });
 
     // Serialize
     const serialized = serializer.serialize(mind);

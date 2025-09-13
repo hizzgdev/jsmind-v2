@@ -84,45 +84,61 @@ export class JmMind {
         return edge;
     }
 
+
     /**
-     * add a child node to the parent node
-     * @param {string} parentId parent node Id
-     * @param {JmNodeContent} content
-     * @param {import('./jsmind.node.js').NodeCreationOptions} [options] optional node creation options
-     * @returns {JmNode} the added child node
+     * Add a new node to the mind map at a specific destination
+     * @param {JmNodeContent} content - Content for the new node
+     * @param {import('./jsmind.node.js').NodeDestinationOptions} destOptions - Destination options (required)
+     * @param {import('./jsmind.node.js').NodeCreationOptions} [nodeOptions] - Optional node creation options
+     * @returns {JmNode} The created node
      */
-    addChildNode(parentId, content, options) {
-        const existedParent = this._getNodeById(parentId);
+    addNode(content, destOptions, nodeOptions) {
+        // Validate destination options
+        if (!destOptions || !destOptions.parentId) {
+            throw new JsMindError('destOptions.parentId is required for addNode');
+        }
 
-        // Extract options with defaults
-        const nodeId = (options && options.nodeId) || this._idGenerator.newId();
+        // Get target parent
+        const targetParent = this._getNodeById(destOptions.parentId);
 
-        // create and init a node
+        // Extract node creation options with defaults
+        const nodeId = (nodeOptions && nodeOptions.nodeId) || this._idGenerator.newId();
+
+        // Create and initialize the node
         const node = this._newNode(nodeId, content);
 
-        // Set additional properties only if provided in options
-        if (options) {
-            if (options.folded !== undefined) {
-                node.folded = options.folded;
+        // Set additional properties only if provided in nodeOptions
+        if (nodeOptions) {
+            if (nodeOptions.folded !== undefined) {
+                node.folded = nodeOptions.folded;
             }
-            if (options.direction !== undefined) {
-                node.direction = options.direction;
+            if (nodeOptions.direction !== undefined) {
+                node.direction = nodeOptions.direction;
             }
-            if (options.data !== undefined) {
-                node.data = options.data;
+            if (nodeOptions.data !== undefined) {
+                node.data = nodeOptions.data;
             }
         }
 
-        node.parent = existedParent;
-        // add to parent's children
-        existedParent.children.push(node);
-        // emit event
+        // Set parent (required for _addNodeToParent)
+        node.parent = targetParent;
+
+        // Use existing helper method for placement
+        this._addNodeToParent(node, targetParent, destOptions.position);
+
+        // Apply destination direction if specified
+        if (destOptions.direction !== undefined && destOptions.direction !== null) {
+            node.direction = destOptions.direction;
+        }
+
+        // Emit event
         this.observerManager.notifyObservers(new JmMindEvent(
             JmMindEventType.NodeAdded,
             {
                 'node': node
             })
         );
+
         return this.nodeManager.manage(node);
     }
 
@@ -152,12 +168,12 @@ export class JmMind {
     /**
      * Move a node to a new parent and position
      * @param {string} nodeId - The ID of the node to move
-     * @param {import('./jsmind.node.js').NodeMoveOptions} options - Move options
+     * @param {import('./jsmind.node.js').NodeDestinationOptions} destOptions - Destination options
      * @returns {JmNode} The moved node
      */
-    moveNode(nodeId, options) {
-        if (!options || Object.keys(options).length === 0) {
-            throw new JsMindError('Options are required for moveNode operation');
+    moveNode(nodeId, destOptions) {
+        if (!destOptions || Object.keys(destOptions).length === 0) {
+            throw new JsMindError('destOptions are required for moveNode operation');
         }
 
         const node = this._getNodeById(nodeId);
@@ -171,9 +187,9 @@ export class JmMind {
         }
 
         // Extract options
-        const targetParentId = options.parentId;
-        const targetPosition = options.position;
-        const targetDirection = options.direction;
+        const targetParentId = destOptions.parentId;
+        const targetPosition = destOptions.position;
+        const targetDirection = destOptions.direction;
 
         // Capture original values before any changes
         const oldParent = node.parent;
@@ -489,7 +505,5 @@ class JmNodeManager {
         return true;
     }
 
-    arrayApplyTrap(arr, thisArg, argumentsList) {
-        console.log(arr, thisArg, argumentsList);
-    }
 }
+
