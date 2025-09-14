@@ -4,10 +4,10 @@
  */
 
 import { JmMindSerializer } from './jsmind.serializer.js';
-import { JmMind } from '../jsmind.mind.js';
-import { JmNode } from '../jsmind.node.js';
-import { JmNodeContent } from '../jsmind.node.content.js';
-import { JmEdge } from '../jsmind.edge.js';
+import { JmMind } from '../model/jsmind.mind.js';
+import { JmNode } from '../model/jsmind.node.js';
+import { JmNodeContent } from '../model/jsmind.node.content.js';
+import { JmEdge } from '../model/jsmind.edge.js';
 import { JsMindError } from '../jsmind.error.js';
 
 /**

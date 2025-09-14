@@ -1,4 +1,4 @@
-import { JsMindError } from './jsmind.error.js';
+import { JsMindError } from '../jsmind.error.js';
 
 /**
  * @typedef {Object} NodeCreationOptions

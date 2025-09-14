@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
 
-import { JmMind } from '../src/jsmind.mind.js';
-import { JmMindEventType, JmMindEvent } from '../src/event/jsmind.mind.event.js';
-import { JmNode, JmNodeDirection} from '../src/jsmind.node.js';
-import { JmEdgeType } from '../src/jsmind.edge.js';
-import { JmNodeContent } from '../src/jsmind.node.content.js';
-import { JsMindError } from '../src/jsmind.error.js';
+import { JmMind } from '../../src/model/jsmind.mind.js';
+import { JmMindEventType, JmMindEvent } from '../../src/event/jsmind.mind.event.js';
+import { JmNode, JmNodeDirection} from '../../src/model/jsmind.node.js';
+import { JmEdgeType } from '../../src/model/jsmind.edge.js';
+import { JmNodeContent } from '../../src/model/jsmind.node.content.js';
+import { JsMindError } from '../../src/jsmind.error.js';
 
 const metadata = {
     name: 'Test Mind Map',

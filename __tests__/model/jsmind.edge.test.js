@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmEdge, JmEdgeType } from '../src/jsmind.edge.js';
+import { JmEdge, JmEdgeType } from '../../src/model/jsmind.edge.js';
 
 const mockNode1 = 'node1';
 const mockNode2 = 'node2';

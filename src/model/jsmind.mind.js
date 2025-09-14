@@ -1,28 +1,28 @@
-import { JmObserverManager } from './event/jsmind.observer.manager.js';
+import { JmObserverManager } from '../event/jsmind.observer.manager.js';
 import { JmEdge } from './jsmind.edge.js';
 import { JmNode } from './jsmind.node.js';
 import { JmNodeContent } from './jsmind.node.content.js';
-import { DEFAULT_METADATA, DEFAULT_OPTIONS } from './jsmind.const.js';
-import { SimpleIdGenerator } from './generation/jsmind.id_generator.js';
+import { DEFAULT_METADATA, DEFAULT_OPTIONS } from '../jsmind.const.js';
+import { SimpleIdGenerator } from '../generation/jsmind.id_generator.js';
 
-import { JmMindEvent, JmMindEventType } from './event/jsmind.mind.event.js';
-import { JsMindError } from './jsmind.error.js';
+import { JmMindEvent, JmMindEventType } from '../event/jsmind.mind.event.js';
+import { JsMindError } from '../jsmind.error.js';
 
 export class JmMind {
     /**
      * Create a new mind map
-     * @param {import('./jsmind.const.js').MindMetadata} [metadata] - Metadata for the mind map
-     * @param {import('./jsmind.const.js').MindOptions} [options] - Configuration options for the mind map
+     * @param {import('../jsmind.const.js').MindMetadata} [metadata] - Metadata for the mind map
+     * @param {import('../jsmind.const.js').MindOptions} [options] - Configuration options for the mind map
      */
     constructor(metadata = {}, options = {}) {
 
         /**
-         * @type {import('./jsmind.const.js').MindMetadata}
+         * @type {import('../jsmind.const.js').MindMetadata}
          */
         this.meta = this._merge(DEFAULT_METADATA, metadata);
 
         /**
-         * @type {import('./jsmind.const.js').MindOptions}
+         * @type {import('../jsmind.const.js').MindOptions}
          */
         this.options = this._merge(DEFAULT_OPTIONS.mind, options);
         this.observerManager = new JmObserverManager(this);

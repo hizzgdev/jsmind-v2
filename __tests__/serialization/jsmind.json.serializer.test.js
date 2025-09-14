@@ -5,10 +5,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { JmMindJsonSerializer } from '../../src/serialization/jsmind.json.serializer.js';
-import { JmMind } from '../../src/jsmind.mind.js';
-import { JmNodeContent } from '../../src/jsmind.node.content.js';
-import { JmNode } from '../../src/jsmind.node.js';
-import { JmEdge, JmEdgeType } from '../../src/jsmind.edge.js';
+import { JmMind } from '../../src/model/jsmind.mind.js';
+import { JmNodeContent } from '../../src/model/jsmind.node.content.js';
+import { JmNode } from '../../src/model/jsmind.node.js';
+import { JmEdge, JmEdgeType } from '../../src/model/jsmind.edge.js';
 import { JsMindError } from '../../src/jsmind.error.js';
 
 test('JmMindJsonSerializer - getFormatName', () => {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmNode, JmNodeDirection } from '../src/jsmind.node.js';
-import { JmNodeContent } from '../src/jsmind.node.content.js';
+import { JmNode, JmNodeDirection } from '../../src/model/jsmind.node.js';
+import { JmNodeContent } from '../../src/model/jsmind.node.content.js';
 
 // Shared test content for tests
 const testContent = JmNodeContent.createText('');
