@@ -101,27 +101,8 @@ export class JmMind {
         // Get target parent
         const targetParent = this._getNodeById(destOptions.parentId);
 
-        // Extract node creation options with defaults
-        const nodeId = (nodeOptions && nodeOptions.nodeId) || this._idGenerator.newId();
-
         // Create and initialize the node
-        const node = this._newNode(nodeId, content);
-
-        // Set additional properties only if provided in nodeOptions
-        if (nodeOptions) {
-            if (nodeOptions.folded !== undefined) {
-                node.folded = nodeOptions.folded;
-            }
-            if (nodeOptions.direction !== undefined) {
-                node.direction = nodeOptions.direction;
-            }
-            if (nodeOptions.data !== undefined) {
-                node.data = nodeOptions.data;
-            }
-        }
-
-        // Set parent (required for _addNodeToParent)
-        node.parent = targetParent;
+        const node = this._newNode(content, nodeOptions);
 
         // Use existing helper method for placement
         this._addNodeToParent(node, targetParent, destOptions.position);
@@ -314,15 +295,14 @@ export class JmMind {
     }
 
     /**
-     * create a new node, and add it to the mind
-     * @param {string} nodeId - The ID for the new node
-     * @param {JmNodeContent} content - Content for the node
+     * create root node
      * @returns {JmNode} The created node
      */
     _createRootNode() {
-        // Check if rootNodeId is empty and generate a new one if needed
-        const rootNodeId = this.options.rootNodeId || this._idGenerator.newId();
-        return this._newNode(rootNodeId, JmNodeContent.createText(this.meta.name));
+        const nodeOptions = {
+            nodeId: this.options.rootNodeId
+        };
+        return this._newNode(JmNodeContent.createText(this.meta.name), nodeOptions);
     }
 
     /**
@@ -382,12 +362,24 @@ export class JmMind {
 
     /**
      * create a new node, and add it to the mind
-     * @param {string} nodeId - The ID for the new node
      * @param {JmNodeContent} content - Content for the node
+     * @param {import('./jsmind.node.js').NodeCreationOptions} [nodeOptions] - Optional node creation options
      * @returns {JmNode} The created node
      */
-    _newNode(nodeId, content) {
+    _newNode(content, nodeOptions) {
+        const nodeId = (nodeOptions && nodeOptions.nodeId) || this._idGenerator.newId();
         const node = new JmNode(nodeId, content);
+        if (nodeOptions) {
+            if (nodeOptions.folded !== undefined) {
+                node.folded = nodeOptions.folded;
+            }
+            if (nodeOptions.direction !== undefined) {
+                node.direction = nodeOptions.direction;
+            }
+            if (nodeOptions.data !== undefined) {
+                node.data = nodeOptions.data;
+            }
+        }
         this._nodes[nodeId] = node;
         return node;
     }
