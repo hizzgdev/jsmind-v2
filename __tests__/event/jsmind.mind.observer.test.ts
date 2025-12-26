@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmMindObserver } from '../../src/event/jsmind.mind.observer.js';
+import { JmMindObserver } from '../../src/event/jsmind.mind.observer.ts';
 
 
 test('JmMindObserver', () => {
@@ -10,3 +10,4 @@ test('JmMindObserver', () => {
     assert.ok(observer);
 }
 );
+

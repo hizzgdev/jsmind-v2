@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
-import { JmObserverManager } from '../../src/event/jsmind.observer.manager.js';
+import { JmObserverManager } from '../../src/event/jsmind.observer.manager.ts';
 
 test('JmObserverManager', () => {
     const obj = new Object();
@@ -102,3 +102,4 @@ test('JmObserverManager.notifyObservers', async () => {
     mock.timers.reset();
 }
 );
+

@@ -2,10 +2,11 @@ import globals from 'globals';
 import js from '@eslint/js';
 import json from '@eslint/json';
 import stylistic from '@stylistic/eslint-plugin';
+import tseslint from 'typescript-eslint';
 
 export default [
     {
-        ignores: ['node_modules/*', 'coverage/*'],
+        ignores: ['node_modules/*', 'coverage/*', 'dist/*'],
     },
     {
         plugins: {
@@ -13,10 +14,10 @@ export default [
             json,
         },
     },
+    ...tseslint.configs.recommended,
     {
-        files: ['**/*.js'],
+        files: ['**/*.ts'],
         ...stylistic.configs.recommended,
-        ...js.configs.recommended,
         languageOptions: {
             ecmaVersion: 2018,
             sourceType: 'module',
@@ -26,7 +27,7 @@ export default [
             'camelcase': 'error',
             'no-console': 'off',
             'no-var': 'error',
-            'no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
+            '@typescript-eslint/no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
             'prefer-const': 'error',
             '@stylistic/comma-spacing': 'error',
             '@stylistic/eol-last': ['error', 'always'],

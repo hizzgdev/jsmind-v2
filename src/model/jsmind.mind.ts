@@ -1,69 +1,73 @@
-import { JmObserverManager } from '../event/jsmind.observer.manager.js';
-import { JmEdge } from './jsmind.edge.js';
-import { JmNode } from './jsmind.node.js';
-import { JmNodeContent } from './jsmind.node.content.js';
-import { DEFAULT_METADATA, DEFAULT_OPTIONS } from '../jsmind.const.js';
-import { SimpleIdGenerator } from '../generation/jsmind.id_generator.js';
+import { JmObserverManager } from '../event/jsmind.observer.manager.ts';
+import { JmEdge } from './jsmind.edge.ts';
+import { JmNode, type NodeCreationOptions, type NodeDestinationOptions } from './jsmind.node.ts';
+import { JmNodeContent } from './jsmind.node.content.ts';
+import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../jsmind.const.ts';
+import { SimpleIdGenerator } from '../generation/jsmind.id_generator.ts';
 
-import { JmMindEvent, JmMindEventType } from '../event/jsmind.mind.event.js';
-import { JsMindError } from '../jsmind.error.js';
+import { JmMindEvent, JmMindEventType } from '../event/jsmind.mind.event.ts';
+import { JsMindError } from '../jsmind.error.ts';
 
+/**
+ * Represents a mind map with nodes and edges.
+ *
+ * @public
+ */
 export class JmMind {
+    /** Metadata for the mind map. */
+    meta: MindMetadata;
+    /** Configuration options for the mind map. */
+    options: MindOptions;
+    /** Manager for observers of this mind map. */
+    observerManager: JmObserverManager;
+    /** Manager for node operations. */
+    nodeManager: JmNodeManager;
+    /** @internal Internal ID generator for nodes and edges. */
+    _idGenerator: SimpleIdGenerator;
+    /** @internal Dictionary of all nodes by ID. */
+    _nodes: { [key: string]: JmNode };
+    /** @internal Dictionary of all edges by ID. */
+    _edges: { [key: string]: JmEdge };
+    /** @internal The root node of the mind map. */
+    _root: JmNode;
+
     /**
-     * Create a new mind map
-     * @param {import('../jsmind.const.js').MindMetadata} [metadata] - Metadata for the mind map
-     * @param {import('../jsmind.const.js').MindOptions} [options] - Configuration options for the mind map
+     * Creates a new mind map.
+     *
+     * @param metadata - Metadata for the mind map.
+     * @param options - Configuration options for the mind map.
      */
-    constructor(metadata = {}, options = {}) {
-
-        /**
-         * @type {import('../jsmind.const.js').MindMetadata}
-         */
+    constructor(metadata: any = {}, options: any = {}) {
         this.meta = this._merge(DEFAULT_METADATA, metadata);
-
-        /**
-         * @type {import('../jsmind.const.js').MindOptions}
-         */
         this.options = this._merge(DEFAULT_OPTIONS.mind, options);
         this.observerManager = new JmObserverManager(this);
         this.nodeManager = new JmNodeManager(this);
-
-        /**
-         * @type {SimpleIdGenerator}
-         * Internal ID generator for nodes and edges
-         */
         this._idGenerator = new SimpleIdGenerator('jm-');
-
-        /**
-         * @type {Object.<string, JmNode>}
-         */
         this._nodes = {};
-        /**
-         * @type {Object.<string, JmEdge>}
-         * Global store for edges (links, references, etc.)
-         */
         this._edges = {};
-
         this._root = this._createRootNode();
     }
 
     /**
-     * get the root node
-     * @returns {JmNode} root node
+     * Gets the root node.
+     *
+     * @returns The root node.
      */
-    get root() {
+    get root(): JmNode {
         return this.nodeManager.manage(this._root);
     }
 
     /**
-     * Add an edge between two nodes
-     * @param {string} sourceNodeId - The source node ID
-     * @param {string} targetNodeId - The target node ID
-     * @param {JmEdgeType} type - The edge type
-     * @param {import('./jsmind.edge.js').EdgeCreationOptions} [options] - Optional edge creation options
-     * @returns {JmEdge} The created edge
+     * Adds an edge between two nodes.
+     *
+     * @param sourceNodeId - The source node ID.
+     * @param targetNodeId - The target node ID.
+     * @param type - The edge type.
+     * @param options - Optional edge creation options.
+     * @returns The created edge.
+     * @throws {@link JsMindError} If the source or target node does not exist.
      */
-    addEdge(sourceNodeId, targetNodeId, type, options) {
+    addEdge(sourceNodeId: string, targetNodeId: string, type: any, options?: any): JmEdge {
         // Validate nodes exist
         this._getNodeById(sourceNodeId);
         this._getNodeById(targetNodeId);
@@ -86,13 +90,15 @@ export class JmMind {
 
 
     /**
-     * Add a new node to the mind map at a specific destination
-     * @param {JmNodeContent} content - Content for the new node
-     * @param {import('./jsmind.node.js').NodeDestinationOptions} destOptions - Destination options (required)
-     * @param {import('./jsmind.node.js').NodeCreationOptions} [nodeOptions] - Optional node creation options
-     * @returns {JmNode} The created node
+     * Adds a new node to the mind map at a specific destination.
+     *
+     * @param content - Content for the new node.
+     * @param destOptions - Destination options (required).
+     * @param nodeOptions - Optional node creation options.
+     * @returns The created node.
+     * @throws {@link JsMindError} If destOptions.parentId is missing.
      */
-    addNode(content, destOptions, nodeOptions) {
+    addNode(content: JmNodeContent, destOptions: NodeDestinationOptions, nodeOptions?: NodeCreationOptions): JmNode {
         // Validate destination options
         if (!destOptions || !destOptions.parentId) {
             throw new JsMindError('destOptions.parentId is required for addNode');
@@ -124,22 +130,24 @@ export class JmMind {
     }
 
     /**
-     * find a node from the mindmap by the given id
-     * @param {string} nodeId the given node id
-     * @returns {JmNode|null} the corresponding node in this mindmap if exist, otherwise null
+     * Finds a node from the mind map by the given ID.
+     *
+     * @param nodeId - The given node ID.
+     * @returns The corresponding node in this mind map if it exists, otherwise null.
      */
-    findNodeById(nodeId) {
+    findNodeById(nodeId: string): JmNode | null {
         const node = this._nodes[nodeId];
         return !!node ? this.nodeManager.manage(node) : null;
     }
 
     /**
-     * Get all edges for a specific node
-     * @param {string} nodeId - The node ID
-     * @param {string} [type] - Optional edge type filter
-     * @returns {JmEdge[]} Array of edges involving the node
+     * Gets all edges for a specific node.
+     *
+     * @param nodeId - The node ID.
+     * @param type - Optional edge type filter.
+     * @returns Array of edges involving the node.
      */
-    getEdges(nodeId, type = null) {
+    getEdges(nodeId: string, type: any = null): JmEdge[] {
         return Object.values(this._edges).filter(edge => {
             return (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) &&
                    (!type || edge.type === type);
@@ -147,12 +155,14 @@ export class JmMind {
     }
 
     /**
-     * Move a node to a new parent and position
-     * @param {string} nodeId - The ID of the node to move
-     * @param {import('./jsmind.node.js').NodeDestinationOptions} destOptions - Destination options
-     * @returns {JmNode} The moved node
+     * Moves a node to a new parent and position.
+     *
+     * @param nodeId - The ID of the node to move.
+     * @param destOptions - Destination options.
+     * @returns The moved node.
+     * @throws {@link JsMindError} If destOptions are missing, node not found, or invalid move operation.
      */
-    moveNode(nodeId, destOptions) {
+    moveNode(nodeId: string, destOptions: NodeDestinationOptions): JmNode {
         if (!destOptions || Object.keys(destOptions).length === 0) {
             throw new JsMindError('destOptions are required for moveNode operation');
         }
@@ -214,11 +224,12 @@ export class JmMind {
     }
 
     /**
-     * Remove an edge by ID
-     * @param {string} edgeId - The edge ID to remove
-     * @returns {boolean} True if the edge was removed, false if not found
+     * Removes an edge by ID.
+     *
+     * @param edgeId - The edge ID to remove.
+     * @returns True if the edge was removed, false if not found.
      */
-    removeEdge(edgeId) {
+    removeEdge(edgeId: string): boolean {
         const edge = this._edges[edgeId];
         if (edge) {
             delete this._edges[edgeId];
@@ -237,18 +248,20 @@ export class JmMind {
     }
 
     /**
-     * remove node
-     * @param {string} nodeId
+     * Removes a node and all its descendants.
+     *
+     * @param nodeId - The ID of the node to remove.
+     * @throws {@link JsMindError} If trying to remove the root node.
      */
-    removeNode(nodeId) {
+    removeNode(nodeId: string): void {
         const node = this._getNodeById(nodeId);
         if(nodeId == this._root.id) {
             throw new JsMindError('root node can not be removed');
         }
 
         // remove node from parent's children
-        const nodeIndex = node.parent.children.indexOf(node);
-        node.parent.children.splice(nodeIndex, 1);
+        const nodeIndex = node.parent!.children.indexOf(node);
+        node.parent!.children.splice(nodeIndex, 1);
 
         // identify all nodes that need to be cleared
         const nodeIds = node.getAllSubnodeIds();
@@ -275,13 +288,14 @@ export class JmMind {
     }
 
     /**
-     * Add a node to a new parent at a specific position
+     * Adds a node to a new parent at a specific position.
+     *
      * @private
-     * @param {JmNode} node - The node to add
-     * @param {JmNode} targetParent - The new parent node
-     * @param {number} targetPosition - The position index among siblings
+     * @param node - The node to add.
+     * @param targetParent - The new parent node.
+     * @param targetPosition - The position index among siblings.
      */
-    _addNodeToParent(node, targetParent, targetPosition) {
+    _addNodeToParent(node: JmNode, targetParent: JmNode, targetPosition?: number | null): void {
         node.parent = targetParent;
 
         if (targetPosition === undefined || targetPosition === null) {
@@ -295,10 +309,12 @@ export class JmMind {
     }
 
     /**
-     * create root node
-     * @returns {JmNode} The created node
+     * Creates the root node.
+     *
+     * @private
+     * @returns The created root node.
      */
-    _createRootNode() {
+    _createRootNode(): JmNode {
         const nodeOptions = {
             nodeId: this.options.rootNodeId
         };
@@ -306,27 +322,28 @@ export class JmMind {
     }
 
     /**
-     * Emit NodeMoved event only if something actually changed
+     * Emits NodeMoved event only if something actually changed.
+     *
      * @private
-     * @param {JmNode} node - The node that was moved
-     * @param {JmNode} oldParent - The old parent node
-     * @param {number} oldPosition - The old position index
-     * @param {JmNodeDirection} oldDirection - The old direction
+     * @param node - The node that was moved.
+     * @param oldParent - The old parent node.
+     * @param oldPosition - The old position index.
+     * @param oldDirection - The old direction.
      */
-    _emitNodeMovedEventIfChanged(node, oldParent, oldPosition, oldDirection) {
+    _emitNodeMovedEventIfChanged(node: JmNode, oldParent: JmNode | null, oldPosition: number, oldDirection: any): void {
         // Compare actual updated node properties with old values
-        const parentChanged = oldParent.id !== node.parent.id;
-        const positionChanged = oldPosition !== node.parent.children.indexOf(node);
+        const parentChanged = oldParent!.id !== node.parent!.id;
+        const positionChanged = oldPosition !== node.parent!.children.indexOf(node);
         const directionChanged = oldDirection !== node.direction;
 
         if (parentChanged || positionChanged || directionChanged) {
-            const eventData = {
+            const eventData: any = {
                 'node': node
             };
 
             // Only include changed properties in event data
             if (parentChanged) {
-                eventData.oldParentId = oldParent.id;
+                eventData.oldParentId = oldParent!.id;
             }
             if (positionChanged) {
                 eventData.oldPosition = oldPosition;
@@ -343,13 +360,14 @@ export class JmMind {
     }
 
     /**
-     * Merge user values with default values
-     * @param {Object} [defaultValues] - default values
-     * @param {Object} [userValues] - User-provided values
-     * @returns {Object} Merged values
+     * Merges user values with default values.
+     *
      * @private
+     * @param defaultValues - Default values.
+     * @param userValues - User-provided values.
+     * @returns Merged values.
      */
-    _merge(defaultValues, userValues) {
+    _merge(defaultValues: any, userValues?: any): any {
         if (!userValues) {
             return { ...defaultValues };
         }
@@ -361,12 +379,14 @@ export class JmMind {
     }
 
     /**
-     * create a new node, and add it to the mind
-     * @param {JmNodeContent} content - Content for the node
-     * @param {import('./jsmind.node.js').NodeCreationOptions} [nodeOptions] - Optional node creation options
-     * @returns {JmNode} The created node
+     * Creates a new node and adds it to the mind map.
+     *
+     * @private
+     * @param content - Content for the node.
+     * @param nodeOptions - Optional node creation options.
+     * @returns The created node.
      */
-    _newNode(content, nodeOptions) {
+    _newNode(content: JmNodeContent, nodeOptions?: NodeCreationOptions): JmNode {
         const nodeId = (nodeOptions && nodeOptions.nodeId) || this._idGenerator.newId();
         const node = new JmNode(nodeId, content);
         if (nodeOptions) {
@@ -384,7 +404,16 @@ export class JmMind {
         return node;
     }
 
-    _onNodeUpdated(node, prop, originValue, newValue) {
+    /**
+     * Handles node update events.
+     *
+     * @private
+     * @param node - The node that was updated.
+     * @param prop - The property that was updated.
+     * @param originValue - The original value.
+     * @param newValue - The new value.
+     */
+    _onNodeUpdated(node: JmNode, prop: string, originValue: any, newValue: any): void {
         this.observerManager.notifyObservers(new JmMindEvent(
             JmMindEventType.NodeUpdated,
             {
@@ -397,11 +426,12 @@ export class JmMind {
     }
 
     /**
-     * Remove a node from its current parent
+     * Removes a node from its current parent.
+     *
      * @private
-     * @param {JmNode} node - The node to remove from parent
+     * @param node - The node to remove from parent.
      */
-    _removeNodeFromParent(node) {
+    _removeNodeFromParent(node: JmNode): void {
         if (!node.parent) {
             return;
         }
@@ -415,17 +445,18 @@ export class JmMind {
     }
 
     /**
-     * Reposition a node within the same parent (optimized operation)
+     * Repositions a node within the same parent (optimized operation).
+     *
      * @private
-     * @param {JmNode} node - The node to reposition
-     * @param {number} targetPosition - The new position index among siblings
+     * @param node - The node to reposition.
+     * @param targetPosition - The new position index among siblings.
      */
-    _repositionNode(node, targetPosition) {
+    _repositionNode(node: JmNode, targetPosition: number): void {
         if (targetPosition === undefined || targetPosition === null) {
             return;
         }
 
-        const parent = node.parent;
+        const parent = node.parent!;
         const currentIndex = parent.children.indexOf(node);
         const newPosition = Math.max(0, Math.min(targetPosition, parent.children.length));
 
@@ -436,12 +467,14 @@ export class JmMind {
     }
 
     /**
-     * retrieve node by node id
-     * @param {string} nodeId
-     * @returns {JmNode} the corresponding node
-     * @throws throw an error if node doesn't exist
+     * Retrieves a node by node ID.
+     *
+     * @private
+     * @param nodeId - The node ID.
+     * @returns The corresponding node.
+     * @throws {@link JsMindError} If the node doesn't exist.
      */
-    _getNodeById(nodeId) {
+    _getNodeById(nodeId: string): JmNode {
         const node = this._nodes[nodeId];
         if(!!node) {
             return node;
@@ -450,29 +483,59 @@ export class JmMind {
     }
 }
 
+/**
+ * Manager for node operations with proxy-based access control.
+ *
+ * @internal
+ */
 class JmNodeManager {
-    constructor(mind) {
+    /** The mind map instance. */
+    mind: JmMind;
+    /** Set of readonly field names. */
+    readonlyFields: Set<string>;
+    /** Set of unsafe array method names. */
+    unsafeArrayMethods: Set<string>;
+
+    /**
+     * Creates a new JmNodeManager instance.
+     *
+     * @param mind - The mind map instance.
+     */
+    constructor(mind: JmMind) {
         this.mind = mind;
         this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
         this.unsafeArrayMethods = new Set(['fill', 'pop', 'push', 'shift', 'unshift', 'reverse', 'sort', 'splice']);
     }
 
-    manage(node) {
+    /**
+     * Manages a node with proxy-based access control.
+     *
+     * @param node - The node to manage.
+     * @returns The managed node with proxy.
+     */
+    manage(node: JmNode): JmNode {
         return new Proxy(node, {
             get: this.getterTrap.bind(this),
             set: this.setterTrap.bind(this)
-        });
+        }) as JmNode;
     }
 
-    getterTrap(node, prop) {
-        const ori = node[prop];
+    /**
+     * Getter trap for the proxy.
+     *
+     * @param node - The node.
+     * @param prop - The property name.
+     * @returns The property value.
+     */
+    getterTrap(node: JmNode, prop: string | symbol): any {
+        const ori = (node as any)[prop];
         if(prop === 'children') {
-            const itemManagedArray = ori.map((n)=>this.manage(n));
+            const itemManagedArray = ori.map((n: JmNode)=>this.manage(n));
             return new Proxy(itemManagedArray, {
-                get: function (arr, prop) {
-                    if(this.unsafeArrayMethods.has(prop)) {
+                get: function (arr: any, prop: string | symbol) {
+                    if(this.unsafeArrayMethods.has(prop as string)) {
                         return function() {
-                            throw new JsMindError(`unsupported method ${prop} on node.children, please follow the document to operate the mindmap.`);
+                            throw new JsMindError(`unsupported method ${String(prop)} on node.children, please follow the document to operate the mindmap.`);
                         };
                     }
                     return arr[prop];
@@ -485,14 +548,23 @@ class JmNodeManager {
         return ori;
     }
 
-    setterTrap(node, prop, value) {
-        if(this.readonlyFields.has(prop)) {
-            throw new JsMindError(`the property[${prop}] is readonly`);
+    /**
+     * Setter trap for the proxy.
+     *
+     * @param node - The node.
+     * @param prop - The property name.
+     * @param value - The new value.
+     * @returns True if the operation succeeded.
+     * @throws {@link JsMindError} If trying to set a readonly property.
+     */
+    setterTrap(node: JmNode, prop: string | symbol, value: any): boolean {
+        if(this.readonlyFields.has(prop as string)) {
+            throw new JsMindError(`the property[${String(prop)}] is readonly`);
         }
-        const ori = node[prop];
+        const ori = (node as any)[prop];
         if(ori !== value) {
-            node[prop] = value;
-            this.mind._onNodeUpdated(node, prop, ori, value);
+            (node as any)[prop] = value;
+            this.mind._onNodeUpdated(node, prop as string, ori, value);
         }
         return true;
     }

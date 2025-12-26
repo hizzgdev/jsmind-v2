@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_METADATA, DEFAULT_OPTIONS } from '../src/jsmind.const.js';
+import { DEFAULT_METADATA, DEFAULT_OPTIONS } from '../src/jsmind.const.ts';
 
 test('DEFAULT_METADATA', () => {
     const meta = DEFAULT_METADATA;
@@ -15,3 +15,4 @@ test('DEFAULT_OPTIONS', () => {
     assert.ok(DEFAULT_OPTIONS.mind.rootNodeId);
     assert.strictEqual(DEFAULT_OPTIONS.mind.rootNodeId, 'root');
 });
+

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
 
-import { JmMind } from '../../src/model/jsmind.mind.js';
-import { JmMindEventType, JmMindEvent } from '../../src/event/jsmind.mind.event.js';
-import { JmNode, JmNodeDirection} from '../../src/model/jsmind.node.js';
-import { JmEdgeType } from '../../src/model/jsmind.edge.js';
-import { JmNodeContent } from '../../src/model/jsmind.node.content.js';
-import { JsMindError } from '../../src/jsmind.error.js';
+import { JmMind } from '../../src/model/jsmind.mind.ts';
+import { JmMindEventType, JmMindEvent } from '../../src/event/jsmind.mind.event.ts';
+import { JmNode, JmNodeDirection} from '../../src/model/jsmind.node.ts';
+import { JmEdgeType } from '../../src/model/jsmind.edge.ts';
+import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
+import { JsMindError } from '../../src/jsmind.error.ts';
 
 const metadata = {
     name: 'Test Mind Map',
@@ -190,7 +190,7 @@ test('JmMind.findNodeById', ()=>{
 
     const child1 = mind.addNode(JmNodeContent.createText('child1'), { parentId: mind.root.id });
     const foundChild1 = mind.findNodeById(child1.id);
-    assert.strictEqual(foundChild1.id, child1.id);
+    assert.strictEqual(foundChild1!.id, child1.id);
 
     assert.strictEqual(mind.findNodeById('id-not-existing'), null);
 });
@@ -202,11 +202,11 @@ test('JmMind.addChildNode', () => {
     assert.ok(child);
     assert.ok(child.id); // Generated ID should exist
     assert.strictEqual(child.content.value, 'child');
-    assert.strictEqual(child.parent.id, mind.root.id);
+    assert.strictEqual(child.parent!.id, mind.root.id);
 
     const retrievedNode = mind.findNodeById(child.id);
-    assert.strictEqual(retrievedNode.id, child.id);
-    assert.strictEqual(retrievedNode.content.value, child.content.value);
+    assert.strictEqual(retrievedNode!.id, child.id);
+    assert.strictEqual(retrievedNode!.content.value, child.content.value);
 
     // No edges should be created for parent-child relationships
     const edgeIds = Object.keys(mind._edges);
@@ -228,7 +228,7 @@ test('Observe adding nodes', () => {
     assert.ok(eventData.node);
     assert.ok(eventData.node instanceof JmNode);
     assert.strictEqual(eventData.node.content.value, child1.content.value);
-    assert.ok(eventData.node.parent.equals(mind.root));
+    assert.ok(eventData.node.parent!.equals(mind.root));
 });
 
 test('JmMind.removeNode', ()=>{
@@ -323,8 +323,8 @@ test('managed node equals to original node', ()=>{
     assert.ok(root.equals(mind._root));
     assert.ok(node1.equals(mind._nodes[node1.id]));
     assert.ok(node2.equals(mind._nodes[node2.id]));
-    assert.ok(foundNode1.equals(mind._nodes[node1.id]));
-    assert.ok(foundNode2.equals(mind._nodes[node2.id]));
+    assert.ok(foundNode1!.equals(mind._nodes[node1.id]));
+    assert.ok(foundNode2!.equals(mind._nodes[node2.id]));
 });
 
 test('managed node contains readonly fields', ()=>{
@@ -332,47 +332,47 @@ test('managed node contains readonly fields', ()=>{
     const node1 = mind.addNode(JmNodeContent.createText('node-sub-1'), { parentId: mind.root.id });
     const managedNode1 = mind.findNodeById(node1.id);
 
-    assert.throws(()=>{mind.root.id = 'other-id';});
-    assert.throws(()=>{mind.root.parent = null;});
-    assert.throws(()=>{mind.root.children = [];});
-    assert.throws(()=>{mind.root.data = {};});
+    assert.throws(()=>{(mind.root as any).id = 'other-id';});
+    assert.throws(()=>{(mind.root as any).parent = null;});
+    assert.throws(()=>{(mind.root as any).children = [];});
+    assert.throws(()=>{(mind.root as any).data = {};});
 
-    assert.throws(()=>{mind.root.children[0].id = 'other-id';});
-    assert.throws(()=>{mind.root.children[0].parent = null;});
-    assert.throws(()=>{mind.root.children[0].children = [];});
-    assert.throws(()=>{mind.root.children[0].data = {};});
+    assert.throws(()=>{(mind.root.children[0] as any).id = 'other-id';});
+    assert.throws(()=>{(mind.root.children[0] as any).parent = null;});
+    assert.throws(()=>{(mind.root.children[0] as any).children = [];});
+    assert.throws(()=>{(mind.root.children[0] as any).data = {};});
 
-    assert.throws(()=>{managedNode1.id = 'other-id';});
-    assert.throws(()=>{managedNode1.parent = null;});
-    assert.throws(()=>{managedNode1.children = [];});
-    assert.throws(()=>{managedNode1.data = {};});
+    assert.throws(()=>{(managedNode1 as any).id = 'other-id';});
+    assert.throws(()=>{(managedNode1 as any).parent = null;});
+    assert.throws(()=>{(managedNode1 as any).children = [];});
+    assert.throws(()=>{(managedNode1 as any).data = {};});
 
-    assert.throws(()=>{managedNode1.parent.id = 'other-id';});
-    assert.throws(()=>{managedNode1.parent.parent = null;});
-    assert.throws(()=>{managedNode1.parent.children = [];});
-    assert.throws(()=>{managedNode1.parent.data = {};});
+    assert.throws(()=>{(managedNode1!.parent as any).id = 'other-id';});
+    assert.throws(()=>{(managedNode1!.parent as any).parent = null;});
+    assert.throws(()=>{(managedNode1!.parent as any).children = [];});
+    assert.throws(()=>{(managedNode1!.parent as any).data = {};});
 });
 
 test('managed node children is immutable', ()=>{
     const mind = new JmMind(metadata, options);
-    assert.throws(()=>{mind.root.children.fill('a');});
-    assert.throws(()=>{mind.root.children.pop();});
-    assert.throws(()=>{mind.root.children.push('a');});
-    assert.throws(()=>{mind.root.children.shift('a');});
-    assert.throws(()=>{mind.root.children.unshift();});
-    assert.throws(()=>{mind.root.children.reverse();});
-    assert.throws(()=>{mind.root.children.sort();});
-    assert.throws(()=>{mind.root.children.splice();});
+    assert.throws(()=>{(mind.root.children as any).fill('a');});
+    assert.throws(()=>{(mind.root.children as any).pop();});
+    assert.throws(()=>{(mind.root.children as any).push('a');});
+    assert.throws(()=>{(mind.root.children as any).shift('a');});
+    assert.throws(()=>{(mind.root.children as any).unshift();});
+    assert.throws(()=>{(mind.root.children as any).reverse();});
+    assert.throws(()=>{(mind.root.children as any).sort();});
+    assert.throws(()=>{(mind.root.children as any).splice();});
 
     const node = mind.addNode(JmNodeContent.createText('node-sub-1'), { parentId: mind.root.id });
-    assert.throws(()=>{node.children.fill('a');});
-    assert.throws(()=>{node.children.pop();});
-    assert.throws(()=>{node.children.push('a');});
-    assert.throws(()=>{node.children.shift('a');});
-    assert.throws(()=>{node.children.unshift();});
-    assert.throws(()=>{node.children.reverse();});
-    assert.throws(()=>{node.children.sort();});
-    assert.throws(()=>{node.children.splice();});
+    assert.throws(()=>{(node.children as any).fill('a');});
+    assert.throws(()=>{(node.children as any).pop();});
+    assert.throws(()=>{(node.children as any).push('a');});
+    assert.throws(()=>{(node.children as any).shift('a');});
+    assert.throws(()=>{(node.children as any).unshift();});
+    assert.throws(()=>{(node.children as any).reverse();});
+    assert.throws(()=>{(node.children as any).sort();});
+    assert.throws(()=>{(node.children as any).splice();});
 });
 
 test('JmMind.moveNode - basic functionality', () => {
@@ -392,7 +392,7 @@ test('JmMind.moveNode - basic functionality', () => {
 
     // Verify the move
     assert.strictEqual(movedNode.id, child1.id);
-    assert.strictEqual(movedNode.parent.id, mind.root.id);
+    assert.strictEqual(movedNode.parent!.id, mind.root.id);
     assert.strictEqual(mind.root.children[0].id, child1.id);
     assert.strictEqual(movedNode.direction, JmNodeDirection.Right);
 
@@ -563,7 +563,7 @@ test('JmMind.moveNode - same parent with only direction change', () => {
     // Verify position unchanged (should still be at index 0)
     assert.strictEqual(mind.root.children[0].id, child.id);
     // Verify parent unchanged
-    assert.strictEqual(updatedNode.parent.id, mind.root.id);
+    assert.strictEqual(updatedNode.parent!.id, mind.root.id);
 });
 
 test('JmMind.moveNode - only direction change (no parent/position)', () => {
@@ -582,7 +582,7 @@ test('JmMind.moveNode - only direction change (no parent/position)', () => {
     // Verify position unchanged
     assert.strictEqual(mind.root.children[0].id, child.id);
     // Verify parent unchanged
-    assert.strictEqual(updatedNode.parent.id, mind.root.id);
+    assert.strictEqual(updatedNode.parent!.id, mind.root.id);
 });
 
 test('JmMind.moveNode - no options (should throw error)', () => {
@@ -593,7 +593,7 @@ test('JmMind.moveNode - no options (should throw error)', () => {
 
     // Call moveNode with no options should throw error
     assert.throws(() => {
-        mind.moveNode(child.id);
+        mind.moveNode(child.id, undefined as any);
     }, JsMindError, 'Should throw error when no options provided');
 });
 
@@ -604,13 +604,13 @@ test('Observe update node', () => {
     node1.content = JmNodeContent.createText('new name of node1');
     node1.direction = JmNodeDirection.Right;
     node1.folded = true;
-    node1.data['a'] = 'b';
+    (node1.data as any)['a'] = 'b';
     assert.strictEqual(mockedNotifyObservers.mock.callCount(), 4);
 
-    const events = mockedNotifyObservers.mock.calls.map(c=>c.arguments[0]);
+    const events = mockedNotifyObservers.mock.calls.map((c: any)=>c.arguments[0]);
     //remove the first event (NodeAdded)
     events.shift();
-    assert.ok(events.every((e)=>{
+    assert.ok(events.every((e: any)=>{
         return (e instanceof JmMindEvent) && e.type === JmMindEventType.NodeUpdated;
     }));
 
@@ -777,3 +777,4 @@ test('JmMind.removeNode cleans up edges', () => {
     assert.strictEqual(mind._edges[edge2.id], undefined);
     assert.ok(mind._edges[edge3.id]); // edge3 should still exist
 });
+

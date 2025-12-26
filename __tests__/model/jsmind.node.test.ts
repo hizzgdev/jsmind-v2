@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmNode, JmNodeDirection } from '../../src/model/jsmind.node.js';
-import { JmNodeContent } from '../../src/model/jsmind.node.content.js';
+import { JmNode, JmNodeDirection } from '../../src/model/jsmind.node.ts';
+import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
 
 // Shared test content for tests
 const testContent = JmNodeContent.createText('');
@@ -20,7 +20,7 @@ test('JmNode', () => {
 
 test('JmNode with null id', () => {
     assert.throws(() => {
-        new JmNode();
+        new JmNode(null as any, testContent);
     });
 });
 
@@ -117,3 +117,4 @@ test('JmNode.equals returns false', () => {
     node1B.folded = true;
     assert.ok(!node1A.equals(node1B));
 });
+

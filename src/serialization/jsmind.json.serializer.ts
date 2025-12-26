@@ -1,38 +1,44 @@
 /**
- * @fileoverview JSON serializer for JsMind mind maps
- * @package
+ * JSON serializer for JsMind mind maps.
+ *
+ * @packageDocumentation
  */
 
-import { JmMindSerializer } from './jsmind.serializer.js';
-import { JmMind } from '../model/jsmind.mind.js';
-import { JmNode } from '../model/jsmind.node.js';
-import { JmNodeContent } from '../model/jsmind.node.content.js';
-import { JmEdge } from '../model/jsmind.edge.js';
-import { JsMindError } from '../jsmind.error.js';
+import { JmMindSerializer } from './jsmind.serializer.ts';
+import { JmMind } from '../model/jsmind.mind.ts';
+import { JmNode } from '../model/jsmind.node.ts';
+import { JmNodeContent } from '../model/jsmind.node.content.ts';
+import { JmEdge } from '../model/jsmind.edge.ts';
+import { JsMindError } from '../jsmind.error.ts';
 
 /**
- * JSON serializer for mind maps
+ * JSON serializer for mind maps.
+ *
+ * @public
  */
 export class JmMindJsonSerializer extends JmMindSerializer {
     /**
-     * Get the format name this serializer supports
-     * @returns {string} The format name
+     * Gets the format name this serializer supports.
+     *
+     * @returns The format name.
      */
-    getFormatName() {
+    getFormatName(): string {
         return 'json';
     }
 
     /**
-     * Serialize a mind map to JSON format
-     * @param {JmMind} mind - The mind map to serialize
-     * @returns {Object} The serialized JSON data
+     * Serializes a mind map to JSON format.
+     *
+     * @param mind - The mind map to serialize.
+     * @returns The serialized JSON data.
+     * @throws {@link JsMindError} If the mind map is not provided.
      */
-    serialize(mind) {
+    serialize(mind: JmMind): any {
         if (!mind) {
             throw new JsMindError('Mind map is required for serialization');
         }
 
-        const serializedData = {
+        const serializedData: any = {
             meta: mind.meta,
             root: this._serializeNode(mind._root),
             nodes: {},
@@ -53,11 +59,13 @@ export class JmMindJsonSerializer extends JmMindSerializer {
     }
 
     /**
-     * Deserialize JSON data to a mind map
-     * @param {Object} data - The JSON data to deserialize
-     * @returns {JmMind} The deserialized mind map
+     * Deserializes JSON data to a mind map.
+     *
+     * @param data - The JSON data to deserialize.
+     * @returns The deserialized mind map.
+     * @throws {@link JsMindError} If the JSON data format is invalid.
      */
-    deserialize(data) {
+    deserialize(data: any): JmMind {
         if (!this.validate(data)) {
             throw new JsMindError('Invalid JSON data format');
         }
@@ -74,14 +82,14 @@ export class JmMindJsonSerializer extends JmMindSerializer {
         mind.meta = { ...data.meta };
 
         // Restore nodes
-        Object.values(data.nodes).forEach(nodeData => {
+        Object.values(data.nodes).forEach((nodeData: any) => {
             const node = this._deserializeNode(nodeData);
             mind._nodes[node.id] = node;
         });
 
         // Restore additional edges
         if (data.edges) {
-            Object.values(data.edges).forEach(edgeData => {
+            Object.values(data.edges).forEach((edgeData: any) => {
                 const edge = this._deserializeEdge(edgeData);
                 mind._edges[edge.id] = edge;
             });
@@ -97,11 +105,12 @@ export class JmMindJsonSerializer extends JmMindSerializer {
     }
 
     /**
-     * Validate if the data can be deserialized by this serializer
-     * @param {any} data - The data to validate
-     * @returns {boolean} True if the data is valid for this format
+     * Validates if the data can be deserialized by this serializer.
+     *
+     * @param data - The data to validate.
+     * @returns True if the data is valid for this format.
      */
-    validate(data) {
+    validate(data: any): boolean {
         if (!data || typeof data !== 'object') {
             return false;
         }
@@ -118,12 +127,13 @@ export class JmMindJsonSerializer extends JmMindSerializer {
     }
 
     /**
-     * Serialize a single node
-     * @param {JmNode} node - The node to serialize
-     * @returns {Object} The serialized node data
+     * Serializes a single node.
+     *
      * @private
+     * @param node - The node to serialize.
+     * @returns The serialized node data.
      */
-    _serializeNode(node) {
+    _serializeNode(node: JmNode): any {
         return {
             id: node.id,
             content: {
@@ -139,12 +149,13 @@ export class JmMindJsonSerializer extends JmMindSerializer {
     }
 
     /**
-     * Deserialize a single node
-     * @param {Object} nodeData - The node data to deserialize
-     * @returns {JmNode} The deserialized node
+     * Deserializes a single node.
+     *
      * @private
+     * @param nodeData - The node data to deserialize.
+     * @returns The deserialized node.
      */
-    _deserializeNode(nodeData) {
+    _deserializeNode(nodeData: any): JmNode {
         const content = new JmNodeContent(nodeData.content.type, nodeData.content.value);
         const node = new JmNode(nodeData.id, content);
 
@@ -156,12 +167,13 @@ export class JmMindJsonSerializer extends JmMindSerializer {
     }
 
     /**
-     * Serialize a single edge
-     * @param {JmEdge} edge - The edge to serialize
-     * @returns {Object} The serialized edge data
+     * Serializes a single edge.
+     *
      * @private
+     * @param edge - The edge to serialize.
+     * @returns The serialized edge data.
      */
-    _serializeEdge(edge) {
+    _serializeEdge(edge: JmEdge): any {
         return {
             id: edge.id,
             sourceNodeId: edge.sourceNodeId,
@@ -172,12 +184,13 @@ export class JmMindJsonSerializer extends JmMindSerializer {
     }
 
     /**
-     * Deserialize a single edge
-     * @param {Object} edgeData - The edge data to deserialize
-     * @returns {JmEdge} The deserialized edge
+     * Deserializes a single edge.
+     *
      * @private
+     * @param edgeData - The edge data to deserialize.
+     * @returns The deserialized edge.
      */
-    _deserializeEdge(edgeData) {
+    _deserializeEdge(edgeData: any): JmEdge {
         return new JmEdge(
             edgeData.id,
             edgeData.sourceNodeId,
@@ -188,13 +201,20 @@ export class JmMindJsonSerializer extends JmMindSerializer {
     }
 
     /**
-     * Restore parent-child relationships between nodes
-     * @param {JmMind} mind - The mind map to restore relationships for
+     * Restores parent-child relationships between nodes.
+     *
+     * @remarks
+     * This method is no longer needed since parent-child relationships
+     * are now stored directly in the nodes and serialized/deserialized
+     * as part of the node data itself.
+     *
      * @private
+     * @param _mind - The mind map to restore relationships for.
      */
-    _restoreNodeRelationships(_mind) {
+    _restoreNodeRelationships(_mind: JmMind): void {
         // This method is no longer needed since parent-child relationships
         // are now stored directly in the nodes and serialized/deserialized
         // as part of the node data itself
     }
 }
+

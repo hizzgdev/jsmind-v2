@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import JsMind from '../src/jsmind.js';
+import JsMind from '../src/jsmind.ts';
 
 
 test('JsMind static', () => {
@@ -15,3 +15,4 @@ test('jsmind', () => {
     assert.ok(jm);
     assert.strictEqual(JsMind.Version, '2.0');
 });
+

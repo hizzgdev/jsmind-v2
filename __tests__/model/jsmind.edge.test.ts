@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmEdge, JmEdgeType } from '../../src/model/jsmind.edge.js';
+import { JmEdge, JmEdgeType } from '../../src/model/jsmind.edge.ts';
 
 const mockNode1 = 'node1';
 const mockNode2 = 'node2';
@@ -22,24 +22,25 @@ test('JmEdge with label', () => {
 
 test('JmEdge with null id', () => {
     assert.throws(() => {
-        new JmEdge(null, mockNode1, mockNode2, JmEdgeType.Link);
+        new JmEdge(null as any, mockNode1, mockNode2, JmEdgeType.Link);
     });
 });
 
 test('JmEdge with invalid source', () => {
     assert.throws(() => {
-        new JmEdge('1', null, mockNode2, JmEdgeType.Link);
+        new JmEdge('1', null as any, mockNode2, JmEdgeType.Link);
     });
 });
 
 test('JmEdge with invalid target', () => {
     assert.throws(() => {
-        new JmEdge('1', mockNode1, null, JmEdgeType.Link);
+        new JmEdge('1', mockNode1, null as any, JmEdgeType.Link);
     });
 });
 
 test('JmEdge with invalid type', () => {
     assert.throws(() => {
-        new JmEdge('1', mockNode1, mockNode2, null);
+        new JmEdge('1', mockNode1, mockNode2, null as any);
     });
 });
+
