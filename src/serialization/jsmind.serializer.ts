@@ -19,7 +19,7 @@ export class JmMindSerializer {
      * @returns The serialized data in the specific format.
      * @throws {@link Error} If not implemented.
      */
-    serialize(mind: JmMind): any {
+    serialize(mind: JmMind): unknown {
         throw new Error('serialize method must be implemented', { cause: mind });
     }
 
@@ -30,7 +30,7 @@ export class JmMindSerializer {
      * @returns The deserialized mind map.
      * @throws {@link Error} If not implemented.
      */
-    deserialize(data: any): JmMind {
+    deserialize(data: unknown): JmMind {
         throw new Error('deserialize method must be implemented', { cause: data });
     }
 
@@ -51,7 +51,7 @@ export class JmMindSerializer {
      * @returns True if the data is valid for this format.
      * @throws {@link Error} If not implemented.
      */
-    validate(data: any): boolean {
+    validate(data: unknown): boolean {
         throw new Error('validate method must be implemented', { cause: data });
     }
 }

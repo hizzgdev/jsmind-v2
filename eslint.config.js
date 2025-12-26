@@ -1,5 +1,4 @@
 import globals from 'globals';
-import js from '@eslint/js';
 import json from '@eslint/json';
 import stylistic from '@stylistic/eslint-plugin';
 import tseslint from 'typescript-eslint';
@@ -16,10 +15,9 @@ export default [
     },
     ...tseslint.configs.recommended,
     {
-        files: ['**/*.ts'],
+        files: ['**/*.ts', 'eslint.config.js', 'rollup.config.js'],
         ...stylistic.configs.recommended,
         languageOptions: {
-            ecmaVersion: 2018,
             sourceType: 'module',
             globals: globals.browser,
         },
@@ -28,6 +26,8 @@ export default [
             'no-console': 'off',
             'no-var': 'error',
             '@typescript-eslint/no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
+            '@typescript-eslint/no-explicit-any': 'warn',
+            '@typescript-eslint/no-this-alias': 'warn',
             'prefer-const': 'error',
             '@stylistic/comma-spacing': 'error',
             '@stylistic/eol-last': ['error', 'always'],

@@ -1,4 +1,7 @@
 import { JmObserver } from './jsmind.observer.ts';
+import { type JmMind } from '../model/jsmind.mind.ts';
+import { type JmMindEvent } from './jsmind.mind.event.ts';
+import { type JmView } from '../jsmind.view.ts';
 
 /**
  * Observer of JmMind.
@@ -7,14 +10,14 @@ import { JmObserver } from './jsmind.observer.ts';
  */
 export class JmMindObserver extends JmObserver {
     /** The view instance associated with this observer. */
-    view: any;
+    view: JmView;
 
     /**
      * Creates an observer on JmMind with a JmView instance.
      *
      * @param jmView - The view instance.
      */
-    constructor(jmView: any) {
+    constructor(jmView: JmView) {
         super();
         this.view = jmView;
     }
@@ -26,7 +29,7 @@ export class JmMindObserver extends JmObserver {
      * @param event - The JmMindEvent containing change information.
      * @throws {@link Error} If not implemented.
      */
-    update(observedObject: any, event: any): void {
+    update(observedObject: JmMind, event: JmMindEvent): void {
         throw new Error('not implemented', observedObject, event);
     }
 }

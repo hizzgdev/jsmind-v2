@@ -39,16 +39,22 @@ export interface NodeDestinationOptions {
 export class JmNode {
     /** The unique identifier of the node. */
     id: string;
+
     /** The content of the node. */
     content: JmNodeContent;
+
     /** The parent node, or null if this is the root node. */
     parent: JmNode | null;
+
     /** Array of child nodes. */
     children: JmNode[];
+
     /** Whether the node is folded (collapsed). */
     folded: boolean;
+
     /** The direction of the node. */
     direction: JmNodeDirection | null;
+
     /** Additional data associated with the node. */
     data: any;
 

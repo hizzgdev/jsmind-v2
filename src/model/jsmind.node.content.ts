@@ -24,6 +24,7 @@ export type JmNodeContentType = typeof JmNodeContentType[keyof typeof JmNodeCont
 export class JmNodeContent {
     /** The type of the content. */
     type: JmNodeContentType;
+
     /** The actual content value. */
     value: any;
 

@@ -1,21 +1,13 @@
-/**
- * JmMindEventListener is referenced but not defined in the original code.
- *
- * @internal
- */
-declare class JmMindEventListener {
-}
+import { type JmNode } from './model/jsmind.node.ts';
+import { type JmMind } from './model/jsmind.mind.ts';
+import { type JmMindEvent } from './event/jsmind.mind.event.ts';
+import { JmSize } from './jsmind.data.ts';
 
 /**
  * View of mind map.
- *
- * @remarks
- * This is an interface/abstract class that should be extended to implement
- * a concrete view for rendering mind maps.
- *
  * @public
  */
-export class JmView extends JmMindEventListener {
+export class JmView {
     /**
      * Measures the size of the node in the view.
      *
@@ -23,8 +15,9 @@ export class JmView extends JmMindEventListener {
      * @returns The size of the node.
      * @throws {@link Error} If not implemented.
      */
-    measure(node: any): any {
-        throw new Error('not implemented', node);
+    measure(node: JmNode): JmSize {
+        console.log('JmView.measure', node);
+        throw new Error('not implemented');
     }
 
     /**
@@ -33,7 +26,7 @@ export class JmView extends JmMindEventListener {
      * @param sender - The object that triggered the change.
      * @param event - The event data.
      */
-    onMindChanged(sender: any, event: any): void {
+    onMindChanged(sender: JmMind, event: JmMindEvent): void {
         console.log('JmView.onMindChanged', sender, event);
     }
 }

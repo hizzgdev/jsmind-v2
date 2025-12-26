@@ -39,8 +39,10 @@ export class IdGenerator {
 export class SimpleIdGenerator extends IdGenerator {
     /** The seed value for ID generation. */
     seed: number;
+
     /** The sequence counter. */
     seq: number;
+
     /** The prefix for generated IDs. */
     prefix: string;
 

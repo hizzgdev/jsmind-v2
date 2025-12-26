@@ -1,6 +1,6 @@
 import { JmObserverManager } from '../event/jsmind.observer.manager.ts';
-import { JmEdge } from './jsmind.edge.ts';
-import { JmNode, type NodeCreationOptions, type NodeDestinationOptions } from './jsmind.node.ts';
+import { JmEdge, type EdgeCreationOptions, JmEdgeType } from './jsmind.edge.ts';
+import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeDirection } from './jsmind.node.ts';
 import { JmNodeContent } from './jsmind.node.content.ts';
 import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../jsmind.const.ts';
 import { SimpleIdGenerator } from '../generation/jsmind.id_generator.ts';
@@ -16,18 +16,25 @@ import { JsMindError } from '../jsmind.error.ts';
 export class JmMind {
     /** Metadata for the mind map. */
     meta: MindMetadata;
+
     /** Configuration options for the mind map. */
     options: MindOptions;
+
     /** Manager for observers of this mind map. */
     observerManager: JmObserverManager;
+
     /** Manager for node operations. */
     nodeManager: JmNodeManager;
+
     /** @internal Internal ID generator for nodes and edges. */
     _idGenerator: SimpleIdGenerator;
+
     /** @internal Dictionary of all nodes by ID. */
     _nodes: { [key: string]: JmNode };
+
     /** @internal Dictionary of all edges by ID. */
     _edges: { [key: string]: JmEdge };
+
     /** @internal The root node of the mind map. */
     _root: JmNode;
 
@@ -37,9 +44,9 @@ export class JmMind {
      * @param metadata - Metadata for the mind map.
      * @param options - Configuration options for the mind map.
      */
-    constructor(metadata: any = {}, options: any = {}) {
-        this.meta = this._merge(DEFAULT_METADATA, metadata);
-        this.options = this._merge(DEFAULT_OPTIONS.mind, options);
+    constructor(metadata: Partial<MindMetadata> = {}, options: Partial<MindOptions> = {}) {
+        this.meta = this._merge(DEFAULT_METADATA, metadata) as MindMetadata;
+        this.options = this._merge(DEFAULT_OPTIONS.mind, options) as MindOptions;
         this.observerManager = new JmObserverManager(this);
         this.nodeManager = new JmNodeManager(this);
         this._idGenerator = new SimpleIdGenerator('jm-');
@@ -67,7 +74,7 @@ export class JmMind {
      * @returns The created edge.
      * @throws {@link JsMindError} If the source or target node does not exist.
      */
-    addEdge(sourceNodeId: string, targetNodeId: string, type: any, options?: any): JmEdge {
+    addEdge(sourceNodeId: string, targetNodeId: string, type: JmEdgeType, options?: EdgeCreationOptions): JmEdge {
         // Validate nodes exist
         this._getNodeById(sourceNodeId);
         this._getNodeById(targetNodeId);
@@ -147,7 +154,7 @@ export class JmMind {
      * @param type - Optional edge type filter.
      * @returns Array of edges involving the node.
      */
-    getEdges(nodeId: string, type: any = null): JmEdge[] {
+    getEdges(nodeId: string, type: JmEdgeType | null = null): JmEdge[] {
         return Object.values(this._edges).filter(edge => {
             return (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) &&
                    (!type || edge.type === type);
@@ -330,7 +337,7 @@ export class JmMind {
      * @param oldPosition - The old position index.
      * @param oldDirection - The old direction.
      */
-    _emitNodeMovedEventIfChanged(node: JmNode, oldParent: JmNode | null, oldPosition: number, oldDirection: any): void {
+    _emitNodeMovedEventIfChanged(node: JmNode, oldParent: JmNode | null, oldPosition: number, oldDirection: JmNodeDirection | null): void {
         // Compare actual updated node properties with old values
         const parentChanged = oldParent!.id !== node.parent!.id;
         const positionChanged = oldPosition !== node.parent!.children.indexOf(node);
@@ -367,7 +374,7 @@ export class JmMind {
      * @param userValues - User-provided values.
      * @returns Merged values.
      */
-    _merge(defaultValues: any, userValues?: any): any {
+    _merge<T>(defaultValues: T, userValues?: Partial<T>): T {
         if (!userValues) {
             return { ...defaultValues };
         }
@@ -375,7 +382,7 @@ export class JmMind {
         return {
             ...defaultValues,
             ...userValues
-        };
+        } as T;
     }
 
     /**
@@ -491,8 +498,10 @@ export class JmMind {
 class JmNodeManager {
     /** The mind map instance. */
     mind: JmMind;
+
     /** Set of readonly field names. */
     readonlyFields: Set<string>;
+
     /** Set of unsafe array method names. */
     unsafeArrayMethods: Set<string>;
 
@@ -531,15 +540,16 @@ class JmNodeManager {
         const ori = (node as any)[prop];
         if(prop === 'children') {
             const itemManagedArray = ori.map((n: JmNode)=>this.manage(n));
+            const manager = this;
             return new Proxy(itemManagedArray, {
-                get: function (arr: any, prop: string | symbol) {
-                    if(this.unsafeArrayMethods.has(prop as string)) {
+                get: function (arr: JmNode[], prop: string | symbol) {
+                    if(manager.unsafeArrayMethods.has(prop as string)) {
                         return function() {
                             throw new JsMindError(`unsupported method ${String(prop)} on node.children, please follow the document to operate the mindmap.`);
                         };
                     }
-                    return arr[prop];
-                }.bind(this)
+                    return arr[prop as keyof typeof arr];
+                }
             });
         }
         if(prop === 'parent') {

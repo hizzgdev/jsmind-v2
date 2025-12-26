@@ -1,22 +1,32 @@
 import { JsMindError } from '../jsmind.error.ts';
 
 /**
+ * Interface for objects that can be observed.
+ *
+ * @public
+ */
+export interface Observable {
+    update(observedObject: unknown, event: unknown): void;
+}
+
+/**
  * Manager for observers of an observed object.
  *
  * @public
  */
 export class JmObserverManager {
     /** The object being observed. */
-    observedObject: any;
+    observedObject: unknown;
+
     /** @internal */
-    _observers: any[];
+    _observers: Observable[];
 
     /**
      * Creates an observer manager for an observed object.
      *
      * @param observedObject - The object to observe.
      */
-    constructor(observedObject: any) {
+    constructor(observedObject: unknown) {
         this.observedObject = observedObject;
         this._observers = [];
     }
@@ -27,7 +37,7 @@ export class JmObserverManager {
      * @param observer - An object that contains an `update(observedObject, event)` method.
      * @throws {@link JsMindError} If the observer is not a valid object.
      */
-    addObserver(observer: any): void {
+    addObserver(observer: Observable): void {
         if(!observer || !observer.update || typeof observer.update !== 'function') {
             throw new JsMindError('observer is not an valid Object');
         }
@@ -39,7 +49,7 @@ export class JmObserverManager {
      *
      * @param observer - The observer to remove.
      */
-    removeObserver(observer: any): void {
+    removeObserver(observer: Observable): void {
         this._observers = this._observers.filter(o => o !== observer);
     }
 
@@ -60,7 +70,7 @@ export class JmObserverManager {
      * @param event - Events are defined by different observed objects, which
      * represent specific information about the changes.
      */
-    async notifyObservers(event: any): Promise<void> {
+    async notifyObservers(event: unknown): Promise<void> {
         this._observers.forEach(async (observer) => {
             await new Promise((resolve) => {
                 setTimeout(() => {

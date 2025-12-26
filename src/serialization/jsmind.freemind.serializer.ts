@@ -30,7 +30,7 @@ export class JmMindFreeMindSerializer extends JmMindSerializer {
      * @returns The serialized data.
      * @throws {@link JsMindError} FreeMind serialization is not yet implemented.
      */
-    serialize(mind: JmMind): any {
+    serialize(mind: JmMind): unknown {
         throw new JsMindError('FreeMind serialization is not yet implemented', { cause: mind });
     }
 
@@ -41,7 +41,7 @@ export class JmMindFreeMindSerializer extends JmMindSerializer {
      * @returns The deserialized mind map.
      * @throws {@link JsMindError} FreeMind deserialization is not yet implemented.
      */
-    deserialize(data: any): JmMind {
+    deserialize(data: unknown): JmMind {
         throw new JsMindError('FreeMind deserialization is not yet implemented', { cause: data });
     }
 
@@ -54,7 +54,7 @@ export class JmMindFreeMindSerializer extends JmMindSerializer {
      * @param data - The data to validate.
      * @returns True if the data is valid for this format.
      */
-    validate(data: any): boolean {
+    validate(data: unknown): boolean {
         // Basic validation - will be implemented later
         if (data) {
             // This is a placeholder - will be implemented later

@@ -6,6 +6,7 @@
 export class JmSize {
     /** The width value. */
     width: number;
+
     /** The height value. */
     height: number;
 

@@ -23,12 +23,16 @@ export interface EdgeCreationOptions {
 export class JmEdge {
     /** The unique identifier of the edge. */
     id: string;
+
     /** The ID of the source node. */
     sourceNodeId: string;
+
     /** The ID of the target node. */
     targetNodeId: string;
+
     /** The type of the edge. */
     type: JmEdgeType;
+
     /** The optional label of the edge. */
     label: string | null;
 

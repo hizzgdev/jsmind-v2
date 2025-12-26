@@ -6,6 +6,7 @@
 export class JmMindEvent {
     /** The type of the event. */
     type: JmMindEventType;
+
     /** The event data. */
     data: any;
 

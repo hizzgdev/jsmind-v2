@@ -1,4 +1,4 @@
-// eslint-disable-next-line no-unused-vars
+
 import { type JmMind } from './model/jsmind.mind.ts';
 import { JmMindJsonSerializer } from './serialization/jsmind.json.serializer.ts';
 
@@ -24,8 +24,10 @@ class JsMind {
 
     /** The options for this jsMind instance. */
     options: any;
+
     /** The currently opened mind map, or null if none is open. */
     mind: JmMind | null;
+
     /** The serializer used for serialization operations. */
     serializer: JmMindJsonSerializer;
 
