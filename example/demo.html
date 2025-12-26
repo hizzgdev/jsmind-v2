@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <title>jsMind V2 Demo</title>
+        <style type="text/css">
+            body {
+                font-family: Arial, sans-serif;
+                margin: 20px;
+            }
+            #jsmind_container {
+                width: 800px;
+                height: 500px;
+                border: solid 1px #ccc;
+                background: #f4f4f4;
+                padding: 20px;
+                overflow: auto;
+            }
+            .info {
+                margin: 10px 0;
+                padding: 10px;
+                background: #e8f4f8;
+                border: 1px solid #bee5eb;
+                border-radius: 4px;
+            }
+            button {
+                margin: 5px;
+                padding: 8px 16px;
+                cursor: pointer;
+            }
+            pre {
+                background: #f5f5f5;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                overflow: auto;
+                max-height: 300px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>jsMind V2 Demo</h1>
+        <div class="info">
+            <strong>Note:</strong> This is a demo for jsMind V2. The view system is not yet implemented,
+            so the mind map is displayed as JSON structure. The full rendering functionality will be available
+            once the view system is completed.
+        </div>
+        
+        <div>
+            <button onclick="createMindMap();">Create Mind Map</button>
+            <button onclick="addNode();">Add Node</button>
+            <button onclick="serialize();">Serialize to JSON</button>
+            <button onclick="clearDisplay();">Clear</button>
+        </div>
+        
+        <div id="jsmind_container"></div>
+        
+        <script type="text/javascript" src="../dist/jsmind.js"></script>
+        <script type="text/javascript">
+            var _jm = null;
+            var _mind = null;
+
+            function createMindMap() {
+                try {
+                    // Create jsMind instance
+                    _jm = new jsMind({
+                        container: 'jsmind_container',
+                        editable: true,
+                    });
+
+                    // Create a mind map
+                    const JmMind = jsMind.Mind;
+                    const JmNodeContent = jsMind.NodeContent;
+                    
+                    _mind = new JmMind({
+                        name: 'jsMind V2 Demo',
+                        author: 'hizzgdev@163.com',
+                        version: '2.0',
+                    });
+
+                    // Open the mind map
+                    _jm.open(_mind);
+
+                    // Add root node content
+                    const root = _mind.root;
+                    root.content = JmNodeContent.createText('jsMind V2');
+
+                    // Add some child nodes
+                    const sub1 = _mind.addNode(
+                        JmNodeContent.createText('Feature 1'),
+                        { parentId: root.id }
+                    );
+
+                    const sub2 = _mind.addNode(
+                        JmNodeContent.createText('Feature 2'),
+                        { parentId: root.id }
+                    );
+
+                    const sub3 = _mind.addNode(
+                        JmNodeContent.createText('Feature 3'),
+                        { parentId: root.id }
+                    );
+
+                    // Add grandchildren
+                    _mind.addNode(
+                        JmNodeContent.createText('Sub-feature 1.1'),
+                        { parentId: sub1.id }
+                    );
+
+                    _mind.addNode(
+                        JmNodeContent.createText('Sub-feature 1.2'),
+                        { parentId: sub1.id }
+                    );
+
+                    displayMindMap(_mind);
+                } catch (error) {
+                    console.error('Error creating mind map:', error);
+                    alert('Error: ' + error.message);
+                }
+            }
+
+            function addNode() {
+                if (!_mind) {
+                    alert('Please create a mind map first');
+                    return;
+                }
+
+                try {
+                    const JmNodeContent = jsMind.NodeContent;
+                    const root = _mind.root;
+                    
+                    const newNode = _mind.addNode(
+                        JmNodeContent.createText('New Node ' + Date.now()),
+                        { parentId: root.id }
+                    );
+
+                    displayMindMap(_mind);
+                    console.log('Added node:', newNode);
+                } catch (error) {
+                    console.error('Error adding node:', error);
+                    alert('Error: ' + error.message);
+                }
+            }
+
+            function serialize() {
+                if (!_jm || !_mind) {
+                    alert('Please create a mind map first');
+                    return;
+                }
+
+                try {
+                    const json = _jm.serialize();
+                    const container = document.getElementById('jsmind_container');
+                    container.innerHTML = '<pre>' + JSON.stringify(JSON.parse(json), null, 2) + '</pre>';
+                } catch (error) {
+                    console.error('Error serializing:', error);
+                    alert('Error: ' + error.message);
+                }
+            }
+
+            function displayMindMap(mind) {
+                const container = document.getElementById('jsmind_container');
+                
+                // Simple text representation (until view system is implemented)
+                function nodeToString(node, indent = 0) {
+                    const prefix = '  '.repeat(indent);
+                    let text = prefix + '- ' + (node.content.isText() ? node.content.value : '[non-text]') + ' (id: ' + node.id + ')\n';
+                    node.children.forEach(child => {
+                        text += nodeToString(child, indent + 1);
+                    });
+                    return text;
+                }
+
+                const text = 'Mind Map Structure:\n\n' + nodeToString(mind.root);
+                container.innerHTML = '<pre>' + text + '</pre>';
+            }
+
+            function clearDisplay() {
+                const container = document.getElementById('jsmind_container');
+                container.innerHTML = '';
+                _jm = null;
+                _mind = null;
+            }
+
+            // Auto-create on load
+            window.addEventListener('DOMContentLoaded', function() {
+                console.log('jsMind V2 Demo loaded');
+                console.log('jsMind version:', jsMind.Version);
+                console.log('jsMind author:', jsMind.Author);
+            });
+        </script>
+    </body>
+</html>
+

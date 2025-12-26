@@ -1,6 +1,7 @@
 
-import { type JmMind } from './model/jsmind.mind.ts';
+import { JmMind } from './model/jsmind.mind.ts';
 import { JmMindJsonSerializer } from './serialization/jsmind.json.serializer.ts';
+import { JmNodeContent } from './model/jsmind.node.content.ts';
 
 /**
  * Main class for jsMind mind map operations.
@@ -21,6 +22,12 @@ class JsMind {
      * @returns The author string.
      */
     static get Author(): string { return 'hizzgdev@163.com'; }
+
+    /**
+     * Exported classes for browser use.
+     */
+    static Mind = JmMind;
+    static NodeContent = JmNodeContent;
 
     /** The options for this jsMind instance. */
     options: any;

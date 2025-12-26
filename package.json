@@ -4,8 +4,13 @@
     "description": "Version 2 of jsMind, which is a TypeScript library for mindmap.",
     "type": "module",
     "main": "dist/jsmind.js",
+    "types": "dist/jsmind.d.ts",
     "exports": {
-        ".": "./dist/jsmind.js",
+        ".": {
+            "import": "./dist/jsmind.js",
+            "require": "./dist/jsmind.js",
+            "types": "./dist/jsmind.d.ts"
+        },
         "./jsmind.css": "./dist/jsmind.css"
     },
     "directories": {
@@ -52,6 +57,8 @@
         "@typescript-eslint/parser": "^8.50.1",
         "eslint": "^9.39.2",
         "rollup": "^4.28.0",
+        "rollup-plugin-dts": "^6.3.0",
+        "tslib": "^2.8.1",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.50.1"
