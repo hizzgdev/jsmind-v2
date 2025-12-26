@@ -72,7 +72,7 @@ export class JmObserverManager {
      */
     async notifyObservers(event: unknown): Promise<void> {
         this._observers.forEach(async (observer) => {
-            await new Promise((resolve) => {
+            await new Promise<void>((resolve) => {
                 setTimeout(() => {
                     observer.update(this.observedObject, event);
                     resolve();
