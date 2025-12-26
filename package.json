@@ -23,7 +23,8 @@
         "test": "node --test",
         "format": "npx eslint --fix",
         "format-check": "npx eslint",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "compile": "tsc"
     },
     "repository": {
         "type": "git",

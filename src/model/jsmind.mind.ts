@@ -30,10 +30,10 @@ export class JmMind {
     _idGenerator: SimpleIdGenerator;
 
     /** @internal Dictionary of all nodes by ID. */
-    _nodes: { [key: string]: JmNode };
+    _nodes: Record<string, JmNode>;
 
     /** @internal Dictionary of all edges by ID. */
-    _edges: { [key: string]: JmEdge };
+    _edges: Record<string, JmEdge>;
 
     /** @internal The root node of the mind map. */
     _root: JmNode;

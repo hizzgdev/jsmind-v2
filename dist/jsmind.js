@@ -1082,6 +1082,138 @@
     }
 
     /**
+     * View operator for nodes.
+     * Handles rendering and manipulation of node elements in the view.
+     *
+     * @public
+     */
+    class JmNodeView {
+        /**
+         * Creates a new node view operator.
+         *
+         * @param innerContainer - The inner container element to append the nodes container to.
+         */
+        constructor(innerContainer) {
+            /** The map of node elements. */
+            this.nodeElements = new Map();
+            /** The map of node sizes. */
+            this.nodeSizes = new Map();
+            this.container = this._initNodesContainer(innerContainer);
+        }
+        /**
+         * Initializes the nodes container element.
+         *
+         * @param innerContainer - The inner container element.
+         * @returns The created nodes container element.
+         */
+        _initNodesContainer(innerContainer) {
+            const element = document.createElement('div');
+            element.classList.add('jsmind-nodes');
+            innerContainer.appendChild(element);
+            return element;
+        }
+        async renderNode(node) {
+            // Check if already rendered
+            const existingElement = this.nodeElements.get(node.id);
+            if (existingElement) {
+                return existingElement;
+            }
+            console.log('JmView.render', node);
+            const element = document.createElement('div');
+            this.nodeElements.set(node.id, element);
+            element.setAttribute('class', 'jsmind-node');
+            element.setAttribute('data-node-id', node.id);
+            this.container.appendChild(element);
+            return element;
+        }
+    }
+
+    /**
+     * View operator for edges.
+     * Handles rendering and manipulation of edge elements in the view.
+     *
+     * @public
+     */
+    class JmEdgeView {
+        /**
+         * Creates a new edge view operator.
+         *
+         * @param innerContainer - The inner container element to append the edges container to.
+         */
+        constructor(innerContainer) {
+            this.container = this._initEdgesContainer(innerContainer);
+        }
+        /**
+         * Initializes the edges container element (SVG).
+         *
+         * @param innerContainer - The inner container element.
+         * @returns The created edges container element.
+         */
+        _initEdgesContainer(innerContainer) {
+            const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            element.classList.add('jsmind-edges');
+            innerContainer.appendChild(element);
+            return element;
+        }
+        async renderEdge(edge) {
+            const element = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            element.classList.add('jsmind-edge');
+            element.setAttribute('d', `M ${edge.sourceNodeId} ${edge.targetNodeId}`);
+            this.container.appendChild(element);
+        }
+    }
+
+    /**
+     * View of mind map.
+     * @public
+     */
+    class JmView {
+        constructor(container, options) {
+            this.container = this._initContainer(container);
+            this.innerContainer = this._initInnerContainer();
+            this.nodeView = new JmNodeView(this.innerContainer);
+            this.edgeView = new JmEdgeView(this.innerContainer);
+        }
+        _initContainer(container) {
+            if (!container) {
+                throw new JsMindError('Container is required');
+            }
+            if (typeof container === 'string') {
+                const element = document.getElementById(container);
+                if (!element) {
+                    throw new JsMindError(`Container element with ID '${container}' is not found`);
+                }
+                return element;
+            }
+            return container;
+        }
+        _initInnerContainer() {
+            const element = document.createElement('div');
+            element.classList.add('jsmind-inner');
+            this.container.appendChild(element);
+            return element;
+        }
+        async render(mind) {
+            console.log('JmView.render', mind);
+            for (const nodeId in mind._nodes) {
+                await this.nodeView.renderNode(mind._nodes[nodeId]);
+            }
+            for (const edgeId in mind._edges) {
+                await this.edgeView.renderEdge(mind._edges[edgeId]);
+            }
+        }
+        /**
+         * Called when the mind map changes.
+         *
+         * @param sender - The object that triggered the change.
+         * @param event - The event data.
+         */
+        onMindChanged(sender, event) {
+            console.log('JmView.onMindChanged', sender, event);
+        }
+    }
+
+    /**
      * Main class for jsMind mind map operations.
      *
      * @public
@@ -1108,6 +1240,7 @@
             this.options = options;
             this.mind = null;
             this.serializer = new JmMindJsonSerializer();
+            this.view = new JmView(options.container, options.viewOptions);
         }
         /**
          * Opens a mind map.
@@ -1115,8 +1248,11 @@
          * @param mind - The mind map instance to open.
          * @returns The opened mind map instance.
          */
-        open(mind) {
+        async open(mind) {
+            console.log('JmView.open.1', mind);
             this.mind = mind;
+            await this.view.render(mind);
+            console.log('JmView.open.2', mind);
             return mind;
         }
         /**

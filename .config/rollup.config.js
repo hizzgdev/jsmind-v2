@@ -26,6 +26,7 @@ export default [
                 declaration: false,
                 declarationMap: false,
                 sourceMap: true,
+                // noForceEmit: true,
             }),
         ],
     },

@@ -9,10 +9,11 @@
             "description": "Words used in this project",
             "addWords": true
           },
+
           "custom": true,
           "internal-terms": false
     },
-    "eslint.validate": ["javascript"],
+    "eslint.validate": ["javascript","typescript"],
     "eslint.useFlatConfig": true,
     "cSpell.ignoreRandomStrings": true,
     "cSpell.minRandomLength": 30

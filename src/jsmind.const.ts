@@ -18,8 +18,11 @@ export interface MindMetadata {
  * @public
  */
 export interface MindOptions {
-    /** The ID for the root node. */
     rootNodeId: string;
+}
+
+export interface ViewOptions {
+    theme: string;
 }
 
 /**
@@ -28,8 +31,9 @@ export interface MindOptions {
  * @public
  */
 export interface JsMindOptions {
-    /** Mind-specific options. */
+    container: string | HTMLElement;
     mind: MindOptions;
+    viewOptions: ViewOptions;
 }
 
 export const DEFAULT_METADATA: MindMetadata = {
@@ -39,6 +43,10 @@ export const DEFAULT_METADATA: MindMetadata = {
 };
 
 export const DEFAULT_OPTIONS: JsMindOptions = {
+    container: '',
+    viewOptions: {
+        theme: 'default'
+    },
     mind: {
         rootNodeId: 'root'
     }

@@ -278,8 +278,20 @@ interface MindMetadata {
  * @public
  */
 interface MindOptions {
-    /** The ID for the root node. */
     rootNodeId: string;
+}
+interface ViewOptions {
+    theme: string;
+}
+/**
+ * Options for JsMind.
+ *
+ * @public
+ */
+interface JsMindOptions {
+    container: string | HTMLElement;
+    mind: MindOptions;
+    viewOptions: ViewOptions;
 }
 
 /**
@@ -355,13 +367,9 @@ declare class JmMind {
     /** @internal Internal ID generator for nodes and edges. */
     _idGenerator: SimpleIdGenerator;
     /** @internal Dictionary of all nodes by ID. */
-    _nodes: {
-        [key: string]: JmNode;
-    };
+    _nodes: Record<string, JmNode>;
     /** @internal Dictionary of all edges by ID. */
-    _edges: {
-        [key: string]: JmEdge;
-    };
+    _edges: Record<string, JmEdge>;
     /** @internal The root node of the mind map. */
     _root: JmNode;
     /**
@@ -733,6 +741,121 @@ declare class JmMindJsonSerializer extends JmMindSerializer {
 }
 
 /**
+ * Event data containing the state change in JmMind.
+ *
+ * @public
+ */
+declare class JmMindEvent {
+    /** The type of the event. */
+    type: JmMindEventType;
+    /** The event data. */
+    data: any;
+    /**
+     * Creates a new JmMindEvent instance.
+     *
+     * @param type - The type of the event.
+     * @param data - The event data.
+     */
+    constructor(type: JmMindEventType, data: any);
+}
+/**
+ * Enumeration of mind map event types.
+ *
+ * @public
+ */
+declare const JmMindEventType: {
+    /** Event fired when a node is added. */
+    readonly NodeAdded: 1;
+    /** Event fired when a node is removed. */
+    readonly NodeRemoved: 2;
+    /** Event fired when a node is updated. */
+    readonly NodeUpdated: 3;
+    /** Event fired when a node is moved. */
+    readonly NodeMoved: 4;
+    /** Event fired when an edge is added. */
+    readonly EdgeAdded: 5;
+    /** Event fired when an edge is removed. */
+    readonly EdgeRemoved: 6;
+};
+type JmMindEventType = typeof JmMindEventType[keyof typeof JmMindEventType];
+
+/**
+ * View operator for nodes.
+ * Handles rendering and manipulation of node elements in the view.
+ *
+ * @public
+ */
+declare class JmNodeView {
+    /** The container element for nodes. */
+    private readonly container;
+    /** The map of node elements. */
+    private readonly nodeElements;
+    /** The map of node sizes. */
+    private readonly nodeSizes;
+    /**
+     * Creates a new node view operator.
+     *
+     * @param innerContainer - The inner container element to append the nodes container to.
+     */
+    constructor(innerContainer: HTMLElement);
+    /**
+     * Initializes the nodes container element.
+     *
+     * @param innerContainer - The inner container element.
+     * @returns The created nodes container element.
+     */
+    private _initNodesContainer;
+    renderNode(node: JmNode): Promise<HTMLElement>;
+}
+
+/**
+ * View operator for edges.
+ * Handles rendering and manipulation of edge elements in the view.
+ *
+ * @public
+ */
+declare class JmEdgeView {
+    /** The container element for edges (SVG). */
+    readonly container: SVGSVGElement;
+    /**
+     * Creates a new edge view operator.
+     *
+     * @param innerContainer - The inner container element to append the edges container to.
+     */
+    constructor(innerContainer: HTMLElement);
+    /**
+     * Initializes the edges container element (SVG).
+     *
+     * @param innerContainer - The inner container element.
+     * @returns The created edges container element.
+     */
+    private _initEdgesContainer;
+    renderEdge(edge: JmEdge): Promise<void>;
+}
+
+/**
+ * View of mind map.
+ * @public
+ */
+declare class JmView {
+    private readonly container;
+    private readonly innerContainer;
+    readonly nodeView: JmNodeView;
+    readonly edgeView: JmEdgeView;
+    constructor(container: string | HTMLElement, options: ViewOptions);
+    private _initContainer;
+    private _initInnerContainer;
+    render(mind: JmMind): Promise<void>;
+    /**
+     * Called when the mind map changes.
+     *
+     * @param sender - The object that triggered the change.
+     * @param event - The event data.
+     */
+    onMindChanged(sender: JmMind, event: JmMindEvent): void;
+}
+
+/**
  * Main class for jsMind mind map operations.
  *
  * @public
@@ -761,19 +884,21 @@ declare class JsMind {
     mind: JmMind | null;
     /** The serializer used for serialization operations. */
     serializer: JmMindJsonSerializer;
+    /** The view instance for rendering the mind map. */
+    view: JmView;
     /**
      * Creates a new jsMind instance.
      *
      * @param options - Configuration options for the jsMind instance.
      */
-    constructor(options: any);
+    constructor(options: JsMindOptions);
     /**
      * Opens a mind map.
      *
      * @param mind - The mind map instance to open.
      * @returns The opened mind map instance.
      */
-    open(mind: JmMind): JmMind;
+    open(mind: JmMind): Promise<JmMind>;
     /**
      * Closes the current mind map (cleanup method).
      *
