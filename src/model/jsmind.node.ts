@@ -1,4 +1,4 @@
-import { JsMindError } from '../jsmind.error.ts';
+import { JsMindError } from '../common/error.ts';
 import { type JmNodeContent } from './jsmind.node.content.ts';
 
 /**
@@ -14,7 +14,7 @@ export interface NodeCreationOptions {
     /** Direction of the node (default: null). */
     direction?: JmNodeDirection | null;
     /** Additional data for the node (default: {}). */
-    data?: any;
+    data?: Record<string, unknown>;
 }
 
 /**
@@ -56,7 +56,7 @@ export class JmNode {
     direction: JmNodeDirection | null;
 
     /** Additional data associated with the node. */
-    data: any;
+    data: Record<string, unknown>;
 
     /**
      * Creates a new node.

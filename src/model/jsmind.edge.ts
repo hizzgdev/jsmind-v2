@@ -1,4 +1,4 @@
-import { JsMindError } from '../jsmind.error.ts';
+import { JsMindError } from '../common/error.ts';
 
 /**
  * Options for creating a new edge.

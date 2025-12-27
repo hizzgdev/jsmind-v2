@@ -9,8 +9,8 @@ import { JmMind } from '../model/jsmind.mind.ts';
 import { JmNode } from '../model/jsmind.node.ts';
 import { JmNodeContent } from '../model/jsmind.node.content.ts';
 import { JmEdge, JmEdgeType } from '../model/jsmind.edge.ts';
-import { JsMindError } from '../jsmind.error.ts';
-import { type MindMetadata } from '../jsmind.const.ts';
+import { JsMindError } from '../common/error.ts';
+import { type MindMetadata } from '../common/option.ts';
 import { type JmNodeDirection } from '../model/jsmind.node.ts';
 import { type JmNodeContentType } from '../model/jsmind.node.content.ts';
 

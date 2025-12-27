@@ -1,20 +1,41 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { before, describe, it } from 'node:test';
 import JsMind from '../src/jsmind.ts';
-import { type JsMindOptions } from '../src/jsmind.const.ts';
-import './setup/jsdom.test.ts';
-import { JSMIND_CONTAINER_ID } from './setup/jsdom.test.ts';
+import { type JsMindOptions } from '../src/common/option.ts';
+import { initDom, JSMIND_CONTAINER_ID } from './setup/jsdom.ts';
+import { TEST_EDGE_11TO2, TEST_MIND, TEST_NODE_1, TEST_NODE_11, TEST_NODE_2 } from './setup/data.ts';
 
-test('JsMind static', () => {
-    assert.ok(JsMind.Version);
-    assert.ok(JsMind.Author);
-}
-);
 
-test('jsmind', () => {
-    const opts: JsMindOptions = { container: JSMIND_CONTAINER_ID, mind: { rootNodeId: 'test' }, viewOptions: { theme: 'test' } };
-    const jm = new JsMind(opts);
-    assert.ok(jm);
-    assert.strictEqual(JsMind.Version, '2.0');
+describe('JsMind', async () => {
+    before(() => {
+        initDom();
+    });
+
+    it('static properties', () => {
+        assert.ok(JsMind.Version);
+        assert.ok(JsMind.Author);
+    });
+
+    it('open mind map', async () => {
+        const opts: JsMindOptions = { container: JSMIND_CONTAINER_ID, mind: { rootNodeId: 'test' }, viewOptions: { theme: 'test' } };
+        const jm = new JsMind(opts);
+        await jm.open(TEST_MIND);
+        assert.ok(jm);
+        assert.strictEqual(JsMind.Version, '2.0');
+
+        assert.ok(jm.mind);
+        assert.deepStrictEqual(jm.mind.meta, TEST_MIND.meta);
+        assert.strictEqual(jm.mind.root.id, TEST_MIND.options.rootNodeId);
+        assert.strictEqual(jm.mind.root.content.value, TEST_MIND.meta.name);
+
+        const containerElement = document.getElementById(JSMIND_CONTAINER_ID);
+        const node1Element = containerElement?.querySelector(`[data-jm-node-id="${TEST_NODE_1.id}"]`);
+        assert.ok(node1Element);
+        const node2Element = containerElement?.querySelector(`[data-jm-node-id="${TEST_NODE_2.id}"]`);
+        assert.ok(node2Element);
+        const node11Element = containerElement?.querySelector(`[data-jm-node-id="${TEST_NODE_11.id}"]`);
+        assert.ok(node11Element);
+        const edge11to2Element = containerElement?.querySelector(`[data-jm-edge-id="${TEST_EDGE_11TO2.id}"]`);
+        assert.ok(edge11to2Element);
+    });
 });
-

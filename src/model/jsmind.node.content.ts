@@ -26,7 +26,7 @@ export class JmNodeContent {
     type: JmNodeContentType;
 
     /** The actual content value. */
-    value: any;
+    value: unknown;
 
     /**
      * Creates a content object.
@@ -35,7 +35,7 @@ export class JmNodeContent {
      * @param value - The actual content value.
      * @throws {@link Error} If the content type is invalid.
      */
-    constructor(type: JmNodeContentType, value: any) {
+    constructor(type: JmNodeContentType, value: unknown) {
         if (!type || !Object.values(JmNodeContentType).includes(type)) {
             throw new Error(`Invalid content type: ${type}`);
         }
@@ -60,6 +60,13 @@ export class JmNodeContent {
      */
     isText(): boolean {
         return this.hasType(JmNodeContentType.Text);
+    }
+
+    getText(): string {
+        if (!this.isText()) {
+            throw new Error('Content is not text type');
+        }
+        return this.value as string;
     }
 
     /**

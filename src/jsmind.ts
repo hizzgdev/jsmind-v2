@@ -2,7 +2,7 @@
 import { JmMind } from './model/jsmind.mind.ts';
 import { JmMindJsonSerializer } from './serialization/jsmind.json.serializer.ts';
 import { JmNodeContent } from './model/jsmind.node.content.ts';
-import { type JsMindOptions } from './jsmind.const.ts';
+import { type JsMindOptions } from './common/option.ts';
 import { JmView } from './view/index.ts';
 
 /**
@@ -62,12 +62,10 @@ class JsMind {
      * @param mind - The mind map instance to open.
      * @returns The opened mind map instance.
      */
-    async open(mind: JmMind): Promise<JmMind> {
-        console.log('JmView.open.1', mind);
+    async open(mind: JmMind): Promise<void> {
         this.mind = mind;
         await this.view.render(mind);
-        console.log('JmView.open.2', mind);
-        return mind;
+        return Promise.resolve();
     }
 
     /**

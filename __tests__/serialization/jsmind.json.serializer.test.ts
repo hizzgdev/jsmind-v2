@@ -4,12 +4,12 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { JmMindJsonSerializer } from '../../src/serialization/jsmind.json.serializer.ts';
+import { JmMindJsonSerializer, type SerializedMindMap } from '../../src/serialization/jsmind.json.serializer.ts';
 import { JmMind } from '../../src/model/jsmind.mind.ts';
 import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
 import { JmNode } from '../../src/model/jsmind.node.ts';
 import { JmEdge, JmEdgeType } from '../../src/model/jsmind.edge.ts';
-import { JsMindError } from '../../src/jsmind.error.ts';
+import { JsMindError } from '../../src/common/error.ts';
 
 test('JmMindJsonSerializer - getFormatName', () => {
     const serializer = new JmMindJsonSerializer();
@@ -20,11 +20,11 @@ test('JmMindJsonSerializer - serialize with null mind', () => {
     const serializer = new JmMindJsonSerializer();
 
     assert.throws(() => {
-        serializer.serialize(null as any);
+        serializer.serialize(null as unknown as JmMind);
     }, JsMindError, 'Should throw error for null mind');
 
     assert.throws(() => {
-        serializer.serialize(undefined as any);
+        serializer.serialize(undefined as unknown as JmMind);
     }, JsMindError, 'Should throw error for undefined mind');
 });
 
@@ -117,12 +117,12 @@ test('JmMindJsonSerializer - validate with invalid data', () => {
     const serializer = new JmMindJsonSerializer();
 
     // Test null/undefined
-    assert.strictEqual(serializer.validate(null as any), false, 'Should reject null');
-    assert.strictEqual(serializer.validate(undefined as any), false, 'Should reject undefined');
+    assert.strictEqual(serializer.validate(null), false, 'Should reject null');
+    assert.strictEqual(serializer.validate(undefined), false, 'Should reject undefined');
 
     // Test non-object
-    assert.strictEqual(serializer.validate('string' as any), false, 'Should reject string');
-    assert.strictEqual(serializer.validate(42 as any), false, 'Should reject number');
+    assert.strictEqual(serializer.validate('string'), false, 'Should reject string');
+    assert.strictEqual(serializer.validate(42), false, 'Should reject number');
 
     // Test missing required fields
     assert.strictEqual(serializer.validate({}), false, 'Should reject empty object');
@@ -144,11 +144,11 @@ test('JmMindJsonSerializer - deserialize with invalid data', () => {
     const serializer = new JmMindJsonSerializer();
 
     assert.throws(() => {
-        serializer.deserialize(null as any);
+        serializer.deserialize(null as unknown as SerializedMindMap);
     }, JsMindError, 'Should throw error for null data');
 
     assert.throws(() => {
-        serializer.deserialize({});
+        serializer.deserialize({} as SerializedMindMap);
     }, JsMindError, 'Should throw error for invalid data');
 });
 
@@ -254,13 +254,7 @@ test('JmMindJsonSerializer - round trip serialization', () => {
     const serializer = new JmMindJsonSerializer();
 
     // Create a simple mind map
-    let nodeCounter = 0;
-    const options = {
-        nodeIdGenerator: { newId: () => `node${++nodeCounter}` },
-        edgeIdGenerator: { newId: () => 'edge' }
-    };
-
-    const mind = new JmMind(undefined, options);
+    const mind = new JmMind(undefined);
     mind.addNode(JmNodeContent.createText('Child'), { parentId: mind.root.id });
 
     // Serialize
@@ -277,16 +271,16 @@ test('JmMindJsonSerializer - round trip serialization', () => {
     assert.ok(deserializedNodeIds.length >= 2, 'Should have at least 2 nodes');
 
     // Find the root and child nodes by their content
-    const rootNode = Object.values(deserialized._nodes).find((node: any) =>
+    const rootNode = Object.values(deserialized._nodes).find((node: JmNode) =>
         node.content.value === 'jsMind Mindmap'
     );
-    const childNode = Object.values(deserialized._nodes).find((node: any) =>
+    const childNode = Object.values(deserialized._nodes).find((node: JmNode) =>
         node.content.value === 'Child'
     );
 
     assert.ok(rootNode, 'Should have root node');
     assert.ok(childNode, 'Should have child node');
-    assert.strictEqual((childNode as any).content.value, 'Child');
+    assert.strictEqual(childNode.content.value, 'Child');
 });
 
 test('JmMindJsonSerializer - handle missing optional properties', () => {

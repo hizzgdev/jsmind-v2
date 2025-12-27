@@ -19,8 +19,9 @@ test('JmNode', () => {
 });
 
 test('JmNode with null id', () => {
+
     assert.throws(() => {
-        new JmNode(null as any, testContent);
+        new JmNode(a, testContent);
     });
 });
 

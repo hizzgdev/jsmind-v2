@@ -2,11 +2,11 @@ import { JmObserverManager } from '../event/jsmind.observer.manager.ts';
 import { JmEdge, type EdgeCreationOptions, JmEdgeType } from './jsmind.edge.ts';
 import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeDirection } from './jsmind.node.ts';
 import { JmNodeContent } from './jsmind.node.content.ts';
-import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../jsmind.const.ts';
-import { SimpleIdGenerator } from '../generation/jsmind.id_generator.ts';
+import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../common/option.ts';
+import { SimpleIdGenerator } from '../generation/index.ts';
 
-import { JmMindEvent, JmMindEventType } from '../event/jsmind.mind.event.ts';
-import { JsMindError } from '../jsmind.error.ts';
+import { JmMindEvent, JmMindEventType } from '../event/index.ts';
+import { JsMindError } from '../common/error.ts';
 
 /**
  * Represents a mind map with nodes and edges.
@@ -344,7 +344,7 @@ export class JmMind {
         const directionChanged = oldDirection !== node.direction;
 
         if (parentChanged || positionChanged || directionChanged) {
-            const eventData: any = {
+            const eventData: Record<string, unknown> = {
                 'node': node
             };
 
@@ -420,7 +420,7 @@ export class JmMind {
      * @param originValue - The original value.
      * @param newValue - The new value.
      */
-    _onNodeUpdated(node: JmNode, prop: string, originValue: any, newValue: any): void {
+    _onNodeUpdated(node: JmNode, prop: string, originValue: unknown, newValue: unknown): void {
         this.observerManager.notifyObservers(new JmMindEvent(
             JmMindEventType.NodeUpdated,
             {
@@ -536,14 +536,13 @@ class JmNodeManager {
      * @param prop - The property name.
      * @returns The property value.
      */
-    getterTrap(node: JmNode, prop: string | symbol): any {
-        const ori = (node as any)[prop];
+    getterTrap(node: JmNode, prop: string | symbol): unknown {
+        const ori = (node as unknown as Record<string | symbol, unknown>)[prop];
         if(prop === 'children') {
-            const itemManagedArray = ori.map((n: JmNode)=>this.manage(n));
-            const manager = this;
+            const itemManagedArray = (ori as JmNode[]).map((n: JmNode)=>this.manage(n));
             return new Proxy(itemManagedArray, {
-                get: function (arr: JmNode[], prop: string | symbol) {
-                    if(manager.unsafeArrayMethods.has(prop as string)) {
+                get: (arr: JmNode[], prop: string | symbol) =>{
+                    if(this.unsafeArrayMethods.has(prop as string)) {
                         return function() {
                             throw new JsMindError(`unsupported method ${String(prop)} on node.children, please follow the document to operate the mindmap.`);
                         };
@@ -553,7 +552,7 @@ class JmNodeManager {
             });
         }
         if(prop === 'parent') {
-            return !!ori ? this.manage(ori) : null;
+            return !!ori ? this.manage(ori as JmNode) : null;
         }
         return ori;
     }
@@ -567,13 +566,13 @@ class JmNodeManager {
      * @returns True if the operation succeeded.
      * @throws {@link JsMindError} If trying to set a readonly property.
      */
-    setterTrap(node: JmNode, prop: string | symbol, value: any): boolean {
+    setterTrap(node: JmNode, prop: string | symbol, value: unknown): boolean {
         if(this.readonlyFields.has(prop as string)) {
             throw new JsMindError(`the property[${String(prop)}] is readonly`);
         }
-        const ori = (node as any)[prop];
+        const ori = (node as unknown as Record<string | symbol, unknown>)[prop];
         if(ori !== value) {
-            (node as any)[prop] = value;
+            (node as unknown as Record<string | symbol, unknown>)[prop] = value;
             this.mind._onNodeUpdated(node, prop as string, ori, value);
         }
         return true;

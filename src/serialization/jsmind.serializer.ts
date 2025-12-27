@@ -4,6 +4,7 @@
  * @packageDocumentation
  */
 
+import { JsMindError } from '../common/error.ts';
 import { type JmMind } from '../model/jsmind.mind.ts';
 
 /**
@@ -20,7 +21,7 @@ export class JmMindSerializer {
      * @throws {@link Error} If not implemented.
      */
     serialize(mind: JmMind): unknown {
-        throw new Error('serialize method must be implemented', { cause: mind });
+        throw new JsMindError('serialize method must be implemented', { cause: mind });
     }
 
     /**
@@ -31,7 +32,7 @@ export class JmMindSerializer {
      * @throws {@link Error} If not implemented.
      */
     deserialize(data: unknown): JmMind {
-        throw new Error('deserialize method must be implemented', { cause: data });
+        throw new JsMindError('deserialize method must be implemented', { cause: data });
     }
 
     /**
@@ -41,7 +42,7 @@ export class JmMindSerializer {
      * @throws {@link Error} If not implemented.
      */
     getFormatName(): string {
-        throw new Error('getFormatName method must be implemented');
+        throw new JsMindError('getFormatName method must be implemented');
     }
 
     /**
@@ -52,7 +53,7 @@ export class JmMindSerializer {
      * @throws {@link Error} If not implemented.
      */
     validate(data: unknown): boolean {
-        throw new Error('validate method must be implemented', { cause: data });
+        throw new JsMindError('validate method must be implemented', { cause: data });
     }
 }
 

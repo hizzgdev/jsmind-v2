@@ -8,7 +8,7 @@ export class JmMindEvent {
     type: JmMindEventType;
 
     /** The event data. */
-    data: any;
+    data: Record<string, unknown>;
 
     /**
      * Creates a new JmMindEvent instance.
@@ -16,7 +16,7 @@ export class JmMindEvent {
      * @param type - The type of the event.
      * @param data - The event data.
      */
-    constructor(type: JmMindEventType, data: any) {
+    constructor(type: JmMindEventType, data: Record<string, unknown>) {
         this.type = type;
         this.data = data;
     }

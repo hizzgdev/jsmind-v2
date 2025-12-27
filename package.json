@@ -21,10 +21,10 @@
         "server": "http-server",
         "build": "rollup -c .config/rollup.config.js",
         "test": "node --test",
-        "format": "npx eslint --fix",
-        "format-check": "npx eslint",
-        "type-check": "tsc --noEmit",
-        "compile": "tsc"
+        "format": "eslint --fix",
+        "format-check": "eslint",
+        "type-check": "tsc --noEmit -p tsconfig.json",
+        "compile": "tsc --help"
     },
     "repository": {
         "type": "git",

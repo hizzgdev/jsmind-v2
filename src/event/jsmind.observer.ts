@@ -1,3 +1,5 @@
+import type { JmMindEvent } from './index.ts';
+
 /**
  * Interface for observer pattern.
  *
@@ -17,8 +19,9 @@ export class JmObserver {
      * @param event - The event data.
      * @throws {@link Error} If not implemented.
      */
-    update(observedObject: any, event: any): void {
-        throw new Error('not implemented', observedObject, event);
+    update(observedObject: unknown, event: JmMindEvent): void {
+        console.error('JmObserver.update not implemented', observedObject, event);
+        throw new Error('JmObserver.update not implemented');
     }
 }
 

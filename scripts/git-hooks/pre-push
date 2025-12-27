@@ -5,9 +5,28 @@ echo "[pre-push] linting..."
 npm run format-check
 
 if [ $? -ne 0 ]; then
-	echo "❌ Lint errors found. try to fix them by running 'npm run format'\n"
+	echo "❌ Lint errors found. try to fix them by running 'npm run format' and commit again.\n"
     exit 1
 fi
 
 echo "✅ Lint checks passed!"
+
+npm run type-check
+
+if [ $? -ne 0 ]; then
+	echo "❌ Type check errors found. try to fix them and commit again.\n"
+    exit 1
+fi
+
+echo "✅ Type check passed!"
+
+npm run test
+
+if [ $? -ne 0 ]; then
+	echo "❌ Test errors found. try to fix them and commit again\n"
+    exit 1
+fi
+
+echo "✅ Test passed!"
+
 exit 0

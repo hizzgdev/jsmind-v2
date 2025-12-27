@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JsMindError } from '../src/jsmind.error.ts';
+import { JsMindError } from '../../src/common/error.ts';
 
 test('JsMindError', () => {
     const error = new JsMindError('test');

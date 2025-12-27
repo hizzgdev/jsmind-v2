@@ -5,7 +5,7 @@
  */
 
 import { JmMindSerializer } from './jsmind.serializer.ts';
-import { JsMindError } from '../jsmind.error.ts';
+import { JsMindError } from '../common/error.ts';
 import { type JmMind } from '../model/jsmind.mind.ts';
 
 /**
