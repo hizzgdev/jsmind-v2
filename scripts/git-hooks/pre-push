@@ -1,5 +1,14 @@
 #!/bin/sh
 
+push_args=$(echo "$@")
+push_url=$(echo "$push_args" | cut -d' ' -f2)
+
+# skip pre-push hook if push url does not contains "gitee"
+if [[ "$push_url" != *"gitee"* ]]; then
+    echo "Skipping pre-push hook for non-gitee push..."
+    exit 0
+fi
+
 echo "[pre-push] linting..."
 
 npm run format-check
