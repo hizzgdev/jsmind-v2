@@ -2,7 +2,7 @@
 import { JmMind } from './model/jsmind.mind.ts';
 import { JmMindJsonSerializer } from './serialization/jsmind.json.serializer.ts';
 import { JmNodeContent } from './model/jsmind.node.content.ts';
-import { JsMindOptions } from './jsmind.const.ts';
+import { type JsMindOptions } from './jsmind.const.ts';
 import { JmView } from './view/index.ts';
 
 /**
@@ -29,10 +29,11 @@ class JsMind {
      * Exported classes for browser use.
      */
     static Mind = JmMind;
+
     static NodeContent = JmNodeContent;
 
     /** The options for this jsMind instance. */
-    options: any;
+    options: JsMindOptions;
 
     /** The currently opened mind map, or null if none is open. */
     mind: JmMind | null;

@@ -1,12 +1,12 @@
 import { type JmNode } from '../model/jsmind.node.ts';
 import { type JmMind } from '../model/jsmind.mind.ts';
 import { type JmMindEvent } from '../event/jsmind.mind.event.ts';
-import { JmSize } from '../jsmind.data.ts';
+import { type JmSize } from '../jsmind.data.ts';
 import { JsMindError } from '../jsmind.error.ts';
-import { ViewOptions } from '../jsmind.const.ts';
+import { type ViewOptions } from '../jsmind.const.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
-import { JmEdge } from '../model/jsmind.edge.ts';
+import { type JmEdge } from '../model/jsmind.edge.ts';
 
 /**
  * View of mind map.
@@ -14,10 +14,13 @@ import { JmEdge } from '../model/jsmind.edge.ts';
  */
 export class JmView {
     private readonly container: HTMLElement;
+
     private readonly innerContainer: HTMLElement;
+
     readonly nodeView: JmNodeView;
+
     readonly edgeView: JmEdgeView;
-    
+
     constructor(container: string | HTMLElement, options: ViewOptions) {
         this.container = this._initContainer(container);
         this.innerContainer = this._initInnerContainer();
