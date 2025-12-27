@@ -30,6 +30,14 @@ export class JmElement {
         return this._element.classList;
     }
 
+    get innerHTML(): string {
+        return this._element.innerHTML;
+    }
+
+    set innerHTML(value: string) {
+        this._element.innerHTML = value;
+    }
+
     setAttribute(key: string, value: string): void {
         this._element.setAttribute(this.ATTR_PREFIX + key, value);
     }

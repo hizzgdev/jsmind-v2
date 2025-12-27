@@ -46,6 +46,11 @@ export class JmNodeView {
             return existingElement;
         }
         const element = DomUtility.createElement('div', 'jsmind-node', { 'node-id': node.id });
+        if(node.content.isText()) {
+            element.innerHTML = node.content.getText();
+        } else {
+            element.innerHTML = 'unsupported content type';
+        }
         this.nodeElements.set(node.id, element);
         this.container.appendChild(element);
         return element;

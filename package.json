@@ -48,11 +48,6 @@
             "email": "hizzgdev@163.com"
         }
     ],
-    "test": {
-        "type": "node",
-        "entry": "__tests__/jsdom.setup.test.ts",
-        "extensions": [".ts", ".tsx"]
-    },
     "devDependencies": {
         "@eslint/js": "^9.39.2",
         "@eslint/json": "^0.14.0",

@@ -79,9 +79,6 @@
                         version: '2.0',
                     });
 
-                    // Open the mind map
-                    _jm.open(_mind);
-
                     // Add root node content
                     const root = _mind.root;
                     root.content = JmNodeContent.createText('jsMind V2');
@@ -113,7 +110,8 @@
                         { parentId: sub1.id }
                     );
 
-                    displayMindMap(_mind);
+                    // Open the mind map
+                    _jm.open(_mind);
                 } catch (error) {
                     console.error('Error creating mind map:', error);
                     alert('Error: ' + error.message);
@@ -135,7 +133,6 @@
                         { parentId: root.id }
                     );
 
-                    displayMindMap(_mind);
                     console.log('Added node:', newNode);
                 } catch (error) {
                     console.error('Error adding node:', error);
@@ -157,23 +154,6 @@
                     console.error('Error serializing:', error);
                     alert('Error: ' + error.message);
                 }
-            }
-
-            function displayMindMap(mind) {
-                const container = document.getElementById('jsmind_container');
-                
-                // Simple text representation (until view system is implemented)
-                function nodeToString(node, indent = 0) {
-                    const prefix = '  '.repeat(indent);
-                    let text = prefix + '- ' + (node.content.isText() ? node.content.value : '[non-text]') + ' (id: ' + node.id + ')\n';
-                    node.children.forEach(child => {
-                        text += nodeToString(child, indent + 1);
-                    });
-                    return text;
-                }
-
-                const text = 'Mind Map Structure:\n\n' + nodeToString(mind.root);
-                container.innerHTML = '<pre>' + text + '</pre>';
             }
 
             function clearDisplay() {
