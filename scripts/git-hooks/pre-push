@@ -1,41 +1,69 @@
 #!/bin/sh
 
-push_args=$(echo "$@")
-push_url=$(echo "$push_args" | cut -d' ' -f2)
+# Git pre-push hook receives:
+# - Command line args: <remote> <url>
+# - stdin: lines of <local_ref> <local_sha> <remote_ref> <remote_sha>
+# Read the first line from stdin to get local_sha
+read local_ref local_sha remote_ref remote_sha
 
-# skip pre-push hook if push url does not contains "gitee"
-if [[ "$push_url" != *"gitee"* ]]; then
-    echo "Skipping pre-push hook for non-gitee push..."
-    exit 0
-fi
-
-echo "[pre-push] linting..."
-
-npm run format-check
-
-if [ $? -ne 0 ]; then
-	echo "❌ Lint errors found. try to fix them by running 'npm run format' and commit again.\n"
+# If no input (shouldn't happen, but handle gracefully)
+if [ -z "$local_sha" ]; then
+    echo "❌ Error: Could not determine commit SHA from push operation"
     exit 1
 fi
 
-echo "✅ Lint checks passed!"
+# Generate a unique status file based on the commit SHA being pushed
+STATUS_FILE="logs/pre-push/pre-push-status-${local_sha}"
 
-npm run type-check
+# Create logs directory if it doesn't exist
+mkdir -p logs/pre-push
 
+# Check if status file exists
+if [ -f "$STATUS_FILE" ]; then
+    # Status file exists, check if it contains success flag
+    if grep -q "^SUCCESS$" "$STATUS_FILE"; then
+        echo "✅ Pre-push checks already passed for commit ${local_sha}"
+        exit 0
+    else
+        # Status file exists but no SUCCESS flag, means previous check failed
+        echo "❌ Pre-push checks failed for commit ${local_sha}"
+        echo "📄 Check detailed output in: $STATUS_FILE"
+        exit 1
+    fi
+fi
+
+# Status file doesn't exist, run all checks
+echo "[pre-push] Running checks for commit ${local_sha}..."
+
+# Run format-check
+echo "[pre-push] Running format-check..."
+npm run format-check > "$STATUS_FILE" 2>&1
 if [ $? -ne 0 ]; then
-	echo "❌ Type check errors found. try to fix them and commit again.\n"
+    echo "❌ format-check failed. Check detailed output in: $STATUS_FILE"
     exit 1
 fi
 
-echo "✅ Type check passed!"
-
-npm run test
-
+# Run type-check
+echo "[pre-push] Running type-check..."
+npm run type-check >> "$STATUS_FILE" 2>&1
 if [ $? -ne 0 ]; then
-	echo "❌ Test errors found. try to fix them and commit again\n"
+    echo "❌ type-check failed. Check detailed output in: $STATUS_FILE"
     exit 1
 fi
 
-echo "✅ Test passed!"
+# Run test
+echo "[pre-push] Running test..."
+npm run test >> "$STATUS_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "❌ test failed. Check detailed output in: $STATUS_FILE"
+    exit 1
+fi
 
+# All checks passed, add success flag to status file
+{
+    echo "---"
+    echo "SUCCESS"
+} >> "$STATUS_FILE"
+
+echo "✅ All pre-push checks passed!"
 exit 0
