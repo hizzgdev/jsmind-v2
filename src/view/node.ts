@@ -43,17 +43,39 @@ export class JmNodeView {
         // Check if already rendered
         const existingElement = this.nodeElements.get(node.id);
         if (existingElement) {
-            return existingElement;
+            return Promise.resolve(existingElement);
         }
+        return this.createNodeElement(node)
+            .then((element: JmElement) => {
+                this.nodeElements.set(node.id, element);
+                this.container.appendChild(element);
+                // append to container first and then measure size
+                this.nodeSizes.set(node.id, element.getSize());
+                return element;
+            });
+    }
+
+    private async createNodeElement(node: JmNode): Promise<JmElement> {
         const element = DomUtility.createElement('div', 'jsmind-node', { 'node-id': node.id });
         if(node.content.isText()) {
             element.innerHTML = node.content.getText();
         } else {
             element.innerHTML = 'unsupported content type';
         }
-        this.nodeElements.set(node.id, element);
-        this.container.appendChild(element);
-        return element;
+        return Promise.resolve(element);
+    }
+
+    getNodeSize(nodeId: string): JmSize {
+        return this.nodeSizes.get(nodeId) || { width: 0, height: 0 };
+    }
+
+    removeNode(nodeId: string): void {
+        const element = this.nodeElements.get(nodeId);
+        if (element) {
+            element.element.remove();
+            this.nodeElements.delete(nodeId);
+            this.nodeSizes.delete(nodeId);
+        }
     }
 }
 

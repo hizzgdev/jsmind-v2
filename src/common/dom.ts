@@ -1,3 +1,5 @@
+import type { JmSize } from './index.ts';
+
 export class DomUtility {
     static createElement(tagName: string, className: string, jmAttrs: Record<string, string> = {}): JmElement {
         const element = document.createElement(tagName);
@@ -56,5 +58,17 @@ export class JmElement {
         } else {
             this._element.appendChild(child);
         }
+    }
+
+    getBoundingClientRect(): DOMRect {
+        return this._element.getBoundingClientRect();
+    }
+
+    getSize(): JmSize {
+        const rect = this._element.getBoundingClientRect();
+        return {
+            width: rect.width,
+            height: rect.height,
+        };
     }
 }
