@@ -13,7 +13,7 @@ if [ -z "$local_sha" ]; then
 fi
 
 # Generate a unique status file based on the commit SHA being pushed
-STATUS_FILE="logs/pre-push/pre-push-status-${local_sha}"
+STATUS_FILE="logs/pre-push/check-status-${local_sha}"
 
 # Create logs directory if it doesn't exist
 mkdir -p logs/pre-push
@@ -21,11 +21,12 @@ mkdir -p logs/pre-push
 # Check if status file exists
 if [ -f "$STATUS_FILE" ]; then
     # Status file exists, check if it contains success flag
-    if grep -q "^SUCCESS$" "$STATUS_FILE"; then
+    if grep -q "^PRE_PUSH_SUCCESS$" "$STATUS_FILE"; then
         echo "✅ Pre-push checks already passed for commit ${local_sha}"
+        echo "📄 Check detailed output in: $STATUS_FILE"
         exit 0
     else
-        # Status file exists but no SUCCESS flag, means previous check failed
+        # Status file exists but no PRE_PUSH_SUCCESS flag, means previous check failed
         echo "❌ Pre-push checks failed for commit ${local_sha}"
         echo "📄 Check detailed output in: $STATUS_FILE"
         exit 1
@@ -62,8 +63,9 @@ fi
 # All checks passed, add success flag to status file
 {
     echo "---"
-    echo "SUCCESS"
+    echo "PRE_PUSH_SUCCESS"
 } >> "$STATUS_FILE"
 
 echo "✅ All pre-push checks passed!"
+echo "📄 Check detailed output in: $STATUS_FILE"
 exit 0
