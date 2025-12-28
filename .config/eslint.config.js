@@ -15,7 +15,7 @@ export default [
     },
     ...tseslint.configs.recommended,
     {
-        files: ['**/*.ts', 'eslint.config.js', 'rollup.config.js'],
+        files: ['**/*.ts', '.config/*.js'],
         ...stylistic.configs.recommended,
         languageOptions: {
             sourceType: 'module',
@@ -43,6 +43,7 @@ export default [
             '@stylistic/semi-spacing': 'error',
             '@stylistic/space-before-blocks': 'error',
             '@stylistic/space-in-parens': 'error',
+            '@stylistic/space-infix-ops': 'error'
         },
     },
     {
@@ -50,7 +51,7 @@ export default [
         ...stylistic.configs.recommended
     },
     {
-        files: ['**/*.json'],
+        files: ['*.json', '**/*.json'],
         ignores: ['package-lock.json'],
         language: 'json/json',
         ...json.configs.recommended,

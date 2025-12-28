@@ -89,7 +89,7 @@ export class JmNode {
      */
     getAllSubnodeIds(): string[] {
         const nodeIds: string[] = [];
-        if(this.children.length>0) {
+        if(this.children.length > 0) {
             this.children.forEach((node)=>{
                 nodeIds.push(node.id);
                 nodeIds.push(...node.getAllSubnodeIds());

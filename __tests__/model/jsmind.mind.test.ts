@@ -295,7 +295,7 @@ test('Observe removing nodes', () => {
     mind.removeNode(child2.id);
 
     const calls = mockedNotifyObservers.mock.calls;
-    const removalEventCall = calls[calls.length-1];
+    const removalEventCall = calls[calls.length - 1];
     const removalEvent = removalEventCall.arguments[0];
     assert.ok(removalEvent instanceof JmMindEvent);
     assert.strictEqual(removalEvent.type, JmMindEventType.NodeRemoved);

@@ -1,7 +1,4 @@
 {
-    "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": "explicit"
-    },
     "cSpell.customDictionaries": {
         "project-words": {
             "name": "project-words",
@@ -13,8 +10,15 @@
           "custom": true,
           "internal-terms": false
     },
+    "cSpell.ignoreRandomStrings": true,
+    "cSpell.minRandomLength": 30,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint" : "explicit"
+    },
     "eslint.validate": ["javascript","typescript"],
     "eslint.useFlatConfig": true,
-    "cSpell.ignoreRandomStrings": true,
-    "cSpell.minRandomLength": 30
+    "eslint.workingDirectories": ["."],
+    "eslint.options": {
+        "overrideConfigFile": ".config/eslint.config.js"
+    }
 }
