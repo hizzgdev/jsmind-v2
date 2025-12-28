@@ -12,6 +12,13 @@ if [ -z "$local_sha" ]; then
     exit 1
 fi
 
+# Check if this is a branch deletion operation
+# When deleting a branch, local_ref is "(delete)" and local_sha is all zeros
+if [ "$local_ref" = "(delete)" ] || [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    echo "Skipping pre-push checks for branch deletion..."
+    exit 0
+fi
+
 # Generate a unique status file based on the commit SHA being pushed
 STATUS_FILE="logs/pre-push/check-status-${local_sha}"
 
