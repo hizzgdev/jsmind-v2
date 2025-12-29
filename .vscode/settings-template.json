@@ -23,9 +23,12 @@
     },
     "workbench.colorTheme": "Monokai",
     "workbench.colorCustomizations": {
-        "tab.inactiveBackground":"#1e1f1c",
+        "tab.inactiveBackground": "#1e1f1c",
         "tab.activeBorder": "#61dafb",
         "tab.activeBorderTop": "#61dafb",
         "tab.activeBackground": "#3a3f4b"
-    }
+    },
+    "workbench.tree.indent": 24,
+    "workbench.activityBar.orientation": "vertical",
+    "workbench.activityBar.iconClickBehavior": "focus"
 }

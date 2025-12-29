@@ -43,6 +43,8 @@ class JmNodeViewData {
 class JmNodeLayoutData {
     side: JmNodeSide = JmNodeSide.Center;
 
+    visible: boolean = true;
+
     outerSize: JmSize = new JmSize(0, 0);
 }
 

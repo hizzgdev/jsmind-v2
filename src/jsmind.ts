@@ -57,7 +57,7 @@ class JsMind {
         this.mind = null;
         this.serializer = new JmMindJsonSerializer();
         this.view = new JmView(options.container, options.viewOptions);
-        this.layout = new JmLayout(options.layoutOptions);
+        this.layout = new JmLayout(options.layoutOptions, this.view);
     }
 
     /**
@@ -69,7 +69,7 @@ class JsMind {
     async open(mind: JmMind): Promise<void> {
         this.mind = mind;
         await this.view.createMindNodes(mind);
-        const changedNodeIds = this.layout.calculate(mind, this.view);
+        const changedNodeIds = this.layout.calculate(mind);
         await this.view.render(mind, changedNodeIds);
     }
 
