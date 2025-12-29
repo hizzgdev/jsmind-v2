@@ -1,4 +1,6 @@
+import type { JmElement } from '../common/dom.ts';
 import { JsMindError } from '../common/error.ts';
+import { JmSize } from '../common/index.ts';
 import { type JmNodeContent } from './jsmind.node.content.ts';
 
 /**
@@ -31,6 +33,16 @@ export interface NodeDestinationOptions {
     direction?: JmNodeDirection | null;
 }
 
+
+class JmNodeViewData {
+    element: JmElement | null = null;
+
+    size: JmSize = new JmSize(0, 0);
+}
+
+class NodeInternalData {
+    viewData: JmNodeViewData = new JmNodeViewData();
+}
 /**
  * Node of mind map.
  *
@@ -58,6 +70,9 @@ export class JmNode {
     /** Additional data associated with the node. */
     data: Record<string, unknown>;
 
+    /** View data associated with the node. */
+    _data: NodeInternalData;
+
     /**
      * Creates a new node.
      *
@@ -80,6 +95,7 @@ export class JmNode {
         this.folded = false;
         this.direction = null;
         this.data = {};
+        this._data = new NodeInternalData();
     }
 
     /**
@@ -153,4 +169,3 @@ export const JmNodeDirection = {
 } as const;
 
 export type JmNodeDirection = typeof JmNodeDirection[keyof typeof JmNodeDirection];
-

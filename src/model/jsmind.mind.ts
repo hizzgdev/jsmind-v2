@@ -1,6 +1,6 @@
 import { JmObserverManager } from '../event/jsmind.observer.manager.ts';
 import { JmEdge, type EdgeCreationOptions, JmEdgeType } from './jsmind.edge.ts';
-import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeDirection } from './jsmind.node.ts';
+import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeDirection } from './node.ts';
 import { JmNodeContent } from './jsmind.node.content.ts';
 import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../common/option.ts';
 import { SimpleIdGenerator } from '../generation/index.ts';

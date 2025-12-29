@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmNode, JmNodeDirection } from '../../src/model/jsmind.node.ts';
+import { JmNode, JmNodeDirection } from '../../src/model/node.ts';
 import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
 
 // Shared test content for tests

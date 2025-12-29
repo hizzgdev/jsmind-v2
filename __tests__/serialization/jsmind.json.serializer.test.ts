@@ -7,7 +7,7 @@ import assert from 'node:assert';
 import { JmMindJsonSerializer, type SerializedMindMap } from '../../src/serialization/jsmind.json.serializer.ts';
 import { JmMind } from '../../src/model/jsmind.mind.ts';
 import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
-import { JmNode } from '../../src/model/jsmind.node.ts';
+import { JmNode } from '../../src/model/node.ts';
 import { JmEdge, JmEdgeType } from '../../src/model/jsmind.edge.ts';
 import { JsMindError } from '../../src/common/error.ts';
 

@@ -1,6 +1,13 @@
+import { JsMindError } from './error.ts';
 import type { JmSize } from './index.ts';
 
-export class DomUtility {
+const waitForNextFrame = () => {
+    return new Promise(resolve => {
+        requestAnimationFrame(resolve);
+    });
+};
+
+export class JmDomUtility {
     static createElement(tagName: string, className: string, jmAttrs: Record<string, string> = {}): JmElement {
         const element = document.createElement(tagName);
         const jmElement = new JmElement(element);
@@ -10,12 +17,37 @@ export class DomUtility {
         }
         return jmElement;
     }
+
+    static async measureElement(element: JmElement, container: JmElement): Promise<DOMRect> {
+        return await DmUtility.measureElement(element.element, container.element);
+    }
+}
+
+export class DmUtility {
+    static async measureElement(element: HTMLElement, container: HTMLElement): Promise<DOMRect> {
+        const originalDisplay = element.style.display;
+        const originalVisibility = element.style.visibility;
+
+        element.style.visibility = 'hidden';
+        if (originalDisplay === 'none') {
+            element.style.display = 'unset';
+        }
+        container.appendChild(element);
+        await waitForNextFrame();
+        const rect = element.getBoundingClientRect();
+        container.removeChild(element);
+        element.style.display = originalDisplay;
+        element.style.visibility = originalVisibility;
+        return rect;
+    }
 }
 
 export class JmElement {
     private readonly ATTR_PREFIX = 'data-jm-';
 
     private readonly _element: HTMLElement;
+
+    private _cachedRect: DOMRect | null = null;
 
     constructor(element: HTMLElement) {
         if (!element) {
@@ -40,6 +72,13 @@ export class JmElement {
         this._element.innerHTML = value;
     }
 
+    get size(): JmSize {
+        if (!this._cachedRect) {
+            throw new JsMindError('Rect is not measured yet', { element: this._element });
+        }
+        return this._cachedRect;
+    }
+
     setAttribute(key: string, value: string): void {
         this._element.setAttribute(this.ATTR_PREFIX + key, value);
     }
@@ -60,15 +99,7 @@ export class JmElement {
         }
     }
 
-    getBoundingClientRect(): DOMRect {
-        return this._element.getBoundingClientRect();
-    }
-
-    getSize(): JmSize {
-        const rect = this._element.getBoundingClientRect();
-        return {
-            width: rect.width,
-            height: rect.height,
-        };
+    cacheRect(rect: DOMRect): void {
+        this._cachedRect = rect;
     }
 }

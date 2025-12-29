@@ -4,6 +4,7 @@ import { JmMindJsonSerializer } from './serialization/jsmind.json.serializer.ts'
 import { JmNodeContent } from './model/jsmind.node.content.ts';
 import { type JsMindOptions } from './common/option.ts';
 import { JmView } from './view/index.ts';
+import { JmLayout } from './layout.ts';
 
 /**
  * Main class for jsMind mind map operations.
@@ -44,6 +45,8 @@ class JsMind {
     /** The view instance for rendering the mind map. */
     view: JmView;
 
+    layout: JmLayout;
+
     /**
      * Creates a new jsMind instance.
      *
@@ -54,6 +57,7 @@ class JsMind {
         this.mind = null;
         this.serializer = new JmMindJsonSerializer();
         this.view = new JmView(options.container, options.viewOptions);
+        this.layout = new JmLayout(options.layoutOptions);
     }
 
     /**
@@ -64,8 +68,9 @@ class JsMind {
      */
     async open(mind: JmMind): Promise<void> {
         this.mind = mind;
-        await this.view.render(mind);
-        return Promise.resolve();
+        await this.view.createMindNodes(mind);
+        const changedNodeIds = this.layout.layoutMind(mind, this.view);
+        await this.view.render(mind, changedNodeIds);
     }
 
     /**

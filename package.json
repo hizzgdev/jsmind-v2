@@ -21,6 +21,7 @@
         "server": "http-server",
         "build": "rollup -c .config/rollup.config.js",
         "test": "node --test",
+        "test-lite": "node --test --test-reporter=dot",
         "format": "eslint --fix --config .config/eslint.config.js",
         "format-check": "eslint --config .config/eslint.config.js",
         "type-check": "tsc --noEmit -p tsconfig.json",

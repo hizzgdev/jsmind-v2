@@ -4,7 +4,8 @@ import { JsMindError } from '../common/error.ts';
 import { type ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
-import { DomUtility, JmElement } from '../common/dom.ts';
+import { JmDomUtility, JmElement } from '../common/dom.ts';
+import type { JmNode } from '../model/node.ts';
 
 /**
  * View of mind map.
@@ -41,16 +42,19 @@ export class JmView {
     }
 
     private _initInnerContainer(): JmElement {
-        const element = DomUtility.createElement('div', 'jsmind-inner');
+        const element = JmDomUtility.createElement('div', 'jsmind-inner');
         element.classList.add('jsmind-inner');
         this.container.appendChild(element);
         return element;
     }
 
-    async render(mind: JmMind): Promise<void> {
-        for (const nodeId in mind._nodes) {
-            await this.nodeView.renderNode(mind._nodes[nodeId]);
-        }
+    async createMindNodes(mind: JmMind): Promise<void> {
+        const promises = Object.values(mind._nodes)
+            .map((node: JmNode)=>this.nodeView.createNodeView(node));
+        await Promise.all(promises);
+    }
+
+    async render(mind: JmMind, _changedNodeIds: string[] = []): Promise<void> {
         for (const edgeId in mind._edges) {
             await this.edgeView.renderEdge(mind._edges[edgeId]);
         }

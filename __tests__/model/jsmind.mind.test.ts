@@ -3,7 +3,7 @@ import test, {mock} from 'node:test';
 
 import { JmMind } from '../../src/model/jsmind.mind.ts';
 import { JmMindEventType, JmMindEvent } from '../../src/event/index.ts';
-import { JmNode, JmNodeDirection} from '../../src/model/jsmind.node.ts';
+import { JmNode, JmNodeDirection} from '../../src/model/node.ts';
 import { JmEdgeType } from '../../src/model/jsmind.edge.ts';
 import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
 import { JsMindError } from '../../src/common/error.ts';

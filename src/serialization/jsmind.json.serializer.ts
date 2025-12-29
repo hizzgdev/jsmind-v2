@@ -6,12 +6,12 @@
 
 import { JmMindSerializer } from './jsmind.serializer.ts';
 import { JmMind } from '../model/jsmind.mind.ts';
-import { JmNode } from '../model/jsmind.node.ts';
+import { JmNode } from '../model/node.ts';
 import { JmNodeContent } from '../model/jsmind.node.content.ts';
 import { JmEdge, JmEdgeType } from '../model/jsmind.edge.ts';
 import { JsMindError } from '../common/error.ts';
 import { type MindMetadata } from '../common/option.ts';
-import { type JmNodeDirection } from '../model/jsmind.node.ts';
+import { type JmNodeDirection } from '../model/node.ts';
 import { type JmNodeContentType } from '../model/jsmind.node.content.ts';
 
 /**

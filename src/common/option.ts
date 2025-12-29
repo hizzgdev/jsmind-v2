@@ -25,6 +25,13 @@ export interface ViewOptions {
     theme: string;
 }
 
+export interface LayoutOptions {
+    parentChildSpace: number;
+    siblingSpace: number;
+    cousinSpace: number;
+    expanderSize: number;
+}
+
 /**
  * Options for JsMind.
  *
@@ -34,6 +41,7 @@ export interface JsMindOptions {
     container: string | HTMLElement;
     mind: MindOptions;
     viewOptions: ViewOptions;
+    layoutOptions: LayoutOptions;
 }
 
 export const DEFAULT_METADATA: MindMetadata = {
@@ -49,6 +57,12 @@ export const DEFAULT_OPTIONS: JsMindOptions = {
     },
     mind: {
         rootNodeId: 'root'
+    },
+    layoutOptions: {
+        parentChildSpace: 30,
+        siblingSpace: 20,
+        cousinSpace: 15,
+        expanderSize: 13
     }
 };
 

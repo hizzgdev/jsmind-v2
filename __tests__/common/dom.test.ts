@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
-import { DomUtility, JmElement } from '../../src/common/dom.ts';
+import { JmDomUtility, JmElement } from '../../src/common/dom.ts';
 import { initDom } from '../setup/jsdom.ts';
 
-describe('DomUtility', () => {
+describe('JmDomUtility', () => {
     before(() => {
         initDom();
     });
 
     it('createElement', () => {
-        const jmElement = DomUtility.createElement('div', 'jsmind-container', { 'node-id': 'node-123', 'node-folded': 'false' });
+        const jmElement = JmDomUtility.createElement('div', 'jsmind-container', { 'node-id': 'node-123', 'node-folded': 'false' });
         assert.ok(jmElement);
         assert.ok(jmElement instanceof JmElement);
         assert.ok(jmElement.element);
