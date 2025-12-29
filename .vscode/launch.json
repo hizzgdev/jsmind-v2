@@ -9,7 +9,7 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Deubg Test",
+            "name": "Debug Test",
             "program": "${file}",
             "args": ["--inspect-brk"],
             "cwd": "${workspaceFolder}"
