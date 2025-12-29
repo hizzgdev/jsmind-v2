@@ -14,7 +14,7 @@ export interface NodeCreationOptions {
     /** Whether the node is folded (default: false). */
     folded?: boolean;
     /** Direction of the node (default: null). */
-    direction?: JmNodeDirection | null;
+    side?: JmNodeSide | null;
     /** Additional data for the node (default: {}). */
     data?: Record<string, unknown>;
 }
@@ -30,7 +30,7 @@ export interface NodeDestinationOptions {
     /** The position index among siblings (if not provided, adds to end). */
     position?: number;
     /** The direction of the node (if not provided, keeps current direction). */
-    direction?: JmNodeDirection | null;
+    side?: JmNodeSide | null;
 }
 
 
@@ -40,8 +40,16 @@ class JmNodeViewData {
     size: JmSize = new JmSize(0, 0);
 }
 
+class JmNodeLayoutData {
+    side: JmNodeSide = JmNodeSide.Center;
+
+    outerSize: JmSize = new JmSize(0, 0);
+}
+
 class NodeInternalData {
-    viewData: JmNodeViewData = new JmNodeViewData();
+    view: JmNodeViewData = new JmNodeViewData();
+
+    layout: JmNodeLayoutData = new JmNodeLayoutData();
 }
 /**
  * Node of mind map.
@@ -65,7 +73,7 @@ export class JmNode {
     folded: boolean;
 
     /** The direction of the node. */
-    direction: JmNodeDirection | null;
+    side: JmNodeSide | null;
 
     /** Additional data associated with the node. */
     data: Record<string, unknown>;
@@ -93,7 +101,7 @@ export class JmNode {
         this.parent = null;
         this.children = [];
         this.folded = false;
-        this.direction = null;
+        this.side = null;
         this.data = {};
         this._data = new NodeInternalData();
     }
@@ -125,7 +133,7 @@ export class JmNode {
         && this.content.type === other.content.type
         && this.content.value === other.content.value
         && this.folded === other.folded
-        && this.direction === other.direction
+        && this.side === other.side
         && ((this.parent === null && other.parent === null) || (this.parent!.id === other.parent!.id))
         && this.children.length === other.children.length
         && this.children.every((child, idx, _)=>{ return child.id === other.children[idx].id; });
@@ -159,13 +167,13 @@ export class JmNode {
  *
  * @public
  */
-export const JmNodeDirection = {
+export const JmNodeSide = {
     /** Left direction. */
-    Left: -1,
+    SideB: -1,
     /** Center direction. */
     Center: 0,
     /** Right direction. */
-    Right: 1,
+    SideA: 1,
 } as const;
 
-export type JmNodeDirection = typeof JmNodeDirection[keyof typeof JmNodeDirection];
+export type JmNodeSide = typeof JmNodeSide[keyof typeof JmNodeSide];

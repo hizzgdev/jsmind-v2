@@ -1,6 +1,6 @@
 import { JmObserverManager } from '../event/jsmind.observer.manager.ts';
 import { JmEdge, type EdgeCreationOptions, JmEdgeType } from './jsmind.edge.ts';
-import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeDirection } from './node.ts';
+import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeSide } from './node.ts';
 import { JmNodeContent } from './jsmind.node.content.ts';
 import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../common/option.ts';
 import { SimpleIdGenerator } from '../generation/index.ts';
@@ -120,9 +120,9 @@ export class JmMind {
         // Use existing helper method for placement
         this._addNodeToParent(node, targetParent, destOptions.position);
 
-        // Apply destination direction if specified
-        if (destOptions.direction !== undefined && destOptions.direction !== null) {
-            node.direction = destOptions.direction;
+        // Apply destination side if specified
+        if (destOptions.side !== undefined && destOptions.side !== null) {
+            node.side = destOptions.side;
         }
 
         // Emit event
@@ -187,12 +187,12 @@ export class JmMind {
         // Extract options
         const targetParentId = destOptions.parentId;
         const targetPosition = destOptions.position;
-        const targetDirection = destOptions.direction;
+        const targetSide = destOptions.side;
 
         // Capture original values before any changes
         const oldParent = node.parent;
         const oldPosition = node.parent ? node.parent.children.indexOf(node) : -1;
-        const oldDirection = node.direction;
+        const oldSide = node.side;
 
         // 1. Update parent and position if the node parent is provided and changed
         if (targetParentId && (!node.parent || node.parent.id !== targetParentId)) {
@@ -219,13 +219,13 @@ export class JmMind {
             this._repositionNode(node, targetPosition);
         }
 
-        // 3. Update direction if the target direction is provided and changed
-        if (targetDirection !== undefined && targetDirection !== null) {
-            node.direction = targetDirection;
+        // 3. Update side if the target side is provided and changed
+        if (targetSide !== undefined && targetSide !== null) {
+            node.side = targetSide;
         }
 
         // 4. Emit event only if something actually changed
-        this._emitNodeMovedEventIfChanged(node, oldParent, oldPosition, oldDirection);
+        this._emitNodeMovedEventIfChanged(node, oldParent, oldPosition, oldSide);
 
         return this.nodeManager.manage(node);
     }
@@ -335,15 +335,15 @@ export class JmMind {
      * @param node - The node that was moved.
      * @param oldParent - The old parent node.
      * @param oldPosition - The old position index.
-     * @param oldDirection - The old direction.
+     * @param oldSide - The old side.
      */
-    _emitNodeMovedEventIfChanged(node: JmNode, oldParent: JmNode | null, oldPosition: number, oldDirection: JmNodeDirection | null): void {
+    _emitNodeMovedEventIfChanged(node: JmNode, oldParent: JmNode | null, oldPosition: number, oldSide: JmNodeSide | null): void {
         // Compare actual updated node properties with old values
         const parentChanged = oldParent!.id !== node.parent!.id;
         const positionChanged = oldPosition !== node.parent!.children.indexOf(node);
-        const directionChanged = oldDirection !== node.direction;
+        const sideChanged = oldSide !== node.side;
 
-        if (parentChanged || positionChanged || directionChanged) {
+        if (parentChanged || positionChanged || sideChanged) {
             const eventData: Record<string, unknown> = {
                 'node': node
             };
@@ -355,8 +355,8 @@ export class JmMind {
             if (positionChanged) {
                 eventData.oldPosition = oldPosition;
             }
-            if (directionChanged) {
-                eventData.oldDirection = oldDirection;
+            if (sideChanged) {
+                eventData.oldSide = oldSide;
             }
 
             this.observerManager.notifyObservers(new JmMindEvent(
@@ -400,8 +400,8 @@ export class JmMind {
             if (nodeOptions.folded !== undefined) {
                 node.folded = nodeOptions.folded;
             }
-            if (nodeOptions.direction !== undefined) {
-                node.direction = nodeOptions.direction;
+            if (nodeOptions.side !== undefined) {
+                node.side = nodeOptions.side;
             }
             if (nodeOptions.data !== undefined) {
                 node.data = nodeOptions.data;

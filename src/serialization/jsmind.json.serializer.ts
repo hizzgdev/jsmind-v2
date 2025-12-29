@@ -11,7 +11,7 @@ import { JmNodeContent } from '../model/jsmind.node.content.ts';
 import { JmEdge, JmEdgeType } from '../model/jsmind.edge.ts';
 import { JsMindError } from '../common/error.ts';
 import { type MindMetadata } from '../common/option.ts';
-import { type JmNodeDirection } from '../model/node.ts';
+import { type JmNodeSide } from '../model/node.ts';
 import { type JmNodeContentType } from '../model/jsmind.node.content.ts';
 
 /**
@@ -28,7 +28,7 @@ export interface SerializedNode {
     parent: string | null;
     children: string[];
     folded: boolean;
-    direction: JmNodeDirection | null;
+    side: JmNodeSide | null;
     data: Record<string, unknown>;
 }
 
@@ -184,7 +184,7 @@ export class JmMindJsonSerializer extends JmMindSerializer {
             parent: node.parent ? node.parent.id : null,
             children: node.children.map(child => child.id),
             folded: node.folded,
-            direction: node.direction,
+            side: node.side,
             data: { ...node.data }
         };
     }
@@ -201,7 +201,7 @@ export class JmMindJsonSerializer extends JmMindSerializer {
         const node = new JmNode(nodeData.id, content);
 
         node.folded = nodeData.folded;
-        node.direction = nodeData.direction;
+        node.side = nodeData.side;
         node.data = { ...nodeData.data };
 
         return node;

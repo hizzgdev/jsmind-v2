@@ -69,7 +69,7 @@ class JsMind {
     async open(mind: JmMind): Promise<void> {
         this.mind = mind;
         await this.view.createMindNodes(mind);
-        const changedNodeIds = this.layout.layoutMind(mind, this.view);
+        const changedNodeIds = this.layout.calculate(mind, this.view);
         await this.view.render(mind, changedNodeIds);
     }
 

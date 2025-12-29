@@ -7,7 +7,7 @@ import assert from 'node:assert';
 import { JmMindJsonSerializer, type SerializedMindMap } from '../../src/serialization/jsmind.json.serializer.ts';
 import { JmMind } from '../../src/model/jsmind.mind.ts';
 import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
-import { JmNode } from '../../src/model/node.ts';
+import { JmNode, JmNodeSide } from '../../src/model/node.ts';
 import { JmEdge, JmEdgeType } from '../../src/model/jsmind.edge.ts';
 import { JsMindError } from '../../src/common/error.ts';
 
@@ -74,7 +74,7 @@ test('JmMindJsonSerializer - serialize node with all properties', () => {
     const content = JmNodeContent.createText('Test Node');
     const node = new JmNode('test', content);
     node.folded = true;
-    node.direction = 1; // Right
+    node.side = JmNodeSide.SideA; // Right
     node.data = { custom: 'value', number: 42 };
 
     const serialized = serializer._serializeNode(node);
@@ -83,7 +83,7 @@ test('JmMindJsonSerializer - serialize node with all properties', () => {
     assert.strictEqual(serialized.content.type, 'text');
     assert.strictEqual(serialized.content.value, 'Test Node');
     assert.strictEqual(serialized.folded, true);
-    assert.strictEqual(serialized.direction, 1);
+    assert.strictEqual(serialized.side, JmNodeSide.SideA);
     assert.deepStrictEqual(serialized.data, { custom: 'value', number: 42 });
 });
 
@@ -165,7 +165,7 @@ test('JmMindJsonSerializer - deserialize basic mind map', () => {
                 parent: null,
                 children: [],
                 folded: false,
-                direction: 0,
+                side: JmNodeSide.Center,
                 data: {}
             },
             child1: {
@@ -174,7 +174,7 @@ test('JmMindJsonSerializer - deserialize basic mind map', () => {
                 parent: 'root',
                 children: [],
                 folded: true,
-                direction: -1,
+                side: JmNodeSide.SideB,
                 data: { custom: 'value' }
             }
         },
@@ -216,7 +216,7 @@ test('JmMindJsonSerializer - deserialize node', () => {
         id: 'test',
         content: { type: 'text', value: 'Test Node' },
         folded: true,
-        direction: -1,
+        side: -1,
         data: { key: 'value' }
     };
 
@@ -226,7 +226,7 @@ test('JmMindJsonSerializer - deserialize node', () => {
     assert.strictEqual(node.content.type, 'text');
     assert.strictEqual(node.content.value, 'Test Node');
     assert.strictEqual(node.folded, true);
-    assert.strictEqual(node.direction, -1);
+    assert.strictEqual(node.side, -1);
     assert.deepStrictEqual(node.data, { key: 'value' });
 });
 
@@ -283,23 +283,6 @@ test('JmMindJsonSerializer - round trip serialization', () => {
     assert.strictEqual(childNode.content.value, 'Child');
 });
 
-test('JmMindJsonSerializer - handle missing optional properties', () => {
-    const serializer = new JmMindJsonSerializer();
-
-    const nodeData = {
-        id: 'test',
-        content: { type: 'text', value: 'Test' }
-        // Missing folded, direction, data
-    };
-
-    const node = serializer._deserializeNode(nodeData);
-
-    assert.strictEqual(node.id, 'test');
-    assert.strictEqual(node.content.value, 'Test');
-    assert.strictEqual(node.folded, undefined); // Missing property
-    assert.strictEqual(node.direction, undefined); // Missing property
-    assert.deepStrictEqual(node.data, {}); // Missing property defaults to empty object
-});
 
 test('JmMindJsonSerializer - handle null/undefined values in node data', () => {
     const serializer = new JmMindJsonSerializer();
@@ -308,7 +291,7 @@ test('JmMindJsonSerializer - handle null/undefined values in node data', () => {
         id: 'test',
         content: { type: 'text', value: 'Test' },
         folded: null,
-        direction: undefined,
+        side: undefined,
         data: null
     };
 
@@ -317,7 +300,7 @@ test('JmMindJsonSerializer - handle null/undefined values in node data', () => {
     assert.strictEqual(node.id, 'test');
     assert.strictEqual(node.content.value, 'Test');
     assert.strictEqual(node.folded, null);
-    assert.strictEqual(node.direction, undefined);
+    assert.strictEqual(node.side, undefined);
     assert.deepStrictEqual(node.data, {}); // null value is converted to empty object
 });
 

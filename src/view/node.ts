@@ -34,13 +34,13 @@ export class JmNodeView {
 
     async createNodeView(node: JmNode): Promise<JmElement> {
         // Check if already rendered
-        const existingElement = node._data.viewData.element;
+        const existingElement = node._data.view.element;
         if (existingElement) {
             return Promise.resolve(existingElement);
         }
         return this._createNodeElement(node)
             .then((element: JmElement) => {
-                node._data.viewData.element = element;
+                node._data.view.element = element;
                 this.container.appendChild(element);
                 return element;
             });
@@ -59,7 +59,7 @@ export class JmNodeView {
     }
 
     removeNodeView(node: JmNode): void {
-        const element = node._data.viewData.element;
+        const element = node._data.view.element;
         if (element) {
             element.element.remove();
         }

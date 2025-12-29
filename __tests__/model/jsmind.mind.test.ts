@@ -3,7 +3,7 @@ import test, {mock} from 'node:test';
 
 import { JmMind } from '../../src/model/jsmind.mind.ts';
 import { JmMindEventType, JmMindEvent } from '../../src/event/index.ts';
-import { JmNode, JmNodeDirection} from '../../src/model/node.ts';
+import { JmNode, JmNodeSide} from '../../src/model/node.ts';
 import { JmEdgeType } from '../../src/model/jsmind.edge.ts';
 import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
 import { JsMindError } from '../../src/common/error.ts';
@@ -100,7 +100,7 @@ test('addChildNode with NodeCreationOptions - sets all options', () => {
     const options = {
         nodeId: 'custom_node_456',
         folded: true,
-        direction: 1, // Right direction
+        side: JmNodeSide.SideA,
         data: { customField: 'customValue', count: 42 }
     };
 
@@ -110,7 +110,7 @@ test('addChildNode with NodeCreationOptions - sets all options', () => {
     assert.strictEqual(child.id, 'custom_node_456');
     assert.strictEqual(child.content.value, 'node with options');
     assert.strictEqual(child.folded, true);
-    assert.strictEqual(child.direction, 1);
+    assert.strictEqual(child.side, 1);
     assert.deepStrictEqual(child.data, { customField: 'customValue', count: 42 });
 
     // Verify the node exists in the mind's node collection
@@ -134,7 +134,7 @@ test('addChildNode with partial NodeCreationOptions - preserves defaults', () =>
     assert.strictEqual(child.id, 'partial_node_789');
     assert.strictEqual(child.content.value, 'partial options');
     assert.strictEqual(child.folded, true); // Explicitly set
-    assert.strictEqual(child.direction, null); // Preserved from JmNode constructor default
+    assert.strictEqual(child.side, null); // Preserved from JmNode constructor default
     assert.deepStrictEqual(child.data, {}); // Preserved from JmNode constructor default
 });
 
@@ -148,7 +148,7 @@ test('addChildNode without options - preserves all constructor defaults', () => 
     assert.ok(child.id); // Generated ID
     assert.strictEqual(child.content.value, 'no options');
     assert.strictEqual(child.folded, false); // JmNode constructor default
-    assert.strictEqual(child.direction, null); // JmNode constructor default
+    assert.strictEqual(child.side, null); // JmNode constructor default
     assert.deepStrictEqual(child.data, {}); // JmNode constructor default
 });
 
@@ -383,14 +383,14 @@ test('JmMind.moveNode - basic functionality', () => {
     const movedNode = mind.moveNode(child1.id, {
         parentId: mind.root.id,
         position: 0,
-        direction: JmNodeDirection.Right
+        side: JmNodeSide.SideA
     });
 
     // Verify the move
     assert.strictEqual(movedNode.id, child1.id);
     assert.strictEqual(movedNode.parent!.id, mind.root.id);
     assert.strictEqual(mind.root.children[0].id, child1.id);
-    assert.strictEqual(movedNode.direction, JmNodeDirection.Right);
+    assert.strictEqual(movedNode.side, JmNodeSide.SideA);
 
     // Verify parent1 no longer has child1
     assert.strictEqual(parent1.children.length, 1);
@@ -409,14 +409,14 @@ test('JmMind.moveNode - move to different position', () => {
     const movedNode = mind.moveNode(child3.id, {
         parentId: mind.root.id,
         position: 0,
-        direction: JmNodeDirection.Left
+        side: JmNodeSide.SideB
     });
 
     // Verify the new order: child3, child1, child2
     assert.strictEqual(mind.root.children[0].id, child3.id);
     assert.strictEqual(mind.root.children[1].id, child1.id);
     assert.strictEqual(mind.root.children[2].id, child2.id);
-    assert.strictEqual(movedNode.direction, JmNodeDirection.Left);
+    assert.strictEqual(movedNode.side, JmNodeSide.SideB);
 });
 
 test('JmMind.moveNode - move with null position (no reposition)', () => {
@@ -430,13 +430,13 @@ test('JmMind.moveNode - move with null position (no reposition)', () => {
     const movedNode = mind.moveNode(child1.id, {
         parentId: mind.root.id,
         position: null,
-        direction: JmNodeDirection.Center
+        side: JmNodeSide.Center
     });
 
     // Verify the order remains the same: child1, child2
     assert.strictEqual(mind.root.children[0].id, child1.id);
     assert.strictEqual(mind.root.children[1].id, child2.id);
-    assert.strictEqual(movedNode.direction, JmNodeDirection.Center);
+    assert.strictEqual(movedNode.side, JmNodeSide.Center);
 });
 
 test('JmMind.moveNode - move with undefined direction (preserve current)', () => {
@@ -444,7 +444,7 @@ test('JmMind.moveNode - move with undefined direction (preserve current)', () =>
 
     // Create a child with a specific direction
     const child = mind.addNode(JmNodeContent.createText('Child'), { parentId: mind.root.id });
-    child.direction = JmNodeDirection.Right;
+    child.side = JmNodeSide.SideA;
 
     // Move without specifying direction
     const movedNode = mind.moveNode(child.id, {
@@ -454,7 +454,7 @@ test('JmMind.moveNode - move with undefined direction (preserve current)', () =>
     });
 
     // Verify direction is preserved
-    assert.strictEqual(movedNode.direction, JmNodeDirection.Right);
+    assert.strictEqual(movedNode.side, JmNodeSide.SideA);
 });
 
 test('JmMind.moveNode - error cases', () => {
@@ -465,7 +465,7 @@ test('JmMind.moveNode - error cases', () => {
         mind.moveNode('non-existent', {
             parentId: mind.root.id,
             position: 0,
-            direction: JmNodeDirection.Right
+            side: JmNodeSide.SideA
         });
     }, JsMindError, 'Should throw error for non-existent node');
 
@@ -475,7 +475,7 @@ test('JmMind.moveNode - error cases', () => {
         mind.moveNode(child.id, {
             parentId: 'non-existent-parent',
             position: 0,
-            direction: JmNodeDirection.Right
+            side: JmNodeSide.SideA
         });
     }, JsMindError, 'Should throw error for non-existent parent');
 
@@ -487,7 +487,7 @@ test('JmMind.moveNode - error cases', () => {
         mind.moveNode(parent.id, {
             parentId: grandchild.id,
             position: 0,
-            direction: JmNodeDirection.Right
+            side: JmNodeSide.SideA
         });
     }, JsMindError, 'Should throw error for moving to descendant');
 
@@ -508,7 +508,7 @@ test('JmMind.moveNode - edge management', () => {
     mind.moveNode(child.id, {
         parentId: mind.root.id,
         position: 0,
-        direction: JmNodeDirection.Right
+        side: JmNodeSide.SideA
     });
 
     // Verify no edges are created for parent-child relationships
@@ -527,14 +527,14 @@ test('JmMind.moveNode - same parent optimization (reposition only)', () => {
     const movedNode = mind.moveNode(child3.id, {
         parentId: mind.root.id,
         position: 0,
-        direction: JmNodeDirection.Left
+        side: JmNodeSide.SideB
     });
 
     // Verify the new order: child3, child1, child2
     assert.strictEqual(mind.root.children[0].id, child3.id);
     assert.strictEqual(mind.root.children[1].id, child1.id);
     assert.strictEqual(mind.root.children[2].id, child2.id);
-    assert.strictEqual(movedNode.direction, JmNodeDirection.Left);
+    assert.strictEqual(movedNode.side, JmNodeSide.SideB);
 
     // Verify no edges were created/removed (same parent operation)
     const edgeCount = Object.keys(mind._edges).length;
@@ -551,11 +551,11 @@ test('JmMind.moveNode - same parent with only direction change', () => {
     const updatedNode = mind.moveNode(child.id, {
         parentId: mind.root.id,
         // position not specified - should keep current
-        direction: JmNodeDirection.Right
+        side: JmNodeSide.SideA
     });
 
     // Verify direction changed
-    assert.strictEqual(updatedNode.direction, JmNodeDirection.Right);
+    assert.strictEqual(updatedNode.side, JmNodeSide.SideA);
     // Verify position unchanged (should still be at index 0)
     assert.strictEqual(mind.root.children[0].id, child.id);
     // Verify parent unchanged
@@ -567,7 +567,7 @@ test('Observe update node', () => {
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
     const node1 = mind.addNode(JmNodeContent.createText('node1'), { parentId: mind.root.id });
     node1.content = JmNodeContent.createText('new name of node1');
-    node1.direction = JmNodeDirection.Right;
+    node1.side = JmNodeSide.SideA;
     node1.folded = true;
     node1.data['a'] = 'b';
     assert.strictEqual(mockedNotifyObservers.mock.callCount(), 4);
@@ -584,9 +584,9 @@ test('Observe update node', () => {
     assert.equal((events[0].data.newValue as JmNodeContent).value, 'new name of node1');
 
     assert.equal((events[1].data.node as JmNode).id, node1.id);
-    assert.equal((events[1].data.property as string), 'direction');
+    assert.equal((events[1].data.property as string), 'side');
     assert.equal(events[1].data.originValue, null);
-    assert.equal((events[1].data.newValue as JmNodeDirection), JmNodeDirection.Right);
+    assert.equal((events[1].data.newValue as JmNodeSide), JmNodeSide.SideA);
 
     assert.equal((events[2].data.node as JmNode).id, node1.id);
     assert.equal((events[2].data.property as string), 'folded');
