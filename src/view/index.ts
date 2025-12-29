@@ -6,6 +6,7 @@ import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
 import { JmDomUtility, JmElement } from '../common/dom.ts';
 import type { JmNode } from '../model/node.ts';
+import type { JmSize } from '../common/index.ts';
 
 /**
  * View of mind map.
@@ -58,6 +59,10 @@ export class JmView {
         for (const edgeId in mind._edges) {
             await this.edgeView.renderEdge(mind._edges[edgeId]);
         }
+    }
+
+    getSize(node: JmNode): JmSize {
+        return this.nodeView.getViewData(node).size;
     }
 
     /**

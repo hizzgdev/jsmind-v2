@@ -34,13 +34,13 @@ export interface NodeDestinationOptions {
 }
 
 
-class JmNodeViewData {
+export class JmNodeViewData {
     element: JmElement | null = null;
 
     size: JmSize = new JmSize(0, 0);
 }
 
-class JmNodeLayoutData {
+export class JmNodeLayoutData {
     side: JmNodeSide = JmNodeSide.Center;
 
     visible: boolean = true;

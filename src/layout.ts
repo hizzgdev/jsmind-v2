@@ -5,9 +5,13 @@ import type { JmView } from './view/index.ts';
 
 export class JmLayout {
 
-    private readonly nodeFilterForSideA = (node:JmNode)=>{return node.side === JmNodeSide.SideA;};
+    private readonly nodeInSidePredicateA = (node: JmNode)=>{return node.side === JmNodeSide.SideA;};
 
-    private readonly nodeFilterForSideB = (node:JmNode)=>{return node.side === JmNodeSide.SideA;};
+    private readonly nodeInSidePredicateB = (node: JmNode)=>{return node.side === JmNodeSide.SideA;};
+
+    private readonly nodeHasCousinsPredicate = (node: JmNode)=>{
+        return node.children.length > 0 && (node.parent?.children?.length ?? 0) > 1;
+    };
 
     view: JmView;
 
@@ -34,21 +38,21 @@ export class JmLayout {
     private _arrange(rootNode: JmNode) {
         rootNode._data.layout.side = JmNodeSide.Center;
         rootNode.children
-            .filter(this.nodeFilterForSideA)
-            .forEach((node:JmNode)=>this._arrangeSide(node, JmNodeSide.SideA));
+            .filter(this.nodeInSidePredicateA)
+            .forEach((node: JmNode)=>this._arrangeSide(node, JmNodeSide.SideA));
         rootNode.children
-            .filter(this.nodeFilterForSideB)
-            .forEach((node:JmNode)=>this._arrangeSide(node, JmNodeSide.SideB));
+            .filter(this.nodeInSidePredicateB)
+            .forEach((node: JmNode)=>this._arrangeSide(node, JmNodeSide.SideB));
     }
 
     private _arrangeSide(node: JmNode, side: JmNodeSide) {
         node._data.layout.side = side;
-        node.children.forEach((n:JmNode)=>this._arrangeSide(n, side));
+        node.children.forEach((n: JmNode)=>this._arrangeSide(n, side));
     }
 
     private _calculateOffset(rootNode: JmNode) {
-        const nodesOnSideA = rootNode.children.filter(this.nodeFilterForSideA);
-        const nodesOnSideB = rootNode.children.filter(this.nodeFilterForSideB).reverse();
+        const nodesOnSideA = rootNode.children.filter(this.nodeInSidePredicateA);
+        const nodesOnSideB = rootNode.children.filter(this.nodeInSidePredicateB).reverse();
         const heightA = this._calculateOffsetSide(nodesOnSideA);
         const heightB = this._calculateOffsetSide(nodesOnSideB);
         rootNode._data.layout.outerSize.height = Math.max(heightA, heightB);
@@ -57,22 +61,22 @@ export class JmLayout {
     private _calculateOffsetSide(nodes: JmNode[]): number {
         let offsetHeight = 0;
         let totalHeight = 0;
-        nodes.forEach((node:JmNode)=>{
+        nodes.forEach((node: JmNode)=>{
             let height = this._calculateOffsetSide(node.children);
             if(node.folded) {
                 height = 0;
-                this.recursiveUpdate(node, (n:JmNode)=>{n._data.layout.visible = false;});
+                this.recursiveUpdate(node, (n: JmNode)=>{n._data.layout.visible = false;});
             }
-            height = Math.max(height, this.view.getViewData(node).size.height);
+            height = Math.max(height, this.view.getSize(node).height);
             offsetHeight += height;
             totalHeight += height;
         });
-        return offsetHeight;
+        return offsetHeight + totalHeight;
     }
 
     private recursiveUpdate(node: JmNode, func: (node: JmNode) => void) {
         func(node);
-        node.children.forEach((child:JmNode)=>{
+        node.children.forEach((child: JmNode)=>{
             this.recursiveUpdate(child, func);
         });
     }

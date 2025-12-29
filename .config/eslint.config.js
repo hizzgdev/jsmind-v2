@@ -43,7 +43,8 @@ export default [
             '@stylistic/semi-spacing': 'error',
             '@stylistic/space-before-blocks': 'error',
             '@stylistic/space-in-parens': 'error',
-            '@stylistic/space-infix-ops': 'error'
+            '@stylistic/space-infix-ops': 'error',
+            '@stylistic/type-annotation-spacing': 'error'
         },
     },
     {

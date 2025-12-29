@@ -10,7 +10,7 @@ export function initDom() {
         }
     );
 
-    dom.window.requestAnimationFrame = (callback: FrameRequestCallback):number => {
+    dom.window.requestAnimationFrame = (callback: FrameRequestCallback): number => {
         return setTimeout(() => {
             callback(performance.now());
         }, 0) as unknown as number;
