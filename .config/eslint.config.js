@@ -2,6 +2,7 @@ import globals from 'globals';
 import json from '@eslint/json';
 import stylistic from '@stylistic/eslint-plugin';
 import tseslint from 'typescript-eslint';
+import css from '@eslint/css';
 
 export default [
     {
@@ -11,6 +12,7 @@ export default [
         plugins: {
             '@stylistic': stylistic,
             json,
+            css,
         },
     },
     ...tseslint.configs.recommended,
@@ -49,7 +51,12 @@ export default [
     },
     {
         files: ['**/*.css'],
-        ...stylistic.configs.recommended
+        language: 'css/css',
+        plugins: { css },
+        ...css.configs.recommended,
+        rules: {
+            'css/use-baseline': ['error', { 'allowProperties': ['user-select'] }]
+        }
     },
     {
         files: ['*.json', '**/*.json'],
