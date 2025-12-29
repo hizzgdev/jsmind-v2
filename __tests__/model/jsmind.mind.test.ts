@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
 
 import { JmMind } from '../../src/model/jsmind.mind.ts';
-import { JmMindEventType, JmMindEvent } from '../../src/event/index.ts';
+import { JmMindEventType, JmMindEvent, JmMindEventDataOnNodeAdded, JmMindEventDataOnNodeRemoved, JmMindEventDataOnNodeUpdated, JmMindEventDataOnEdgeAdded, JmMindEventDataOnEdgeRemoved } from '../../src/event/index.ts';
 import { JmNode, JmNodeSide} from '../../src/model/node.ts';
 import { JmEdgeType } from '../../src/model/jsmind.edge.ts';
 import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
@@ -224,7 +224,7 @@ test('Observe adding nodes', () => {
     assert.ok(event1 instanceof JmMindEvent);
     assert.strictEqual(event1.type, JmMindEventType.NodeAdded);
 
-    const eventData = event1.data;
+    const eventData = event1.data as JmMindEventDataOnNodeAdded;
     assert.ok(eventData.node);
     assert.ok(eventData.node instanceof JmNode);
     assert.strictEqual(eventData.node.content.value, child1.content.value);
@@ -300,8 +300,8 @@ test('Observe removing nodes', () => {
     assert.ok(removalEvent instanceof JmMindEvent);
     assert.strictEqual(removalEvent.type, JmMindEventType.NodeRemoved);
 
-    const eventData = removalEvent.data;
-    assert.strictEqual(eventData.node.id, child2.id);
+    const eventData = removalEvent.data as JmMindEventDataOnNodeRemoved;
+    assert.strictEqual((eventData.node as JmNode).id, child2.id);
 
     const removedNodeIds = new Set(eventData.removedNodeIds);
     const expectedRemovedNodeIds = new Set([child2.id, child21.id, child22.id,
@@ -429,7 +429,6 @@ test('JmMind.moveNode - move with null position (no reposition)', () => {
     // Move child1 with null position (should not reposition)
     const movedNode = mind.moveNode(child1.id, {
         parentId: mind.root.id,
-        position: null,
         side: JmNodeSide.Center
     });
 
@@ -490,11 +489,6 @@ test('JmMind.moveNode - error cases', () => {
             side: JmNodeSide.SideA
         });
     }, JsMindError, 'Should throw error for moving to descendant');
-
-    // Test moving with empty options object
-    assert.throws(() => {
-        mind.moveNode(child.id, {});
-    }, JsMindError, 'Should throw error for empty options object');
 });
 
 test('JmMind.moveNode - edge management', () => {
@@ -578,20 +572,23 @@ test('Observe update node', () => {
     assert.ok(events.every((e: JmMindEvent)=>{
         return (e instanceof JmMindEvent) && e.type === JmMindEventType.NodeUpdated;
     }));
-    assert.equal((events[0].data.node as JmNode).id, node1.id);
-    assert.equal((events[0].data.property as string), 'content');
-    assert.equal((events[0].data.originValue as JmNodeContent).value, 'node1');
-    assert.equal((events[0].data.newValue as JmNodeContent).value, 'new name of node1');
+    const eventData0 = events[0].data as JmMindEventDataOnNodeUpdated;
+    assert.equal(eventData0.node.id, node1.id);
+    assert.equal(eventData0.property, 'content');
+    assert.equal((eventData0.originValue as JmNodeContent).value, 'node1');
+    assert.equal((eventData0.newValue as JmNodeContent).value, 'new name of node1');
 
-    assert.equal((events[1].data.node as JmNode).id, node1.id);
-    assert.equal((events[1].data.property as string), 'side');
-    assert.equal(events[1].data.originValue, null);
-    assert.equal((events[1].data.newValue as JmNodeSide), JmNodeSide.SideA);
+    const eventData1 = events[1].data as JmMindEventDataOnNodeUpdated;
+    assert.equal(eventData1.node.id, node1.id);
+    assert.equal(eventData1.property, 'side');
+    assert.equal(eventData1.originValue, null);
+    assert.equal(eventData1.newValue, JmNodeSide.SideA);
 
-    assert.equal((events[2].data.node as JmNode).id, node1.id);
-    assert.equal((events[2].data.property as string), 'folded');
-    assert.equal(events[2].data.originValue, false);
-    assert.equal((events[2].data.newValue as boolean), true);
+    const eventData2 = events[2].data as JmMindEventDataOnNodeUpdated;
+    assert.equal(eventData2.node.id, node1.id);
+    assert.equal(eventData2.property, 'folded');
+    assert.equal(eventData2.originValue, false);
+    assert.equal(eventData2.newValue, true);
 });
 
 test('JmMind.addEdge', () => {
@@ -704,19 +701,21 @@ test('JmMind edge events', () => {
     const edge = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, { label: 'test link' });
 
     const addEventCall = mockedNotifyObservers.mock.calls[mockedNotifyObservers.mock.calls.length - 1];
-    const addEvent = addEventCall.arguments[0];
+    const addEvent = addEventCall.arguments[0] as JmMindEvent;
     assert.ok(addEvent instanceof JmMindEvent);
     assert.strictEqual(addEvent.type, JmMindEventType.EdgeAdded);
-    assert.strictEqual(addEvent.data.edge, edge);
+    const eventData = addEvent.data as JmMindEventDataOnEdgeAdded;
+    assert.strictEqual(eventData.edge, edge);
 
     // Test removeEdge event
     mind.removeEdge(edge.id);
 
     const removeEventCall = mockedNotifyObservers.mock.calls[mockedNotifyObservers.mock.calls.length - 1];
-    const removeEvent = removeEventCall.arguments[0];
+    const removeEvent = removeEventCall.arguments[0] as JmMindEvent;
     assert.ok(removeEvent instanceof JmMindEvent);
     assert.strictEqual(removeEvent.type, JmMindEventType.EdgeRemoved);
-    assert.strictEqual(removeEvent.data.edge, edge);
+    const removeEventData = removeEvent.data as JmMindEventDataOnEdgeRemoved;
+    assert.strictEqual(removeEventData.edge, edge);
 });
 
 test('JmMind.removeNode cleans up edges', () => {

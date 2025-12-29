@@ -5,7 +5,7 @@ import { JmNodeContent } from './jsmind.node.content.ts';
 import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../common/option.ts';
 import { SimpleIdGenerator } from '../generation/index.ts';
 
-import { JmMindEvent, JmMindEventType } from '../event/index.ts';
+import { JmMindEvent } from '../event/index.ts';
 import { JsMindError } from '../common/error.ts';
 
 /**
@@ -61,7 +61,7 @@ export class JmMind {
      * @returns The root node.
      */
     get root(): JmNode {
-        return this.nodeManager.manage(this._root);
+        return this.lite(this._root);
     }
 
     /**
@@ -85,12 +85,7 @@ export class JmMind {
         this._edges[edgeId] = edge;
 
         // Emit event
-        this.observerManager.notifyObservers(new JmMindEvent(
-            JmMindEventType.EdgeAdded,
-            {
-                'edge': edge
-            })
-        );
+        this.observerManager.notifyObservers(JmMindEvent.onEdgeAdded(edge));
 
         return edge;
     }
@@ -126,14 +121,9 @@ export class JmMind {
         }
 
         // Emit event
-        this.observerManager.notifyObservers(new JmMindEvent(
-            JmMindEventType.NodeAdded,
-            {
-                'node': node
-            })
-        );
+        this.observerManager.notifyObservers(JmMindEvent.onNodeAdded(node));
 
-        return this.nodeManager.manage(node);
+        return this.lite(node);
     }
 
     /**
@@ -144,7 +134,7 @@ export class JmMind {
      */
     findNodeById(nodeId: string): JmNode | null {
         const node = this._nodes[nodeId];
-        return !!node ? this.nodeManager.manage(node) : null;
+        return !!node ? this.lite(node) : null;
     }
 
     /**
@@ -181,7 +171,7 @@ export class JmMind {
 
         // Skip all logic for root node - it cannot be moved
         if (node === this.root) {
-            return this.nodeManager.manage(node);
+            return this.lite(node);
         }
 
         // Extract options
@@ -227,7 +217,7 @@ export class JmMind {
         // 4. Emit event only if something actually changed
         this._emitNodeMovedEventIfChanged(node, oldParent, oldPosition, oldSide);
 
-        return this.nodeManager.manage(node);
+        return this.lite(node);
     }
 
     /**
@@ -242,13 +232,7 @@ export class JmMind {
             delete this._edges[edgeId];
 
             // Emit event
-            this.observerManager.notifyObservers(new JmMindEvent(
-                JmMindEventType.EdgeRemoved,
-                {
-                    'edge': edge
-                })
-            );
-
+            this.observerManager.notifyObservers(JmMindEvent.onEdgeRemoved(edge));
             return true;
         }
         return false;
@@ -284,14 +268,7 @@ export class JmMind {
         edgeIds.forEach((id) => delete this._edges[id]);
 
         // emit event
-        this.observerManager.notifyObservers(new JmMindEvent(
-            JmMindEventType.NodeRemoved,
-            {
-                'node': node,
-                'removedNodeIds': nodeIds,
-                'removedEdgeIds': edgeIds
-            })
-        );
+        this.observerManager.notifyObservers(JmMindEvent.onNodeRemoved(node, nodeIds, edgeIds));
     }
 
     /**
@@ -344,25 +321,10 @@ export class JmMind {
         const sideChanged = oldSide !== node.side;
 
         if (parentChanged || positionChanged || sideChanged) {
-            const eventData: Record<string, unknown> = {
-                'node': node
-            };
-
-            // Only include changed properties in event data
-            if (parentChanged) {
-                eventData.oldParentId = oldParent!.id;
-            }
-            if (positionChanged) {
-                eventData.oldPosition = oldPosition;
-            }
-            if (sideChanged) {
-                eventData.oldSide = oldSide;
-            }
-
-            this.observerManager.notifyObservers(new JmMindEvent(
-                JmMindEventType.NodeMoved,
-                eventData
-            ));
+            const oldParentId = parentChanged ? oldParent!.id : null;
+            const oldPositionData = positionChanged ? oldPosition : null;
+            const oldSideData = sideChanged ? oldSide : null;
+            this.observerManager.notifyObservers(JmMindEvent.onNodeMoved(node, oldParentId, oldPositionData, oldSideData));
         }
     }
 
@@ -421,15 +383,7 @@ export class JmMind {
      * @param newValue - The new value.
      */
     _onNodeUpdated(node: JmNode, prop: string, originValue: unknown, newValue: unknown): void {
-        this.observerManager.notifyObservers(new JmMindEvent(
-            JmMindEventType.NodeUpdated,
-            {
-                'node': node,
-                'property': prop,
-                'originValue': originValue,
-                'newValue': newValue
-            })
-        );
+        this.observerManager.notifyObservers(JmMindEvent.onNodeUpdated(node, prop, originValue, newValue));
     }
 
     /**
@@ -487,6 +441,10 @@ export class JmMind {
             return node;
         }
         throw new JsMindError(`node[id=${nodeId}] does not exist`);
+    }
+
+    private lite(node: JmNode): JmNode {
+        return this.nodeManager.manage(node);
     }
 }
 

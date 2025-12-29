@@ -14,7 +14,7 @@ export interface NodeCreationOptions {
     /** Whether the node is folded (default: false). */
     folded?: boolean;
     /** Direction of the node (default: null). */
-    side?: JmNodeSide | null;
+    side?: JmNodeSide;
     /** Additional data for the node (default: {}). */
     data?: Record<string, unknown>;
 }
@@ -28,9 +28,9 @@ export interface NodeDestinationOptions {
     /** The ID of the target parent node (required). */
     parentId: string;
     /** The position index among siblings (if not provided, adds to end). */
-    position?: number;
+    position?: number
     /** The direction of the node (if not provided, keeps current direction). */
-    side?: JmNodeSide | null;
+    side?: JmNodeSide;
 }
 
 
