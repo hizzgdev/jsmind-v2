@@ -71,6 +71,7 @@ class JsMind {
         await this.view.createMindNodes(mind);
         const changedNodeIds = this.layout.calculate(mind);
         await this.view.render(mind, changedNodeIds);
+        console.log(this.mind);
     }
 
     /**

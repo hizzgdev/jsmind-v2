@@ -1,6 +1,6 @@
 import type { JmElement } from '../common/dom.ts';
 import { JsMindError } from '../common/error.ts';
-import { JmSize } from '../common/index.ts';
+import { JmPoint, JmSize } from '../common/index.ts';
 import { type JmNodeContent } from './jsmind.node.content.ts';
 
 /**
@@ -46,6 +46,8 @@ export class JmNodeLayoutData {
     visible: boolean = true;
 
     outerSize: JmSize = new JmSize(0, 0);
+
+    offset: JmPoint = new JmPoint(0, 0);
 }
 
 class NodeInternalData {

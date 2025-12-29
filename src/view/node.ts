@@ -30,6 +30,7 @@ export class JmNodeView {
             .then((element: JmElement) => {
                 node._data.view.element = element;
                 this.container.appendChild(element);
+                node._data.view.size = element.size;
                 return element;
             });
     }
