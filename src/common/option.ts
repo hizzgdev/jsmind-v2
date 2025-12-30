@@ -38,10 +38,9 @@ export interface LayoutOptions {
  * @public
  */
 export interface JsMindOptions {
-    container: string | HTMLElement;
     mind: MindOptions;
-    viewOptions: ViewOptions;
-    layoutOptions: LayoutOptions;
+    view: ViewOptions;
+    layout: LayoutOptions;
 }
 
 export const DEFAULT_METADATA: MindMetadata = {
@@ -51,14 +50,13 @@ export const DEFAULT_METADATA: MindMetadata = {
 };
 
 export const DEFAULT_OPTIONS: JsMindOptions = {
-    container: '',
-    viewOptions: {
-        theme: 'default'
-    },
     mind: {
         rootNodeId: 'root'
     },
-    layoutOptions: {
+    view: {
+        theme: 'default'
+    },
+    layout: {
         parentChildSpace: 30,
         siblingSpace: 20,
         cousinSpace: 15,

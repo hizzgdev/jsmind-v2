@@ -37,27 +37,34 @@ class JsMind {
     options: JsMindOptions;
 
     /** The currently opened mind map, or null if none is open. */
-    mind: JmMind | null;
+    mind: JmMind | null = null;
 
     /** The serializer used for serialization operations. */
     serializer: JmMindJsonSerializer;
 
     /** The view instance for rendering the mind map. */
-    view: JmView;
+    private readonly view: JmView;
 
-    layout: JmLayout;
+    /** The layout instance for calculating the layout of the mind map. */
+    private readonly layout: JmLayout;
 
     /**
      * Creates a new jsMind instance.
      *
      * @param options - Configuration options for the jsMind instance.
      */
-    constructor(options: JsMindOptions) {
+    private constructor(options: JsMindOptions, serializer: JmMindJsonSerializer, view: JmView, layout: JmLayout) {
         this.options = options;
-        this.mind = null;
-        this.serializer = new JmMindJsonSerializer();
-        this.view = new JmView(options.container, options.viewOptions);
-        this.layout = new JmLayout(options.layoutOptions, this.view);
+        this.serializer = serializer;
+        this.view = view;
+        this.layout = layout;
+    }
+
+    static async create(container: string | HTMLElement, options: JsMindOptions): Promise<JsMind> {
+        const serializer = new JmMindJsonSerializer();
+        const view = await JmView.create(container, options.view);
+        const layout = new JmLayout(options.layout, view);
+        return new JsMind(options, serializer, view, layout);
     }
 
     /**
@@ -68,11 +75,13 @@ class JsMind {
      */
     async open(mind: JmMind): Promise<void> {
         this.mind = mind;
+
         await this.view.createMindNodes(mind);
         const changedNodeIds = this.layout.calculate(mind);
         await this.view.render(mind, changedNodeIds);
         console.log(this.mind);
     }
+
 
     /**
      * Closes the current mind map (cleanup method).

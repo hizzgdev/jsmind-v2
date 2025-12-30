@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
 import JsMind from '../src/jsmind.ts';
-import { type JsMindOptions } from '../src/common/option.ts';
+import { DEFAULT_OPTIONS, type JsMindOptions } from '../src/common/option.ts';
 import { initDom, JSMIND_CONTAINER_ID } from './setup/jsdom.ts';
 import { TEST_EDGE_11TO2, TEST_MIND, TEST_NODE_1, TEST_NODE_11, TEST_NODE_2 } from './setup/data.ts';
 
@@ -17,8 +17,8 @@ describe('JsMind', async () => {
     });
 
     it('open mind map', async () => {
-        const opts: JsMindOptions = { container: JSMIND_CONTAINER_ID, mind: { rootNodeId: 'test' }, viewOptions: { theme: 'test' } };
-        const jm = new JsMind(opts);
+        const opts: JsMindOptions = DEFAULT_OPTIONS;
+        const jm = await JsMind.create(JSMIND_CONTAINER_ID, opts);
         await jm.open(TEST_MIND);
         assert.ok(jm);
         assert.strictEqual(JsMind.Version, '2.0');

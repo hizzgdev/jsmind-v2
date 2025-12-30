@@ -25,7 +25,8 @@
         "format": "eslint --fix --config .config/eslint.config.js",
         "format-check": "eslint --config .config/eslint.config.js",
         "type-check": "tsc --noEmit -p tsconfig.json",
-        "compile": "tsc --help"
+        "compile": "tsc --help",
+        "ci": "npm run format-check && npm run type-check && npm run test-lite && npm run build"
     },
     "repository": {
         "type": "git",

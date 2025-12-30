@@ -4,7 +4,7 @@ import { JsMindError } from '../common/error.ts';
 import { type ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
-import { JmDomUtility, JmElement } from '../common/dom.ts';
+import { ensureElementVisible, JmDomUtility, JmElement } from '../common/dom.ts';
 import type { JmNode } from '../model/node.ts';
 import type { JmSize } from '../common/index.ts';
 
@@ -21,14 +21,22 @@ export class JmView {
 
     readonly edgeView: JmEdgeView;
 
-    constructor(container: string | HTMLElement, _options: ViewOptions) {
-        this.container = this._initContainer(container);
-        this.innerContainer = this._initInnerContainer();
-        this.nodeView = new JmNodeView(this.innerContainer);
-        this.edgeView = new JmEdgeView(this.innerContainer);
+    private constructor(container: JmElement, innerContainer: JmElement, nodeView: JmNodeView, edgeView: JmEdgeView) {
+        this.container = container;
+        this.innerContainer = innerContainer;
+        this.nodeView = nodeView;
+        this.edgeView = edgeView;
     }
 
-    private _initContainer(container: string | HTMLElement): JmElement {
+    static async create(container: string | HTMLElement, _options: ViewOptions): Promise<JmView> {
+        const jmContainer = await this._initContainer(container);
+        const innerContainer = this._initInnerContainer(jmContainer);
+        const nodeView = new JmNodeView(innerContainer);
+        const edgeView = new JmEdgeView(innerContainer);
+        return new JmView(jmContainer, innerContainer, nodeView, edgeView);
+    }
+
+    private static async _initContainer(container: string | HTMLElement): Promise<JmElement> {
         if (!container) {
             throw new JsMindError('Container is required');
         }
@@ -37,15 +45,16 @@ export class JmView {
             if (!element) {
                 throw new JsMindError(`Container element with ID '${container}' is not found`);
             }
+            await ensureElementVisible(element);
             return new JmElement(element);
         }
         return new JmElement(container);
     }
 
-    private _initInnerContainer(): JmElement {
+    private static _initInnerContainer(container: JmElement): JmElement {
         const element = JmDomUtility.createElement('div', 'jsmind-inner');
         element.classList.add('jsmind-inner');
-        this.container.appendChild(element);
+        container.appendChild(element);
         return element;
     }
 

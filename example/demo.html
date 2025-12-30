@@ -62,13 +62,14 @@
             var _jm = null;
             var _mind = null;
 
-            function createMindMap() {
+            async function createMindMap() {
                 try {
+                    console.log('Creating jsMind instance');
                     // Create jsMind instance
-                    _jm = new jsMind({
-                        container: 'jsmind_container',
+                    _jm = await jsMind.create('jsmind_container', {
                         editable: true,
                     });
+                    console.log('JsMind instance created');
 
                     // Create a mind map
                     const JmMind = jsMind.Mind;
@@ -111,8 +112,10 @@
                         { parentId: sub1.id }
                     );
 
+                    console.log('Opening mind map');
                     // Open the mind map
-                    _jm.open(_mind);
+                    await _jm.open(_mind);
+                    console.log('Mind map opened');
                 } catch (error) {
                     console.error('Error creating mind map:', error);
                     alert('Error: ' + error.message);

@@ -1,9 +1,20 @@
 import { JsMindError } from './error.ts';
 import type { JmSize } from './index.ts';
 
-const waitForNextFrame = () => {
+const untilNextFrame = () => {
     return new Promise(resolve => {
         requestAnimationFrame(resolve);
+    });
+};
+
+export const ensureElementVisible = async (element: HTMLElement): Promise<void> => {
+    return new Promise<void>((resolve) => {
+        new IntersectionObserver((entities, observer) => {
+            if (entities[0]?.isIntersecting) {
+                observer.unobserve(element);
+                resolve();
+            }
+        }).observe(element);
     });
 };
 
@@ -33,7 +44,7 @@ export class DmUtility {
             element.style.display = 'unset';
         }
         container.appendChild(element);
-        await waitForNextFrame();
+        await untilNextFrame();
         const rect = element.getBoundingClientRect();
         container.removeChild(element);
         element.style.display = originalDisplay;
