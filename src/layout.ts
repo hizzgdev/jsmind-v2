@@ -34,6 +34,8 @@ export class JmLayout {
         this.nodeOutcomePointCache.clear();
         this.nodeOffsetCache.clear();
 
+        debug('calculate start');
+
         const rootNode = mind._root;
         this._arrange(rootNode);
         this._markInvisibleNodes(rootNode);
@@ -125,7 +127,7 @@ export class JmLayout {
             layoutData.outerSize.height = height;
             layoutData.offset.y = offsetHeight - height / 2;
             layoutData.offset.x = this.options.parentChildSpace * layoutData.side + parentSize.width * (parentLayout.side + layoutData.side) / 2 + expanderSpace;
-            debug('calculateNodesOffset', layoutData);
+            // debug('calculateNodesOffset', layoutData);
             offsetHeight += height + this.options.siblingSpace;
             totalHeight += height;
         });
@@ -135,7 +137,7 @@ export class JmLayout {
         const halfTotalHeight = totalHeight / 2;
         visibleNodes.forEach((node: JmNode)=>{
             node._data.layout.offset.y += halfTotalHeight;
-            debug('calculateNodesOffset2', node._data.layout);
+            // debug('calculateNodesOffset2', node._data.layout);
         });
         return totalHeight;
     }
