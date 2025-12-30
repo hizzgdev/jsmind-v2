@@ -40,7 +40,7 @@ export class JmView {
     static async create(container: string | HTMLElement, layout: JmLayout, options: ViewOptions): Promise<JmView> {
         const jmContainer = await this._initContainer(container);
         const innerContainer = this._initInnerContainer(jmContainer);
-        const nodeView = new JmNodeView(innerContainer, layout);
+        const nodeView = new JmNodeView(innerContainer);
         const edgeView = new JmEdgeView(innerContainer);
         return new JmView(jmContainer, innerContainer, nodeView, edgeView, layout, options);
     }

@@ -2,7 +2,6 @@ import { type JmNode } from '../model/node.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
 import { debug } from '../common/debug.ts';
-import type { JmLayout } from '../layout.ts';
 
 /**
  * View operator for nodes.
@@ -14,16 +13,13 @@ export class JmNodeView {
     /** The container element for nodes. */
     private readonly container: HTMLElement;
 
-    private readonly layout: JmLayout;
-
     /**
      * Creates a new node view operator.
      *
      * @param innerContainer - The inner container element to append the nodes container to.
      */
-    constructor(innerContainer: HTMLElement, layout: JmLayout) {
+    constructor(innerContainer: HTMLElement) {
         this.container = this._initNodesContainer(innerContainer);
-        this.layout = layout;
     }
 
     async createNodeView(node: JmNode): Promise<JmElement> {

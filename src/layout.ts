@@ -34,8 +34,6 @@ export class JmLayout {
         this.nodeOutcomePointCache.clear();
         this.nodeOffsetCache.clear();
 
-        debug('calculate start');
-
         const rootNode = mind._root;
         this._arrange(rootNode);
         this._markInvisibleNodes(rootNode);
@@ -101,15 +99,23 @@ export class JmLayout {
     }
 
     private _calculateOffset(rootNode: JmNode) {
-        const nodesOnSideA = rootNode.children.filter(this.nodeInSidePredicateA);
-        const nodesOnSideB = rootNode.children.filter(this.nodeInSidePredicateB).reverse();
+        const nodesOnSideA = rootNode.children.filter(this.nodeInSidePredicateA).reverse();
+        const nodesOnSideB = rootNode.children.filter(this.nodeInSidePredicateB);
+        const heightRoot = rootNode._data.size.height;
         const heightA = this._calculateNodesOffset(nodesOnSideA, true);
         const heightB = this._calculateNodesOffset(nodesOnSideB, true);
-        rootNode._data.layout.outerSize.height = Math.max(heightA, heightB);
+        // debug('calculateOffset', heightRoot, heightA, heightB);
+        rootNode._data.layout.outerSize.height = Math.max(heightRoot, heightA, heightB);
     }
 
+    /**
+     * Calculate the offset for the nodes, from bottom to top.
+     * @param nodes - The nodes to calculate the offset for, the first item should be the bottom node
+     * @param isFirstLevelNodes - Whether the nodes are the first level nodes
+     * @returns The total height of the nodes
+     */
     private _calculateNodesOffset(nodes: JmNode[], isFirstLevelNodes?: boolean): number {
-        let offsetHeight = 0;
+        let offsetY = 0;
         let totalHeight = 0;
         const visibleNodes = nodes.filter((node: JmNode)=>node._data.layout.visible);
         // debug('visibleNodes', visibleNodes.length, isFirstLevelNodes);
@@ -125,10 +131,14 @@ export class JmLayout {
                 node._data.size.height
             ) + cousinSpace;
             layoutData.outerSize.height = height;
-            layoutData.offset.y = offsetHeight - height / 2;
+            layoutData.offset.y = offsetY - height / 2;
+            debug('calculateNodesOffset', parentSize);
             layoutData.offset.x = this.options.parentChildSpace * layoutData.side + parentSize.width * (parentLayout.side + layoutData.side) / 2 + expanderSpace;
+            if(!node.isRoot()) {
+                layoutData.offset.x += this.options.expanderSize * layoutData.side;
+            }
             // debug('calculateNodesOffset', layoutData);
-            offsetHeight += height + this.options.siblingSpace;
+            offsetY = offsetY - height - this.options.siblingSpace;
             totalHeight += height;
         });
         if(visibleNodes.length > 1) {
