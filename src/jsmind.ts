@@ -2,7 +2,7 @@
 import { JmMind } from './model/jsmind.mind.ts';
 import { JmMindJsonSerializer } from './serialization/jsmind.json.serializer.ts';
 import { JmNodeContent } from './model/jsmind.node.content.ts';
-import { type JsMindOptions } from './common/option.ts';
+import { mergeOptions, type JsMindOptions } from './common/option.ts';
 import { JmView } from './view/index.ts';
 import { JmLayout } from './layout.ts';
 
@@ -42,11 +42,11 @@ class JsMind {
     /** The serializer used for serialization operations. */
     serializer: JmMindJsonSerializer;
 
-    /** The view instance for rendering the mind map. */
-    private readonly view: JmView;
-
     /** The layout instance for calculating the layout of the mind map. */
     private readonly layout: JmLayout;
+
+    /** The view instance for rendering the mind map. */
+    private readonly view: JmView;
 
     /**
      * Creates a new jsMind instance.
@@ -56,15 +56,16 @@ class JsMind {
     private constructor(options: JsMindOptions, serializer: JmMindJsonSerializer, view: JmView, layout: JmLayout) {
         this.options = options;
         this.serializer = serializer;
-        this.view = view;
         this.layout = layout;
+        this.view = view;
     }
 
     static async create(container: string | HTMLElement, options: JsMindOptions): Promise<JsMind> {
+        const mergedOptions = mergeOptions(options);
         const serializer = new JmMindJsonSerializer();
-        const view = await JmView.create(container, options.view);
-        const layout = new JmLayout(options.layout, view);
-        return new JsMind(options, serializer, view, layout);
+        const layout = new JmLayout(mergedOptions.layout);
+        const view = await JmView.create(container, layout, mergedOptions.view);
+        return new JsMind(mergedOptions, serializer, view, layout);
     }
 
     /**
@@ -77,8 +78,8 @@ class JsMind {
         this.mind = mind;
 
         await this.view.createMindNodes(mind);
-        const changedNodeIds = this.layout.calculate(mind);
-        await this.view.render(mind, changedNodeIds);
+        this.layout.calculate(mind);
+        await this.view.settle(mind);
         console.log(this.mind);
     }
 

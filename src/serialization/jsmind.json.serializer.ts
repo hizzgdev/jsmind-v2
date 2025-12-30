@@ -28,7 +28,7 @@ export interface SerializedNode {
     parent: string | null;
     children: string[];
     folded: boolean;
-    side: JmNodeSide | null;
+    side: JmNodeSide;
     data: Record<string, unknown>;
 }
 

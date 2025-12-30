@@ -1,40 +1,75 @@
+import { JmCache } from './common/cache.ts';
+import { debug } from './common/debug.ts';
+import { JmPoint, JmSize } from './common/index.ts';
 import type { LayoutOptions } from './common/option.ts';
 import type { JmMind } from './model/jsmind.mind.ts';
 import { JmNode, JmNodeSide } from './model/node.ts';
-import type { JmView } from './view/index.ts';
-
 
 export class JmLayout {
 
     private readonly nodeInSidePredicateA = (node: JmNode)=>{return node.side === JmNodeSide.SideA;};
 
-    private readonly nodeInSidePredicateB = (node: JmNode)=>{return node.side === JmNodeSide.SideA;};
+    private readonly nodeInSidePredicateB = (node: JmNode)=>{return node.side === JmNodeSide.SideB;};
+
+    private readonly nodeOutcomePointCache = new JmCache<JmNode, JmPoint>((node: JmNode)=>node.id);
+
+    private readonly nodeOffsetCache = new JmCache<JmNode, JmPoint>((node: JmNode)=>node.id);
 
     private readonly nodeHasCousinsPredicate = (node: JmNode)=>{
         return node.children.length > 0 && (node.parent?.children?.length ?? 0) > 1;
     };
 
-    view: JmView;
-
     options: LayoutOptions;
 
-    constructor(options: LayoutOptions, view: JmView) {
+    constructor(options: LayoutOptions) {
         this.options = options;
-        this.view = view;
     }
 
     /**
      * Layout the mind map.
      * @param _mind - The mind map data model
-     * @param _view - The view instance
      * @returns The list of node IDs that need to be updated
      */
     calculate(mind: JmMind): string[] {
+        this.nodeOutcomePointCache.clear();
+        this.nodeOffsetCache.clear();
+
         const rootNode = mind._root;
         this._arrange(rootNode);
         this._markInvisibleNodes(rootNode);
         this._calculateOffset(rootNode);
         return [];
+    }
+
+    calculateBoundingBoxSize(mind: JmMind): JmSize {
+        const rootNode = mind._root;
+        const rootLayoutData = rootNode._data.layout;
+        const rootMaxX = rootNode._data.size.width / 2;
+        const rootMinX = 0 - rootMaxX;
+
+        const outcomePointsX = Object.values(mind._nodes)
+            .filter((node: JmNode)=>node._data.layout.visible)
+            .map((node: JmNode)=>this._getNodeOutcomePoint(node))
+            .map((p: JmPoint)=>p.x);
+
+        const minX = Math.min(...outcomePointsX);
+        const maxX = Math.max(...outcomePointsX);
+
+        const width = Math.max(rootMaxX, maxX) - Math.min(rootMinX, minX);
+        const height = rootLayoutData.outerSize.height;
+        return new JmSize(width, height);
+    }
+
+    calculateNodePoint(node: JmNode): JmPoint {
+        const size = node._data.size;
+        const offset = this._getNodeOffset(node);
+        const x = offset.x + (size.width * (node._data.layout.side - 1)) / 2;
+        const y = offset.y - size.height / 2;
+        return new JmPoint(x, y);
+    }
+
+    isVisible(node: JmNode): boolean {
+        return node._data.layout.visible;
     }
 
     private _arrange(rootNode: JmNode) {
@@ -53,10 +88,10 @@ export class JmLayout {
     }
 
     private _markInvisibleNodes(node: JmNode) {
-        // console.log('markInvisibleNodes', this.view.getSize(node));
-        this.traverseRecursively(node, (n: JmNode)=>{
+        this._traverseRecursively(node, (n: JmNode)=>{
+            // debug('markInvisibleNodes', n.id, n.content.getText(), n.folded, n._data.layout.visible);
             if(n.folded) {
-                this.traverseRecursively(n, (invisibleNode: JmNode)=>{invisibleNode._data.layout.visible = false;});
+                this._traverseRecursively(n, (invisibleNode: JmNode)=>{invisibleNode._data.layout.visible = false;});
                 return true;
             }
             return false;
@@ -75,19 +110,22 @@ export class JmLayout {
         let offsetHeight = 0;
         let totalHeight = 0;
         const visibleNodes = nodes.filter((node: JmNode)=>node._data.layout.visible);
+        // debug('visibleNodes', visibleNodes.length, isFirstLevelNodes);
+        // debug('calculateNodesOffset options', this.options);
         visibleNodes.forEach((node: JmNode)=>{
-            const parentSize = this.view.getSize(node.parent!);
+            const parentSize = node.parent!._data.size;
             const parentLayout = node.parent!._data.layout;
             const layoutData = node._data.layout;
             const expanderSpace = !!isFirstLevelNodes ? 0 : this.options.expanderSize * layoutData.side;
             const cousinSpace = this.nodeHasCousinsPredicate(node) ? this.options.cousinSpace : 0;
             const height = Math.max(
                 this._calculateNodesOffset(node.children, false),
-                this.view.getSize(node).height
+                node._data.size.height
             ) + cousinSpace;
             layoutData.outerSize.height = height;
             layoutData.offset.y = offsetHeight - height / 2;
             layoutData.offset.x = this.options.parentChildSpace * layoutData.side + parentSize.width * (parentLayout.side + layoutData.side) / 2 + expanderSpace;
+            debug('calculateNodesOffset', layoutData);
             offsetHeight += height + this.options.siblingSpace;
             totalHeight += height;
         });
@@ -97,19 +135,59 @@ export class JmLayout {
         const halfTotalHeight = totalHeight / 2;
         visibleNodes.forEach((node: JmNode)=>{
             node._data.layout.offset.y += halfTotalHeight;
+            debug('calculateNodesOffset2', node._data.layout);
         });
         return totalHeight;
     }
+
+    private _getNodeOutcomePoint(node: JmNode): JmPoint {
+        if(this.nodeOutcomePointCache.contains(node)) {
+            return this.nodeOutcomePointCache.get(node)!;
+        }
+
+        const layoutData = node._data.layout;
+        const nodeSize = node._data.size;
+        if(node.isRoot()) {
+            return new JmPoint(0, 0);
+        }
+        const offset = this._getNodeOffset(node);
+        const x = offset.x + (nodeSize.width + this.options.expanderSize) * layoutData.side;
+        const y = offset.y;
+        const point = new JmPoint(x, y);
+
+        this.nodeOutcomePointCache.put(node, point);
+        return point;
+    }
+
+    private _getNodeOffset(node: JmNode): JmPoint {
+        if(this.nodeOffsetCache.contains(node)) {
+            return this.nodeOffsetCache.get(node)!;
+        }
+
+        const layoutData = node._data.layout;
+        let x = layoutData.offset.x;
+        let y = layoutData.offset.y;
+        if(!node.isRoot()) {
+            const parentOffset = this._getNodeOffset(node.parent!);
+            x += parentOffset.x;
+            y += parentOffset.y;
+        }
+        const point = new JmPoint(x, y);
+
+        this.nodeOffsetCache.put(node, point);
+        return point;
+    }
+
 
     /**
      * Traverse the node and its children recursively.
      * @param node - The node to start traversing from
      * @param func - The function to call for each node, return true to stop traversing
      */
-    private traverseRecursively(node: JmNode, func: (node: JmNode) => boolean | void): void {
+    private _traverseRecursively(node: JmNode, func: (node: JmNode) => boolean | void): void {
         if(func(node) === true) {
             return;
         }
-        node.children.forEach((child: JmNode)=>this.traverseRecursively(child, func));
+        node.children.forEach((child: JmNode)=>this._traverseRecursively(child, func));
     }
 }

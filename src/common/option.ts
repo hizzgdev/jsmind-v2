@@ -21,8 +21,16 @@ export interface MindOptions {
     rootNodeId: string;
 }
 
+export interface ViewPadding {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+
 export interface ViewOptions {
     theme: string;
+    padding: ViewPadding;
 }
 
 export interface LayoutOptions {
@@ -54,7 +62,13 @@ export const DEFAULT_OPTIONS: JsMindOptions = {
         rootNodeId: 'root'
     },
     view: {
-        theme: 'default'
+        theme: 'default',
+        padding: {
+            left: 50,
+            right: 50,
+            top: 100,
+            bottom: 100
+        }
     },
     layout: {
         parentChildSpace: 30,
@@ -64,3 +78,31 @@ export const DEFAULT_OPTIONS: JsMindOptions = {
     }
 };
 
+/**
+ * Merges the provided options with the default options and returns a new options object.
+ *
+ * @param options - Partial options to merge with default options
+ * @returns A new merged options object
+ *
+ * @public
+ */
+export function mergeOptions(options?: Partial<JsMindOptions>): JsMindOptions {
+    if (!options) {
+        return { ...DEFAULT_OPTIONS };
+    }
+
+    return {
+        mind: {
+            ...DEFAULT_OPTIONS.mind,
+            ...(options.mind || {})
+        },
+        view: {
+            ...DEFAULT_OPTIONS.view,
+            ...(options.view || {})
+        },
+        layout: {
+            ...DEFAULT_OPTIONS.layout,
+            ...(options.layout || {})
+        }
+    };
+}

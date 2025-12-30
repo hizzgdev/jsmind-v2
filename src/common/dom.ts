@@ -30,11 +30,17 @@ export class JmDomUtility {
     }
 
     static async measureElement(element: JmElement, container: JmElement): Promise<DOMRect> {
-        return await DmUtility.measureElement(element.element, container.element);
+        return await DomUtility.measureElement(element.element, container.element);
     }
 }
 
-export class DmUtility {
+export class DomUtility {
+    static createElement(tagName: string, className: string): HTMLElement {
+        const element = document.createElement(tagName);
+        element.classList.add(className);
+        return element;
+    }
+
     static async measureElement(element: HTMLElement, container: HTMLElement): Promise<DOMRect> {
         const originalDisplay = element.style.display;
         const originalVisibility = element.style.visibility;
@@ -88,6 +94,10 @@ export class JmElement {
             throw new JsMindError('Rect is not measured yet', { element: this._element });
         }
         return this._cachedRect;
+    }
+
+    get style(): CSSStyleDeclaration {
+        return this._element.style;
     }
 
     setAttribute(key: string, value: string): void {

@@ -12,7 +12,7 @@ test('JmNode', () => {
     assert.strictEqual(node.id, '1');
     assert.strictEqual(node.content.value, '');
     assert.strictEqual(node.parent, null);
-    assert.strictEqual(node.side, null);
+    assert.strictEqual(node.side, JmNodeSide.SideA);
     assert.strictEqual(node.children.length, 0);
     assert.strictEqual(node.folded, false);
     assert.deepEqual(node.data, {});
@@ -21,7 +21,7 @@ test('JmNode', () => {
 test('JmNode with null id', () => {
 
     assert.throws(() => {
-        new JmNode(a, testContent);
+        new JmNode(null as unknown as string, testContent);
     });
 });
 

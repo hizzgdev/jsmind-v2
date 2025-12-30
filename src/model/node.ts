@@ -36,8 +36,6 @@ export interface NodeDestinationOptions {
 
 export class JmNodeViewData {
     element: JmElement | null = null;
-
-    size: JmSize = new JmSize(0, 0);
 }
 
 export class JmNodeLayoutData {
@@ -54,6 +52,8 @@ class NodeInternalData {
     view: JmNodeViewData = new JmNodeViewData();
 
     layout: JmNodeLayoutData = new JmNodeLayoutData();
+
+    size: JmSize = new JmSize(0, 0);
 }
 /**
  * Node of mind map.
@@ -77,7 +77,7 @@ export class JmNode {
     folded: boolean;
 
     /** The direction of the node. */
-    side: JmNodeSide | null;
+    side: JmNodeSide;
 
     /** Additional data associated with the node. */
     data: Record<string, unknown>;
@@ -105,7 +105,7 @@ export class JmNode {
         this.parent = null;
         this.children = [];
         this.folded = false;
-        this.side = null;
+        this.side = JmNodeSide.SideA;
         this.data = {};
         this._data = new NodeInternalData();
     }
@@ -163,6 +163,10 @@ export class JmNode {
             }
         }
         return false;
+    }
+
+    isRoot(): boolean {
+        return this.parent === null;
     }
 }
 

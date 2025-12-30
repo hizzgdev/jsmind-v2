@@ -125,7 +125,7 @@ test('addChildNode with partial NodeCreationOptions - preserves defaults', () =>
     const options = {
         nodeId: 'partial_node_789',
         folded: true
-        // direction and data are omitted, should preserve JmNode constructor defaults
+        // side and data are omitted, should preserve JmNode constructor defaults
     };
 
     const child = mind.addNode(JmNodeContent.createText('partial options'), { parentId: mind.root.id }, options);
@@ -134,7 +134,7 @@ test('addChildNode with partial NodeCreationOptions - preserves defaults', () =>
     assert.strictEqual(child.id, 'partial_node_789');
     assert.strictEqual(child.content.value, 'partial options');
     assert.strictEqual(child.folded, true); // Explicitly set
-    assert.strictEqual(child.side, null); // Preserved from JmNode constructor default
+    assert.strictEqual(child.side, JmNodeSide.SideA); // Preserved from JmNode constructor default
     assert.deepStrictEqual(child.data, {}); // Preserved from JmNode constructor default
 });
 
@@ -148,7 +148,7 @@ test('addChildNode without options - preserves all constructor defaults', () => 
     assert.ok(child.id); // Generated ID
     assert.strictEqual(child.content.value, 'no options');
     assert.strictEqual(child.folded, false); // JmNode constructor default
-    assert.strictEqual(child.side, null); // JmNode constructor default
+    assert.strictEqual(child.side, JmNodeSide.SideA); // JmNode constructor default
     assert.deepStrictEqual(child.data, {}); // JmNode constructor default
 });
 
@@ -561,7 +561,7 @@ test('Observe update node', () => {
     const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
     const node1 = mind.addNode(JmNodeContent.createText('node1'), { parentId: mind.root.id });
     node1.content = JmNodeContent.createText('new name of node1');
-    node1.side = JmNodeSide.SideA;
+    node1.side = JmNodeSide.SideB;
     node1.folded = true;
     node1.data['a'] = 'b';
     assert.strictEqual(mockedNotifyObservers.mock.callCount(), 4);
@@ -581,8 +581,8 @@ test('Observe update node', () => {
     const eventData1 = events[1].data as JmMindEventDataOnNodeUpdated;
     assert.equal(eventData1.node.id, node1.id);
     assert.equal(eventData1.property, 'side');
-    assert.equal(eventData1.originValue, null);
-    assert.equal(eventData1.newValue, JmNodeSide.SideA);
+    assert.equal(eventData1.originValue, JmNodeSide.SideA);
+    assert.equal(eventData1.newValue, JmNodeSide.SideB);
 
     const eventData2 = events[2].data as JmMindEventDataOnNodeUpdated;
     assert.equal(eventData2.node.id, node1.id);

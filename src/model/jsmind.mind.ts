@@ -300,7 +300,8 @@ export class JmMind {
      */
     _createRootNode(): JmNode {
         const nodeOptions = {
-            nodeId: this.options.rootNodeId
+            nodeId: this.options.rootNodeId,
+            side: JmNodeSide.Center
         };
         return this._newNode(JmNodeContent.createText(this.meta.name), nodeOptions);
     }
