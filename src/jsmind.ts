@@ -80,6 +80,7 @@ class JsMind {
         await this.view.createMindNodes(mind);
         this.layout.calculate(mind);
         await this.view.settle(mind);
+        this.layout.printCacheStat();
         console.log(this.mind);
     }
 

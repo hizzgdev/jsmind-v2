@@ -7,19 +7,13 @@ export class JmCache<K, V> {
 
     private readonly keySelector: (key: K) => string;
 
+    private hits: number = 0;
+
+    private misses: number = 0;
+
     constructor(keySelector: (key: K) => string) {
         this.cache = new Map();
         this.keySelector = keySelector;
-    }
-
-    /**
-     * Checks if the cache contains a value for the given key.
-     *
-     * @param key - The key to check
-     * @returns True if the cache contains a value for this key
-     */
-    contains(key: K): boolean {
-        return this.cache.has(this.keySelector(key));
     }
 
     /**
@@ -29,7 +23,14 @@ export class JmCache<K, V> {
      * @returns The cached value, or undefined if not found
      */
     get(key: K): V | undefined {
-        return this.cache.get(this.keySelector(key));
+        const cacheKey = this.keySelector(key);
+        const exists = this.cache.has(cacheKey);
+        if (exists) {
+            this.hits++;
+        } else {
+            this.misses++;
+        }
+        return this.cache.get(cacheKey);
     }
 
     /**
@@ -47,5 +48,39 @@ export class JmCache<K, V> {
      */
     clear(): void {
         this.cache.clear();
+        this.hits = 0;
+        this.misses = 0;
+    }
+
+    /**
+     * Gets cache statistics including hit rate.
+     *
+     * @returns An object containing hits, misses, total requests, and hit rate
+     */
+    stat(): {
+        hits: number;
+        misses: number;
+        total: number;
+        hitRate: number;
+    } {
+        const total = this.hits + this.misses;
+        const hitRate = total > 0 ? this.hits / total : 0;
+        return {
+            hits: this.hits,
+            misses: this.misses,
+            total,
+            hitRate,
+        };
+    }
+
+    /**
+     * Prints cache statistics to the console.
+     */
+    printStat(cacheName: string): void {
+        const stats = this.stat();
+        console.log(`${cacheName} Statistics:`);
+        console.log(`  Hits: ${stats.hits}`);
+        console.log(`  Misses: ${stats.misses}`);
+        console.log(`  Total: ${stats.total} (${(stats.hitRate * 100).toFixed(2)}%)`);
     }
 }

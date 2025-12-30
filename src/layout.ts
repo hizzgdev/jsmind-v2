@@ -57,6 +57,8 @@ export class JmLayout {
 
         const width = Math.max(rootMaxX, maxX) - Math.min(rootMinX, minX);
         const height = rootLayoutData.outerSize.height;
+
+        this.printCacheStat();
         return new JmSize(width, height);
     }
 
@@ -70,6 +72,11 @@ export class JmLayout {
 
     isVisible(node: JmNode): boolean {
         return node._data.layout.visible;
+    }
+
+    printCacheStat(): void {
+        this.nodeOutcomePointCache.printStat('nodeOutcomePointCache');
+        this.nodeOffsetCache.printStat('nodeOffsetCache');
     }
 
     private _arrange(rootNode: JmNode) {
@@ -153,8 +160,9 @@ export class JmLayout {
     }
 
     private _getNodeOutcomePoint(node: JmNode): JmPoint {
-        if(this.nodeOutcomePointCache.contains(node)) {
-            return this.nodeOutcomePointCache.get(node)!;
+        const cached = this.nodeOutcomePointCache.get(node);
+        if(cached !== undefined) {
+            return cached;
         }
 
         const layoutData = node._data.layout;
@@ -172,8 +180,9 @@ export class JmLayout {
     }
 
     private _getNodeOffset(node: JmNode): JmPoint {
-        if(this.nodeOffsetCache.contains(node)) {
-            return this.nodeOffsetCache.get(node)!;
+        const cached = this.nodeOffsetCache.get(node);
+        if(cached !== undefined) {
+            return cached;
         }
 
         const layoutData = node._data.layout;
