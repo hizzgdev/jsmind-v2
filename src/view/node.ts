@@ -1,7 +1,7 @@
 import { type JmNode } from '../model/node.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
-import { debug } from '../common/debug.ts';
+// import { debug } from '../common/debug.ts';
 
 /**
  * View operator for nodes.
@@ -47,7 +47,6 @@ export class JmNodeView {
     updateNodeViewsSize(viewSize: JmSize) {
         this.container.style.width = `${viewSize.width}px`;
         this.container.style.height = `${viewSize.height}px`;
-        debug('updateNodeViewsSize', viewSize);
     }
 
     placeNode(node: JmNode, absolutePoint: JmPoint) {

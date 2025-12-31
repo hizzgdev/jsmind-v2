@@ -11,9 +11,9 @@ export class JmLayout {
 
     private readonly nodeInSidePredicateB = (node: JmNode)=>{return node.side === JmNodeSide.SideB;};
 
-    private readonly nodeOutcomePointCache = new JmCache<JmNode, JmPoint>((node: JmNode)=>node.id);
+    private readonly nodeOutgoingPointCache = new JmCache<JmNode, JmPoint>((node: JmNode)=>node.id);
 
-    private readonly nodeOffsetCache = new JmCache<JmNode, JmPoint>((node: JmNode)=>node.id);
+    private readonly nodeInComingPointCache = new JmCache<JmNode, JmPoint>((node: JmNode)=>node.id);
 
     private readonly nodeHasCousinsPredicate = (node: JmNode)=>{
         return node.children.length > 0 && (node.parent?.children?.length ?? 0) > 1;
@@ -31,8 +31,8 @@ export class JmLayout {
      * @returns The list of node IDs that need to be updated
      */
     calculate(mind: JmMind): string[] {
-        this.nodeOutcomePointCache.clear();
-        this.nodeOffsetCache.clear();
+        this.nodeOutgoingPointCache.clear();
+        this.nodeInComingPointCache.clear();
 
         const rootNode = mind._root;
         this._arrange(rootNode);
@@ -49,14 +49,14 @@ export class JmLayout {
 
         const outcomePointsX = Object.values(mind._nodes)
             .filter((node: JmNode)=>node._data.layout.visible)
-            .map((node: JmNode)=>this._getNodeOutcomePoint(node))
+            .map((node: JmNode)=>this.calculateNodeOutgoingPoint(node))
             .map((p: JmPoint)=>p.x);
 
         const minX = Math.min(...outcomePointsX);
         const maxX = Math.max(...outcomePointsX);
 
         const width = Math.max(rootMaxX, maxX) - Math.min(rootMinX, minX);
-        const height = rootLayoutData.outerSize.height;
+        const height = rootLayoutData.withDescendantsSize.height;
 
         this.printCacheStat();
         return new JmSize(width, height);
@@ -64,10 +64,52 @@ export class JmLayout {
 
     calculateNodePoint(node: JmNode): JmPoint {
         const size = node._data.size;
-        const offset = this._getNodeOffset(node);
+        const offset = this.calculateNodeIncomingPoint(node);
         const x = offset.x + (size.width * (node._data.layout.side - 1)) / 2;
         const y = offset.y - size.height / 2;
-        return new JmPoint(x, y);
+        const point = new JmPoint(x, y);
+        // debug('calculateNodePoint', node.content.getText(), size, offset, point);
+        return point;
+    }
+
+    calculateNodeOutgoingPoint(node: JmNode): JmPoint {
+        const cached = this.nodeOutgoingPointCache.get(node);
+        if(cached !== undefined) {
+            return cached;
+        }
+
+        const layoutData = node._data.layout;
+        const nodeSize = node._data.size;
+        if(node.isRoot()) {
+            return new JmPoint(0, 0);
+        }
+        const offset = this.calculateNodeIncomingPoint(node);
+        const x = offset.x + (nodeSize.width + this.options.expanderSize) * layoutData.side;
+        const y = offset.y;
+        const point = new JmPoint(x, y);
+
+        this.nodeOutgoingPointCache.put(node, point);
+        return point;
+    }
+
+    calculateNodeIncomingPoint(node: JmNode): JmPoint {
+        const cached = this.nodeInComingPointCache.get(node);
+        if(cached !== undefined) {
+            return cached;
+        }
+
+        const layoutData = node._data.layout;
+        let x = layoutData.offsetToParent.x;
+        let y = layoutData.offsetToParent.y;
+        if(!node.isRoot()) {
+            const parentOffset = this.calculateNodeIncomingPoint(node.parent!);
+            x += parentOffset.x;
+            y += parentOffset.y;
+        }
+        const point = new JmPoint(x, y);
+
+        this.nodeInComingPointCache.put(node, point);
+        return point;
     }
 
     isVisible(node: JmNode): boolean {
@@ -75,8 +117,9 @@ export class JmLayout {
     }
 
     printCacheStat(): void {
-        this.nodeOutcomePointCache.printStat('nodeOutcomePointCache');
-        this.nodeOffsetCache.printStat('nodeOffsetCache');
+        debug('printCacheStat', this.options);
+        this.nodeOutgoingPointCache.printStat('nodeOutcomePointCache');
+        this.nodeInComingPointCache.printStat('nodeOffsetCache');
     }
 
     private _arrange(rootNode: JmNode) {
@@ -112,7 +155,7 @@ export class JmLayout {
         const heightA = this._calculateNodesOffset(nodesOnSideA, true);
         const heightB = this._calculateNodesOffset(nodesOnSideB, true);
         // debug('calculateOffset', heightRoot, heightA, heightB);
-        rootNode._data.layout.outerSize.height = Math.max(heightRoot, heightA, heightB);
+        rootNode._data.layout.withDescendantsSize.height = Math.max(heightRoot, heightA, heightB);
     }
 
     /**
@@ -137,66 +180,26 @@ export class JmLayout {
                 this._calculateNodesOffset(node.children, false),
                 node._data.size.height
             ) + cousinSpace;
-            layoutData.outerSize.height = height;
-            layoutData.offset.y = offsetY - height / 2;
-            debug('calculateNodesOffset', parentSize);
-            layoutData.offset.x = this.options.parentChildSpace * layoutData.side + parentSize.width * (parentLayout.side + layoutData.side) / 2 + expanderSpace;
+            layoutData.withDescendantsSize.height = height;
+            layoutData.offsetToParent.y = offsetY - height / 2;
+            // debug(`calculateNodesOffset for node ${node.content.getText()}`, offsetY, height);
+            layoutData.offsetToParent.x = this.options.parentChildSpace * layoutData.side + parentSize.width * (parentLayout.side + layoutData.side) / 2 + expanderSpace;
             if(!node.isRoot()) {
-                layoutData.offset.x += this.options.expanderSize * layoutData.side;
+                layoutData.offsetToParent.x += this.options.expanderSize * layoutData.side;
             }
-            // debug('calculateNodesOffset', layoutData);
             offsetY = offsetY - height - this.options.siblingSpace;
             totalHeight += height;
         });
+        // debug('calculateNodesOffset totalHeight', totalHeight);
         if(visibleNodes.length > 1) {
             totalHeight += this.options.siblingSpace * (visibleNodes.length - 1);
         }
         const halfTotalHeight = totalHeight / 2;
         visibleNodes.forEach((node: JmNode)=>{
-            node._data.layout.offset.y += halfTotalHeight;
+            node._data.layout.offsetToParent.y += halfTotalHeight;
             // debug('calculateNodesOffset2', node._data.layout);
         });
         return totalHeight;
-    }
-
-    private _getNodeOutcomePoint(node: JmNode): JmPoint {
-        const cached = this.nodeOutcomePointCache.get(node);
-        if(cached !== undefined) {
-            return cached;
-        }
-
-        const layoutData = node._data.layout;
-        const nodeSize = node._data.size;
-        if(node.isRoot()) {
-            return new JmPoint(0, 0);
-        }
-        const offset = this._getNodeOffset(node);
-        const x = offset.x + (nodeSize.width + this.options.expanderSize) * layoutData.side;
-        const y = offset.y;
-        const point = new JmPoint(x, y);
-
-        this.nodeOutcomePointCache.put(node, point);
-        return point;
-    }
-
-    private _getNodeOffset(node: JmNode): JmPoint {
-        const cached = this.nodeOffsetCache.get(node);
-        if(cached !== undefined) {
-            return cached;
-        }
-
-        const layoutData = node._data.layout;
-        let x = layoutData.offset.x;
-        let y = layoutData.offset.y;
-        if(!node.isRoot()) {
-            const parentOffset = this._getNodeOffset(node.parent!);
-            x += parentOffset.x;
-            y += parentOffset.y;
-        }
-        const point = new JmPoint(x, y);
-
-        this.nodeOffsetCache.put(node, point);
-        return point;
     }
 
 

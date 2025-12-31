@@ -86,23 +86,40 @@ export const DEFAULT_OPTIONS: JsMindOptions = {
  *
  * @public
  */
-export function mergeOptions(options?: Partial<JsMindOptions>): JsMindOptions {
+export function mergeJsMindOptions(options?: Partial<JsMindOptions>): JsMindOptions {
     if (!options) {
         return { ...DEFAULT_OPTIONS };
     }
 
     return {
         mind: {
-            ...DEFAULT_OPTIONS.mind,
-            ...(options.mind || {})
+            ...mergeFlatOptions(DEFAULT_OPTIONS.mind, options.mind)
         },
         view: {
-            ...DEFAULT_OPTIONS.view,
-            ...(options.view || {})
+            ...mergeFlatOptions(DEFAULT_OPTIONS.view, options.view)
         },
         layout: {
-            ...DEFAULT_OPTIONS.layout,
-            ...(options.layout || {})
+            ...mergeFlatOptions(DEFAULT_OPTIONS.layout, options.layout)
         }
     };
+}
+
+
+/**
+ * Merges user values with default values.
+ *
+ * @private
+ * @param defaultValues - Default values.
+ * @param userValues - User-provided values.
+ * @returns Merged values.
+ */
+export function mergeFlatOptions<T>(defaultValues: T, userValues?: Partial<T>): T {
+    if (!userValues) {
+        return { ...defaultValues };
+    }
+
+    return {
+        ...defaultValues,
+        ...userValues
+    } as T;
 }

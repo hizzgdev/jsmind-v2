@@ -2,7 +2,7 @@
 import { JmMind } from './model/jsmind.mind.ts';
 import { JmMindJsonSerializer } from './serialization/jsmind.json.serializer.ts';
 import { JmNodeContent } from './model/jsmind.node.content.ts';
-import { mergeOptions, type JsMindOptions } from './common/option.ts';
+import { mergeJsMindOptions, type JsMindOptions } from './common/option.ts';
 import { JmView } from './view/index.ts';
 import { JmLayout } from './layout.ts';
 
@@ -61,7 +61,7 @@ class JsMind {
     }
 
     static async create(container: string | HTMLElement, options: JsMindOptions): Promise<JsMind> {
-        const mergedOptions = mergeOptions(options);
+        const mergedOptions = mergeJsMindOptions(options);
         const serializer = new JmMindJsonSerializer();
         const layout = new JmLayout(mergedOptions.layout);
         const view = await JmView.create(container, layout, mergedOptions.view);

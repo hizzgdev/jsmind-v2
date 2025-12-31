@@ -76,25 +76,35 @@ export class JmView {
     async settle(mind: JmMind, _changedNodeIds: string[] = []): Promise<void> {
         this._updateViewSize(mind);
         this.nodeView.updateNodeViewsSize(this.viewSize);
-        this._settleNode(mind);
-        // this.nodeView.settleNode(mind._root);
-        for (const edgeId in mind._edges) {
-            await this.edgeView.renderEdge(mind._edges[edgeId]);
-        }
+        this.edgeView.updateEdgeViewsSize(this.viewSize);
+        const viewOffset = this._getViewOffset();
+        this._settleNode(mind, viewOffset);
+        this._renderEdges(mind, viewOffset);
     }
 
-    private _settleNode(mind: JmMind): void {
-        const viewOffset = this._getViewOffset();
+    private _settleNode(mind: JmMind, viewOffset: JmPoint): void {
         Object.values(mind._nodes).forEach((node: JmNode)=>{
             if(this.layout.isVisible(node)) {
                 // reset custom style
                 const nodePoint = this.layout.calculateNodePoint(node);
-                const absolutePoint = new JmPoint(viewOffset.x + nodePoint.x, viewOffset.y + nodePoint.y);
+                const absolutePoint = nodePoint.offset(viewOffset);
                 this.nodeView.placeNode(node, absolutePoint);
             }else{
                 this.nodeView.hideNode(node);
             }
         });
+    }
+
+    private _renderEdges(mind: JmMind, viewOffset: JmPoint): void {
+        Object.values(mind._nodes)
+            .filter((node: JmNode)=>!node.isRoot())
+            .forEach((node: JmNode)=>{
+                const sourcePoint = this.layout.calculateNodeOutgoingPoint(node.parent!);
+                const targetPoint = this.layout.calculateNodeIncomingPoint(node);
+                const absoluteSourcePoint = sourcePoint.offset(viewOffset);
+                const absoluteTargetPoint = targetPoint.offset(viewOffset);
+                this.edgeView.drawLine(absoluteSourcePoint, absoluteTargetPoint, 'black');
+            });
     }
 
     private _getViewOffset(): JmPoint {

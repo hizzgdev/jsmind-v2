@@ -43,9 +43,9 @@ export class JmNodeLayoutData {
 
     visible: boolean = true;
 
-    outerSize: JmSize = new JmSize(0, 0);
+    withDescendantsSize: JmSize = new JmSize(0, 0);
 
-    offset: JmPoint = new JmPoint(0, 0);
+    offsetToParent: JmPoint = new JmPoint(0, 0);
 }
 
 class NodeInternalData {

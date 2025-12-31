@@ -2,7 +2,7 @@ import { JmObserverManager } from '../event/jsmind.observer.manager.ts';
 import { JmEdge, type EdgeCreationOptions, JmEdgeType } from './jsmind.edge.ts';
 import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeSide } from './node.ts';
 import { JmNodeContent } from './jsmind.node.content.ts';
-import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../common/option.ts';
+import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS, mergeFlatOptions } from '../common/option.ts';
 import { SimpleIdGenerator } from '../generation/index.ts';
 
 import { JmMindEvent } from '../event/index.ts';
@@ -45,8 +45,8 @@ export class JmMind {
      * @param options - Configuration options for the mind map.
      */
     constructor(metadata: Partial<MindMetadata> = {}, options: Partial<MindOptions> = {}) {
-        this.meta = this._merge(DEFAULT_METADATA, metadata) as MindMetadata;
-        this.options = this._merge(DEFAULT_OPTIONS.mind, options) as MindOptions;
+        this.meta = mergeFlatOptions(DEFAULT_METADATA, metadata) as MindMetadata;
+        this.options = mergeFlatOptions(DEFAULT_OPTIONS.mind, options) as MindOptions;
         this.observerManager = new JmObserverManager(this);
         this.nodeManager = new JmNodeManager(this);
         this._idGenerator = new SimpleIdGenerator('jm-');
@@ -327,25 +327,6 @@ export class JmMind {
             const oldSideData = sideChanged ? oldSide : null;
             this.observerManager.notifyObservers(JmMindEvent.onNodeMoved(node, oldParentId, oldPositionData, oldSideData));
         }
-    }
-
-    /**
-     * Merges user values with default values.
-     *
-     * @private
-     * @param defaultValues - Default values.
-     * @param userValues - User-provided values.
-     * @returns Merged values.
-     */
-    _merge<T>(defaultValues: T, userValues?: Partial<T>): T {
-        if (!userValues) {
-            return { ...defaultValues };
-        }
-
-        return {
-            ...defaultValues,
-            ...userValues
-        } as T;
     }
 
     /**

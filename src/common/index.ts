@@ -31,4 +31,8 @@ export class JmPoint {
         this.x = x;
         this.y = y;
     }
+
+    offset(offset: JmPoint): JmPoint {
+        return new JmPoint(this.x + offset.x, this.y + offset.y);
+    }
 }

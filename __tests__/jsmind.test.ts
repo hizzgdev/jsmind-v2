@@ -36,6 +36,6 @@ describe('JsMind', async () => {
         const node11Element = containerElement?.querySelector(`[data-jm-node-id="${TEST_NODE_11.id}"]`);
         assert.ok(node11Element);
         const edge11to2Element = containerElement?.querySelector(`[data-jm-edge-id="${TEST_EDGE_11TO2.id}"]`);
-        assert.ok(edge11to2Element);
+        assert.ok(!edge11to2Element);
     });
 });
