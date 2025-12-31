@@ -1,4 +1,5 @@
 import type { JmPoint, JmSize } from '../common/index.ts';
+import type { JmNode } from '../model/node.ts';
 
 /**
  * View operator for edges.
@@ -24,7 +25,7 @@ export class JmEdgeView {
         this.container.style.height = `${viewSize.height}px`;
     }
 
-    drawLine(sourcePoint: JmPoint, targetPoint: JmPoint, color: string): void {
+    drawLine(node: JmNode, sourcePoint: JmPoint, targetPoint: JmPoint, color: string): void {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         line.setAttribute('stroke', color);
         line.setAttribute('stroke-width', '1');
@@ -35,6 +36,7 @@ export class JmEdgeView {
         const x2 = targetPoint.x;
         const y2 = targetPoint.y;
         line.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' L ' + x2 + ' ' + y2);
+        node._data.view.leadingLine = line;
     }
 
     /**
@@ -47,6 +49,8 @@ export class JmEdgeView {
         const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         element.classList.add('jsmind-edges');
         innerContainer.appendChild(element);
+        element.style.width = `${innerContainer.clientWidth}px`;
+        element.style.height = `${innerContainer.clientHeight}px`;
         return element;
     }
 

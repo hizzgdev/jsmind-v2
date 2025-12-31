@@ -1,6 +1,7 @@
 import { type JmNode } from '../model/node.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
+import { debug } from '../common/debug.ts';
 // import { debug } from '../common/debug.ts';
 
 /**
@@ -22,8 +23,7 @@ export class JmNodeView {
         this.container = this._initNodesContainer(innerContainer);
     }
 
-    async createNodeView(node: JmNode): Promise<JmElement> {
-        // Check if already rendered
+    async createNode(node: JmNode): Promise<JmElement> {
         const existingElement = node._data.view.element;
         if (existingElement) {
             return Promise.resolve(existingElement);
@@ -37,14 +37,14 @@ export class JmNodeView {
             });
     }
 
-    removeNodeView(node: JmNode): void {
+    removeNode(node: JmNode): void {
         const element = node._data.view.element;
         if (element) {
             element.element.remove();
         }
     }
 
-    updateNodeViewsSize(viewSize: JmSize) {
+    updateCanvasSize(viewSize: JmSize) {
         this.container.style.width = `${viewSize.width}px`;
         this.container.style.height = `${viewSize.height}px`;
     }
@@ -72,6 +72,8 @@ export class JmNodeView {
     private _initNodesContainer(innerContainer: HTMLElement): HTMLElement {
         const element = DomUtility.createElement('div', 'jsmind-nodes');
         innerContainer.appendChild(element);
+        element.style.width = `${innerContainer.clientWidth}px`;
+        element.style.height = `${innerContainer.clientHeight}px`;
         return element;
     }
 

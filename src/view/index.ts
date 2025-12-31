@@ -8,6 +8,7 @@ import { DomUtility, ensureElementVisible } from '../common/dom.ts';
 import type { JmNode } from '../model/node.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
 import type { JmLayout } from '../layout.ts';
+import { debug } from '../common/debug.ts';
 
 /**
  * View of mind map.
@@ -69,15 +70,16 @@ export class JmView {
 
     async createMindNodes(mind: JmMind): Promise<void> {
         const promises = Object.values(mind._nodes)
-            .map((node: JmNode)=>this.nodeView.createNodeView(node));
+            .map((node: JmNode)=>this.nodeView.createNode(node));
         await Promise.all(promises);
     }
 
     async settle(mind: JmMind, _changedNodeIds: string[] = []): Promise<void> {
         this._updateViewSize(mind);
-        this.nodeView.updateNodeViewsSize(this.viewSize);
+        this.nodeView.updateCanvasSize(this.viewSize);
         this.edgeView.updateEdgeViewsSize(this.viewSize);
         const viewOffset = this._getViewOffset();
+        debug('getViewOffset', this.viewSize, viewOffset);
         this._settleNode(mind, viewOffset);
         this._renderEdges(mind, viewOffset);
     }
@@ -103,7 +105,7 @@ export class JmView {
                 const targetPoint = this.layout.calculateNodeIncomingPoint(node);
                 const absoluteSourcePoint = sourcePoint.offset(viewOffset);
                 const absoluteTargetPoint = targetPoint.offset(viewOffset);
-                this.edgeView.drawLine(absoluteSourcePoint, absoluteTargetPoint, 'black');
+                this.edgeView.drawLine(node, absoluteSourcePoint, absoluteTargetPoint, 'black');
             });
     }
 

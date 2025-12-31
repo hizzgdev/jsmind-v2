@@ -27,7 +27,7 @@ export default [
             'camelcase': 'error',
             'no-console': 'off',
             'no-var': 'error',
-            '@typescript-eslint/no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
+            '@typescript-eslint/no-unused-vars': ['error', {'argsIgnorePattern': '^_' }],
             '@typescript-eslint/no-explicit-any': 'error',
             '@typescript-eslint/no-this-alias': 'error',
             'prefer-const': 'error',

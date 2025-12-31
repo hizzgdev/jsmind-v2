@@ -4,28 +4,28 @@ import { JmCache } from '../../src/common/cache.ts';
 
 describe('JmCache', () => {
     it('should put and get values', () => {
-        const cache = new JmCache<string, number>((key: string) => key);
+        const cache = new JmCache<string, number>('test', (key: string) => key);
         cache.put('key1', 100);
         assert.strictEqual(cache.get('key1'), 100);
         assert.strictEqual(cache.get('non-existent'), undefined);
     });
 
     it('should check if a key exists', () => {
-        const cache = new JmCache<string, number>((key: string) => key);
+        const cache = new JmCache<string, number>('test', (key: string) => key);
         cache.put('key1', 100);
         assert.strictEqual(cache.get('key1') !== undefined, true);
         assert.strictEqual(cache.get('key2') !== undefined, false);
     });
 
     it('should overwrite existing values', () => {
-        const cache = new JmCache<string, number>((key: string) => key);
+        const cache = new JmCache<string, number>('test', (key: string) => key);
         cache.put('key1', 100);
         cache.put('key1', 200);
         assert.strictEqual(cache.get('key1'), 200);
     });
 
     it('should clear all cached values', () => {
-        const cache = new JmCache<string, number>((key: string) => key);
+        const cache = new JmCache<string, number>('test', (key: string) => key);
         cache.put('key1', 100);
         cache.put('key2', 200);
         cache.clear();
@@ -38,7 +38,7 @@ describe('JmCache', () => {
             id: string;
             name: string;
         }
-        const cache = new JmCache<TestKey, number>((key: TestKey) => key.id);
+        const cache = new JmCache<TestKey, number>('test', (key: TestKey) => key.id);
         const key1: TestKey = { id: 'id1', name: 'name1' };
         const key2: TestKey = { id: 'id1', name: 'name2' };
         cache.put(key1, 100);
@@ -47,7 +47,7 @@ describe('JmCache', () => {
 
     describe('stat', () => {
         it('should return zero statistics for empty cache', () => {
-            const cache = new JmCache<string, number>((key: string) => key);
+            const cache = new JmCache<string, number>('test', (key: string) => key);
             const stats = cache.stat();
             assert.strictEqual(stats.hits, 0);
             assert.strictEqual(stats.misses, 0);
@@ -56,7 +56,7 @@ describe('JmCache', () => {
         });
 
         it('should track hits correctly', () => {
-            const cache = new JmCache<string, number>((key: string) => key);
+            const cache = new JmCache<string, number>('test', (key: string) => key);
             cache.put('key1', 100);
             cache.put('key2', 200);
             cache.get('key1');
@@ -69,7 +69,7 @@ describe('JmCache', () => {
         });
 
         it('should track misses correctly', () => {
-            const cache = new JmCache<string, number>((key: string) => key);
+            const cache = new JmCache<string, number>('test', (key: string) => key);
             cache.get('key1');
             cache.get('key2');
             const stats = cache.stat();
@@ -80,7 +80,7 @@ describe('JmCache', () => {
         });
 
         it('should calculate hit rate correctly for mixed hits and misses', () => {
-            const cache = new JmCache<string, number>((key: string) => key);
+            const cache = new JmCache<string, number>('test', (key: string) => key);
             cache.put('key1', 100);
             cache.put('key2', 200);
             cache.get('key1'); // hit
@@ -96,7 +96,7 @@ describe('JmCache', () => {
         });
 
         it('should reset statistics when clear is called', () => {
-            const cache = new JmCache<string, number>((key: string) => key);
+            const cache = new JmCache<string, number>('test', (key: string) => key);
             cache.put('key1', 100);
             cache.get('key1');
             cache.get('key2');
@@ -109,7 +109,7 @@ describe('JmCache', () => {
         });
 
         it('should handle undefined cached values correctly', () => {
-            const cache = new JmCache<string, number | undefined>((key: string) => key);
+            const cache = new JmCache<string, number | undefined>('test', (key: string) => key);
             cache.put('key1', undefined);
             cache.get('key1'); // should be a hit, not a miss
             cache.get('key2'); // should be a miss

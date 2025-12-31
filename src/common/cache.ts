@@ -5,13 +5,16 @@
 export class JmCache<K, V> {
     private readonly cache: Map<string, V>;
 
+    private readonly name: string;
+
     private readonly keySelector: (key: K) => string;
 
     private hits: number = 0;
 
     private misses: number = 0;
 
-    constructor(keySelector: (key: K) => string) {
+    constructor(name: string, keySelector: (key: K) => string) {
+        this.name = name;
         this.cache = new Map();
         this.keySelector = keySelector;
     }
@@ -73,12 +76,22 @@ export class JmCache<K, V> {
         };
     }
 
+    wrap(key: K, func: () => V): V {
+        const cached = this.get(key);
+        if(cached !== undefined) {
+            return cached;
+        }
+        const value = func();
+        this.put(key, value);
+        return value;
+    }
+
     /**
      * Prints cache statistics to the console.
      */
-    printStat(cacheName: string): void {
+    printStats(): void {
         const stats = this.stat();
-        console.log(`${cacheName} Statistics:`);
+        console.log(`${this.name} Statistics:`);
         console.log(`  Hits: ${stats.hits}`);
         console.log(`  Misses: ${stats.misses}`);
         console.log(`  Total: ${stats.total} (${(stats.hitRate * 100).toFixed(2)}%)`);

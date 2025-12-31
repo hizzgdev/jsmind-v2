@@ -35,4 +35,6 @@ export class JmPoint {
     offset(offset: JmPoint): JmPoint {
         return new JmPoint(this.x + offset.x, this.y + offset.y);
     }
+
+    static readonly Zero: JmPoint = new JmPoint(0, 0);
 }

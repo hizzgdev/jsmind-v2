@@ -1,3 +1,4 @@
+import { debug } from './debug.ts';
 import { JsMindError } from './error.ts';
 import type { JmSize } from './index.ts';
 
@@ -52,6 +53,7 @@ export class DomUtility {
         container.appendChild(element);
         await untilNextFrame();
         const rect = element.getBoundingClientRect();
+        debug('measureElement', element.innerHTML, rect, container.clientWidth, container.clientHeight);
         container.removeChild(element);
         element.style.display = originalDisplay;
         element.style.visibility = originalVisibility;
