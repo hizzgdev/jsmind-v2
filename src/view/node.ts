@@ -1,8 +1,6 @@
 import { type JmNode } from '../model/node.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
-import { debug } from '../common/debug.ts';
-// import { debug } from '../common/debug.ts';
 
 /**
  * View operator for nodes.
