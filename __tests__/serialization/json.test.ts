@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { JmMindJsonSerializer, type SerializedMindMap } from '../../src/serialization/json.ts';
 import { JmMind } from '../../src/model/mind.ts';
-import { JmNodeContent } from '../../src/model/node.content.ts';
+import { JmNodeContent, JmNodeContentType } from '../../src/model/node.content.ts';
 import { JmNode, JmNodeSide } from '../../src/model/node.ts';
 import { JmEdge, JmEdgeType } from '../../src/model/edge.ts';
 import { JsMindError } from '../../src/common/error.ts';
@@ -31,14 +31,7 @@ test('JmMindJsonSerializer - serialize with null mind', () => {
 test('JmMindJsonSerializer - serialize basic mind map', () => {
     const serializer = new JmMindJsonSerializer();
 
-    // Create a simple mind map
-    let nodeCounter = 0;
-    const options = {
-        nodeIdGenerator: { newId: () => `node${++nodeCounter}` },
-        edgeIdGenerator: { newId: () => 'edge1' }
-    };
-
-    const mind = new JmMind(undefined, options);
+    const mind = new JmMind();
     mind.addNode(JmNodeContent.createText('Child'), { parentId: mind.root.id });
 
     const serialized = serializer.serialize(mind);
@@ -155,22 +148,22 @@ test('JmMindJsonSerializer - deserialize with invalid data', () => {
 test('JmMindJsonSerializer - deserialize basic mind map', () => {
     const serializer = new JmMindJsonSerializer();
 
+    const rootNode = { id: 'root',
+        content: { type: JmNodeContentType.Text, value: 'Root' },
+        parent: null,
+        children: [],
+        folded: false,
+        side: JmNodeSide.Center,
+        data: {}
+    };
     const testData = {
-        meta: { name: 'Test Mind', author: 'Test Author' },
-        root: { id: 'root' },
+        meta: { name: 'Test Mind', author: 'Test Author', version: '1.0' },
+        root: rootNode,
         nodes: {
-            root: {
-                id: 'root',
-                content: { type: 'text', value: 'Root' },
-                parent: null,
-                children: [],
-                folded: false,
-                side: JmNodeSide.Center,
-                data: {}
-            },
+            root: rootNode,
             child1: {
                 id: 'child1',
-                content: { type: 'text', value: 'Child 1' },
+                content: { type: JmNodeContentType.Text, value: 'Child 1' },
                 parent: 'root',
                 children: [],
                 folded: true,
@@ -214,10 +207,12 @@ test('JmMindJsonSerializer - deserialize node', () => {
 
     const nodeData = {
         id: 'test',
-        content: { type: 'text', value: 'Test Node' },
+        content: { type: JmNodeContentType.Text, value: 'Test Node' },
         folded: true,
-        side: -1,
-        data: { key: 'value' }
+        side: JmNodeSide.SideB,
+        data: { key: 'value' },
+        parent: 'root',
+        children: []
     };
 
     const node = serializer._deserializeNode(nodeData);
@@ -226,7 +221,7 @@ test('JmMindJsonSerializer - deserialize node', () => {
     assert.strictEqual(node.content.type, 'text');
     assert.strictEqual(node.content.value, 'Test Node');
     assert.strictEqual(node.folded, true);
-    assert.strictEqual(node.side, -1);
+    assert.strictEqual(node.side, JmNodeSide.SideB);
     assert.deepStrictEqual(node.data, { key: 'value' });
 });
 
@@ -254,7 +249,7 @@ test('JmMindJsonSerializer - round trip serialization', () => {
     const serializer = new JmMindJsonSerializer();
 
     // Create a simple mind map
-    const mind = new JmMind(undefined);
+    const mind = new JmMind();
     mind.addNode(JmNodeContent.createText('Child'), { parentId: mind.root.id });
 
     // Serialize
@@ -289,18 +284,20 @@ test('JmMindJsonSerializer - handle null/undefined values in node data', () => {
 
     const nodeData = {
         id: 'test',
-        content: { type: 'text', value: 'Test' },
-        folded: null,
-        side: undefined,
-        data: null
+        content: { type: JmNodeContentType.Text, value: 'Test' },
+        folded: false,
+        side: JmNodeSide.SideA,
+        data: {},
+        parent: 'root',
+        children: []
     };
 
     const node = serializer._deserializeNode(nodeData);
 
     assert.strictEqual(node.id, 'test');
     assert.strictEqual(node.content.value, 'Test');
-    assert.strictEqual(node.folded, null);
-    assert.strictEqual(node.side, undefined);
+    assert.strictEqual(node.folded, false);
+    assert.strictEqual(node.side, JmNodeSide.SideA);
     assert.deepStrictEqual(node.data, {}); // null value is converted to empty object
 });
 
