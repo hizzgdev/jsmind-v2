@@ -1,4 +1,4 @@
-import { type JmMind } from '../model/jsmind.mind.ts';
+import { type JmMind } from '../model/mind.ts';
 import { type JmMindEvent } from '../event/index.ts';
 import { JsMindError } from '../common/error.ts';
 import { type ViewOptions } from '../common/option.ts';

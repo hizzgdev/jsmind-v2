@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
 
-import { JmMind } from '../../src/model/jsmind.mind.ts';
+import { JmMind } from '../../src/model/mind.ts';
 import { JmMindEventType, JmMindEvent, JmMindEventDataOnNodeAdded, JmMindEventDataOnNodeRemoved, JmMindEventDataOnNodeUpdated, JmMindEventDataOnEdgeAdded, JmMindEventDataOnEdgeRemoved } from '../../src/event/index.ts';
 import { JmNode, JmNodeSide} from '../../src/model/node.ts';
-import { JmEdgeType } from '../../src/model/jsmind.edge.ts';
-import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
+import { JmEdgeType } from '../../src/model/edge.ts';
+import { JmNodeContent } from '../../src/model/node.content.ts';
 import { JsMindError } from '../../src/common/error.ts';
 
 const metadata = {

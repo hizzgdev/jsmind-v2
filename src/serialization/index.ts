@@ -4,15 +4,14 @@
  * @packageDocumentation
  */
 
-import { JsMindError } from '../common/error.ts';
-import { type JmMind } from '../model/jsmind.mind.ts';
+import { type JmMind } from '../model/mind.ts';
 
 /**
  * Base interface for all mind map serializers.
  *
  * @public
  */
-export class JmMindSerializer {
+export interface JmMindSerializer {
     /**
      * Serializes a mind map to the specific format.
      *
@@ -20,9 +19,7 @@ export class JmMindSerializer {
      * @returns The serialized data in the specific format.
      * @throws {@link Error} If not implemented.
      */
-    serialize(mind: JmMind): unknown {
-        throw new JsMindError('serialize method must be implemented', { cause: mind });
-    }
+    serialize(mind: JmMind): unknown;
 
     /**
      * Deserializes data to a mind map.
@@ -31,9 +28,7 @@ export class JmMindSerializer {
      * @returns The deserialized mind map.
      * @throws {@link Error} If not implemented.
      */
-    deserialize(data: unknown): JmMind {
-        throw new JsMindError('deserialize method must be implemented', { cause: data });
-    }
+    deserialize(data: unknown): JmMind;
 
     /**
      * Gets the format name this serializer supports.
@@ -41,9 +36,7 @@ export class JmMindSerializer {
      * @returns The format name.
      * @throws {@link Error} If not implemented.
      */
-    getFormatName(): string {
-        throw new JsMindError('getFormatName method must be implemented');
-    }
+    getFormatName(): string;
 
     /**
      * Validates if the data can be deserialized by this serializer.
@@ -52,8 +45,6 @@ export class JmMindSerializer {
      * @returns True if the data is valid for this format.
      * @throws {@link Error} If not implemented.
      */
-    validate(data: unknown): boolean {
-        throw new JsMindError('validate method must be implemented', { cause: data });
-    }
+    validate(data: unknown): boolean;
 }
 

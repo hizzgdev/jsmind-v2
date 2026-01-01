@@ -3,17 +3,16 @@
  *
  * @packageDocumentation
  */
-
-import { JmMindSerializer } from './jsmind.serializer.ts';
+import type { JmMindSerializer } from './index.ts';
 import { JsMindError } from '../common/error.ts';
-import { type JmMind } from '../model/jsmind.mind.ts';
+import { type JmMind } from '../model/mind.ts';
 
 /**
  * FreeMind serializer for mind maps (not yet implemented).
  *
  * @public
  */
-export class JmMindFreeMindSerializer extends JmMindSerializer {
+export class JmMindFreeMindSerializer implements JmMindSerializer {
     /**
      * Gets the format name this serializer supports.
      *

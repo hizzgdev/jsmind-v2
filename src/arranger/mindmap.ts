@@ -2,7 +2,7 @@ import { JmCache } from '../common/cache.ts';
 import { debug } from '../common/debug.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
 import type { LayoutOptions } from '../common/option.ts';
-import type { JmMind } from '../model/jsmind.mind.ts';
+import type { JmMind } from '../model/mind.ts';
 import { JmNode, JmNodeSide } from '../model/node.ts';
 import type { Arranger } from './index.ts';
 

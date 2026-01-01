@@ -1,5 +1,5 @@
 import { JmObserver } from './jsmind.observer.ts';
-import { type JmMind } from '../model/jsmind.mind.ts';
+import { type JmMind } from '../model/mind.ts';
 import { type JmMindEvent } from './index.ts';
 import { type JmView } from '../view/index.ts';
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JmNodeContentType, JmNodeContent } from '../../src/model/jsmind.node.content.ts';
+import { JmNodeContentType, JmNodeContent } from '../../src/model/node.content.ts';
 
 test('JmNodeContentType enum', () => {
     assert.ok(JmNodeContentType);

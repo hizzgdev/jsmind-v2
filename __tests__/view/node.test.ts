@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
 import { JmNodeView } from '../../src/view/node.ts';
-import { JmMind } from '../../src/model/jsmind.mind.ts';
-import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
+import { JmMind } from '../../src/model/mind.ts';
+import { JmNodeContent } from '../../src/model/node.content.ts';
 import { JmNodeSide } from '../../src/model/node.ts';
 import { JmSize, JmPoint } from '../../src/common/index.ts';
 import { JmElement, DomUtility } from '../../src/common/dom.ts';

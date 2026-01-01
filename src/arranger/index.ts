@@ -1,5 +1,5 @@
 import type { JmPoint, JmSize } from '../common/index.ts';
-import type { JmMind } from '../model/jsmind.mind.ts';
+import type { JmMind } from '../model/mind.ts';
 import type { JmNode } from '../model/node.ts';
 
 export interface Arranger {

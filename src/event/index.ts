@@ -1,4 +1,4 @@
-import type { JmEdge } from '../model/jsmind.edge.ts';
+import type { JmEdge } from '../model/edge.ts';
 import type { JmNode, JmNodeSide } from '../model/node.ts';
 
 /**

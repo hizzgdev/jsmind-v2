@@ -1,6 +1,6 @@
-import { JmMind } from '../../src/model/jsmind.mind.ts';
-import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
-import { JmEdgeType } from '../../src/model/jsmind.edge.ts';
+import { JmMind } from '../../src/model/mind.ts';
+import { JmNodeContent } from '../../src/model/node.content.ts';
+import { JmEdgeType } from '../../src/model/edge.ts';
 
 const metadata = {
     name: 'Test Mind Map',

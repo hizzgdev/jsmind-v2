@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it, before } from 'node:test';
 import { MindmapArranger } from '../../src/arranger/mindmap.ts';
-import { JmMind } from '../../src/model/jsmind.mind.ts';
-import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
+import { JmMind } from '../../src/model/mind.ts';
+import { JmNodeContent } from '../../src/model/node.content.ts';
 import { JmNodeSide, JmNode } from '../../src/model/node.ts';
 import { JmSize } from '../../src/common/index.ts';
 import { initDom } from '../setup/jsdom.ts';
