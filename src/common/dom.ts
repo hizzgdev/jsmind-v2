@@ -91,11 +91,15 @@ export class JmElement {
         this._element.innerHTML = value;
     }
 
-    get size(): JmSize {
+    get cachedRect(): JmSize {
         if (!this._cachedRect) {
             throw new JsMindError('Rect is not measured yet', { element: this._element });
         }
         return this._cachedRect;
+    }
+
+    set cachedRect(rect: DOMRect) {
+        this._cachedRect = rect;
     }
 
     get style(): CSSStyleDeclaration {
@@ -120,9 +124,5 @@ export class JmElement {
         } else {
             this._element.appendChild(child);
         }
-    }
-
-    cacheRect(rect: DOMRect): void {
-        this._cachedRect = rect;
     }
 }

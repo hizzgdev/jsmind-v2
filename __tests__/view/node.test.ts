@@ -23,30 +23,31 @@ describe('JmNodeView', () => {
         it('should create a node view element for a new node', async () => {
             const mind = new JmMind();
             const rootNode = mind._root;
-            const element = await nodeView.createNode(rootNode);
-            assert.ok(element);
+            const size = await nodeView.createAndMeasure(rootNode);
+            assert.ok(size);
+            const element = rootNode._data.view.element!;
             assert.ok(element instanceof JmElement);
             assert.strictEqual(element.getAttribute('node-id'), rootNode.id);
             assert.strictEqual(rootNode._data.view.element, element);
-            assert.ok(rootNode._data.size);
         });
 
         it('should return existing element if node view already created', async () => {
             const mind = new JmMind();
             const rootNode = mind._root;
-            const element1 = await nodeView.createNode(rootNode);
-            const element2 = await nodeView.createNode(rootNode);
-            assert.strictEqual(element1, element2);
+            const size1 = await nodeView.createAndMeasure(rootNode);
+            const size2 = await nodeView.createAndMeasure(rootNode);
+            assert.strictEqual(size1.width, size2.width);
+            assert.strictEqual(size1.height, size2.height);
         });
 
         it('should append element to container', async () => {
             const mind = new JmMind();
             const rootId = mind.root.id;
             const node1 = mind.addNode(JmNodeContent.createText('Test Node'), { parentId: rootId, side: JmNodeSide.SideA });
-            const element = await nodeView.createNode(node1);
+            await nodeView.createAndMeasure(node1);
             const container = innerContainer.querySelector('.jsmind-nodes');
             assert.ok(container);
-            assert.ok(container?.contains(element.element));
+            assert.ok(container?.contains(node1._data.view.element!.element));
         });
 
         it('should set node size from element size', async () => {
@@ -72,11 +73,11 @@ describe('JmNodeView', () => {
             try {
                 const mind = new JmMind();
                 const rootNode = mind._root;
-                const element = await nodeView.createNode(rootNode);
-                assert.strictEqual(rootNode._data.size.width, mockWidth);
-                assert.strictEqual(rootNode._data.size.height, mockHeight);
-                assert.strictEqual(element.size.width, mockWidth);
-                assert.strictEqual(element.size.height, mockHeight);
+                const size = await nodeView.createAndMeasure(rootNode);
+                assert.strictEqual(size.width, mockWidth);
+                assert.strictEqual(size.height, mockHeight);
+                assert.strictEqual(rootNode._data.view.element!.cachedRect.width, mockWidth);
+                assert.strictEqual(rootNode._data.view.element!.cachedRect.height, mockHeight);
             } finally {
                 // Restore original method
                 DomUtility.measureElement = originalMeasureElement;
@@ -87,7 +88,8 @@ describe('JmNodeView', () => {
             const mind = new JmMind();
             const rootId = mind.root.id;
             const node1 = mind.addNode(JmNodeContent.createText('Hello World'), { parentId: rootId, side: JmNodeSide.SideA });
-            const element = await nodeView.createNode(node1);
+            await nodeView.createAndMeasure(node1);
+            const element = node1._data.view.element!;
             assert.strictEqual(element.innerHTML, 'Hello World');
         });
 
@@ -96,8 +98,10 @@ describe('JmNodeView', () => {
             const rootId = mind.root.id;
             const node1 = mind.addNode(JmNodeContent.createText('Node 1'), { parentId: rootId, side: JmNodeSide.SideA });
             const node2 = mind.addNode(JmNodeContent.createText('Node 2'), { parentId: rootId, side: JmNodeSide.SideB });
-            const element1 = await nodeView.createNode(node1);
-            const element2 = await nodeView.createNode(node2);
+            await nodeView.createAndMeasure(node1);
+            await nodeView.createAndMeasure(node2);
+            const element1 = node1._data.view.element!;
+            const element2 = node2._data.view.element!;
             assert.notStrictEqual(element1, element2);
             assert.strictEqual(element1.getAttribute('node-id'), node1.id);
             assert.strictEqual(element2.getAttribute('node-id'), node2.id);
@@ -108,7 +112,8 @@ describe('JmNodeView', () => {
         it('should remove node view element from DOM', async () => {
             const mind = new JmMind();
             const rootNode = mind._root;
-            const element = await nodeView.createNode(rootNode);
+            await nodeView.createAndMeasure(rootNode);
+            const element = rootNode._data.view.element!;
             const container = innerContainer.querySelector('.jsmind-nodes');
             assert.ok(container?.contains(element.element));
             nodeView.removeNode(rootNode);
@@ -139,7 +144,7 @@ describe('JmNodeView', () => {
         it('should place node at specified absolute point', async () => {
             const mind = new JmMind();
             const rootNode = mind._root;
-            await nodeView.createNode(rootNode);
+            await nodeView.createAndMeasure(rootNode);
             const point = new JmPoint(100, 200);
             nodeView.placeNode(rootNode, point);
             const element = rootNode._data.view.element!;
@@ -153,7 +158,7 @@ describe('JmNodeView', () => {
             const mind = new JmMind();
             const rootId = mind.root.id;
             const node1 = mind.addNode(JmNodeContent.createText('Test Content'), { parentId: rootId, side: JmNodeSide.SideA });
-            await nodeView.createNode(node1);
+            await nodeView.createAndMeasure(node1);
             const point = new JmPoint(50, 50);
             nodeView.placeNode(node1, point);
             const element = node1._data.view.element!;
@@ -165,7 +170,7 @@ describe('JmNodeView', () => {
         it('should hide node element', async () => {
             const mind = new JmMind();
             const rootNode = mind._root;
-            await nodeView.createNode(rootNode);
+            await nodeView.createAndMeasure(rootNode);
             nodeView.hideNode(rootNode);
             const element = rootNode._data.view.element!;
             assert.strictEqual(element.style.display, 'none');

@@ -116,6 +116,7 @@
                     // Open the mind map
                     await _jm.open(_mind);
                     console.log('Mind map opened');
+                    console.log(_mind);
                 } catch (error) {
                     console.error('Error creating mind map:', error);
                     alert('Error: ' + error.message);

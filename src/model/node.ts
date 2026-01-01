@@ -45,6 +45,8 @@ export class JmNodeLayoutData {
 
     visible: boolean = true;
 
+    size: JmSize = new JmSize(0, 0);
+
     withDescendantsSize: JmSize = new JmSize(0, 0);
 
     offsetToParent: JmPoint = new JmPoint(0, 0);
@@ -54,8 +56,6 @@ class NodeInternalData {
     view: JmNodeViewData = new JmNodeViewData();
 
     layout: JmNodeLayoutData = new JmNodeLayoutData();
-
-    size: JmSize = new JmSize(0, 0);
 }
 /**
  * Node of mind map.

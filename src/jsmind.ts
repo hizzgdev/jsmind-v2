@@ -4,7 +4,8 @@ import { JmMindJsonSerializer } from './serialization/jsmind.json.serializer.ts'
 import { JmNodeContent } from './model/jsmind.node.content.ts';
 import { mergeJsMindOptions, type JsMindOptions } from './common/option.ts';
 import { JmView } from './view/index.ts';
-import { JmLayout } from './layout.ts';
+import { MindmapArranger } from './arranger/mindmap.ts';
+import type { Arranger } from './arranger/index.ts';
 
 /**
  * Main class for jsMind mind map operations.
@@ -42,8 +43,8 @@ class JsMind {
     /** The serializer used for serialization operations. */
     serializer: JmMindJsonSerializer;
 
-    /** The layout instance for calculating the layout of the mind map. */
-    private readonly layout: JmLayout;
+    /** The arranger instance for calculating the layout of the mind map. */
+    private readonly arranger: Arranger;
 
     /** The view instance for rendering the mind map. */
     private readonly view: JmView;
@@ -53,19 +54,19 @@ class JsMind {
      *
      * @param options - Configuration options for the jsMind instance.
      */
-    private constructor(options: JsMindOptions, serializer: JmMindJsonSerializer, view: JmView, layout: JmLayout) {
+    private constructor(options: JsMindOptions, serializer: JmMindJsonSerializer, view: JmView, arranger: Arranger) {
         this.options = options;
         this.serializer = serializer;
-        this.layout = layout;
+        this.arranger = arranger;
         this.view = view;
     }
 
     static async create(container: string | HTMLElement, options: JsMindOptions): Promise<JsMind> {
         const mergedOptions = mergeJsMindOptions(options);
         const serializer = new JmMindJsonSerializer();
-        const layout = new JmLayout(mergedOptions.layout);
-        const view = await JmView.create(container, layout, mergedOptions.view);
-        return new JsMind(mergedOptions, serializer, view, layout);
+        const arranger = new MindmapArranger(mergedOptions.layout);
+        const view = await JmView.create(container, arranger, mergedOptions.view);
+        return new JsMind(mergedOptions, serializer, view, arranger);
     }
 
     /**
@@ -77,11 +78,12 @@ class JsMind {
     async open(mind: JmMind): Promise<void> {
         this.mind = mind;
 
-        await this.view.createMindNodes(mind);
-        this.layout.calculate(mind);
+        await this.view.measureNodeSizes(mind);
+        this.arranger.calculate(mind);
         await this.view.settle(mind);
-        this.layout.printCacheStats();
-        console.log(this.mind);
+        if (this.arranger instanceof MindmapArranger) {
+            this.arranger.printCacheStats();
+        }
     }
 
 

@@ -7,8 +7,8 @@ import { JmEdgeView } from './edge.ts';
 import { DomUtility, ensureElementVisible } from '../common/dom.ts';
 import type { JmNode } from '../model/node.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
-import type { JmLayout } from '../layout.ts';
 import { debug } from '../common/debug.ts';
+import type { Arranger } from '../arranger/index.ts';
 
 /**
  * View of mind map.
@@ -23,27 +23,27 @@ export class JmView {
 
     private readonly edgeView: JmEdgeView;
 
-    private readonly layout: JmLayout;
+    private readonly arranger: Arranger;
 
     private readonly options: ViewOptions;
 
     private readonly viewSize: JmSize = new JmSize(1, 1);
 
-    private constructor(container: HTMLElement, innerContainer: HTMLElement, nodeView: JmNodeView, edgeView: JmEdgeView, layout: JmLayout, options: ViewOptions) {
+    private constructor(container: HTMLElement, innerContainer: HTMLElement, nodeView: JmNodeView, edgeView: JmEdgeView, arranger: Arranger, options: ViewOptions) {
         this.container = container;
         this.innerContainer = innerContainer;
         this.nodeView = nodeView;
         this.edgeView = edgeView;
-        this.layout = layout;
+        this.arranger = arranger;
         this.options = options;
     }
 
-    static async create(container: string | HTMLElement, layout: JmLayout, options: ViewOptions): Promise<JmView> {
+    static async create(container: string | HTMLElement, arranger: Arranger, options: ViewOptions): Promise<JmView> {
         const jmContainer = await this._initContainer(container);
         const innerContainer = this._initInnerContainer(jmContainer);
         const nodeView = new JmNodeView(innerContainer);
         const edgeView = new JmEdgeView(innerContainer);
-        return new JmView(jmContainer, innerContainer, nodeView, edgeView, layout, options);
+        return new JmView(jmContainer, innerContainer, nodeView, edgeView, arranger, options);
     }
 
     private static async _initContainer(container: string | HTMLElement): Promise<HTMLElement> {
@@ -68,9 +68,10 @@ export class JmView {
         return element;
     }
 
-    async createMindNodes(mind: JmMind): Promise<void> {
+    async measureNodeSizes(mind: JmMind): Promise<void> {
         const promises = Object.values(mind._nodes)
-            .map((node: JmNode)=>this.nodeView.createNode(node));
+            .map((node: JmNode)=>this.nodeView.createAndMeasure(node)
+                .then((size: JmSize)=>this.arranger.recordNodeSize(node, size)));
         await Promise.all(promises);
     }
 
@@ -86,9 +87,9 @@ export class JmView {
 
     private _settleNode(mind: JmMind, viewOffset: JmPoint): void {
         Object.values(mind._nodes).forEach((node: JmNode)=>{
-            if(this.layout.isVisible(node)) {
+            if(this.arranger.isNodeVisible(node)) {
                 // reset custom style
-                const nodePoint = this.layout.calculateNodePoint(node);
+                const nodePoint = this.arranger.calculateNodePoint(node);
                 const absolutePoint = nodePoint.offset(viewOffset);
                 this.nodeView.placeNode(node, absolutePoint);
             }else{
@@ -101,8 +102,8 @@ export class JmView {
         Object.values(mind._nodes)
             .filter((node: JmNode)=>!node.isRoot())
             .forEach((node: JmNode)=>{
-                const sourcePoint = this.layout.calculateNodeOutgoingPoint(node.parent!);
-                const targetPoint = this.layout.calculateNodeIncomingPoint(node);
+                const sourcePoint = this.arranger.calculateNodeOutgoingPoint(node.parent!);
+                const targetPoint = this.arranger.calculateNodeIncomingPoint(node);
                 const absoluteSourcePoint = sourcePoint.offset(viewOffset);
                 const absoluteTargetPoint = targetPoint.offset(viewOffset);
                 this.edgeView.drawLine(node, absoluteSourcePoint, absoluteTargetPoint, 'black');
@@ -114,7 +115,7 @@ export class JmView {
     }
 
     private _updateViewSize(mind: JmMind): void {
-        const minViewSize = this.layout.calculateBoundingBoxSize(mind);
+        const minViewSize = this.arranger.calculateBoundingBoxSize(mind);
         const minWidth = minViewSize.width + this.options.padding.left + this.options.padding.right;
         const minHeight = minViewSize.height + this.options.padding.top + this.options.padding.bottom;
         this.viewSize.width = Math.max(this.innerContainer.clientWidth, minWidth);

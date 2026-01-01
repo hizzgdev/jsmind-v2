@@ -21,17 +21,16 @@ export class JmNodeView {
         this.container = this._initNodesContainer(innerContainer);
     }
 
-    async createNode(node: JmNode): Promise<JmElement> {
+    async createAndMeasure(node: JmNode): Promise<JmSize> {
         const existingElement = node._data.view.element;
         if (existingElement) {
-            return Promise.resolve(existingElement);
+            return new JmSize(existingElement.cachedRect.width, existingElement.cachedRect.height);
         }
         return this._createNodeElement(node)
             .then((element: JmElement) => {
                 node._data.view.element = element;
                 this.container.appendChild(element.element);
-                node._data.size = new JmSize(element.size.width, element.size.height);
-                return element;
+                return new JmSize(element.cachedRect.width, element.cachedRect.height);
             });
     }
 
@@ -84,7 +83,7 @@ export class JmNodeView {
             element.innerHTML = 'unsupported content type';
         }
         const rect = await DomUtility.measureElement(element.element, this.container);
-        element.cacheRect(rect);
+        element.cachedRect = rect;
         return element;
     }
 }

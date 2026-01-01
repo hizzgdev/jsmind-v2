@@ -1,11 +1,12 @@
-import { JmCache } from './common/cache.ts';
-import { debug } from './common/debug.ts';
-import { JmPoint, JmSize } from './common/index.ts';
-import type { LayoutOptions } from './common/option.ts';
-import type { JmMind } from './model/jsmind.mind.ts';
-import { JmNode, JmNodeSide } from './model/node.ts';
+import { JmCache } from '../common/cache.ts';
+import { debug } from '../common/debug.ts';
+import { JmPoint, JmSize } from '../common/index.ts';
+import type { LayoutOptions } from '../common/option.ts';
+import type { JmMind } from '../model/jsmind.mind.ts';
+import { JmNode, JmNodeSide } from '../model/node.ts';
+import type { Arranger } from './index.ts';
 
-export class JmLayout {
+export class MindmapArranger implements Arranger {
 
     private readonly nodeInSidePredicateA = (node: JmNode)=>{return node.side === JmNodeSide.SideA;};
 
@@ -25,24 +26,21 @@ export class JmLayout {
     }
 
     /**
-     * Layout the mind map.
-     * @param _mind - The mind map data model
-     * @returns The list of node IDs that need to be updated
+     * Calculate the layout of the mind map.
+     * @param mind - The mind map data model
      */
-    calculate(mind: JmMind): string[] {
+    calculate(mind: JmMind): void {
         this.nodeInComingPointCache.clear();
 
         const rootNode = mind._root;
         this._arrange(rootNode);
         this._markInvisibleNodes(rootNode);
         this._calculateOffset(rootNode);
-        return [];
     }
 
     calculateBoundingBoxSize(mind: JmMind): JmSize {
-        const rootNode = mind._root;
-        const rootLayoutData = rootNode._data.layout;
-        const rootMaxX: number = rootNode._data.size.width / 2;
+        const rootLayoutData = mind._root._data.layout;
+        const rootMaxX: number = rootLayoutData.size.width / 2;
         const rootMinX: number = 0 - rootMaxX;
 
         const outcomePointsX: number[] = Object.values(mind._nodes)
@@ -60,7 +58,7 @@ export class JmLayout {
     }
 
     calculateNodePoint(node: JmNode): JmPoint {
-        const size = node._data.size;
+        const size = node._data.layout.size;
         const incomingPoint = this.calculateNodeIncomingPoint(node);
         const offsetToIncomingPoint = new JmPoint(
             (size.width * (node._data.layout.side - 1)) / 2,
@@ -74,8 +72,8 @@ export class JmLayout {
             return JmPoint.Zero;
         }
         const incomingPoint = this.calculateNodeIncomingPoint(node);
-        debug(`calculateNodeOutgoingPoint ${node.content.getText()}`, incomingPoint, node._data.size, node._data.layout.side, this.options.expanderSize);
-        const offsetToIncomingPointX: number = (node._data.size.width + this.options.expanderSize) * node._data.layout.side;
+        debug(`calculateNodeOutgoingPoint ${node.content.getText()}`, incomingPoint, node._data.layout.size, node._data.layout.side, this.options.expanderSize);
+        const offsetToIncomingPointX: number = (node._data.layout.size.width + this.options.expanderSize) * node._data.layout.side;
         const offsetToIncomingPoint = new JmPoint(offsetToIncomingPointX, 0);
         return incomingPoint.offset(offsetToIncomingPoint);
     }
@@ -90,8 +88,12 @@ export class JmLayout {
         });
     }
 
-    isVisible(node: JmNode): boolean {
+    isNodeVisible(node: JmNode): boolean {
         return node._data.layout.visible;
+    }
+
+    recordNodeSize(node: JmNode, size: JmSize): void {
+        node._data.layout.size = size;
     }
 
     printCacheStats(): void {
@@ -127,7 +129,7 @@ export class JmLayout {
     private _calculateOffset(rootNode: JmNode) {
         const nodesOnSideA = rootNode.children.filter(this.nodeInSidePredicateA).reverse();
         const nodesOnSideB = rootNode.children.filter(this.nodeInSidePredicateB);
-        const heightRoot = rootNode._data.size.height;
+        const heightRoot = rootNode._data.layout.size.height;
         const heightA = this._calculateNodesOffset(nodesOnSideA, true);
         const heightB = this._calculateNodesOffset(nodesOnSideB, true);
         // debug('calculateOffset', heightRoot, heightA, heightB);
@@ -147,19 +149,18 @@ export class JmLayout {
         // debug('visibleNodes', visibleNodes.length, isFirstLevelNodes);
         // debug('calculateNodesOffset options', this.options);
         visibleNodes.forEach((node: JmNode)=>{
-            const parentSize = node.parent!._data.size;
             const parentLayout = node.parent!._data.layout;
             const layoutData = node._data.layout;
             const expanderSpace = !!isFirstLevelNodes ? 0 : this.options.expanderSize * layoutData.side;
             const cousinSpace = this.nodeHasCousinsPredicate(node) ? this.options.cousinSpace : 0;
             const height = Math.max(
                 this._calculateNodesOffset(node.children, false),
-                node._data.size.height
+                layoutData.size.height
             ) + cousinSpace;
             layoutData.withDescendantsSize.height = height;
             layoutData.offsetToParent.y = offsetY - height / 2;
             // debug(`calculateNodesOffset for node ${node.content.getText()}`, offsetY, height);
-            layoutData.offsetToParent.x = this.options.parentChildSpace * layoutData.side + parentSize.width * (parentLayout.side + layoutData.side) / 2 + expanderSpace;
+            layoutData.offsetToParent.x = this.options.parentChildSpace * layoutData.side + parentLayout.size.width * (parentLayout.side + layoutData.side) / 2 + expanderSpace;
             if(!node.isRoot()) {
                 layoutData.offsetToParent.x += this.options.expanderSize * layoutData.side;
             }

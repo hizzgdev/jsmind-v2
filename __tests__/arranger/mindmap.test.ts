@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, it, before } from 'node:test';
-import { JmLayout } from '../src/layout.ts';
-import { JmMind } from '../src/model/jsmind.mind.ts';
-import { JmNodeContent } from '../src/model/jsmind.node.content.ts';
-import { JmNodeSide, JmNode } from '../src/model/node.ts';
-import { JmSize } from '../src/common/index.ts';
-import { initDom } from './setup/jsdom.ts';
+import { MindmapArranger } from '../../src/arranger/mindmap.ts';
+import { JmMind } from '../../src/model/jsmind.mind.ts';
+import { JmNodeContent } from '../../src/model/jsmind.node.content.ts';
+import { JmNodeSide, JmNode } from '../../src/model/node.ts';
+import { JmSize } from '../../src/common/index.ts';
+import { initDom } from '../setup/jsdom.ts';
 
 function setNodeSize(node: JmNode, text: string): void {
     const width = text.length * 8;
-    node._data.size = new JmSize(width, 38);
+    node._data.layout.size = new JmSize(width, 38);
 }
 
 const TestData = {
@@ -28,7 +28,7 @@ const TestData = {
         expanderSize: 13
     }};
 
-describe('JmLayout', () => {
+describe('MindmapArranger', () => {
     before(() => {
         initDom();
     });
@@ -37,8 +37,8 @@ describe('JmLayout', () => {
         it('should calculate layout for a simple mind map with root only', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
             setNodeSize(mind._root, mind._root.content.getText());
-            const layout = new JmLayout(TestData.layoutOptions);
-            void layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            void arranger.calculate(mind);
             const rootNodeLayoutData = mind._root._data.layout;
             assert.strictEqual(rootNodeLayoutData.side, JmNodeSide.Center);
             assert.strictEqual(rootNodeLayoutData.visible, true);
@@ -53,14 +53,14 @@ describe('JmLayout', () => {
             const rootId = mind.root.id;
             setNodeSize(mind._root, mind._root.content.getText());
             // root_width = 14(text_length) * 8 = 112, root_height = 38
-            assert.strictEqual(mind._root._data.size.width, 112);
+            assert.strictEqual(mind._root._data.layout.size.width, 112);
 
             const nodeA = mind.addNode(JmNodeContent.createText('Node 1'), { parentId: rootId, side: JmNodeSide.SideA });
             const nodeB = mind.addNode(JmNodeContent.createText('Node 2'), { parentId: rootId, side: JmNodeSide.SideA });
             setNodeSize(nodeA, 'Node 1');
             setNodeSize(nodeB, 'Node 2 - 2');
-            const layout = new JmLayout(TestData.layoutOptions);
-            void layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            void arranger.calculate(mind);
             // 38 + 38 + 20(sibling space)
             assert.strictEqual(mind._root._data.layout.withDescendantsSize.height, 96);
             //
@@ -105,8 +105,8 @@ describe('JmLayout', () => {
             nodes.forEach((node: JmNode)=>{
                 setNodeSize(node, node.content.getText());
             });
-            const layout = new JmLayout(TestData.layoutOptions);
-            void layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            void arranger.calculate(mind);
             assert.strictEqual(mind._root._data.layout.withDescendantsSize.height, 154);
             assert.strictEqual(nodes[0]._data.layout.withDescendantsSize.height, 38);
             assert.strictEqual(nodes[1]._data.layout.withDescendantsSize.height, 38);
@@ -137,8 +137,8 @@ describe('JmLayout', () => {
             nodes.forEach((node: JmNode)=>{
                 setNodeSize(node, node.content.getText());
             });
-            const layout = new JmLayout(TestData.layoutOptions);
-            void layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            void arranger.calculate(mind);
             assert.strictEqual(mind._root._data.layout.withDescendantsSize.height, 212);
             assert.strictEqual(nodes[0]._data.layout.offsetToParent.x, 99);
             assert.strictEqual(nodes[1]._data.layout.offsetToParent.x, 99);
@@ -176,8 +176,8 @@ describe('JmLayout', () => {
             nodes.forEach((node: JmNode)=>{
                 setNodeSize(node, node.content.getText());
             });
-            const layout = new JmLayout(TestData.layoutOptions);
-            void layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            void arranger.calculate(mind);
             assert.strictEqual(mind._root._data.layout.withDescendantsSize.height, 242); // 212 + 15 * 2(cousin space)
         });
 
@@ -191,8 +191,8 @@ describe('JmLayout', () => {
             setNodeSize(node1, 'Node 1');
             setNodeSize(node11, 'Node 1.1');
             setNodeSize(node12, 'Node 1.2');
-            const layout = new JmLayout(TestData.layoutOptions);
-            void layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            void arranger.calculate(mind);
             // TODO: add assertions
         });
 
@@ -206,8 +206,8 @@ describe('JmLayout', () => {
             setNodeSize(node1, 'Node 1');
             setNodeSize(node11, 'Node 1.1');
             setNodeSize(node12, 'Node 1.2');
-            const layout = new JmLayout(TestData.layoutOptions);
-            void layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            void arranger.calculate(mind);
             // TODO: add assertions
         });
 
@@ -223,8 +223,8 @@ describe('JmLayout', () => {
             setNodeSize(node2, 'Node 2');
             setNodeSize(node11, 'Node 1.1');
             setNodeSize(node21, 'Node 2.1');
-            const layout = new JmLayout(TestData.layoutOptions);
-            void layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            void arranger.calculate(mind);
             // TODO: add assertions
         });
     });
@@ -233,9 +233,9 @@ describe('JmLayout', () => {
         it('should calculate bounding box size for a simple mind map with root only', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
             setNodeSize(mind._root, mind._root.content.getText());
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            void layout.calculateBoundingBoxSize(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            void arranger.calculateBoundingBoxSize(mind);
             // TODO: add assertions
         });
 
@@ -247,9 +247,9 @@ describe('JmLayout', () => {
             const nodeB = mind.addNode(JmNodeContent.createText('Node B'), { parentId: rootId, side: JmNodeSide.SideB });
             setNodeSize(nodeA, 'Node A');
             setNodeSize(nodeB, 'Node B');
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            void layout.calculateBoundingBoxSize(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            void arranger.calculateBoundingBoxSize(mind);
             // TODO: add assertions
         });
 
@@ -263,9 +263,9 @@ describe('JmLayout', () => {
             setNodeSize(node1, 'Node 1');
             setNodeSize(node11, 'Node 1.1');
             setNodeSize(node12, 'Node 1.2');
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            void layout.calculateBoundingBoxSize(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            void arranger.calculateBoundingBoxSize(mind);
             // TODO: add assertions
         });
 
@@ -279,9 +279,9 @@ describe('JmLayout', () => {
             setNodeSize(node1, 'Node 1');
             setNodeSize(node11, 'Node 1.1');
             setNodeSize(node12, 'Node 1.2');
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            void layout.calculateBoundingBoxSize(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            void arranger.calculateBoundingBoxSize(mind);
             // TODO: add assertions
         });
     });
@@ -290,10 +290,10 @@ describe('JmLayout', () => {
         it('should calculate node point for root node', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
             setNodeSize(mind._root, mind._root.content.getText());
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
             const rootNode = mind._root;
-            void layout.calculateNodePoint(rootNode);
+            void arranger.calculateNodePoint(rootNode);
             // TODO: add assertions
         });
 
@@ -303,9 +303,9 @@ describe('JmLayout', () => {
             setNodeSize(mind._root, mind._root.content.getText());
             const nodeA = mind.addNode(JmNodeContent.createText('Node A'), { parentId: rootId, side: JmNodeSide.SideA });
             setNodeSize(nodeA, 'Node A');
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            void layout.calculateNodePoint(nodeA);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            void arranger.calculateNodePoint(nodeA);
             // TODO: add assertions
         });
 
@@ -315,9 +315,9 @@ describe('JmLayout', () => {
             setNodeSize(mind._root, mind._root.content.getText());
             const nodeB = mind.addNode(JmNodeContent.createText('Node B'), { parentId: rootId, side: JmNodeSide.SideB });
             setNodeSize(nodeB, 'Node B');
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            void layout.calculateNodePoint(nodeB);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            void arranger.calculateNodePoint(nodeB);
             // TODO: add assertions
         });
 
@@ -329,29 +329,29 @@ describe('JmLayout', () => {
             const node11 = mind.addNode(JmNodeContent.createText('Node 1.1'), { parentId: node1.id });
             setNodeSize(node1, 'Node 1');
             setNodeSize(node11, 'Node 1.1');
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            void layout.calculateNodePoint(node11);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            void arranger.calculateNodePoint(node11);
             // TODO: add assertions
         });
     });
 
-    describe('isVisible', () => {
+    describe('isNodeVisible', () => {
         it('should return true for visible root node', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
             const rootNode = mind._root;
-            assert.strictEqual(layout.isVisible(rootNode), true);
+            assert.strictEqual(arranger.isNodeVisible(rootNode), true);
         });
 
         it('should return true for visible child node', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
             const rootId = mind.root.id;
             const node1 = mind.addNode(JmNodeContent.createText('Node 1'), { parentId: rootId, side: JmNodeSide.SideA });
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            assert.strictEqual(layout.isVisible(node1), true);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            assert.strictEqual(arranger.isNodeVisible(node1), true);
         });
 
         it('should return false for invisible node when parent is folded', () => {
@@ -359,9 +359,9 @@ describe('JmLayout', () => {
             const rootId = mind.root.id;
             const node1 = mind.addNode(JmNodeContent.createText('Node 1'), { parentId: rootId, side: JmNodeSide.SideA }, { folded: true });
             const node11 = mind.addNode(JmNodeContent.createText('Node 1.1'), { parentId: node1.id });
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            assert.strictEqual(layout.isVisible(node11), false);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            assert.strictEqual(arranger.isNodeVisible(node11), false);
         });
 
         it('should return false for invisible node when grandparent is folded', () => {
@@ -370,9 +370,9 @@ describe('JmLayout', () => {
             const node1 = mind.addNode(JmNodeContent.createText('Node 1'), { parentId: rootId, side: JmNodeSide.SideA }, { folded: true });
             const node11 = mind.addNode(JmNodeContent.createText('Node 1.1'), { parentId: node1.id });
             const node111 = mind.addNode(JmNodeContent.createText('Node 1.1.1'), { parentId: node11.id });
-            const layout = new JmLayout(TestData.layoutOptions);
-            layout.calculate(mind);
-            assert.strictEqual(layout.isVisible(node111), false);
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            assert.strictEqual(arranger.isNodeVisible(node111), false);
         });
     });
 });
