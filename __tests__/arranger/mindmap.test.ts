@@ -192,14 +192,25 @@ describe('MindmapArranger', () => {
                 mind.addNode(JmNodeContent.createText('Node 2'), { parentId: rootId, side: JmNodeSide.SideA }, { nodeId: 'node2', folded: true }),
                 mind.addNode(JmNodeContent.createText('Node 2.1'), { parentId: 'node2' }),
                 mind.addNode(JmNodeContent.createText('Node 2.2'), { parentId: 'node2' }),
-                mind.addNode(JmNodeContent.createText('Node 5'), { parentId: rootId, side: JmNodeSide.SideB }),
+                mind.addNode(JmNodeContent.createText('Node 5'), { parentId: rootId, side: JmNodeSide.SideA }),
             ];
             nodes.forEach((node: JmNode)=>{
                 setNodeSize(node, node.content.getText());
             });
             const arranger = new MindmapArranger(TestData.layoutOptions);
             void arranger.calculate(mind);
-            assert.strictEqual(mind._root._data.layout.withDescendantsSize.height, 96); // 38 + 38 + 20(sibling space), no cousin space
+            assert.strictEqual(mind._root._data.layout.withDescendantsSize.height, 154);
+            assert.strictEqual(nodes[0]._data.layout.withDescendantsSize.height, 38);
+            assert.strictEqual(nodes[3]._data.layout.withDescendantsSize.height, 38);
+            assert.strictEqual(nodes[6]._data.layout.withDescendantsSize.height, 38);
+
+            assert.strictEqual(nodes[0]._data.layout.offsetToParent.x, 99);
+            assert.strictEqual(nodes[3]._data.layout.offsetToParent.x, 99);
+            assert.strictEqual(nodes[6]._data.layout.offsetToParent.x, 99);
+
+            assert.strictEqual(nodes[0]._data.layout.offsetToParent.y, -58);
+            assert.strictEqual(nodes[3]._data.layout.offsetToParent.y, 0);
+            assert.strictEqual(nodes[6]._data.layout.offsetToParent.y, 58);
         });
 
         it('should calculate layout for a mind map with nested nodes', () => {
