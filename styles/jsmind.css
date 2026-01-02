@@ -40,19 +40,22 @@
     cursor: default;
     max-width: 400px;
 }
-jmexpander {
+.jsmind-node-expander {
     position: absolute;
-    width: 11px;
-    height: 11px;
     display: block;
     overflow: hidden;
-    line-height: 12px;
-    font-size: 10px;
     text-align: center;
-    border-radius: 6px;
-    border-width: 1px;
-    border-style: solid;
     cursor: pointer;
+    width: 13px;
+    height: 13px;
+    font-size: 18px;
+    line-height: 0.6;
+}
+.jsmind-node-expander-expanded::after{
+    content: '\229D';
+}
+.jsmind-node-expander-collapsed::after{
+    content: '\2295';
 }
 
 .jmnode-overflow-wrap .jsmind-nodes {

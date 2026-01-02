@@ -1,6 +1,6 @@
 import { JmCache } from '../common/cache.ts';
 import { debug } from '../common/debug.ts';
-import { JmPoint, JmSize } from '../common/index.ts';
+import { JmBounds, JmPoint, JmSize } from '../common/index.ts';
 import type { LayoutOptions } from '../common/option.ts';
 import type { JmMind } from '../model/mind.ts';
 import { JmNode, JmNodeSide } from '../model/node.ts';
@@ -21,8 +21,11 @@ export class MindmapArranger implements Arranger {
 
     options: LayoutOptions;
 
+    expanderSize: JmSize;
+
     constructor(options: LayoutOptions) {
         this.options = options;
+        this.expanderSize = new JmSize(options.expanderSize, options.expanderSize);
     }
 
     /**
@@ -38,7 +41,7 @@ export class MindmapArranger implements Arranger {
         this._calculateOffset(rootNode);
     }
 
-    calculateBoundingBoxSize(mind: JmMind): JmSize {
+    calculateMindBounds(mind: JmMind): JmBounds {
         const rootLayoutData = mind._root._data.layout;
         const rootMaxX: number = rootLayoutData.size.width / 2;
         const rootMinX: number = 0 - rootMaxX;
@@ -48,13 +51,16 @@ export class MindmapArranger implements Arranger {
             .map((node: JmNode)=>this.calculateNodeOutgoingPoint(node))
             .map((p: JmPoint)=>p.x);
 
-        const minX: number = Math.min(...outcomePointsX);
-        const maxX: number = Math.max(...outcomePointsX);
+        const minX: number = Math.min(...outcomePointsX, rootMinX);
+        const maxX: number = Math.max(...outcomePointsX, rootMaxX);
 
-        const width = Math.max(rootMaxX, maxX) - Math.min(rootMinX, minX);
+        const width = maxX - minX;
         const height = rootLayoutData.withDescendantsSize.height;
 
-        return new JmSize(width, height);
+        const size = new JmSize(width, height);
+        const center = new JmPoint((minX + maxX) / 2, 0);
+
+        return new JmBounds(center, size);
     }
 
     calculateNodePoint(node: JmNode): JmPoint {
@@ -65,6 +71,18 @@ export class MindmapArranger implements Arranger {
             -size.height / 2
         );
         return incomingPoint.offset(offsetToIncomingPoint);
+    }
+
+    calculateNodeExpanderSize(): JmSize {
+        return this.expanderSize;
+    }
+
+    calculateNodeExpanderPoint(node: JmNode): JmPoint {
+        const outgoingPoint = this.calculateNodeOutgoingPoint(node);
+        const offsetToOutgoingPoint = new JmPoint(
+            this.options.expanderSize * (node._data.layout.side + 1) / -2,
+            - this.options.expanderSize / 2);
+        return outgoingPoint.offset(offsetToOutgoingPoint);
     }
 
     calculateNodeOutgoingPoint(node: JmNode): JmPoint {

@@ -38,3 +38,14 @@ export class JmPoint {
 
     static readonly Zero: JmPoint = new JmPoint(0, 0);
 }
+
+export class JmBounds {
+    center: JmPoint;
+
+    size: JmSize;
+
+    constructor(center: JmPoint, size: JmSize) {
+        this.center = center;
+        this.size = size;
+    }
+}

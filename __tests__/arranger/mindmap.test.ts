@@ -235,7 +235,7 @@ describe('MindmapArranger', () => {
             setNodeSize(mind._root, mind._root.content.getText());
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
-            void arranger.calculateBoundingBoxSize(mind);
+            void arranger.calculateMindBounds(mind);
             // TODO: add assertions
         });
 
@@ -249,7 +249,7 @@ describe('MindmapArranger', () => {
             setNodeSize(nodeB, 'Node B');
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
-            void arranger.calculateBoundingBoxSize(mind);
+            void arranger.calculateMindBounds(mind);
             // TODO: add assertions
         });
 
@@ -265,7 +265,7 @@ describe('MindmapArranger', () => {
             setNodeSize(node12, 'Node 1.2');
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
-            void arranger.calculateBoundingBoxSize(mind);
+            void arranger.calculateMindBounds(mind);
             // TODO: add assertions
         });
 
@@ -281,7 +281,7 @@ describe('MindmapArranger', () => {
             setNodeSize(node12, 'Node 1.2');
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
-            void arranger.calculateBoundingBoxSize(mind);
+            void arranger.calculateMindBounds(mind);
             // TODO: add assertions
         });
     });

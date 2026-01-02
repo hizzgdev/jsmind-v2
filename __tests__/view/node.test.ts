@@ -5,18 +5,36 @@ import { JmMind } from '../../src/model/mind.ts';
 import { JmNodeContent } from '../../src/model/node.content.ts';
 import { JmNodeSide } from '../../src/model/node.ts';
 import { JmSize, JmPoint } from '../../src/common/index.ts';
-import { JmElement, DomUtility } from '../../src/common/dom.ts';
+import { JmElement, DomUtility, JmDomUtility } from '../../src/common/dom.ts';
 import { initDom } from '../setup/jsdom.ts';
+import { ViewExpanderStyle } from '../../src/common/option.ts';
+
+const TestData = {
+    viewOptions: {
+        theme: 'default',
+        padding: {
+            left: 50,
+            right: 50,
+            top: 100,
+            bottom: 100
+        },
+        expander: {
+            style: ViewExpanderStyle.Char,
+            expanded: '\u229D',
+            collapsed: '\u2295'
+        }
+    }
+};
 
 describe('JmNodeView', () => {
-    let innerContainer: HTMLElement;
+    let innerContainer: JmElement;
     let nodeView: JmNodeView;
 
     before(() => {
         initDom();
-        innerContainer = document.createElement('div');
-        document.body.appendChild(innerContainer);
-        nodeView = new JmNodeView(innerContainer);
+        innerContainer = JmDomUtility.createElement('div', 'jsmind-inner');
+        document.body.appendChild(innerContainer.element);
+        nodeView = new JmNodeView(innerContainer, TestData.viewOptions);
     });
 
     describe('createNodeView', () => {
@@ -45,7 +63,7 @@ describe('JmNodeView', () => {
             const rootId = mind.root.id;
             const node1 = mind.addNode(JmNodeContent.createText('Test Node'), { parentId: rootId, side: JmNodeSide.SideA });
             await nodeView.createAndMeasure(node1);
-            const container = innerContainer.querySelector('.jsmind-nodes');
+            const container = innerContainer.element.querySelector('.jsmind-nodes');
             assert.ok(container);
             assert.ok(container?.contains(node1._data.view.element!.element));
         });
@@ -114,7 +132,7 @@ describe('JmNodeView', () => {
             const rootNode = mind._root;
             await nodeView.createAndMeasure(rootNode);
             const element = rootNode._data.view.element!;
-            const container = innerContainer.querySelector('.jsmind-nodes');
+            const container = innerContainer.element.querySelector('.jsmind-nodes');
             assert.ok(container?.contains(element.element));
             nodeView.removeNode(rootNode);
             assert.ok(!container?.contains(element.element));
@@ -134,7 +152,7 @@ describe('JmNodeView', () => {
         it('should update container size', () => {
             const viewSize = new JmSize(800, 600);
             nodeView.updateCanvasSize(viewSize);
-            const container = innerContainer.querySelector('.jsmind-nodes') as HTMLElement;
+            const container = innerContainer.element.querySelector('.jsmind-nodes') as HTMLElement;
             assert.strictEqual(container.style.width, '800px');
             assert.strictEqual(container.style.height, '600px');
         });

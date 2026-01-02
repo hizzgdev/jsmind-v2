@@ -4,10 +4,9 @@ import { JsMindError } from '../common/error.ts';
 import { type ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
-import { DomUtility, ensureElementVisible } from '../common/dom.ts';
+import { DomUtility, JmDomUtility, JmElement } from '../common/dom.ts';
 import type { JmNode } from '../model/node.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
-import { debug } from '../common/debug.ts';
 import type { Arranger } from '../arranger/index.ts';
 
 /**
@@ -17,7 +16,7 @@ import type { Arranger } from '../arranger/index.ts';
 export class JmView {
     private readonly container: HTMLElement;
 
-    private readonly innerContainer: HTMLElement;
+    private readonly innerContainer: JmElement;
 
     private readonly nodeView: JmNodeView;
 
@@ -29,7 +28,9 @@ export class JmView {
 
     private readonly viewSize: JmSize = new JmSize(1, 1);
 
-    private constructor(container: HTMLElement, innerContainer: HTMLElement, nodeView: JmNodeView, edgeView: JmEdgeView, arranger: Arranger, options: ViewOptions) {
+    private readonly viewOffset: JmPoint = new JmPoint(0, 0);
+
+    private constructor(container: HTMLElement, innerContainer: JmElement, nodeView: JmNodeView, edgeView: JmEdgeView, arranger: Arranger, options: ViewOptions) {
         this.container = container;
         this.innerContainer = innerContainer;
         this.nodeView = nodeView;
@@ -41,7 +42,7 @@ export class JmView {
     static async create(container: string | HTMLElement, arranger: Arranger, options: ViewOptions): Promise<JmView> {
         const jmContainer = await this._initContainer(container);
         const innerContainer = this._initInnerContainer(jmContainer);
-        const nodeView = new JmNodeView(innerContainer);
+        const nodeView = new JmNodeView(innerContainer, options);
         const edgeView = new JmEdgeView(innerContainer);
         return new JmView(jmContainer, innerContainer, nodeView, edgeView, arranger, options);
     }
@@ -55,17 +56,17 @@ export class JmView {
             if (!element) {
                 throw new JsMindError(`Container element with ID '${container}' is not found`);
             }
-            await ensureElementVisible(element);
+            await DomUtility.ensureElementVisible(element);
             return element;
         }
         return container;
     }
 
-    private static _initInnerContainer(container: HTMLElement): HTMLElement {
-        const element = DomUtility.createElement('div', 'jsmind-inner');
-        element.classList.add('jsmind-inner');
-        container.appendChild(element);
-        return element;
+    private static _initInnerContainer(container: HTMLElement): JmElement {
+        const jmElement = JmDomUtility.createElement('div', 'jsmind-inner');
+        jmElement.classList.add('jsmind-inner');
+        container.appendChild(jmElement.element);
+        return jmElement;
     }
 
     async measureNodeSizes(mind: JmMind): Promise<void> {
@@ -79,10 +80,8 @@ export class JmView {
         this._updateViewSize(mind);
         this.nodeView.updateCanvasSize(this.viewSize);
         this.edgeView.updateEdgeViewsSize(this.viewSize);
-        const viewOffset = this._getViewOffset();
-        debug('getViewOffset', this.viewSize, viewOffset);
-        this._settleNode(mind, viewOffset);
-        this._renderEdges(mind, viewOffset);
+        this._settleNode(mind, this.viewOffset);
+        this._renderEdges(mind, this.viewOffset);
     }
 
     private _settleNode(mind: JmMind, viewOffset: JmPoint): void {
@@ -92,8 +91,13 @@ export class JmView {
                 const nodePoint = this.arranger.calculateNodePoint(node);
                 const absolutePoint = nodePoint.offset(viewOffset);
                 this.nodeView.placeNode(node, absolutePoint);
+
+                const nodeExpanderPoint = this.arranger.calculateNodeExpanderPoint(node);
+                const absoluteExpanderPoint = nodeExpanderPoint.offset(viewOffset);
+                this.nodeView.placeNodeExpander(node, absoluteExpanderPoint);
             }else{
                 this.nodeView.hideNode(node);
+                this.nodeView.hideNodeExpander(node);
             }
         });
     }
@@ -110,16 +114,17 @@ export class JmView {
             });
     }
 
-    private _getViewOffset(): JmPoint {
-        return new JmPoint(this.viewSize.width / 2, this.viewSize.height / 2);
-    }
-
     private _updateViewSize(mind: JmMind): void {
-        const minViewSize = this.arranger.calculateBoundingBoxSize(mind);
-        const minWidth = minViewSize.width + this.options.padding.left + this.options.padding.right;
-        const minHeight = minViewSize.height + this.options.padding.top + this.options.padding.bottom;
+        const mindBounds = this.arranger.calculateMindBounds(mind);
+        const mindViewSize = mindBounds.size;
+        const minWidth = mindViewSize.width + this.options.padding.left + this.options.padding.right;
+        const minHeight = mindViewSize.height + this.options.padding.top + this.options.padding.bottom;
         this.viewSize.width = Math.max(this.innerContainer.clientWidth, minWidth);
         this.viewSize.height = Math.max(this.innerContainer.clientHeight, minHeight);
+
+        const centerOffset = mindBounds.center;
+        this.viewOffset.x = this.viewSize.width / 2 - centerOffset.x;
+        this.viewOffset.y = this.viewSize.height / 2 - centerOffset.y;
     }
 
     /**

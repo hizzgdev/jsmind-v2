@@ -1,6 +1,7 @@
 import { type JmNode } from '../model/node.ts';
-import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
+import { JmDomUtility, type JmElement } from '../common/dom.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
+import { ViewExpanderStyle, type ViewOptions } from '../common/option.ts';
 
 /**
  * View operator for nodes.
@@ -10,15 +11,19 @@ import { JmPoint, JmSize } from '../common/index.ts';
  */
 export class JmNodeView {
     /** The container element for nodes. */
-    private readonly container: HTMLElement;
+    private readonly container: JmElement;
+
+    /** The view options. */
+    private readonly options: ViewOptions;
 
     /**
      * Creates a new node view operator.
      *
      * @param innerContainer - The inner container element to append the nodes container to.
      */
-    constructor(innerContainer: HTMLElement) {
+    constructor(innerContainer: JmElement, viewOptions: ViewOptions) {
         this.container = this._initNodesContainer(innerContainer);
+        this.options = viewOptions;
     }
 
     async createAndMeasure(node: JmNode): Promise<JmSize> {
@@ -26,12 +31,19 @@ export class JmNodeView {
         if (existingElement) {
             return new JmSize(existingElement.cachedRect.width, existingElement.cachedRect.height);
         }
-        return this._createNodeElement(node)
+        const sizePromise = this._createNodeElement(node)
             .then((element: JmElement) => {
                 node._data.view.element = element;
                 this.container.appendChild(element.element);
                 return new JmSize(element.cachedRect.width, element.cachedRect.height);
             });
+
+        if(!node.isRoot()) {
+            const expanderElement = this._createNodeExpander(node);
+            node._data.view.expander = expanderElement;
+            this.container.appendChild(expanderElement.element);
+        }
+        return sizePromise;
     }
 
     removeNode(node: JmNode): void {
@@ -55,9 +67,27 @@ export class JmNodeView {
         element.style.visibility = 'visible';
     }
 
+    placeNodeExpander(node: JmNode, absolutePoint: JmPoint) {
+        if(node.isRoot()) {
+            return;
+        }
+        const expanderElement = node._data.view.expander!;
+        expanderElement.style.left = `${absolutePoint.x}px`;
+        expanderElement.style.top = `${absolutePoint.y}px`;
+        expanderElement.style.display = 'unset';
+        expanderElement.style.visibility = 'visible';
+    }
+
     hideNode(node: JmNode) {
         const element = node._data.view.element!;
         element.style.display = 'none';
+        element.style.visibility = 'hidden';
+    }
+
+    hideNodeExpander(node: JmNode) {
+        const expanderElement = node._data.view.expander!;
+        expanderElement.style.display = 'none';
+        expanderElement.style.visibility = 'hidden';
     }
 
     /**
@@ -66,12 +96,12 @@ export class JmNodeView {
      * @param innerContainer - The inner container element.
      * @returns The created nodes container element.
      */
-    private _initNodesContainer(innerContainer: HTMLElement): HTMLElement {
-        const element = DomUtility.createElement('div', 'jsmind-nodes');
-        innerContainer.appendChild(element);
-        element.style.width = `${innerContainer.clientWidth}px`;
-        element.style.height = `${innerContainer.clientHeight}px`;
-        return element;
+    private _initNodesContainer(innerContainer: JmElement): JmElement {
+        const jmElement = JmDomUtility.createElement('div', 'jsmind-nodes');
+        innerContainer.appendChild(jmElement.element);
+        jmElement.style.width = `${innerContainer.clientWidth}px`;
+        jmElement.style.height = `${innerContainer.clientHeight}px`;
+        return jmElement;
     }
 
     private async _createNodeElement(node: JmNode): Promise<JmElement> {
@@ -82,8 +112,20 @@ export class JmNodeView {
         } else {
             element.innerHTML = 'unsupported content type';
         }
-        const rect = await DomUtility.measureElement(element.element, this.container);
+        const rect = await JmDomUtility.measureElement(element, this.container);
         element.cachedRect = rect;
+        return element;
+    }
+
+    private _createNodeExpander(node: JmNode): JmElement {
+        const element = JmDomUtility.createElement('div', 'jsmind-node-expander', {'node-id': node.id});
+        if(this.options.expander.style === ViewExpanderStyle.Char) {
+            element.classList.add('jsmind-node-expander-expanded');
+        } else if(this.options.expander.style === ViewExpanderStyle.Number) {
+            element.classList.add('jsmind-node-expander-number');
+            element.innerHTML = `${node.children.length}`;
+        }
+        element.style.visibility = 'hidden';
         return element;
     }
 }

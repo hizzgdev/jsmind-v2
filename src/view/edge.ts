@@ -1,3 +1,4 @@
+import type { JmElement } from '../common/dom.ts';
 import type { JmPoint, JmSize } from '../common/index.ts';
 import type { JmNode } from '../model/node.ts';
 
@@ -16,7 +17,7 @@ export class JmEdgeView {
      *
      * @param innerContainer - The inner container element to append the edges container to.
      */
-    constructor(innerContainer: HTMLElement) {
+    constructor(innerContainer: JmElement) {
         this.container = this._initEdgesContainer(innerContainer);
     }
 
@@ -45,7 +46,7 @@ export class JmEdgeView {
      * @param innerContainer - The inner container element.
      * @returns The created edges container element.
      */
-    private _initEdgesContainer(innerContainer: HTMLElement): SVGSVGElement {
+    private _initEdgesContainer(innerContainer: JmElement): SVGSVGElement {
         const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         element.classList.add('jsmind-edges');
         innerContainer.appendChild(element);

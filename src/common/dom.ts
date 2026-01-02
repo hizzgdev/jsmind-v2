@@ -8,17 +8,6 @@ const untilNextFrame = () => {
     });
 };
 
-export const ensureElementVisible = async (element: HTMLElement): Promise<void> => {
-    return new Promise<void>((resolve) => {
-        new IntersectionObserver((entities, observer) => {
-            if (entities[0]?.isIntersecting) {
-                observer.unobserve(element);
-                resolve();
-            }
-        }).observe(element);
-    });
-};
-
 export class JmDomUtility {
     static createElement(tagName: string, className: string, jmAttrs: Record<string, string> = {}): JmElement {
         const element = document.createElement(tagName);
@@ -30,8 +19,10 @@ export class JmDomUtility {
         return jmElement;
     }
 
-    static async measureElement(element: JmElement, container: JmElement): Promise<DOMRect> {
-        return await DomUtility.measureElement(element.element, container.element);
+    static async measureElement(element: JmElement | HTMLElement, container: JmElement | HTMLElement): Promise<DOMRect> {
+        const element_ = element instanceof JmElement ? element.element : element;
+        const container_ = container instanceof JmElement ? container.element : container;
+        return await DomUtility.measureElement(element_, container_);
     }
 }
 
@@ -59,6 +50,17 @@ export class DomUtility {
         element.style.visibility = originalVisibility;
         return rect;
     }
+
+    static async ensureElementVisible (element: HTMLElement): Promise<void> {
+        return new Promise<void>((resolve) => {
+            new IntersectionObserver((entities, observer) => {
+                if (entities[0]?.isIntersecting) {
+                    observer.unobserve(element);
+                    resolve();
+                }
+            }).observe(element);
+        });
+    };
 }
 
 export class JmElement {
@@ -104,6 +106,14 @@ export class JmElement {
 
     get style(): CSSStyleDeclaration {
         return this._element.style;
+    }
+
+    get clientWidth(): number {
+        return this._element.clientWidth;
+    }
+
+    get clientHeight(): number {
+        return this._element.clientHeight;
     }
 
     setAttribute(key: string, value: string): void {

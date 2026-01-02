@@ -37,6 +37,8 @@ export interface NodeDestinationOptions {
 export class JmNodeViewData {
     element: JmElement | null = null;
 
+    expander: JmElement | null = null;
+
     leadingLine: SVGPathElement | null = null;
 }
 

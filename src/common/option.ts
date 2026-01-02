@@ -28,9 +28,22 @@ export interface ViewPadding {
     bottom: number;
 }
 
+export const ViewExpanderStyle = {
+    Char: 'char',
+    Number: 'number'
+} as const;
+
+type ViewExpanderStyle = typeof ViewExpanderStyle[keyof typeof ViewExpanderStyle];
+
+export interface ViewExpanderOptions {
+    style: ViewExpanderStyle;
+    // expanded: string;
+    // collapsed: string;
+}
 export interface ViewOptions {
     theme: string;
     padding: ViewPadding;
+    expander: ViewExpanderOptions;
 }
 
 export interface LayoutOptions {
@@ -64,10 +77,15 @@ export const DEFAULT_OPTIONS: JsMindOptions = {
     view: {
         theme: 'default',
         padding: {
-            left: 50,
-            right: 50,
-            top: 100,
-            bottom: 100
+            left: 100,
+            right: 100,
+            top: 50,
+            bottom: 50
+        },
+        expander: {
+            style: ViewExpanderStyle.Char
+            // expanded: '\u229D', // ⊝
+            // collapsed: '\u2295' // ⊕
         }
     },
     layout: {
