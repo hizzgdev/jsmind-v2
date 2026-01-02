@@ -40,6 +40,14 @@ export class JmEdgeView {
         node._data.view.leadingLine = line;
     }
 
+    eraseLine(node: JmNode): void {
+        console.log('eraseLine', node.id);
+        const line = node._data.view.leadingLine;
+        if(!!line) {
+            this.container.removeChild(line);
+        }
+    }
+
     /**
      * Initializes the edges container element (SVG).
      *

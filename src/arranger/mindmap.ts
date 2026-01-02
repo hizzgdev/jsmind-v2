@@ -13,7 +13,7 @@ export class MindmapArranger implements Arranger {
     private readonly nodeInSidePredicateB = (node: JmNode)=>{return node.side === JmNodeSide.SideB;};
 
     private readonly nodeHasCousinsPredicate = (node: JmNode)=>{
-        return node.children.length > 0 && (node.parent?.children?.length ?? 0) > 1;
+        return !node.folded && node.children.length > 0 && (node.parent?.children?.length ?? 0) > 1;
     };
 
     private readonly nodeInComingPointCache = new JmCache<JmNode, JmPoint>('nodeInComingPointCache', (node: JmNode)=>node.id);
@@ -134,14 +134,11 @@ export class MindmapArranger implements Arranger {
     }
 
     private _markInvisibleNodes(node: JmNode) {
-        this._traverseRecursively(node, (n: JmNode)=>{
-            // debug('markInvisibleNodes', n.id, n.content.getText(), n.folded, n._data.layout.visible);
-            if(n.folded) {
-                this._traverseRecursively(n, (invisibleNode: JmNode)=>{invisibleNode._data.layout.visible = false;});
-                return true;
-            }
-            return false;
-        });
+        if(node.folded) {
+            this._traverseRecursively(node.children, (n: JmNode)=>{n._data.layout.visible = false;});
+        }else{
+            node.children.forEach((n: JmNode)=>{this._markInvisibleNodes(n);});
+        }
     }
 
     private _calculateOffset(rootNode: JmNode) {
@@ -200,13 +197,13 @@ export class MindmapArranger implements Arranger {
 
     /**
      * Traverse the node and its children recursively.
-     * @param node - The node to start traversing from
-     * @param func - The function to call for each node, return true to stop traversing
+     * @param nodes - The nodes to start traversing from
+     * @param func - The function to call for each node
      */
-    private _traverseRecursively(node: JmNode, func: (node: JmNode) => boolean | void): void {
-        if(func(node) === true) {
-            return;
-        }
-        node.children.forEach((child: JmNode)=>this._traverseRecursively(child, func));
+    private _traverseRecursively(nodes: JmNode[], func: (node: JmNode) => void): void {
+        nodes.forEach((node: JmNode)=>{
+            func(node);
+            this._traverseRecursively(node.children, func);
+        });
     }
 }

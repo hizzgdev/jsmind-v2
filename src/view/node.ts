@@ -71,11 +71,26 @@ export class JmNodeView {
         if(node.isRoot()) {
             return;
         }
-        const expanderElement = node._data.view.expander!;
-        expanderElement.style.left = `${absolutePoint.x}px`;
-        expanderElement.style.top = `${absolutePoint.y}px`;
-        expanderElement.style.display = 'unset';
-        expanderElement.style.visibility = 'visible';
+        if(node.children.length === 0) {
+            return;
+        }
+
+        const element = node._data.view.expander!;
+        if(this.options.expander.style === ViewExpanderStyle.Char) {
+            if(node.folded) {
+                element.classList.add('jsmind-node-expander-collapsed');
+            } else {
+                element.classList.add('jsmind-node-expander-expanded');
+            }
+        } else if(this.options.expander.style === ViewExpanderStyle.Number) {
+            element.classList.add('jsmind-node-expander-number');
+            element.innerHTML = `${node.children.length}`;
+        }
+
+        element.style.left = `${absolutePoint.x}px`;
+        element.style.top = `${absolutePoint.y}px`;
+        element.style.display = 'unset';
+        element.style.visibility = 'visible';
     }
 
     hideNode(node: JmNode) {
@@ -119,13 +134,8 @@ export class JmNodeView {
 
     private _createNodeExpander(node: JmNode): JmElement {
         const element = JmDomUtility.createElement('div', 'jsmind-node-expander', {'node-id': node.id});
-        if(this.options.expander.style === ViewExpanderStyle.Char) {
-            element.classList.add('jsmind-node-expander-expanded');
-        } else if(this.options.expander.style === ViewExpanderStyle.Number) {
-            element.classList.add('jsmind-node-expander-number');
-            element.innerHTML = `${node.children.length}`;
-        }
         element.style.visibility = 'hidden';
+        element.style.display = 'none';
         return element;
     }
 }

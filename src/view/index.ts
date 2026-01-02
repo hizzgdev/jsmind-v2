@@ -106,11 +106,15 @@ export class JmView {
         Object.values(mind._nodes)
             .filter((node: JmNode)=>!node.isRoot())
             .forEach((node: JmNode)=>{
-                const sourcePoint = this.arranger.calculateNodeOutgoingPoint(node.parent!);
-                const targetPoint = this.arranger.calculateNodeIncomingPoint(node);
-                const absoluteSourcePoint = sourcePoint.offset(viewOffset);
-                const absoluteTargetPoint = targetPoint.offset(viewOffset);
-                this.edgeView.drawLine(node, absoluteSourcePoint, absoluteTargetPoint, 'black');
+                if(this.arranger.isNodeVisible(node)) {
+                    const sourcePoint = this.arranger.calculateNodeOutgoingPoint(node.parent!);
+                    const targetPoint = this.arranger.calculateNodeIncomingPoint(node);
+                    const absoluteSourcePoint = sourcePoint.offset(viewOffset);
+                    const absoluteTargetPoint = targetPoint.offset(viewOffset);
+                    this.edgeView.drawLine(node, absoluteSourcePoint, absoluteTargetPoint, 'black');
+                }else{
+                    this.edgeView.eraseLine(node);
+                }
             });
     }
 

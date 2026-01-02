@@ -181,6 +181,27 @@ describe('MindmapArranger', () => {
             assert.strictEqual(mind._root._data.layout.withDescendantsSize.height, 242); // 212 + 15 * 2(cousin space)
         });
 
+        it('should calculate layout for a mind map with folded nodes', () => {
+            const mind = new JmMind(TestData.metadata, TestData.mindOptions);
+            const rootId = mind.root.id;
+            setNodeSize(mind._root, mind._root.content.getText());
+            const nodes = [
+                mind.addNode(JmNodeContent.createText('Node 1'), { parentId: rootId, side: JmNodeSide.SideA}, { nodeId: 'node1', folded: true }),
+                mind.addNode(JmNodeContent.createText('Node 1.1'), { parentId: 'node1' }),
+                mind.addNode(JmNodeContent.createText('Node 1.2'), { parentId: 'node1' }),
+                mind.addNode(JmNodeContent.createText('Node 2'), { parentId: rootId, side: JmNodeSide.SideA }, { nodeId: 'node2', folded: true }),
+                mind.addNode(JmNodeContent.createText('Node 2.1'), { parentId: 'node2' }),
+                mind.addNode(JmNodeContent.createText('Node 2.2'), { parentId: 'node2' }),
+                mind.addNode(JmNodeContent.createText('Node 5'), { parentId: rootId, side: JmNodeSide.SideB }),
+            ];
+            nodes.forEach((node: JmNode)=>{
+                setNodeSize(node, node.content.getText());
+            });
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            void arranger.calculate(mind);
+            assert.strictEqual(mind._root._data.layout.withDescendantsSize.height, 96); // 38 + 38 + 20(sibling space), no cousin space
+        });
+
         it('should calculate layout for a mind map with nested nodes', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
             const rootId = mind.root.id;
@@ -229,8 +250,8 @@ describe('MindmapArranger', () => {
         });
     });
 
-    describe('calculateBoundingBoxSize', () => {
-        it('should calculate bounding box size for a simple mind map with root only', () => {
+    describe('calculateMindBounds', () => {
+        it('should calculate mind bounds for a simple mind map with root only', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
             setNodeSize(mind._root, mind._root.content.getText());
             const arranger = new MindmapArranger(TestData.layoutOptions);
@@ -239,7 +260,7 @@ describe('MindmapArranger', () => {
             // TODO: add assertions
         });
 
-        it('should calculate bounding box size for a mind map with nodes on both sides', () => {
+        it('should calculate mind bounds for a mind map with nodes on both sides', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
             const rootId = mind.root.id;
             setNodeSize(mind._root, mind._root.content.getText());
@@ -253,7 +274,7 @@ describe('MindmapArranger', () => {
             // TODO: add assertions
         });
 
-        it('should calculate bounding box size for a mind map with nested nodes', () => {
+        it('should calculate mind bounds for a mind map with nested nodes', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
             const rootId = mind.root.id;
             setNodeSize(mind._root, mind._root.content.getText());
@@ -269,7 +290,7 @@ describe('MindmapArranger', () => {
             // TODO: add assertions
         });
 
-        it('should calculate bounding box size excluding invisible nodes', () => {
+        it('should calculate mind bounds excluding invisible nodes', () => {
             const mind = new JmMind(TestData.metadata, TestData.mindOptions);
             const rootId = mind.root.id;
             setNodeSize(mind._root, mind._root.content.getText());
@@ -361,6 +382,7 @@ describe('MindmapArranger', () => {
             const node11 = mind.addNode(JmNodeContent.createText('Node 1.1'), { parentId: node1.id });
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
+            assert.strictEqual(arranger.isNodeVisible(node1), true);
             assert.strictEqual(arranger.isNodeVisible(node11), false);
         });
 
@@ -372,6 +394,8 @@ describe('MindmapArranger', () => {
             const node111 = mind.addNode(JmNodeContent.createText('Node 1.1.1'), { parentId: node11.id });
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
+            assert.strictEqual(arranger.isNodeVisible(node1), true);
+            assert.strictEqual(arranger.isNodeVisible(node11), false);
             assert.strictEqual(arranger.isNodeVisible(node111), false);
         });
     });
