@@ -3,15 +3,9 @@ import { describe, it, before } from 'node:test';
 import { MindmapArranger } from '../../src/arranger/mindmap.ts';
 import { JmMind } from '../../src/model/mind.ts';
 import { JmNodeContent } from '../../src/model/node.content.ts';
-import { JmNodeSide, JmNode } from '../../src/model/node.ts';
+import { JmNodeSide } from '../../src/model/node.ts';
 import { JmSize } from '../../src/common/index.ts';
 import { initDom } from '../setup/jsdom.ts';
-
-function setNodeSize(...nodes: JmNode[]): void {
-    nodes.forEach((node: JmNode)=>{
-        node._data.layout.size = TestData.defaultNodeSize;
-    });
-}
 
 const TestData = {
     metadata: {
@@ -375,47 +369,222 @@ describe('MindmapArranger', () => {
 
     describe('calculateNodePoint', () => {
         it('should calculate node point for root node', () => {
-            const mind = new JmMind(TestData.metadata, TestData.mindOptions);
-            setNodeSize(mind._root);
+            const mind = createTestMind();
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
             const rootNode = mind._root;
-            void arranger.calculateNodePoint(rootNode);
-            // TODO: add assertions
+            const point = arranger.calculateNodePoint(rootNode);
+            assert.strictEqual(point.x, -40);
+            assert.strictEqual(point.y, -20);
         });
 
         it('should calculate node point for a node on side A', () => {
-            const mind = new JmMind(TestData.metadata, TestData.mindOptions);
-            const rootId = mind.root.id;
-            const nodeA = mind.addNode(JmNodeContent.createText('Node A'), { parentId: rootId, side: JmNodeSide.SideA });
-            setNodeSize(mind._root, nodeA);
+            const mind = createTestMind('A1C');
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
-            void arranger.calculateNodePoint(nodeA);
-            // TODO: add assertions
+            const nodeA = mind._getNodeById('A1');
+            const point = arranger.calculateNodePoint(nodeA);
+            const incomingPoint = arranger.calculateNodeIncomingPoint(nodeA);
+            assert.strictEqual(point.x, incomingPoint.x);
+            assert.strictEqual(point.y, incomingPoint.y - 20);
         });
 
         it('should calculate node point for a node on side B', () => {
-            const mind = new JmMind(TestData.metadata, TestData.mindOptions);
-            const rootId = mind.root.id;
-            const nodeB = mind.addNode(JmNodeContent.createText('Node B'), { parentId: rootId, side: JmNodeSide.SideB });
-            setNodeSize(mind._root, nodeB);
+            const mind = createTestMind('B1C');
+            const nodeB = mind._getNodeById('B1');
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
-            void arranger.calculateNodePoint(nodeB);
-            // TODO: add assertions
+            const point = arranger.calculateNodePoint(nodeB);
+            const incomingPoint = arranger.calculateNodeIncomingPoint(nodeB);
+            assert.strictEqual(point.x, incomingPoint.x - 80);
+            assert.strictEqual(point.y, incomingPoint.y - 20);
         });
 
         it('should calculate node point for a nested node', () => {
-            const mind = new JmMind(TestData.metadata, TestData.mindOptions);
-            const rootId = mind.root.id;
-            const node1 = mind.addNode(JmNodeContent.createText('Node 1'), { parentId: rootId, side: JmNodeSide.SideA });
-            const node11 = mind.addNode(JmNodeContent.createText('Node 1.1'), { parentId: node1.id });
-            setNodeSize(mind._root, node1, node11);
+            const mind = createTestMind('A1C', 'A11C', 'B1C', 'B11C', 'B12C');
+            const nodeA11 = mind._getNodeById('A11');
+            const nodeB12 = mind._getNodeById('B12');
             const arranger = new MindmapArranger(TestData.layoutOptions);
             arranger.calculate(mind);
-            void arranger.calculateNodePoint(node11);
-            // TODO: add assertions
+            const a11Point = arranger.calculateNodePoint(nodeA11);
+            const a11IncomingPoint = arranger.calculateNodeIncomingPoint(nodeA11);
+            assert.strictEqual(a11Point.x, a11IncomingPoint.x);
+            assert.strictEqual(a11Point.y, a11IncomingPoint.y - 20);
+            const b12Point = arranger.calculateNodePoint(nodeB12);
+            const b12IncomingPoint = arranger.calculateNodeIncomingPoint(nodeB12);
+            assert.strictEqual(b12Point.x, b12IncomingPoint.x - 80);
+            assert.strictEqual(b12Point.y, b12IncomingPoint.y - 20);
+        });
+    });
+
+    describe('calculateNodeExpanderPoint', () => {
+        it('should calculate expander point for root node', () => {
+            const mind = createTestMind();
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            const rootNode = mind._root;
+            const expanderPoint = arranger.calculateNodeExpanderPoint(rootNode);
+            assert.strictEqual(expanderPoint.x, 0);
+            assert.strictEqual(expanderPoint.y, 0);
+        });
+
+        it('should calculate expander point for first level nodes', () => {
+            const mind = createTestMind('A1C', 'B1C');
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            const nodeA1 = mind._getNodeById('A1');
+            const nodeB1 = mind._getNodeById('B1');
+            const a1ExpanderPoint = arranger.calculateNodeExpanderPoint(nodeA1);
+            const a1OutgoingPoint = arranger.calculateNodeOutgoingPoint(nodeA1);
+            assert.strictEqual(a1ExpanderPoint.x, a1OutgoingPoint.x - 10);
+            assert.strictEqual(a1ExpanderPoint.y, a1OutgoingPoint.y - 5);
+            const b1ExpanderPoint = arranger.calculateNodeExpanderPoint(nodeB1);
+            const b1OutgoingPoint = arranger.calculateNodeOutgoingPoint(nodeB1);
+            assert.strictEqual(b1ExpanderPoint.x, b1OutgoingPoint.x);
+            assert.strictEqual(b1ExpanderPoint.y, b1OutgoingPoint.y - 5);
+        });
+
+        it('should calculate expander point for nested nodes', () => {
+            const mind = createTestMind('A1C', 'A11C', 'B1C', 'B11C');
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            const nodeA11 = mind._getNodeById('A11');
+            const nodeB11 = mind._getNodeById('B11');
+            const a11ExpanderPoint = arranger.calculateNodeExpanderPoint(nodeA11);
+            const a11OutgoingPoint = arranger.calculateNodeOutgoingPoint(nodeA11);
+            assert.strictEqual(a11ExpanderPoint.x, a11OutgoingPoint.x - 10);
+            assert.strictEqual(a11ExpanderPoint.y, a11OutgoingPoint.y - 5);
+            const b11ExpanderPoint = arranger.calculateNodeExpanderPoint(nodeB11);
+            const b11OutgoingPoint = arranger.calculateNodeOutgoingPoint(nodeB11);
+            assert.strictEqual(b11ExpanderPoint.x, b11OutgoingPoint.x);
+            assert.strictEqual(b11ExpanderPoint.y, b11OutgoingPoint.y - 5);
+        });
+    });
+
+    describe('calculateNodeOutgoingPoint', () => {
+        it('should return zero point for root node', () => {
+            const mind = createTestMind();
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            const rootNode = mind._root;
+            const outgoingPoint = arranger.calculateNodeOutgoingPoint(rootNode);
+            assert.strictEqual(outgoingPoint.x, 0);
+            assert.strictEqual(outgoingPoint.y, 0);
+        });
+
+        it('should calculate outgoing point for first level nodes', () => {
+            const mind = createTestMind('A1C', 'B1C');
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            const nodeA1 = mind._getNodeById('A1');
+            const nodeB1 = mind._getNodeById('B1');
+            const a1OutgoingPoint = arranger.calculateNodeOutgoingPoint(nodeA1);
+            const b1OutgoingPoint = arranger.calculateNodeOutgoingPoint(nodeB1);
+            const a1IncomingPoint = arranger.calculateNodeIncomingPoint(nodeA1);
+            const b1IncomingPoint = arranger.calculateNodeIncomingPoint(nodeB1);
+            assert.strictEqual(a1OutgoingPoint.x, a1IncomingPoint.x + 90);
+            assert.strictEqual(a1OutgoingPoint.y, a1IncomingPoint.y);
+            assert.strictEqual(b1OutgoingPoint.x, b1IncomingPoint.x - 90);
+            assert.strictEqual(b1OutgoingPoint.y, b1IncomingPoint.y);
+        });
+
+        it('should calculate outgoing point for a nested node', () => {
+            const mind = createTestMind('A1C', 'A11C', 'B1C', 'B11C');
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            const nodeA11 = mind._getNodeById('A11');
+            const nodeB11 = mind._getNodeById('B11');
+            const a11OutgoingPoint = arranger.calculateNodeOutgoingPoint(nodeA11);
+            const b11OutgoingPoint = arranger.calculateNodeOutgoingPoint(nodeB11);
+            const a11IncomingPoint = arranger.calculateNodeIncomingPoint(nodeA11);
+            const b11IncomingPoint = arranger.calculateNodeIncomingPoint(nodeB11);
+            assert.strictEqual(a11OutgoingPoint.x, a11IncomingPoint.x + 90);
+            assert.strictEqual(a11OutgoingPoint.y, a11IncomingPoint.y);
+            assert.strictEqual(b11OutgoingPoint.x, b11IncomingPoint.x - 90);
+            assert.strictEqual(b11OutgoingPoint.y, b11IncomingPoint.y);
+        });
+    });
+
+    describe('calculateNodeIncomingPoint', () => {
+        it('should return zero point for root node', () => {
+            const mind = createTestMind();
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            const rootNode = mind._root;
+            const incomingPoint = arranger.calculateNodeIncomingPoint(rootNode);
+            assert.strictEqual(incomingPoint.x, 0);
+            assert.strictEqual(incomingPoint.y, 0);
+        });
+
+        it('should calculate incoming point for first level nodes', () => {
+            const mind = createTestMind('A1C', 'B1C');
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            const nodeA1 = mind._getNodeById('A1');
+            const nodeB1 = mind._getNodeById('B1');
+            const a1IncomingPoint = arranger.calculateNodeIncomingPoint(nodeA1);
+            const b1IncomingPoint = arranger.calculateNodeIncomingPoint(nodeB1);
+            assert.strictEqual(a1IncomingPoint.x, 70);
+            assert.strictEqual(a1IncomingPoint.y, 0);
+            assert.strictEqual(b1IncomingPoint.x, -70);
+            assert.strictEqual(b1IncomingPoint.y, 0);
+        });
+
+        it('should calculate incoming point for nested nodes', () => {
+            const mind = createTestMind('A1C', 'A11C', 'A12C', 'B1C', 'B11C', 'B12C', 'B13C');
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            arranger.calculate(mind);
+            const nodeA11 = mind._getNodeById('A11');
+            const nodeB13 = mind._getNodeById('B13');
+            const a11IncomingPoint = arranger.calculateNodeIncomingPoint(nodeA11);
+            const b13IncomingPoint = arranger.calculateNodeIncomingPoint(nodeB13);
+            assert.strictEqual(a11IncomingPoint.x, 190);
+            assert.strictEqual(a11IncomingPoint.y, -30);
+            assert.strictEqual(b13IncomingPoint.x, -190);
+            assert.strictEqual(b13IncomingPoint.y, 60);
+        });
+    });
+
+    describe('recordNodeSize', () => {
+        it('should record node size correctly', () => {
+            const mind = createTestMind('A1C');
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            const nodeA1 = mind._getNodeById('A1');
+
+            arranger.recordNodeSize(nodeA1, new JmSize(100, 50));
+            assert.strictEqual(nodeA1._data.layout.size.width, 100);
+            assert.strictEqual(nodeA1._data.layout.size.height, 50);
+
+            arranger.recordNodeSize(nodeA1, new JmSize(70, 70));
+            assert.strictEqual(nodeA1._data.layout.size.width, 70);
+            assert.strictEqual(nodeA1._data.layout.size.height, 70);
+        });
+
+        it('should record node size for root node', () => {
+            const mind = createTestMind();
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            const rootNode = mind._root;
+            const newSize = new JmSize(120, 60);
+            arranger.recordNodeSize(rootNode, newSize);
+            assert.strictEqual(rootNode._data.layout.size.width, 120);
+            assert.strictEqual(rootNode._data.layout.size.height, 60);
+        });
+
+        it('should record node size for multiple nodes', () => {
+            const mind = createTestMind('A1C', 'A2C', 'B1C');
+            const arranger = new MindmapArranger(TestData.layoutOptions);
+            const nodeA1 = mind._getNodeById('A1');
+            const nodeA2 = mind._getNodeById('A2');
+            const nodeB1 = mind._getNodeById('B1');
+            arranger.recordNodeSize(nodeA1, new JmSize(90, 45));
+            arranger.recordNodeSize(nodeA2, new JmSize(110, 55));
+            arranger.recordNodeSize(nodeB1, new JmSize(95, 50));
+            assert.strictEqual(nodeA1._data.layout.size.width, 90);
+            assert.strictEqual(nodeA1._data.layout.size.height, 45);
+            assert.strictEqual(nodeA2._data.layout.size.width, 110);
+            assert.strictEqual(nodeA2._data.layout.size.height, 55);
+            assert.strictEqual(nodeB1._data.layout.size.width, 95);
+            assert.strictEqual(nodeB1._data.layout.size.height, 50);
         });
     });
 

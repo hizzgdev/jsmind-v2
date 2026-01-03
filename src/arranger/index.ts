@@ -6,7 +6,6 @@ export interface Arranger {
     calculate(mind: JmMind): void;
     calculateMindBounds(mind: JmMind): JmBounds;
     calculateNodePoint(node: JmNode): JmPoint;
-    calculateNodeExpanderSize(node: JmNode): JmSize;
     calculateNodeExpanderPoint(node: JmNode): JmPoint;
     calculateNodeOutgoingPoint(node: JmNode): JmPoint;
     calculateNodeIncomingPoint(node: JmNode): JmPoint;

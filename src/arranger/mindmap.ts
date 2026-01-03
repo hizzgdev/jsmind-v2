@@ -72,11 +72,10 @@ export class MindmapArranger implements Arranger {
         return incomingPoint.offset(offsetToIncomingPoint);
     }
 
-    calculateNodeExpanderSize(): JmSize {
-        return this.expanderSize;
-    }
-
     calculateNodeExpanderPoint(node: JmNode): JmPoint {
+        if(node.isRoot()) {
+            return JmPoint.Zero;
+        }
         const outgoingPoint = this.calculateNodeOutgoingPoint(node);
         const offsetToOutgoingPoint = new JmPoint(
             this.options.expanderSize * (node._data.layout.side + 1) / -2,
