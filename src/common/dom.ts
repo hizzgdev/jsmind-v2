@@ -1,6 +1,5 @@
-import { debug } from './debug.ts';
 import { JsMindError } from './error.ts';
-import type { JmSize } from './index.ts';
+import type { JmPoint, JmSize } from './index.ts';
 
 const untilNextFrame = () => {
     return new Promise(resolve => {
@@ -44,7 +43,6 @@ export class DomUtility {
         container.appendChild(element);
         await untilNextFrame();
         const rect = element.getBoundingClientRect();
-        debug('measureElement', element.innerHTML, rect, container.clientWidth, container.clientHeight);
         container.removeChild(element);
         element.style.display = originalDisplay;
         element.style.visibility = originalVisibility;
@@ -114,6 +112,18 @@ export class JmElement {
 
     get clientHeight(): number {
         return this._element.clientHeight;
+    }
+
+    hide(): void {
+        this._element.style.visibility = 'hidden';
+        this._element.style.top = '0px';
+        this._element.style.left = '0px';
+    }
+
+    show(position: JmPoint): void {
+        this._element.style.top = `${position.y}px`;
+        this._element.style.left = `${position.x}px`;
+        this._element.style.visibility = 'visible';
     }
 
     setAttribute(key: string, value: string): void {

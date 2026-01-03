@@ -1,5 +1,4 @@
 import { JmCache } from '../common/cache.ts';
-import { debug } from '../common/debug.ts';
 import { JmBounds, JmPoint, JmSize } from '../common/index.ts';
 import type { LayoutOptions } from '../common/option.ts';
 import type { JmMind } from '../model/mind.ts';
@@ -90,7 +89,6 @@ export class MindmapArranger implements Arranger {
             return JmPoint.Zero;
         }
         const incomingPoint = this.calculateNodeIncomingPoint(node);
-        debug(`calculateNodeOutgoingPoint ${node.content.getText()}`, incomingPoint, node._data.layout.size, node._data.layout.side, this.options.expanderSize);
         const offsetToIncomingPointX: number = (node._data.layout.size.width + this.options.expanderSize) * node._data.layout.side;
         const offsetToIncomingPoint = new JmPoint(offsetToIncomingPointX, 0);
         return incomingPoint.offset(offsetToIncomingPoint);
@@ -135,14 +133,14 @@ export class MindmapArranger implements Arranger {
 
     private _markInvisibleNodes(node: JmNode) {
         if(node.folded) {
-            this._traverseRecursively(node.children, (n: JmNode)=>{n._data.layout.visible = false;});
+            this._applyToDescendants(node, (n: JmNode)=>{n._data.layout.visible = false;});
         }else{
-            node.children.forEach((n: JmNode)=>{this._markInvisibleNodes(n);});
+            this._applyToDescendants(node, (n: JmNode)=>{this._markInvisibleNodes(n);});
         }
     }
 
     private _calculateOffset(rootNode: JmNode) {
-        const nodesOnSideA = rootNode.children.filter(this.nodeInSidePredicateA).reverse();
+        const nodesOnSideA = rootNode.children.filter(this.nodeInSidePredicateA);
         const nodesOnSideB = rootNode.children.filter(this.nodeInSidePredicateB);
         const heightRoot = rootNode._data.layout.size.height;
         const heightA = this._calculateNodesOffset(nodesOnSideA, true);
@@ -173,23 +171,18 @@ export class MindmapArranger implements Arranger {
                 layoutData.size.height
             ) + cousinSpace;
             layoutData.withDescendantsSize.height = height;
-            layoutData.offsetToParent.y = offsetY - height / 2;
+            layoutData.offsetToParent.y = offsetY + height / 2;
             // debug(`calculateNodesOffset for node ${node.content.getText()}`, offsetY, height);
             layoutData.offsetToParent.x = this.options.parentChildSpace * layoutData.side + parentLayout.size.width * (parentLayout.side + layoutData.side) / 2 + expanderSpace;
-            if(!node.isRoot()) {
-                layoutData.offsetToParent.x += this.options.expanderSize * layoutData.side;
-            }
-            offsetY = offsetY - height - this.options.siblingSpace;
+            offsetY = offsetY + height + this.options.siblingSpace;
             totalHeight += height;
         });
-        // debug('calculateNodesOffset totalHeight', totalHeight);
         if(visibleNodes.length > 1) {
             totalHeight += this.options.siblingSpace * (visibleNodes.length - 1);
         }
         const halfTotalHeight = totalHeight / 2;
         visibleNodes.forEach((node: JmNode)=>{
-            node._data.layout.offsetToParent.y += halfTotalHeight;
-            // debug('calculateNodesOffset2', node._data.layout);
+            node._data.layout.offsetToParent.y -= halfTotalHeight;
         });
         return totalHeight;
     }
@@ -200,10 +193,10 @@ export class MindmapArranger implements Arranger {
      * @param nodes - The nodes to start traversing from
      * @param func - The function to call for each node
      */
-    private _traverseRecursively(nodes: JmNode[], func: (node: JmNode) => void): void {
-        nodes.forEach((node: JmNode)=>{
-            func(node);
-            this._traverseRecursively(node.children, func);
+    private _applyToDescendants(node: JmNode, func: (n: JmNode) => void): void {
+        node.children.forEach((n: JmNode)=>{
+            func(n);
+            this._applyToDescendants(n, func);
         });
     }
 }

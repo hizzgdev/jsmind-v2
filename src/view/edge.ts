@@ -27,25 +27,36 @@ export class JmEdgeView {
     }
 
     drawLine(node: JmNode, sourcePoint: JmPoint, targetPoint: JmPoint, color: string): void {
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        line.setAttribute('stroke', color);
-        line.setAttribute('stroke-width', '1');
-        line.setAttribute('fill', 'transparent');
-        this.container.appendChild(line);
+        let line = node._data.view.leadingLine;
+        if(!line) {
+            line = this._createLine(color);
+            node._data.view.leadingLine = line;
+        }
         const x1 = sourcePoint.x;
         const y1 = sourcePoint.y;
         const x2 = targetPoint.x;
         const y2 = targetPoint.y;
-        line.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' L ' + x2 + ' ' + y2);
-        node._data.view.leadingLine = line;
+        line.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
+        line.style.visibility = 'visible';
     }
 
     eraseLine(node: JmNode): void {
-        console.log('eraseLine', node.id);
         const line = node._data.view.leadingLine;
         if(!!line) {
-            this.container.removeChild(line);
+            line.style.visibility = 'hidden';
+            line.setAttribute('d', 'M 0 0 L 0 0');
         }
+    }
+
+    private _createLine(color: string): SVGPathElement {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width', '1');
+        line.setAttribute('fill', 'transparent');
+        line.setAttribute('d', 'M 0 0 L 0 0');
+        line.style.visibility = 'hidden';
+        this.container.appendChild(line);
+        return line;
     }
 
     /**

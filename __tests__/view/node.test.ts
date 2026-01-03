@@ -168,7 +168,6 @@ describe('JmNodeView', () => {
             const element = rootNode._data.view.element!;
             assert.strictEqual(element.style.left, '100px');
             assert.strictEqual(element.style.top, '200px');
-            assert.strictEqual(element.style.display, 'unset');
             assert.strictEqual(element.style.visibility, 'visible');
         });
 
@@ -191,7 +190,9 @@ describe('JmNodeView', () => {
             await nodeView.createAndMeasure(rootNode);
             nodeView.hideNode(rootNode);
             const element = rootNode._data.view.element!;
-            assert.strictEqual(element.style.display, 'none');
+            assert.strictEqual(element.style.visibility, 'hidden');
+            assert.strictEqual(element.style.top, '0px');
+            assert.strictEqual(element.style.left, '0px');
         });
     });
 });

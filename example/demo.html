@@ -67,7 +67,11 @@
                     console.log('Creating jsMind instance');
                     // Create jsMind instance
                     _jm = await jsMind.create('jsmind_container', {
-                        editable: true,
+                        view: {
+                            expander: {
+                                style: 'char',
+                            }
+                        }
                     });
                     console.log('JsMind instance created');
 
@@ -89,7 +93,7 @@
                     const sub1 = _mind.addNode(
                         JmNodeContent.createText('Feature 1'),
                         { parentId: root.id },
-                        { side: 1, folded: true }
+                        { side: 1 , folded: true}
                     );
 
                     const sub2 = _mind.addNode(
@@ -99,7 +103,13 @@
 
                     const sub3 = _mind.addNode(
                         JmNodeContent.createText('Feature 3'),
-                        { parentId: root.id }
+                        { parentId: root.id },
+                        {side: -1}
+                    );
+                    const sub4 = _mind.addNode(
+                        JmNodeContent.createText('Feature 4'),
+                        { parentId: root.id },
+                        {side: -1}
                     );
 
                     // Add grandchildren
@@ -111,6 +121,21 @@
                     _mind.addNode(
                         JmNodeContent.createText('Sub-feature 1.2'),
                         { parentId: sub1.id }
+                    );
+
+                    _mind.addNode(
+                        JmNodeContent.createText('Sub-feature 4.1 - hello world'),
+                        { parentId: sub4.id }
+                    );
+
+                    _mind.addNode(
+                        JmNodeContent.createText('Sub-feature 4.2'),
+                        { parentId: sub4.id }
+                    );
+
+                    _mind.addNode(
+                        JmNodeContent.createText('Sub-feature 4.3'),
+                        { parentId: sub4.id }
                     );
 
                     console.log('Opening mind map');

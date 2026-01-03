@@ -60,11 +60,8 @@ export class JmNodeView {
 
     placeNode(node: JmNode, absolutePoint: JmPoint) {
         const element = node._data.view.element!;
-        element.style.left = `${absolutePoint.x}px`;
-        element.style.top = `${absolutePoint.y}px`;
         element.innerHTML = node.content.getText();
-        element.style.display = 'unset';
-        element.style.visibility = 'visible';
+        element.show(absolutePoint);
     }
 
     placeNodeExpander(node: JmNode, absolutePoint: JmPoint) {
@@ -86,23 +83,17 @@ export class JmNodeView {
             element.classList.add('jsmind-node-expander-number');
             element.innerHTML = `${node.children.length}`;
         }
-
-        element.style.left = `${absolutePoint.x}px`;
-        element.style.top = `${absolutePoint.y}px`;
-        element.style.display = 'unset';
-        element.style.visibility = 'visible';
+        element.show(absolutePoint);
     }
 
     hideNode(node: JmNode) {
         const element = node._data.view.element!;
-        element.style.display = 'none';
-        element.style.visibility = 'hidden';
+        element.hide();
     }
 
     hideNodeExpander(node: JmNode) {
         const expanderElement = node._data.view.expander!;
-        expanderElement.style.display = 'none';
-        expanderElement.style.visibility = 'hidden';
+        expanderElement.hide();
     }
 
     /**
@@ -121,11 +112,14 @@ export class JmNodeView {
 
     private async _createNodeElement(node: JmNode): Promise<JmElement> {
         const element = JmDomUtility.createElement('div', 'jsmind-node', { 'node-id': node.id });
-        element.style.visibility = 'hidden';
+        element.hide();
         if(node.content.isText()) {
             element.innerHTML = node.content.getText();
         } else {
             element.innerHTML = 'unsupported content type';
+        }
+        if(node.isRoot()) {
+            element.classList.add('jsmind-node-root');
         }
         const rect = await JmDomUtility.measureElement(element, this.container);
         element.cachedRect = rect;
@@ -134,8 +128,7 @@ export class JmNodeView {
 
     private _createNodeExpander(node: JmNode): JmElement {
         const element = JmDomUtility.createElement('div', 'jsmind-node-expander', {'node-id': node.id});
-        element.style.visibility = 'hidden';
-        element.style.display = 'none';
+        element.hide();
         return element;
     }
 }

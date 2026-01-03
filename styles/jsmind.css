@@ -48,14 +48,27 @@
     cursor: pointer;
     width: 13px;
     height: 13px;
-    font-size: 18px;
-    line-height: 0.6;
+    border-radius: 50%;
+    box-sizing: border-box;
 }
+
 .jsmind-node-expander-expanded::after{
+    display: block;
+    font-size: 18px;
+    margin-top: -4.5px;
     content: '\229D';
 }
 .jsmind-node-expander-collapsed::after{
+    display: block;
+    font-size: 18px;
+    margin-top: -4.5px;
     content: '\2295';
+}
+.jsmind-node-expander-number{
+    font-size: 8px;
+    text-align: center;
+    line-height: 11px;
+    border: solid 1px #666;
 }
 
 .jmnode-overflow-wrap .jsmind-nodes {
@@ -81,19 +94,18 @@
     background-color: #ebebeb;
     color: #333;
 }
-.jsmind-node.selected {
+.jsmind-node-selected {
     background-color: #11f;
     color: #fff;
     box-shadow: 2px 2px 8px #000;
 }
-.jsmind-node.root {
+.jsmind-node-root {
     font-size: 24px;
 }
-.jsmind-expander {
-    border-color: gray;
-}
-.jsmind-expander:hover {
-    border-color: #000;
+.jsmind-node-expander:hover {
+    box-shadow: 1px 1px 8px #000;
+    background-color: #ebebeb;
+    color: #333;
 }
 
 @media screen and (max-device-width: 1024px) {
