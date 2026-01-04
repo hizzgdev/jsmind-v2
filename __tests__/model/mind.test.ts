@@ -6,7 +6,7 @@ import { JmMindEventType } from '../../src/model/event/index.ts';
 import { JmMindEvent, JmMindEventDataOnNodeAdded, JmMindEventDataOnNodeRemoved, JmMindEventDataOnNodeUpdated, JmMindEventDataOnEdgeAdded, JmMindEventDataOnEdgeRemoved } from '../../src/model/event/data.ts';
 import { JmNode, JmNodeSide} from '../../src/model/node.ts';
 import { JmEdgeType } from '../../src/model/edge.ts';
-import { JmNodeContent } from '../../src/model/node.content.ts';
+import { JmNodeContent } from '../../src/model/node-content.ts';
 import { JsMindError } from '../../src/common/error.ts';
 
 const metadata = {

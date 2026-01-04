@@ -1,7 +1,7 @@
 
 import { JmMind } from '../model/mind.ts';
 import { JmMindJsonSerializer } from '../serialization/json.ts';
-import { JmNodeContent } from '../model/node.content.ts';
+import { JmNodeContent } from '../model/node-content.ts';
 import { mergeJsMindOptions, type JsMindOptions } from '../common/option.ts';
 import { JmView } from '../view/index.ts';
 import { MindmapArranger } from '../arranger/mindmap.ts';

@@ -1,5 +1,5 @@
 import { JmMind } from '../../src/model/mind.ts';
-import { JmNodeContent } from '../../src/model/node.content.ts';
+import { JmNodeContent } from '../../src/model/node-content.ts';
 import { JmEdgeType } from '../../src/model/edge.ts';
 
 const metadata = {
