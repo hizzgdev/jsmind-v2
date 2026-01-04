@@ -1,11 +1,11 @@
-import { JmObserverManager } from '../event/jsmind.observer.manager.ts';
+import { JmObserverManager } from '../event/manager.ts';
 import { JmEdge, type EdgeCreationOptions, JmEdgeType } from './edge.ts';
 import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeSide } from './node.ts';
 import { JmNodeContent } from './node.content.ts';
 import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS, mergeFlatOptions } from '../common/option.ts';
 import { SimpleIdGenerator } from '../generation/index.ts';
 
-import { JmMindEvent } from '../event/index.ts';
+import { JmMindEvent } from './event/data.ts';
 import { JsMindError } from '../common/error.ts';
 
 /**
@@ -21,7 +21,7 @@ export class JmMind {
     options: MindOptions;
 
     /** Manager for observers of this mind map. */
-    observerManager: JmObserverManager;
+    observerManager: JmObserverManager<JmMind>;
 
     /** Manager for node operations. */
     nodeManager: JmNodeManager;
@@ -47,7 +47,7 @@ export class JmMind {
     constructor(metadata: Partial<MindMetadata> = {}, options: Partial<MindOptions> = {}) {
         this.meta = mergeFlatOptions(DEFAULT_METADATA, metadata) as MindMetadata;
         this.options = mergeFlatOptions(DEFAULT_OPTIONS.mind, options) as MindOptions;
-        this.observerManager = new JmObserverManager(this);
+        this.observerManager = new JmObserverManager<JmMind>(this);
         this.nodeManager = new JmNodeManager(this);
         this._idGenerator = new SimpleIdGenerator('jm-');
         this._nodes = {};

@@ -1,5 +1,4 @@
 import { type JmMind } from '../model/mind.ts';
-import { type JmMindEvent } from '../event/index.ts';
 import { JsMindError } from '../common/error.ts';
 import { type ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
@@ -129,16 +128,6 @@ export class JmView {
         const centerOffset = mindBounds.center;
         this.viewOffset.x = this.viewSize.width / 2 - centerOffset.x;
         this.viewOffset.y = this.viewSize.height / 2 - centerOffset.y;
-    }
-
-    /**
-     * Called when the mind map changes.
-     *
-     * @param sender - The object that triggered the change.
-     * @param event - The event data.
-     */
-    onMindChanged(sender: JmMind, event: JmMindEvent): void {
-        console.log('JmView.onMindChanged', sender, event);
     }
 }
 

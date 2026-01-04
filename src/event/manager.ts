@@ -1,32 +1,24 @@
 import { JsMindError } from '../common/error.ts';
-
-/**
- * Interface for objects that can be observed.
- *
- * @public
- */
-export interface Observable {
-    update(observedObject: unknown, event: unknown): void;
-}
+import type { JmObserver } from './index.ts';
 
 /**
  * Manager for observers of an observed object.
  *
  * @public
  */
-export class JmObserverManager {
+export class JmObserverManager<T> {
     /** The object being observed. */
-    observedObject: unknown;
+    observedObject: T;
 
     /** @internal */
-    _observers: Observable[];
+    _observers: JmObserver<T>[];
 
     /**
      * Creates an observer manager for an observed object.
      *
      * @param observedObject - The object to observe.
      */
-    constructor(observedObject: unknown) {
+    constructor(observedObject: T) {
         this.observedObject = observedObject;
         this._observers = [];
     }
@@ -35,11 +27,11 @@ export class JmObserverManager {
      * Adds an observer to the observed object.
      *
      * @param observer - An object that contains an `update(observedObject, event)` method.
-     * @throws {@link JsMindError} If the observer is not a valid object.
+     * @throws {@link JsMindError} If the observer is not a valid JmObserver instance.
      */
-    addObserver(observer: Observable): void {
-        if(!observer || !observer.update || typeof observer.update !== 'function') {
-            throw new JsMindError('observer is not an valid Object');
+    addObserver(observer: JmObserver<T>): void {
+        if(!observer || !('update' in observer) || typeof observer.update !== 'function') {
+            throw new JsMindError('observer is not a valid JmObserver instance');
         }
         this._observers.push(observer);
     }
@@ -49,7 +41,7 @@ export class JmObserverManager {
      *
      * @param observer - The observer to remove.
      */
-    removeObserver(observer: Observable): void {
+    removeObserver(observer: JmObserver<T>): void {
         this._observers = this._observers.filter(o => o !== observer);
     }
 
@@ -71,7 +63,7 @@ export class JmObserverManager {
      * represent specific information about the changes.
      */
     async notifyObservers(event: unknown): Promise<void> {
-        this._observers.forEach(async (observer) => {
+        this._observers.forEach(async (observer: JmObserver<T>) => {
             await new Promise<void>((resolve) => {
                 setTimeout(() => {
                     observer.update(this.observedObject, event);

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
-import { JmObserverManager } from '../../src/event/jsmind.observer.manager.ts';
+import { JmObserverManager } from '../../src/event/manager.ts';
+import type { JmObserver } from '../../src/event/index.ts';
 
 test('JmObserverManager', () => {
     const obj = new Object();
@@ -18,7 +19,7 @@ test('JmObserverManager.addObserver', () => {
     };
 
     assert.throws(() => {
-        observerManager.addObserver(invalidObserver);
+        observerManager.addObserver(invalidObserver as JmObserver<object>);
     });
 
     observerManager.addObserver(validObserver);
