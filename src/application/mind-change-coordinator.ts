@@ -2,11 +2,11 @@ import type { Arranger } from '../arranger/index.ts';
 import { MindmapArranger } from '../arranger/mindmap.ts';
 import type { JmMind } from '../model/mind.ts';
 import type { JmView } from '../view/index.ts';
-import { JmMindEventObserver } from './observer.ts';
+import { JmMindObserver } from '../model/mind-observer.ts';
 import { debug } from '../common/debug.ts';
 import type { JmMindEventDataOnNodeRemoved, JmMindEventDataOnNodeUpdated, JmMindEventDataOnNodeMoved, JmMindEventDataOnEdgeAdded, JmMindEventDataOnEdgeRemoved, JmMindEventDataOnNodeAdded } from '../model/event/data.ts';
 
-export class JmStateCoordinator extends JmMindEventObserver {
+export class JmMindChangeCoordinator extends JmMindObserver {
 
     private readonly arranger: Arranger;
 

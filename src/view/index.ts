@@ -4,7 +4,7 @@ import { type ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
 import { DomUtility, JmDomUtility, JmElement } from '../common/dom.ts';
-import type { JmNode } from '../model/node.ts';
+import type { JmNode } from '../model/data/node.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
 import type { Arranger } from '../arranger/index.ts';
 

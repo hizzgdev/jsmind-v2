@@ -1,12 +1,12 @@
 
 import { JmMind } from '../model/mind.ts';
 import { JmMindJsonSerializer } from '../serialization/json.ts';
-import { JmNodeContent } from '../model/node-content.ts';
+import { JmNodeContent } from '../model/data/node-content.ts';
 import { mergeJsMindOptions, type JsMindOptions } from '../common/option.ts';
 import { JmView } from '../view/index.ts';
 import { MindmapArranger } from '../arranger/mindmap.ts';
 import type { Arranger } from '../arranger/index.ts';
-import { JmStateCoordinator } from '../core/coordinator.ts';
+import { JmMindChangeCoordinator } from './mind-change-coordinator.ts';
 
 /**
  * Main class for jsMind mind map operations.
@@ -51,19 +51,19 @@ class JsMind {
     private readonly view: JmView;
 
     /** The state coordinator instance for managing the state of the mind map. */
-    private readonly stateCoordinator: JmStateCoordinator;
+    private readonly mindChangeCoordinator: JmMindChangeCoordinator;
 
     /**
      * Creates a new jsMind instance.
      *
      * @param options - Configuration options for the jsMind instance.
      */
-    private constructor(options: JsMindOptions, serializer: JmMindJsonSerializer, view: JmView, arranger: Arranger, stateCoordinator: JmStateCoordinator) {
+    private constructor(options: JsMindOptions, serializer: JmMindJsonSerializer, view: JmView, arranger: Arranger, mindChangeCoordinator: JmMindChangeCoordinator) {
         this.options = options;
         this.serializer = serializer;
         this.arranger = arranger;
         this.view = view;
-        this.stateCoordinator = stateCoordinator;
+        this.mindChangeCoordinator = mindChangeCoordinator;
     }
 
     static async create(container: string | HTMLElement, options: JsMindOptions): Promise<JsMind> {
@@ -71,8 +71,8 @@ class JsMind {
         const serializer = new JmMindJsonSerializer();
         const arranger = new MindmapArranger(mergedOptions.layout);
         const view = await JmView.create(container, arranger, mergedOptions.view);
-        const stateCoordinator = new JmStateCoordinator(arranger, view);
-        return new JsMind(mergedOptions, serializer, view, arranger, stateCoordinator);
+        const mindChangeCoordinator = new JmMindChangeCoordinator(arranger, view);
+        return new JsMind(mergedOptions, serializer, view, arranger, mindChangeCoordinator);
     }
 
     /**
@@ -83,8 +83,8 @@ class JsMind {
      */
     async open(mind: JmMind): Promise<void> {
         this.mind = mind;
-        await this.stateCoordinator.onMindMapOpened(mind);
-        mind.observerManager.addObserver(this.stateCoordinator);
+        await this.mindChangeCoordinator.onMindMapOpened(mind);
+        mind.observerManager.addObserver(this.mindChangeCoordinator);
     }
 
 
@@ -99,7 +99,7 @@ class JsMind {
         // Empty for now - can be extended in the future
         // for cleanup operations like removing observers, clearing caches, etc.
         if(this.mind) {
-            this.stateCoordinator.onMindMapClosed(this.mind!);
+            this.mindChangeCoordinator.onMindMapClosed(this.mind!);
             this.mind = null;
         }
     }

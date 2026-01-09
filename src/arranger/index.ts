@@ -1,6 +1,6 @@
 import type { JmBounds, JmPoint, JmSize } from '../common/index.ts';
 import type { JmMind } from '../model/mind.ts';
-import type { JmNode } from '../model/node.ts';
+import type { JmNode } from '../model/data/node.ts';
 
 export interface Arranger {
     calculate(mind: JmMind): void;

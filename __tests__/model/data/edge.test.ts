@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { JmEdge, JmEdgeType } from '../../src/model/edge.ts';
+import { JmEdge, JmEdgeType } from '../../../src/model/data/edge.ts';
 
 const mockNode1 = 'node1';
 const mockNode2 = 'node2';

@@ -1,7 +1,7 @@
-import { JmObserverManager } from '../event/manager.ts';
-import { JmEdge, type EdgeCreationOptions, JmEdgeType } from './edge.ts';
-import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeSide } from './node.ts';
-import { JmNodeContent } from './node-content.ts';
+import { JmObserverManager } from '../observer/manager.ts';
+import { JmEdge, type EdgeCreationOptions, JmEdgeType } from './data/edge.ts';
+import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeSide } from './data/node.ts';
+import { JmNodeContent } from './data/node-content.ts';
 import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS, mergeFlatOptions } from '../common/option.ts';
 import { SimpleIdGenerator } from '../generation/index.ts';
 

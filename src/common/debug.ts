@@ -1,4 +1,4 @@
-import type { JmNode } from '../model/node.ts';
+import type { JmNode } from '../model/data/node.ts';
 
 export const debug = (label: string, ...objArray: unknown[]) => {
     const titleLength = 80;

@@ -1,4 +1,4 @@
-import { type JmNode } from '../model/node.ts';
+import { type JmNode } from '../model/data/node.ts';
 import { JmDomUtility, type JmElement } from '../common/dom.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
 import { ViewExpanderStyle, type ViewOptions } from '../common/option.ts';

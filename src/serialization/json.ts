@@ -5,13 +5,13 @@
  */
 import type { JmMindSerializer } from './index.ts';
 import { JmMind } from '../model/mind.ts';
-import { JmNode } from '../model/node.ts';
-import { JmNodeContent } from '../model/node-content.ts';
-import { JmEdge, JmEdgeType } from '../model/edge.ts';
+import { JmNode } from '../model/data/node.ts';
+import { JmNodeContent } from '../model/data/node-content.ts';
+import { JmEdge, JmEdgeType } from '../model/data/edge.ts';
 import { JsMindError } from '../common/error.ts';
 import { type MindMetadata } from '../common/option.ts';
-import { type JmNodeSide } from '../model/node.ts';
-import { type JmNodeContentType } from '../model/node-content.ts';
+import { type JmNodeSide } from '../model/data/node.ts';
+import { type JmNodeContentType } from '../model/data/node-content.ts';
 
 /**
  * Serialized node data structure.

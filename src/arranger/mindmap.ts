@@ -2,7 +2,7 @@ import { JmCache } from '../common/cache.ts';
 import { JmBounds, JmPoint, JmSize } from '../common/index.ts';
 import type { LayoutOptions } from '../common/option.ts';
 import type { JmMind } from '../model/mind.ts';
-import { JmNode, JmNodeSide } from '../model/node.ts';
+import { JmNode, JmNodeSide } from '../model/data/node.ts';
 import type { Arranger } from './index.ts';
 
 export class MindmapArranger implements Arranger {

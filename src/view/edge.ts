@@ -1,6 +1,6 @@
 import type { JmElement } from '../common/dom.ts';
 import type { JmPoint, JmSize } from '../common/index.ts';
-import type { JmNode } from '../model/node.ts';
+import type { JmNode } from '../model/data/node.ts';
 
 /**
  * View operator for edges.

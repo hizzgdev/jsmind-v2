@@ -1,9 +1,9 @@
-import type { JmMindEvent, JmMindEventDataOnEdgeAdded, JmMindEventDataOnEdgeRemoved, JmMindEventDataOnNodeAdded, JmMindEventDataOnNodeMoved, JmMindEventDataOnNodeRemoved, JmMindEventDataOnNodeUpdated } from '../model/event/data.ts';
-import { JmMindEventType } from '../model/event/index.ts';
-import type { JmMind } from '../model/mind.ts';
-import type { JmObserver } from '../event/index.ts';
+import type { JmMindEvent, JmMindEventDataOnEdgeAdded, JmMindEventDataOnEdgeRemoved, JmMindEventDataOnNodeAdded, JmMindEventDataOnNodeMoved, JmMindEventDataOnNodeRemoved, JmMindEventDataOnNodeUpdated } from './event/data.ts';
+import { JmMindEventType } from './event/index.ts';
+import type { JmMind } from './mind.ts';
+import type { JmObserver } from '../observer/index.ts';
 
-export abstract class JmMindEventObserver implements JmObserver<JmMind> {
+export abstract class JmMindObserver implements JmObserver<JmMind> {
     update(observedObject: JmMind, event: unknown): void {
         const eventData = event as JmMindEvent;
         switch (eventData.type) {

@@ -12,7 +12,7 @@ const banner = `/**
 export default [
     // JavaScript bundle for browser use
     {
-        input: 'src/bootstrap/jsmind.ts',
+        input: 'src/application/jsmind.ts',
         output: {
             name: 'jsMind',
             file: 'dist/jsmind.js',
@@ -32,7 +32,7 @@ export default [
     },
     // TypeScript declaration files
     {
-        input: 'src/bootstrap/jsmind.ts',
+        input: 'src/application/jsmind.ts',
         output: {
             file: 'dist/jsmind.d.ts',
             format: 'es',

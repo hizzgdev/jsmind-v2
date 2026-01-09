@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test, {mock} from 'node:test';
-import { JmObserverManager } from '../../src/event/manager.ts';
-import type { JmObserver } from '../../src/event/index.ts';
+import { JmObserverManager } from '../../src/observer/manager.ts';
+import type { JmObserver } from '../../src/observer/index.ts';
 
 test('JmObserverManager', () => {
     const obj = new Object();

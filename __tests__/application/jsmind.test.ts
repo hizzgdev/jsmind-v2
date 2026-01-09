@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
-import JsMind from '../../src/bootstrap/jsmind.ts';
+import JsMind from '../../src/application/jsmind.ts';
 import { DEFAULT_OPTIONS, type JsMindOptions } from '../../src/common/option.ts';
 import { initDom, JSMIND_CONTAINER_ID } from '../setup/jsdom.ts';
 import { TEST_EDGE_11TO2, TEST_MIND, TEST_NODE_1, TEST_NODE_11, TEST_NODE_2 } from '../setup/data.ts';
