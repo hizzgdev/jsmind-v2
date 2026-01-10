@@ -69,10 +69,16 @@ export class JmView {
     }
 
     async measureNodeSizes(mind: JmMind): Promise<void> {
-        const promises = Object.values(mind._nodes)
-            .map((node: JmNode)=>this.nodeView.createAndMeasure(node)
-                .then((size: JmSize)=>this.arranger.recordNodeSize(node, size)));
+        const promises = Object.values(mind._nodes).map((node: JmNode)=>this.measureNodeSize(node));
         await Promise.all(promises);
+    }
+
+    async measureNodeSize(node: JmNode): Promise<JmSize> {
+        return this.nodeView.createAndMeasure(node)
+            .then((size: JmSize)=>{
+                this.arranger.recordNodeSize(node, size);
+                return size;
+            });
     }
 
     async settle(mind: JmMind, _changedNodeIds: string[] = []): Promise<void> {

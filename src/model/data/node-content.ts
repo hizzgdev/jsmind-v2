@@ -78,5 +78,15 @@ export class JmNodeContent {
     static createText(text: string): JmNodeContent {
         return new JmNodeContent(JmNodeContentType.Text, text);
     }
+
+    /**
+     * Creates a content object from an object with type and value.
+     *
+     * @param obj - The object to create content from.
+     * @returns The content object.
+     */
+    static fromObject(obj: { type: JmNodeContentType, value: unknown }): JmNodeContent {
+        return new JmNodeContent(obj.type, obj.value);
+    }
 }
 

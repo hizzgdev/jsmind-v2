@@ -32,8 +32,14 @@ export class JmMindChangeCoordinator extends JmMindObserver {
         // for cleanup operations like removing observers, clearing caches, etc.
     }
 
-    onNodeAdded(mind: JmMind, event: JmMindEventDataOnNodeAdded): void {
+    async onNodeAdded(mind: JmMind, event: JmMindEventDataOnNodeAdded): Promise<void> {
         debug('onNodeAdded', mind.meta.name, event);
+        await this.view.measureNodeSize(event.node);
+        this.arranger.calculate(mind);
+        await this.view.settle(mind);
+        if (this.arranger instanceof MindmapArranger) {
+            this.arranger.printCacheStats();
+        }
     }
 
     onNodeRemoved(mind: JmMind, event: JmMindEventDataOnNodeRemoved): void {

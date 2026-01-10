@@ -109,8 +109,11 @@ export class JmMind {
         // Get target parent
         const targetParent = this._getNodeById(destOptions.parentId);
 
+        // Create node content
+        const nodeContent = content instanceof JmNodeContent ? content : JmNodeContent.fromObject(content);
+
         // Create and initialize the node
-        const node = this._newNode(content, nodeOptions);
+        const node = this._newNode(nodeContent, nodeOptions);
 
         // Use existing helper method for placement
         this._addNodeToParent(node, targetParent, destOptions.position);
