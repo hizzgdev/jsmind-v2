@@ -1,7 +1,6 @@
 import { JmMindEventType } from './index.ts';
-import { JmNode } from '../data/node.ts';
-import { JmEdge } from '../data/edge.ts';
-import { JmNodeSide } from '../data/node.ts';
+import type { JmNode, JmNodeSide} from '../data/node.ts';
+import type { JmEdge } from '../data/edge.ts';
 
 /**
  * Event data containing the state change in JmMind.

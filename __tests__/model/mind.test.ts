@@ -3,7 +3,7 @@ import test, {mock} from 'node:test';
 
 import { JmMind } from '../../src/model/mind.ts';
 import { JmMindEventType } from '../../src/model/event/index.ts';
-import { JmMindEvent, JmMindEventDataOnNodeAdded, JmMindEventDataOnNodeRemoved, JmMindEventDataOnNodeUpdated, JmMindEventDataOnEdgeAdded, JmMindEventDataOnEdgeRemoved } from '../../src/model/event/data.ts';
+import { JmMindEvent, type JmMindEventDataOnNodeAdded, type JmMindEventDataOnNodeRemoved, type JmMindEventDataOnNodeUpdated, type JmMindEventDataOnEdgeAdded, type JmMindEventDataOnEdgeRemoved } from '../../src/model/event/data.ts';
 import { JmNode, JmNodeSide} from '../../src/model/data/node.ts';
 import { JmEdgeType } from '../../src/model/data/edge.ts';
 import { JmNodeContent } from '../../src/model/data/node-content.ts';

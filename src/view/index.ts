@@ -1,9 +1,9 @@
-import { type JmMind } from '../model/mind.ts';
+import type { JmMind } from '../model/mind.ts';
 import { JsMindError } from '../common/error.ts';
-import { type ViewOptions } from '../common/option.ts';
+import type { ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
-import { DomUtility, JmDomUtility, JmElement } from '../common/dom.ts';
+import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
 import type { JmNode } from '../model/data/node.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
 import type { Arranger } from '../arranger/index.ts';

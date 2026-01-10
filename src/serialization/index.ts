@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { type JmMind } from '../model/mind.ts';
+import type { JmMind } from '../model/mind.ts';
 
 /**
  * Base interface for all mind map serializers.

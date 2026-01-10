@@ -1,7 +1,8 @@
 import type { JmElement } from '../../common/dom.ts';
 import { JsMindError } from '../../common/error.ts';
-import { JmPoint, JmSize } from '../../common/index.ts';
-import { type JmNodeContent } from './node-content.ts';
+import { JmPoint } from '../../common/index.ts';
+import { JmSize } from '../../common/index.ts';
+import type { JmNodeContent } from './node-content.ts';
 
 /**
  * Options for creating a new node.

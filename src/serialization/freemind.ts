@@ -5,7 +5,7 @@
  */
 import type { JmMindSerializer } from './index.ts';
 import { JsMindError } from '../common/error.ts';
-import { type JmMind } from '../model/mind.ts';
+import type { JmMind } from '../model/mind.ts';
 
 /**
  * FreeMind serializer for mind maps (not yet implemented).
