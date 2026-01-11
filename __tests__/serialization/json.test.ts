@@ -45,11 +45,13 @@ test('JmMindJsonSerializer - serialize basic mind map', () => {
     // Verify root node
     const rootId = Object.keys(serialized.nodes)[0]; // First node is the root
     assert.ok(rootId, 'Should have a root node');
-    assert.strictEqual(serialized.root.id, rootId);
-    assert.strictEqual(serialized.root.content.type, 'text');
-    assert.strictEqual(serialized.root.content.value, 'jsMind Mindmap');
-    assert.strictEqual(serialized.root.parent, null);
-    assert.ok(Array.isArray(serialized.root.children), 'Should have children array');
+    assert.strictEqual(serialized.root, rootId, 'Root should be the root node ID');
+    const rootNode = serialized.nodes[serialized.root];
+    assert.ok(rootNode, 'Root node should exist in nodes');
+    assert.strictEqual(rootNode.content.type, 'text');
+    assert.strictEqual(rootNode.content.value, 'jsMind Mindmap');
+    assert.strictEqual(rootNode.parent, null);
+    assert.ok(Array.isArray(rootNode.children), 'Should have children array');
 
     // Verify child node exists
     const childId = Object.keys(serialized.nodes).find(id => id !== rootId);
@@ -98,7 +100,7 @@ test('JmMindJsonSerializer - validate with valid data', () => {
 
     const validData = {
         meta: { name: 'Test Mind' },
-        root: { id: 'root' },
+        root: 'root',
         nodes: { root: { id: 'root' } },
         edges: {}
     };
@@ -158,7 +160,7 @@ test('JmMindJsonSerializer - deserialize basic mind map', () => {
     };
     const testData = {
         meta: { name: 'Test Mind', author: 'Test Author', version: '1.0' },
-        root: rootNode,
+        root: 'root',
         nodes: {
             root: rootNode,
             child1: {
@@ -200,6 +202,11 @@ test('JmMindJsonSerializer - deserialize basic mind map', () => {
     assert.ok(deserialized._edges['edge1'], 'Should have edge1');
     assert.strictEqual(deserialized._edges['edge1'].sourceNodeId, 'root');
     assert.strictEqual(deserialized._edges['edge1'].targetNodeId, 'child1');
+
+    // Verify node parent relationships
+    assert.strictEqual(deserialized._nodes['root'].parent, null, 'Root node should have null parent');
+    assert.ok(deserialized._nodes['child1'].parent, 'Child1 should have a parent');
+    assert.strictEqual(deserialized._nodes['child1'].parent!.id, 'root', 'Child1 parent should be root node');
 });
 
 test('JmMindJsonSerializer - deserialize node', () => {

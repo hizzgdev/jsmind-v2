@@ -3,7 +3,7 @@
  *
  * @packageDocumentation
  */
-import type { JmMindSerializer } from './index.ts';
+import type { JmMindSerializer } from './serializer.ts';
 import { JsMindError } from '../common/error.ts';
 import type { JmMind } from '../model/mind.ts';
 

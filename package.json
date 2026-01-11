@@ -26,7 +26,8 @@
         "format-check": "eslint --config .config/eslint.config.js",
         "type-check": "tsc --noEmit -p tsconfig.json",
         "compile": "tsc --help",
-        "ci": "npm run format-check && npm run type-check && npm run test-lite && npm run build"
+        "ci": "npm run format-check && npm run type-check && npm run test-lite && npm run build",
+        "ci2": "npm run format-check && npm run type-check && npm run test-lite"
     },
     "repository": {
         "type": "git",

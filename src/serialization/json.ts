@@ -3,7 +3,7 @@
  *
  * @packageDocumentation
  */
-import type { JmMindSerializer } from './index.ts';
+import type { JmMindSerializer } from './serializer.ts';
 import { JmMind } from '../model/mind.ts';
 import { JmNode } from '../model/data/node.ts';
 import { JmNodeContent } from '../model/data/node-content.ts';
@@ -51,7 +51,7 @@ export interface SerializedEdge {
  */
 export interface SerializedMindMap {
     meta: MindMetadata;
-    root: SerializedNode;
+    root: string;
     nodes: Record<string, SerializedNode>;
     edges: Record<string, SerializedEdge>;
 }
@@ -85,7 +85,7 @@ export class JmMindJsonSerializer implements JmMindSerializer {
 
         const serializedData: SerializedMindMap = {
             meta: mind.meta,
-            root: this._serializeNode(mind._root),
+            root: mind._root.id,
             nodes: {},
             edges: {}
         };
@@ -116,7 +116,7 @@ export class JmMindJsonSerializer implements JmMindSerializer {
         }
 
         // Create mind map with metadata and options
-        const mind = new JmMind(data.meta, { rootNodeId: data.root.id });
+        const mind = new JmMind(data.meta, { rootNodeId: data.root });
 
         // Restore nodes
         Object.values(data.nodes).forEach((nodeData: SerializedNode) => {
@@ -133,10 +133,10 @@ export class JmMindJsonSerializer implements JmMindSerializer {
         }
 
         // Restore root
-        mind._root = mind._nodes[data.root.id];
+        mind._root = mind._nodes[data.root];
 
         // Restore parent-child relationships
-        this._restoreNodeRelationships(mind);
+        this._restoreNodeRelationships(mind, data);
 
         return mind;
     }
@@ -157,9 +157,9 @@ export class JmMindJsonSerializer implements JmMindSerializer {
             return false;
         }
 
-        const root = d.root as Record<string, unknown>;
+        const rootId = d.root;
         const nodes = d.nodes as Record<string, unknown>;
-        if (!root.id || typeof root.id !== 'string' || !nodes[root.id]) {
+        if (!rootId || typeof rootId !== 'string' || !nodes[rootId]) {
             return false;
         }
 
@@ -243,18 +243,31 @@ export class JmMindJsonSerializer implements JmMindSerializer {
     /**
      * Restores parent-child relationships between nodes.
      *
-     * @remarks
-     * This method is no longer needed since parent-child relationships
-     * are now stored directly in the nodes and serialized/deserialized
-     * as part of the node data itself.
-     *
      * @private
-     * @param _mind - The mind map to restore relationships for.
+     * @param mind - The mind map to restore relationships for.
+     * @param data - The serialized data containing parent and children information.
      */
-    _restoreNodeRelationships(_mind: JmMind): void {
-        // This method is no longer needed since parent-child relationships
-        // are now stored directly in the nodes and serialized/deserialized
-        // as part of the node data itself
+    _restoreNodeRelationships(mind: JmMind, data: SerializedMindMap): void {
+        // Restore parent relationships
+        Object.values(data.nodes).forEach((nodeData: SerializedNode) => {
+            const node = mind._nodes[nodeData.id];
+            if (nodeData.parent !== null) {
+                const parentNode = mind._nodes[nodeData.parent];
+                if (parentNode) {
+                    node.parent = parentNode;
+                }
+            } else {
+                node.parent = null;
+            }
+        });
+
+        // Restore children relationships
+        Object.values(data.nodes).forEach((nodeData: SerializedNode) => {
+            const node = mind._nodes[nodeData.id];
+            node.children = nodeData.children
+                .map((childId: string) => mind._nodes[childId])
+                .filter((child: JmNode | undefined) => child !== undefined) as JmNode[];
+        });
     }
 }
 

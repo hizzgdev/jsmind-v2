@@ -17,7 +17,7 @@ export interface JmMindSerializer {
      *
      * @param mind - The mind map to serialize.
      * @returns The serialized data in the specific format.
-     * @throws {@link Error} If not implemented.
+     * @throws {@link JsMindError} If serialization fails.
      */
     serialize(mind: JmMind): unknown;
 
@@ -26,7 +26,7 @@ export interface JmMindSerializer {
      *
      * @param data - The data to deserialize.
      * @returns The deserialized mind map.
-     * @throws {@link Error} If not implemented.
+     * @throws {@link JsMindError} If deserialization fails.
      */
     deserialize(data: unknown): JmMind;
 
@@ -34,7 +34,7 @@ export interface JmMindSerializer {
      * Gets the format name this serializer supports.
      *
      * @returns The format name.
-     * @throws {@link Error} If not implemented.
+     * @throws {@link JsMindError} If format name is not implemented.
      */
     getFormatName(): string;
 
@@ -43,8 +43,8 @@ export interface JmMindSerializer {
      *
      * @param data - The data to validate.
      * @returns True if the data is valid for this format.
-     * @throws {@link Error} If not implemented.
+     * @throws {@link JsMindError} If validation fails.
      */
     validate(data: unknown): boolean;
-}
 
+}

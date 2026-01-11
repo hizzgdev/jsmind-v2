@@ -1,12 +1,12 @@
 
 import { JmMind } from '../model/mind.ts';
-import { JmMindJsonSerializer } from '../serialization/json.ts';
 import { JmNodeContent } from '../model/data/node-content.ts';
 import { mergeJsMindOptions, type JsMindOptions } from '../common/option.ts';
 import { JmView } from '../view/index.ts';
 import { MindmapArranger } from '../arranger/mindmap.ts';
-import type { Arranger } from '../arranger/index.ts';
 import { JmMindChangeCoordinator } from './mind-change-coordinator.ts';
+import { JmNodeSide } from '../model/data/node.ts';
+import { JmMindSerializerFactory } from '../serialization/serializer-factory.ts';
 
 /**
  * Main class for jsMind mind map operations.
@@ -35,44 +35,35 @@ class JsMind {
 
     static NodeContent = JmNodeContent;
 
+    static Serializer = JmMindSerializerFactory;
+
+    static NodeSide = JmNodeSide;
+
     /** The options for this jsMind instance. */
     options: JsMindOptions;
 
     /** The currently opened mind map, or null if none is open. */
     mind: JmMind | null = null;
 
-    /** The serializer used for serialization operations. */
-    serializer: JmMindJsonSerializer;
-
-    /** The arranger instance for calculating the layout of the mind map. */
-    private readonly arranger: Arranger;
-
-    /** The view instance for rendering the mind map. */
-    private readonly view: JmView;
-
     /** The state coordinator instance for managing the state of the mind map. */
-    private readonly mindChangeCoordinator: JmMindChangeCoordinator;
+    private readonly coordinator: JmMindChangeCoordinator;
 
     /**
      * Creates a new jsMind instance.
      *
      * @param options - Configuration options for the jsMind instance.
      */
-    private constructor(options: JsMindOptions, serializer: JmMindJsonSerializer, view: JmView, arranger: Arranger, mindChangeCoordinator: JmMindChangeCoordinator) {
+    private constructor(options: JsMindOptions, mindChangeCoordinator: JmMindChangeCoordinator) {
         this.options = options;
-        this.serializer = serializer;
-        this.arranger = arranger;
-        this.view = view;
-        this.mindChangeCoordinator = mindChangeCoordinator;
+        this.coordinator = mindChangeCoordinator;
     }
 
     static async create(container: string | HTMLElement, options: JsMindOptions): Promise<JsMind> {
         const mergedOptions = mergeJsMindOptions(options);
-        const serializer = new JmMindJsonSerializer();
         const arranger = new MindmapArranger(mergedOptions.layout);
         const view = await JmView.create(container, arranger, mergedOptions.view);
         const mindChangeCoordinator = new JmMindChangeCoordinator(arranger, view);
-        return new JsMind(mergedOptions, serializer, view, arranger, mindChangeCoordinator);
+        return new JsMind(mergedOptions, mindChangeCoordinator);
     }
 
     /**
@@ -83,8 +74,8 @@ class JsMind {
      */
     async open(mind: JmMind): Promise<void> {
         this.mind = mind;
-        await this.mindChangeCoordinator.onMindMapOpened(mind);
-        mind.observerManager.addObserver(this.mindChangeCoordinator);
+        await this.coordinator.onMindMapOpened(mind);
+        mind.observerManager.addObserver(this.coordinator);
     }
 
 
@@ -99,7 +90,7 @@ class JsMind {
         // Empty for now - can be extended in the future
         // for cleanup operations like removing observers, clearing caches, etc.
         if(this.mind) {
-            this.mindChangeCoordinator.onMindMapClosed(this.mind!);
+            this.coordinator.onMindMapClosed(this.mind!);
             this.mind = null;
         }
     }
@@ -115,7 +106,8 @@ class JsMind {
             throw new Error('No mind map is currently open');
         }
 
-        const data = this.serializer.serialize(this.mind);
+        const serializer = JmMindSerializerFactory.create('json');
+        const data = serializer.serialize(this.mind);
         return JSON.stringify(data);
     }
 }
