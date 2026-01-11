@@ -54,6 +54,7 @@
 
 .jsmind-node-expander-expanded::after{
     display: block;
+    font-family: 'Arial';
     font-size: 18px;
     margin-top: -4.5px;
     content: '\229D';

@@ -1,6 +1,5 @@
 
 import { JmMind } from '../model/mind.ts';
-import { JmNodeContent } from '../model/data/node-content.ts';
 import { mergeJsMindOptions, type JsMindOptions } from '../common/option.ts';
 import { JmView } from '../view/index.ts';
 import { MindmapArranger } from '../arranger/mindmap.ts';
@@ -32,8 +31,6 @@ class JsMind {
      * Exported classes for browser use.
      */
     static Mind = JmMind;
-
-    static NodeContent = JmNodeContent;
 
     static Serializer = JmMindSerializerFactory;
 
@@ -113,4 +110,3 @@ class JsMind {
 }
 
 export default JsMind;
-

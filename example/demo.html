@@ -77,7 +77,6 @@
 
                     // Create a mind map
                     const JmMind = jsMind.Mind;
-                    const JmNodeContent = jsMind.NodeContent;
                     
                     _mind = new JmMind({
                         name: 'jsMind V2 Demo',
@@ -86,55 +85,54 @@
                     });
 
                     // Add root node content
-                    const root = _mind.root;
-                    root.content = JmNodeContent.createText('jsMind V2');
+                    const rootId = _mind.root.id;
 
                     // Add some child nodes
                     const sub1 = _mind.addNode(
-                        JmNodeContent.createText('Feature 1'),
-                        { parentId: root.id },
+                        {'type': 'text', 'value': 'Feature 1'},
+                        { parentId: rootId },
                         { side: 1 , folded: true}
                     );
 
                     const sub2 = _mind.addNode(
-                        JmNodeContent.createText('Feature 2'),
-                        { parentId: root.id }
+                        {'type': 'text', 'value': 'Feature 2'},
+                        { parentId: rootId }
                     );
 
                     const sub3 = _mind.addNode(
-                        JmNodeContent.createText('Feature 3'),
-                        { parentId: root.id },
+                        {'type': 'text', 'value': 'Feature 3'},
+                        { parentId: rootId },
                         {side: -1}
                     );
                     const sub4 = _mind.addNode(
-                        JmNodeContent.createText('Feature 4'),
-                        { parentId: root.id },
+                        {'type': 'text', 'value': 'Feature 4'},
+                        { parentId: rootId },
                         {side: -1}
                     );
 
                     // Add grandchildren
                     _mind.addNode(
-                        JmNodeContent.createText('Sub-feature 1.1'),
+                        {'type': 'text', 'value': 'Sub-feature 1.1'},
                         { parentId: sub1.id }
                     );
 
                     _mind.addNode(
-                        JmNodeContent.createText('Sub-feature 1.2'),
+                        {'type': 'text', 'value': 'Sub-feature 1.2'},
                         { parentId: sub1.id }
                     );
 
                     _mind.addNode(
-                        JmNodeContent.createText('Sub-feature 4.1 - hello world'),
+                        {'type': 'text', 'value': 'Sub-feature 4.1 - hello world'},
                         { parentId: sub4.id }
                     );
 
                     _mind.addNode(
-                        JmNodeContent.createText('Sub-feature 4.2'),
+                        {'type': 'text', 'value': 'Sub-feature 4.2'},
                         { parentId: sub4.id }
                     );
 
                     _mind.addNode(
-                        JmNodeContent.createText('Sub-feature 4.3'),
+                        {'type': 'text', 'value': 'Sub-feature 4.3'},
                         { parentId: sub4.id }
                     );
 
@@ -156,12 +154,11 @@
                 }
 
                 try {
-                    const JmNodeContent = jsMind.NodeContent;
-                    const root = _mind.root;
+                    const rootId = _mind.root.id;
                     
                     const newNode = _mind.addNode(
-                        JmNodeContent.createText('New Node ' + Date.now()),
-                        { parentId: root.id }
+                        {'type': 'text', 'value': 'New Node ' + Date.now()},
+                        { parentId: rootId }
                     );
 
                     console.log('Added node:', newNode);

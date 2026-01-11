@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jsMind V2 Playground</title>
+    <link rel="stylesheet" href="../styles/jsmind.css">
+    <style type="text/css">
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            padding: 12px 20px;
+            background: #2d3748;
+            color: white;
+            border-bottom: 1px solid #4a5568;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e2e8f0;
+            background: #f7fafc;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            background: white;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 10px 16px;
+            background: #edf2f7;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 600;
+            font-size: 14px;
+            color: #2d3748;
+            flex-shrink: 0;
+        }
+
+        .mindmap-container {
+            flex: 1 1 0;
+            padding: 20px;
+            overflow: auto;
+            background: white;
+            min-height: 0;
+        }
+
+        .node-info-bar {
+            flex: 0 0 auto;
+            padding: 8px 16px;
+            background: #edf2f7;
+            border-top: 1px solid #e2e8f0;
+            font-size: 12px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            color: #2d3748;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .node-info-item {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .node-info-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .node-info-value {
+            color: #2d3748;
+            padding: 2px 8px;
+            background: white;
+            border: 1px solid #cbd5e0;
+            border-radius: 3px;
+        }
+
+        .copy-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            margin-left: 0;
+            cursor: pointer;
+            color: #718096;
+            font-size: 12px;
+            transition: color 0.2s;
+            user-select: none;
+            opacity: 0.7;
+        }
+
+        .copy-icon:hover {
+            color: #4299e1;
+            opacity: 1;
+        }
+
+        .copy-icon:active {
+            color: #2c5282;
+        }
+
+        .copy-icon.hidden {
+            display: none;
+        }
+
+        .console-container {
+            flex: 0 0 30%;
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid #e2e8f0;
+            background: white;
+            min-height: 0;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .console-output {
+            flex: 1 1 auto;
+            overflow: auto;
+            padding: 12px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: 0;
+        }
+
+        .console-toolbar {
+            padding: 6px 12px;
+            background: #edf2f7;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .console-line {
+            margin: 2px 0;
+        }
+
+        .console-line.log {
+            color: #d4d4d4;
+        }
+
+        .console-line.info {
+            color: #4fc3f7;
+        }
+
+        .console-line.warn {
+            color: #ffb74d;
+        }
+
+        .console-line.error {
+            color: #ef5350;
+        }
+
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .code-display {
+            padding: 12px;
+            margin: 0;
+            overflow: auto;
+            width: 100%;
+            height: 100%;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            box-sizing: border-box;
+        }
+
+        .code-textarea {
+            width: 100%;
+            height: 100%;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 14px;
+            border: none;
+            resize: none;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            box-sizing: border-box;
+        }
+
+        #jsmind_container {
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+            border: 1px solid #e2e8f0;
+            background: #fafafa;
+            border-radius: 4px;
+        }
+
+        .code-section {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-bottom: 1px solid #e2e8f0;
+            min-height: 0;
+        }
+
+        .code-section:first-child {
+            flex: 0 0 35%;
+            min-height: 0;
+        }
+
+        .code-section:last-child {
+            flex: 1 1 auto;
+            min-height: 0;
+            border-bottom: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .code-editor-wrapper {
+            flex: 1 1 auto;
+            overflow: auto;
+            position: relative;
+            min-height: 0;
+        }
+
+        .code-editor {
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-toolbar {
+            padding: 8px 16px;
+            background: #f7fafc;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            background: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #3182ce;
+        }
+
+        .btn:active {
+            background: #2c5282;
+        }
+
+        .btn-secondary {
+            background: #718096;
+        }
+
+        .btn-secondary:hover {
+            background: #4a5568;
+        }
+
+        .error-message {
+            padding: 8px 16px;
+            background: #fed7d7;
+            color: #c53030;
+            border-top: 1px solid #fc8181;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            max-height: 100px;
+            overflow: auto;
+            flex-shrink: 0;
+        }
+
+        .error-message:empty {
+            display: none;
+        }
+
+        /* Code editor styles */
+        #init-code-editor pre,
+        #code-editor textarea {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>jsMind V2 Playground</h1>
+    </div>
+
+    <div class="container">
+        <!-- Left: Mind Map -->
+        <div class="left-panel">
+            <div class="panel-header">Mind Map</div>
+            <div class="mindmap-container">
+                <div id="jsmind_container"></div>
+            </div>
+            <!-- Node Info Bar -->
+            <div id="node-info-bar" class="node-info-bar">
+                <div class="node-info-item">
+                    <span class="node-info-label">Node ID:</span>
+                    <span id="node-id-value" class="node-info-value">-</span>
+                    <span class="copy-icon hidden" id="copy-node-id-icon" onclick="copyNodeId()" title="Copy Node ID">📋</span>
+                </div>
+                <div class="node-info-item">
+                    <span class="node-info-label">Node Content:</span>
+                    <span id="content-value" class="node-info-value">-</span>
+                </div>
+            </div>
+            <!-- Console Output Area -->
+            <div class="console-container">
+                <div class="panel-header console-header">
+                    <span>Console Output</span>
+                    <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="clearConsole()">Clear</button>
+                </div>
+                <div id="console-output" class="console-output"></div>
+            </div>
+        </div>
+
+        <!-- Right: Code Area -->
+        <div class="right-panel">
+            <!-- Top: Initialization Code (Read-only) -->
+            <div class="code-section">
+                <div class="panel-header">Initialization Code (Read-only)</div>
+                <div class="code-editor-wrapper">
+                    <div id="init-code-editor" class="code-editor"></div>
+                </div>
+            </div>
+
+            <!-- Bottom: Editable Code Editor -->
+            <div class="code-section">
+                <div class="panel-header">Code Editor</div>
+                <div class="code-editor-wrapper">
+                    <div id="code-editor" class="code-editor"></div>
+                </div>
+                <div class="editor-toolbar">
+                    <button class="btn" onclick="executeCode()">▶ Execute Code</button>
+                    <button class="btn btn-secondary" onclick="resetMindMap()">Reset Mind Map</button>
+                </div>
+                <div id="error-message" class="error-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load jsMind (UMD format, will be mounted to window.jsMind) -->
+    <script type="text/javascript" src="../dist/jsmind.js"></script>
+
+    <!-- Use simple textarea as code editor -->
+    <script type="text/javascript">
+
+        // Initialization code (read-only)
+        const initCode = `// Create jsMind instance
+const jm = await jsMind.create('jsmind_container', {
+    view: {
+        expander: {
+            style: 'char',
+        }
+    }
+});
+
+// Create mind map
+const JmMind = jsMind.Mind;
+
+const mind = new JmMind({
+    name: 'jsMind V2 Playground',
+    author: 'playground',
+    version: '2.0',
+});
+
+// Set root node
+const rootId = mind.root.id;
+
+// Add two child nodes
+const sub1 = mind.addNode(
+    {'type': 'text', 'value': 'Feature 1'},
+    { parentId: rootId }
+);
+
+const sub2 = mind.addNode(
+    {'type': 'text', 'value': 'Feature 2'},
+    { parentId: rootId }
+);
+
+// Open mind map
+await jm.open(mind);
+
+// Save instances to global variables for later use
+window._jm = jm;
+window._mind = mind;`;
+
+        // Default user code
+        const defaultUserCode = `// Write your code here
+// You can use the following global variables:
+// - _jm: jsMind instance
+// - _mind: mind map instance
+// - jsMind: jsMind namespace
+
+// Example: Add a new node
+if (_mind && _mind.root) {
+    const newNode = _mind.addNode(
+        {'type': 'text', 'value': 'New Node ' + new Date().toLocaleTimeString()},
+        { parentId: _mind.root.id }
+    );
+    console.log('Added node:', newNode);
+}`;
+
+        // Constants
+        const CONSTANTS = {
+            MAX_CONSOLE_LINES: 1000,
+            JSMIND_CHECK_INTERVAL: 100
+        };
+
+        // Console output management
+        const consoleOutput = {
+            container: null,
+
+            init: function() {
+                this.container = document.getElementById('console-output');
+            },
+
+            addLine: function(type, ...args) {
+                if (!this.container) return;
+
+                const timestamp = new Date().toLocaleTimeString();
+                const formattedArgs = args.map(arg => {
+                    if (typeof arg === 'object') {
+                        try {
+                            return JSON.stringify(arg, null, 2);
+                        } catch (e) {
+                            return String(arg);
+                        }
+                    }
+                    return String(arg);
+                }).join(' ');
+
+                const line = document.createElement('div');
+                line.className = `console-line ${type}`;
+                line.textContent = `[${timestamp}] ${formattedArgs}`;
+                this.container.appendChild(line);
+
+                // Auto scroll to bottom
+                this.container.scrollTop = this.container.scrollHeight;
+
+                // Limit maximum lines
+                if (this.container.children.length > CONSTANTS.MAX_CONSOLE_LINES) {
+                    this.container.removeChild(this.container.firstChild);
+                }
+            },
+
+            clear: function() {
+                if (this.container) {
+                    this.container.innerHTML = '';
+                }
+            }
+        };
+
+        // Intercept console methods
+        const originalConsole = {
+            log: console.log,
+            info: console.info,
+            warn: console.warn,
+            error: console.error
+        };
+
+        function setupConsoleInterceptor() {
+            const consoleMethods = ['log', 'info', 'warn', 'error'];
+            consoleMethods.forEach(method => {
+                const original = originalConsole[method];
+                console[method] = function(...args) {
+                    original.apply(console, args);
+                    consoleOutput.addLine(method, ...args);
+                };
+            });
+        }
+
+        // Code executor - unified code execution logic
+        const codeExecutor = {
+            createExecuteContext: function() {
+                return {
+                    jsMind: window.jsMind,
+                    _jm: window._jm,
+                    _mind: window._mind,
+                    console: console,
+                    setTimeout,
+                    clearTimeout,
+                    setInterval,
+                    clearInterval,
+                    Promise,
+                    Date,
+                    JSON,
+                };
+            },
+
+            execute: async function(code, errorHandler) {
+                const executeContext = this.createExecuteContext();
+                const paramNames = Object.keys(executeContext);
+                const paramValues = Object.values(executeContext);
+
+                // Wrap code in async function to support await
+                const asyncCode = `(async function() {\n${code}\n})()`;
+                const func = new Function(...paramNames, asyncCode);
+                const result = func(...paramValues);
+
+                // Wait for Promise to complete
+                if (result instanceof Promise) {
+                    await result;
+                }
+            }
+        };
+
+        // Node info display management
+        const nodeInfoBar = {
+            nodeIdElement: null,
+            contentValueElement: null,
+
+            init: function() {
+                this.nodeIdElement = document.getElementById('node-id-value');
+                this.contentValueElement = document.getElementById('content-value');
+            },
+
+            update: function(nodeId, contentValue) {
+                if (this.nodeIdElement) {
+                    this.nodeIdElement.textContent = nodeId || '-';
+                }
+                // Show/hide copy icon based on whether nodeId exists
+                const copyIcon = document.getElementById('copy-node-id-icon');
+                if (copyIcon) {
+                    if (nodeId && nodeId !== '-') {
+                        copyIcon.classList.remove('hidden');
+                    } else {
+                        copyIcon.classList.add('hidden');
+                    }
+                }
+                if (this.contentValueElement) {
+                    // Format content value for display
+                    let displayValue = '-';
+                    if (contentValue !== null && contentValue !== undefined) {
+                        if (typeof contentValue === 'object') {
+                            try {
+                                displayValue = JSON.stringify(contentValue);
+                            } catch (e) {
+                                displayValue = String(contentValue);
+                            }
+                        } else {
+                            displayValue = String(contentValue);
+                        }
+                    }
+                    this.contentValueElement.textContent = displayValue;
+                }
+            },
+
+            clear: function() {
+                this.update(null, null);
+            }
+        };
+
+        // Setup node click listener
+        let nodeClickListenerSetup = false;
+        function setupNodeClickListener() {
+            const container = document.getElementById('jsmind_container');
+            if (!container || nodeClickListenerSetup) return;
+
+            // Use event delegation to listen for node clicks, only handle elements with jsmind-node class
+            container.addEventListener('click', function(event) {
+                // Find the nearest element with jsmind-node class
+                let target = event.target;
+                let foundNode = false;
+                
+                while (target && target !== container) {
+                    // Check if it's a jsmind-node element
+                    if (target.classList && target.classList.contains('jsmind-node')) {
+                        const nodeId = target.getAttribute('data-jm-node-id');
+                        if (nodeId) {
+                            console.log('Clicked node:', nodeId);
+                            // Found node, get content value
+                            let contentValue = null;
+                            if (window._mind) {
+                                const node = window._mind.findNodeById(nodeId);
+                                if (node) {
+                                    contentValue = node.content ? node.content.value : null;
+                                    console.log('Node info:', { nodeId, contentValue });
+                                } else {
+                                    console.warn('Node not found:', nodeId);
+                                }
+                            } else {
+                                console.warn('_mind is not defined');
+                            }
+                            nodeInfoBar.update(nodeId, contentValue);
+                            foundNode = true;
+                            return;
+                        }
+                    }
+                    target = target.parentElement;
+                }
+                
+                // If no node found, clear info bar
+                if (!foundNode) {
+                    nodeInfoBar.clear();
+                }
+            });
+            
+            nodeClickListenerSetup = true;
+            console.log('Node click listener has been set up');
+        }
+
+        // Clear Console function
+        window.clearConsole = function() {
+            consoleOutput.clear();
+        };
+
+        // Copy Node ID function
+        window.copyNodeId = function() {
+            const nodeIdElement = document.getElementById('node-id-value');
+            if (!nodeIdElement) return;
+
+            const nodeId = nodeIdElement.textContent;
+            if (!nodeId || nodeId === '-') {
+                return;
+            }
+
+            // Copy to clipboard
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(nodeId).then(() => {
+                    // Visual feedback
+                    const icon = document.getElementById('copy-node-id-icon');
+                    if (icon) {
+                        const originalText = icon.textContent;
+                        icon.textContent = '✓';
+                        icon.style.color = '#48bb78';
+                        setTimeout(() => {
+                            icon.textContent = originalText;
+                            icon.style.color = '';
+                        }, 1000);
+                    }
+                }).catch(err => {
+                    console.error('Failed to copy:', err);
+                    // Fallback for older browsers
+                    fallbackCopyTextToClipboard(nodeId);
+                });
+            } else {
+                // Fallback for older browsers
+                fallbackCopyTextToClipboard(nodeId);
+            }
+        };
+
+        // Fallback copy function for older browsers
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    const icon = document.getElementById('copy-node-id-icon');
+                    if (icon) {
+                        const originalText = icon.textContent;
+                        icon.textContent = '✓';
+                        icon.style.color = '#48bb78';
+                        setTimeout(() => {
+                            icon.textContent = originalText;
+                            icon.style.color = '';
+                        }, 1000);
+                    }
+                }
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+            }
+            
+            document.body.removeChild(textArea);
+        }
+
+        // Wait for DOM to load
+        window.addEventListener('DOMContentLoaded', function() {
+            // Initialize Console output
+            consoleOutput.init();
+            setupConsoleInterceptor();
+
+            // Initialize node info display bar
+            nodeInfoBar.init();
+
+            // Initialize read-only code display area (using pre tag)
+            const initCodeElement = document.getElementById('init-code-editor');
+            const initPre = document.createElement('pre');
+            initPre.textContent = initCode;
+            initPre.className = 'code-display';
+            initCodeElement.appendChild(initPre);
+
+            // Initialize editable code editor (using textarea)
+            const codeEditorElement = document.getElementById('code-editor');
+            const codeTextarea = document.createElement('textarea');
+            codeTextarea.value = defaultUserCode;
+            codeTextarea.className = 'code-textarea';
+            codeEditorElement.appendChild(codeTextarea);
+
+            // Create simple codeEditor object for compatibility
+            const codeEditor = {
+                getValue: function() {
+                    return codeTextarea.value;
+                }
+            };
+
+            // Save editor to global for easy access
+            window.codeEditor = codeEditor;
+        });
+
+        // Execute code function
+        window.executeCode = async function() {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = '';
+
+            try {
+                const code = codeEditor.getValue();
+                await codeExecutor.execute(code);
+                console.log('Code execution completed');
+            } catch (error) {
+                const errorMsg = error.toString() + (error.stack ? '\n' + error.stack : '');
+                errorDiv.textContent = errorMsg;
+                console.error('Execution error:', error);
+            }
+        };
+
+        // Reset mind map function (clear and re-execute initialization code)
+        window.resetMindMap = async function() {
+            if (window._jm) {
+                window._jm.close();
+                window._jm = null;
+            }
+            window._mind = null;
+            const container = document.getElementById('jsmind_container');
+            container.innerHTML = '';
+            document.getElementById('error-message').textContent = '';
+            nodeInfoBar.clear();
+            // Reset listener setup flag so it can be set up again next time
+            nodeClickListenerSetup = false;
+            
+            // Re-execute initialization code
+            await executeInitCode();
+        };
+
+        // Function to automatically execute initialization code
+        async function executeInitCode() {
+            if (!window.jsMind) {
+                console.error('jsMind not loaded, cannot execute initialization code');
+                return;
+            }
+
+            try {
+                await codeExecutor.execute(initCode);
+                console.log('Initialization code execution completed, mind map created');
+                // Wait for DOM rendering to complete before setting up node click listener
+                setTimeout(() => {
+                    setupNodeClickListener();
+                }, 100);
+            } catch (error) {
+                console.error('Failed to execute initialization code:', error);
+                const errorDiv = document.getElementById('error-message');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Initialization failed: ' + error.toString();
+                }
+            }
+        }
+
+        // Wait for jsMind to load, then automatically execute initialization code
+        window.addEventListener('DOMContentLoaded', function() {
+            // jsMind is loaded via UMD format, need to wait a bit to ensure it's mounted
+            function checkAndExecute() {
+                if (window.jsMind) {
+                    console.log('jsMind loaded, version:', window.jsMind.Version || 'unknown');
+                    executeInitCode();
+                } else {
+                    setTimeout(checkAndExecute, CONSTANTS.JSMIND_CHECK_INTERVAL);
+                }
+            }
+            
+            checkAndExecute();
+        });
+    </script>
+</body>
+</html>
