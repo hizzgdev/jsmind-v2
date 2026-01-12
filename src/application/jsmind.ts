@@ -55,7 +55,7 @@ class JsMind {
         this.coordinator = mindChangeCoordinator;
     }
 
-    static async create(container: string | HTMLElement, options: JsMindOptions): Promise<JsMind> {
+    static async create(container: string | HTMLElement, options?: JsMindOptions): Promise<JsMind> {
         const mergedOptions = mergeJsMindOptions(options);
         const arranger = new MindmapArranger(mergedOptions.layout);
         const view = await JmView.create(container, arranger, mergedOptions.view);

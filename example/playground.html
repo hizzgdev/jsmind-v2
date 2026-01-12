@@ -235,6 +235,36 @@
             border-radius: 4px;
         }
 
+        .code-templates-bar {
+            padding: 8px 12px;
+            background: #f7fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .template-label {
+            font-size: 12px;
+            color: #718096;
+            font-weight: 500;
+        }
+
+        .template-link {
+            font-size: 12px;
+            color: #4299e1;
+            text-decoration: none;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .template-link:hover {
+            background-color: #ebf8ff;
+            color: #2c5282;
+        }
+
         .code-section {
             display: flex;
             flex-direction: column;
@@ -309,22 +339,6 @@
             background: #4a5568;
         }
 
-        .error-message {
-            padding: 8px 16px;
-            background: #fed7d7;
-            color: #c53030;
-            border-top: 1px solid #fc8181;
-            font-size: 12px;
-            font-family: 'Courier New', monospace;
-            max-height: 100px;
-            overflow: auto;
-            flex-shrink: 0;
-        }
-
-        .error-message:empty {
-            display: none;
-        }
-
         /* Code editor styles */
         #init-code-editor pre,
         #code-editor textarea {
@@ -351,7 +365,7 @@
                 <div class="node-info-item">
                     <span class="node-info-label">Node ID:</span>
                     <span id="node-id-value" class="node-info-value">-</span>
-                    <span class="copy-icon hidden" id="copy-node-id-icon" onclick="copyNodeId()" title="Copy Node ID">📋</span>
+                    <span class="copy-icon hidden" id="copy-node-id-icon" data-action="copy-node-id" title="Copy Node ID">📋</span>
                 </div>
                 <div class="node-info-item">
                     <span class="node-info-label">Node Content:</span>
@@ -362,7 +376,7 @@
             <div class="console-container">
                 <div class="panel-header console-header">
                     <span>Console Output</span>
-                    <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="clearConsole()">Clear</button>
+                    <button class="btn" style="padding: 4px 8px; font-size: 11px;" data-action="clear-console">Clear</button>
                 </div>
                 <div id="console-output" class="console-output"></div>
             </div>
@@ -381,14 +395,21 @@
             <!-- Bottom: Editable Code Editor -->
             <div class="code-section">
                 <div class="panel-header">Code Editor</div>
+                <div class="code-templates-bar">
+                    <span class="template-label">Templates:</span>
+                    <a href="#" class="template-link" data-template="addNode">Add Node</a>
+                    <a href="#" class="template-link" data-template="deleteNode">Delete Node</a>
+                    <a href="#" class="template-link" data-template="updateNode">Update Node</a>
+                    <a href="#" class="template-link" data-template="moveNode">Move Node</a>
+                    <a href="#" class="template-link" data-template="findNode">Find Node</a>
+                </div>
                 <div class="code-editor-wrapper">
                     <div id="code-editor" class="code-editor"></div>
                 </div>
                 <div class="editor-toolbar">
-                    <button class="btn" onclick="executeCode()">▶ Execute Code</button>
-                    <button class="btn btn-secondary" onclick="resetMindMap()">Reset Mind Map</button>
+                    <button class="btn" data-action="execute-code">▶ Execute Code</button>
+                    <button class="btn btn-secondary" data-action="reset-mindmap">Reset Mind Map</button>
                 </div>
-                <div id="error-message" class="error-message"></div>
             </div>
         </div>
     </div>
@@ -398,439 +419,606 @@
 
     <!-- Use simple textarea as code editor -->
     <script type="text/javascript">
+        /**
+         * jsMind V2 Playground Application
+         * Structured and modular code organization
+         */
+        (function() {
+            'use strict';
 
-        // Initialization code (read-only)
-        const initCode = `// Create jsMind instance
-const jm = await jsMind.create('jsmind_container', {
-    view: {
-        expander: {
-            style: 'char',
-        }
-    }
-});
+            // ============================================================================
+            // Configuration
+            // ============================================================================
+            const CONFIG = {
+                MAX_CONSOLE_LINES: 1000,
+                JSMIND_CHECK_INTERVAL: 100,
+                NODE_CLICK_LISTENER_DELAY: 100,
+                COPY_FEEDBACK_DURATION: 1000
+            };
+
+            // Initialization code (read-only)
+            const INIT_CODE = `// Create jsMind instance
+const jm = await jsMind.create('jsmind_container');
 
 // Create mind map
-const JmMind = jsMind.Mind;
-
-const mind = new JmMind({
-    name: 'jsMind V2 Playground',
-    author: 'playground',
-    version: '2.0',
-});
-
-// Set root node
-const rootId = mind.root.id;
+const mind = new jsMind.Mind();
 
 // Add two child nodes
-const sub1 = mind.addNode(
-    {'type': 'text', 'value': 'Feature 1'},
-    { parentId: rootId }
-);
-
-const sub2 = mind.addNode(
-    {'type': 'text', 'value': 'Feature 2'},
-    { parentId: rootId }
-);
+mind.addChildNode('Node 1', mind.root.id);
+mind.addChildNode('Node 2', mind.root.id);
 
 // Open mind map
-await jm.open(mind);
+await jm.open(mind);`;
 
-// Save instances to global variables for later use
-window._jm = jm;
-window._mind = mind;`;
+            const INIT_WINDOW_VARIABLES = `window.jm = jm; window.mind = mind;`;
 
-        // Default user code
-        const defaultUserCode = `// Write your code here
+            // Default user code
+            const DEFAULT_USER_CODE = `// Write your code here
 // You can use the following global variables:
-// - _jm: jsMind instance
-// - _mind: mind map instance
+// - jm: jsMind instance
+// - mind: mind map instance
 // - jsMind: jsMind namespace
 
 // Example: Add a new node
-if (_mind && _mind.root) {
-    const newNode = _mind.addNode(
+if (mind && mind.root) {
+    const newNode = mind.addNode(
         {'type': 'text', 'value': 'New Node ' + new Date().toLocaleTimeString()},
-        { parentId: _mind.root.id }
+        { parentId: mind.root.id }
     );
     console.log('Added node:', newNode);
 }`;
 
-        // Constants
-        const CONSTANTS = {
-            MAX_CONSOLE_LINES: 1000,
-            JSMIND_CHECK_INTERVAL: 100
+            // ============================================================================
+            // Code Templates
+            // ============================================================================
+            const CODE_TEMPLATES = {
+            addNode: `// Add a new node as a child of root
+if (mind && mind.root) {
+    const newNode = mind.addChildNode('New Node', mind.root.id);
+    console.log('Added node:', newNode.id);
+    // Refresh the mind map view
+    await jm.open(mind);
+}`,
+            deleteNode: `// Delete a node by ID
+// Replace 'node-id-here' with the actual node ID
+const nodeId = 'node-id-here';
+if (mind) {
+    try {
+        mind.removeNode(nodeId);
+        console.log('Removed node:', nodeId);
+        // Refresh the mind map view
+        await jm.open(mind);
+    } catch (error) {
+        console.error('Failed to remove node:', error);
+    }
+}`,
+            updateNode: `// Update node content
+// Replace 'node-id-here' with the actual node ID
+const nodeId = 'node-id-here';
+if (mind) {
+    const node = mind.findNodeById(nodeId);
+    if (node) {
+        node.content.value = 'Updated Content';
+        console.log('Updated node:', nodeId);
+        // Refresh the mind map view
+        await jm.open(mind);
+    } else {
+        console.error('Node not found:', nodeId);
+    }
+}`,
+            moveNode: `// Move a node to a new parent
+// Replace 'node-id-here' and 'new-parent-id' with actual IDs
+const nodeId = 'node-id-here';
+const newParentId = 'new-parent-id';
+if (mind) {
+    try {
+        mind.moveNode(nodeId, { parentId: newParentId });
+        console.log('Moved node:', nodeId, 'to parent:', newParentId);
+        // Refresh the mind map view
+        await jm.open(mind);
+    } catch (error) {
+        console.error('Failed to move node:', error);
+    }
+}`,
+            findNode: `// Find a node by ID
+// Replace 'node-id-here' with the actual node ID
+const nodeId = 'node-id-here';
+if (mind) {
+    const node = mind.findNodeById(nodeId);
+    if (node) {
+        console.log('Found node:', {
+            id: node.id,
+            content: node.content.value,
+            parentId: node.parent ? node.parent.id : null,
+            childrenCount: node.children.length
+        });
+    } else {
+        console.log('Node not found:', nodeId);
+    }
+}`
         };
 
-        // Console output management
-        const consoleOutput = {
-            container: null,
-
-            init: function() {
-                this.container = document.getElementById('console-output');
-            },
-
-            addLine: function(type, ...args) {
-                if (!this.container) return;
-
-                const timestamp = new Date().toLocaleTimeString();
-                const formattedArgs = args.map(arg => {
-                    if (typeof arg === 'object') {
+            // ============================================================================
+            // Utility Functions
+            // ============================================================================
+            const Utils = {
+                /**
+                 * Format value for display (handles objects, arrays, etc.)
+                 */
+                formatValue: function(value) {
+                    if (value === null || value === undefined) {
+                        return '-';
+                    }
+                    if (typeof value === 'object') {
                         try {
-                            return JSON.stringify(arg, null, 2);
+                            return JSON.stringify(value);
                         } catch (e) {
-                            return String(arg);
+                            return String(value);
                         }
                     }
-                    return String(arg);
-                }).join(' ');
+                    return String(value);
+                },
 
-                const line = document.createElement('div');
-                line.className = `console-line ${type}`;
-                line.textContent = `[${timestamp}] ${formattedArgs}`;
-                this.container.appendChild(line);
+                /**
+                 * Show visual feedback on copy icon
+                 */
+                showCopyFeedback: function(iconElement) {
+                    if (!iconElement) return;
+                    const originalText = iconElement.textContent;
+                    iconElement.textContent = '✓';
+                    iconElement.style.color = '#48bb78';
+                    setTimeout(() => {
+                        iconElement.textContent = originalText;
+                        iconElement.style.color = '';
+                    }, CONFIG.COPY_FEEDBACK_DURATION);
+                },
 
-                // Auto scroll to bottom
-                this.container.scrollTop = this.container.scrollHeight;
-
-                // Limit maximum lines
-                if (this.container.children.length > CONSTANTS.MAX_CONSOLE_LINES) {
-                    this.container.removeChild(this.container.firstChild);
-                }
-            },
-
-            clear: function() {
-                if (this.container) {
-                    this.container.innerHTML = '';
-                }
-            }
-        };
-
-        // Intercept console methods
-        const originalConsole = {
-            log: console.log,
-            info: console.info,
-            warn: console.warn,
-            error: console.error
-        };
-
-        function setupConsoleInterceptor() {
-            const consoleMethods = ['log', 'info', 'warn', 'error'];
-            consoleMethods.forEach(method => {
-                const original = originalConsole[method];
-                console[method] = function(...args) {
-                    original.apply(console, args);
-                    consoleOutput.addLine(method, ...args);
-                };
-            });
-        }
-
-        // Code executor - unified code execution logic
-        const codeExecutor = {
-            createExecuteContext: function() {
-                return {
-                    jsMind: window.jsMind,
-                    _jm: window._jm,
-                    _mind: window._mind,
-                    console: console,
-                    setTimeout,
-                    clearTimeout,
-                    setInterval,
-                    clearInterval,
-                    Promise,
-                    Date,
-                    JSON,
-                };
-            },
-
-            execute: async function(code, errorHandler) {
-                const executeContext = this.createExecuteContext();
-                const paramNames = Object.keys(executeContext);
-                const paramValues = Object.values(executeContext);
-
-                // Wrap code in async function to support await
-                const asyncCode = `(async function() {\n${code}\n})()`;
-                const func = new Function(...paramNames, asyncCode);
-                const result = func(...paramValues);
-
-                // Wait for Promise to complete
-                if (result instanceof Promise) {
-                    await result;
-                }
-            }
-        };
-
-        // Node info display management
-        const nodeInfoBar = {
-            nodeIdElement: null,
-            contentValueElement: null,
-
-            init: function() {
-                this.nodeIdElement = document.getElementById('node-id-value');
-                this.contentValueElement = document.getElementById('content-value');
-            },
-
-            update: function(nodeId, contentValue) {
-                if (this.nodeIdElement) {
-                    this.nodeIdElement.textContent = nodeId || '-';
-                }
-                // Show/hide copy icon based on whether nodeId exists
-                const copyIcon = document.getElementById('copy-node-id-icon');
-                if (copyIcon) {
-                    if (nodeId && nodeId !== '-') {
-                        copyIcon.classList.remove('hidden');
+                /**
+                 * Copy text to clipboard with fallback
+                 */
+                copyToClipboard: async function(text, onSuccess) {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        try {
+                            await navigator.clipboard.writeText(text);
+                            if (onSuccess) onSuccess();
+                        } catch (err) {
+                            console.error('Failed to copy:', err);
+                            Utils.fallbackCopyToClipboard(text, onSuccess);
+                        }
                     } else {
-                        copyIcon.classList.add('hidden');
+                        Utils.fallbackCopyToClipboard(text, onSuccess);
                     }
-                }
-                if (this.contentValueElement) {
-                    // Format content value for display
-                    let displayValue = '-';
-                    if (contentValue !== null && contentValue !== undefined) {
-                        if (typeof contentValue === 'object') {
-                            try {
-                                displayValue = JSON.stringify(contentValue);
-                            } catch (e) {
-                                displayValue = String(contentValue);
-                            }
-                        } else {
-                            displayValue = String(contentValue);
+                },
+
+                /**
+                 * Fallback copy method for older browsers
+                 */
+                fallbackCopyToClipboard: function(text, onSuccess) {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    textArea.style.top = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+
+                    try {
+                        const successful = document.execCommand('copy');
+                        if (successful && onSuccess) {
+                            onSuccess();
                         }
+                    } catch (err) {
+                        console.error('Fallback copy failed:', err);
                     }
-                    this.contentValueElement.textContent = displayValue;
-                }
-            },
 
-            clear: function() {
-                this.update(null, null);
-            }
-        };
-
-        // Setup node click listener
-        let nodeClickListenerSetup = false;
-        function setupNodeClickListener() {
-            const container = document.getElementById('jsmind_container');
-            if (!container || nodeClickListenerSetup) return;
-
-            // Use event delegation to listen for node clicks, only handle elements with jsmind-node class
-            container.addEventListener('click', function(event) {
-                // Find the nearest element with jsmind-node class
-                let target = event.target;
-                let foundNode = false;
-                
-                while (target && target !== container) {
-                    // Check if it's a jsmind-node element
-                    if (target.classList && target.classList.contains('jsmind-node')) {
-                        const nodeId = target.getAttribute('data-jm-node-id');
-                        if (nodeId) {
-                            console.log('Clicked node:', nodeId);
-                            // Found node, get content value
-                            let contentValue = null;
-                            if (window._mind) {
-                                const node = window._mind.findNodeById(nodeId);
-                                if (node) {
-                                    contentValue = node.content ? node.content.value : null;
-                                    console.log('Node info:', { nodeId, contentValue });
-                                } else {
-                                    console.warn('Node not found:', nodeId);
-                                }
-                            } else {
-                                console.warn('_mind is not defined');
-                            }
-                            nodeInfoBar.update(nodeId, contentValue);
-                            foundNode = true;
-                            return;
-                        }
-                    }
-                    target = target.parentElement;
-                }
-                
-                // If no node found, clear info bar
-                if (!foundNode) {
-                    nodeInfoBar.clear();
-                }
-            });
-            
-            nodeClickListenerSetup = true;
-            console.log('Node click listener has been set up');
-        }
-
-        // Clear Console function
-        window.clearConsole = function() {
-            consoleOutput.clear();
-        };
-
-        // Copy Node ID function
-        window.copyNodeId = function() {
-            const nodeIdElement = document.getElementById('node-id-value');
-            if (!nodeIdElement) return;
-
-            const nodeId = nodeIdElement.textContent;
-            if (!nodeId || nodeId === '-') {
-                return;
-            }
-
-            // Copy to clipboard
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(nodeId).then(() => {
-                    // Visual feedback
-                    const icon = document.getElementById('copy-node-id-icon');
-                    if (icon) {
-                        const originalText = icon.textContent;
-                        icon.textContent = '✓';
-                        icon.style.color = '#48bb78';
-                        setTimeout(() => {
-                            icon.textContent = originalText;
-                            icon.style.color = '';
-                        }, 1000);
-                    }
-                }).catch(err => {
-                    console.error('Failed to copy:', err);
-                    // Fallback for older browsers
-                    fallbackCopyTextToClipboard(nodeId);
-                });
-            } else {
-                // Fallback for older browsers
-                fallbackCopyTextToClipboard(nodeId);
-            }
-        };
-
-        // Fallback copy function for older browsers
-        function fallbackCopyTextToClipboard(text) {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed';
-            textArea.style.left = '-999999px';
-            textArea.style.top = '-999999px';
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            
-            try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    const icon = document.getElementById('copy-node-id-icon');
-                    if (icon) {
-                        const originalText = icon.textContent;
-                        icon.textContent = '✓';
-                        icon.style.color = '#48bb78';
-                        setTimeout(() => {
-                            icon.textContent = originalText;
-                            icon.style.color = '';
-                        }, 1000);
-                    }
-                }
-            } catch (err) {
-                console.error('Fallback copy failed:', err);
-            }
-            
-            document.body.removeChild(textArea);
-        }
-
-        // Wait for DOM to load
-        window.addEventListener('DOMContentLoaded', function() {
-            // Initialize Console output
-            consoleOutput.init();
-            setupConsoleInterceptor();
-
-            // Initialize node info display bar
-            nodeInfoBar.init();
-
-            // Initialize read-only code display area (using pre tag)
-            const initCodeElement = document.getElementById('init-code-editor');
-            const initPre = document.createElement('pre');
-            initPre.textContent = initCode;
-            initPre.className = 'code-display';
-            initCodeElement.appendChild(initPre);
-
-            // Initialize editable code editor (using textarea)
-            const codeEditorElement = document.getElementById('code-editor');
-            const codeTextarea = document.createElement('textarea');
-            codeTextarea.value = defaultUserCode;
-            codeTextarea.className = 'code-textarea';
-            codeEditorElement.appendChild(codeTextarea);
-
-            // Create simple codeEditor object for compatibility
-            const codeEditor = {
-                getValue: function() {
-                    return codeTextarea.value;
+                    document.body.removeChild(textArea);
                 }
             };
 
-            // Save editor to global for easy access
-            window.codeEditor = codeEditor;
-        });
+            // ============================================================================
+            // Console Output Management
+            // ============================================================================
+            const ConsoleOutput = {
+                container: null,
 
-        // Execute code function
-        window.executeCode = async function() {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = '';
+                init: function() {
+                    this.container = document.getElementById('console-output');
+                },
 
-            try {
-                const code = codeEditor.getValue();
-                await codeExecutor.execute(code);
-                console.log('Code execution completed');
-            } catch (error) {
-                const errorMsg = error.toString() + (error.stack ? '\n' + error.stack : '');
-                errorDiv.textContent = errorMsg;
-                console.error('Execution error:', error);
-            }
-        };
+                addLine: function(type, ...args) {
+                    if (!this.container) return;
 
-        // Reset mind map function (clear and re-execute initialization code)
-        window.resetMindMap = async function() {
-            if (window._jm) {
-                window._jm.close();
-                window._jm = null;
-            }
-            window._mind = null;
-            const container = document.getElementById('jsmind_container');
-            container.innerHTML = '';
-            document.getElementById('error-message').textContent = '';
-            nodeInfoBar.clear();
-            // Reset listener setup flag so it can be set up again next time
-            nodeClickListenerSetup = false;
-            
-            // Re-execute initialization code
-            await executeInitCode();
-        };
+                    const timestamp = new Date().toLocaleTimeString();
+                    const formattedArgs = args.map(arg => {
+                        if (typeof arg === 'object') {
+                            try {
+                                return JSON.stringify(arg, null, 2);
+                            } catch (e) {
+                                return String(arg);
+                            }
+                        }
+                        return String(arg);
+                    }).join(' ');
 
-        // Function to automatically execute initialization code
-        async function executeInitCode() {
-            if (!window.jsMind) {
-                console.error('jsMind not loaded, cannot execute initialization code');
-                return;
-            }
+                    const line = document.createElement('div');
+                    line.className = `console-line ${type}`;
+                    line.textContent = `[${timestamp}] ${formattedArgs}`;
+                    this.container.appendChild(line);
 
-            try {
-                await codeExecutor.execute(initCode);
-                console.log('Initialization code execution completed, mind map created');
-                // Wait for DOM rendering to complete before setting up node click listener
-                setTimeout(() => {
-                    setupNodeClickListener();
-                }, 100);
-            } catch (error) {
-                console.error('Failed to execute initialization code:', error);
-                const errorDiv = document.getElementById('error-message');
-                if (errorDiv) {
-                    errorDiv.textContent = 'Initialization failed: ' + error.toString();
+                    // Auto scroll to bottom
+                    this.container.scrollTop = this.container.scrollHeight;
+
+                    // Limit maximum lines
+                    if (this.container.children.length > CONFIG.MAX_CONSOLE_LINES) {
+                        this.container.removeChild(this.container.firstChild);
+                    }
+                },
+
+                clear: function() {
+                    if (this.container) {
+                        this.container.innerHTML = '';
+                    }
                 }
-            }
-        }
+            };
 
-        // Wait for jsMind to load, then automatically execute initialization code
-        window.addEventListener('DOMContentLoaded', function() {
-            // jsMind is loaded via UMD format, need to wait a bit to ensure it's mounted
-            function checkAndExecute() {
-                if (window.jsMind) {
-                    console.log('jsMind loaded, version:', window.jsMind.Version || 'unknown');
-                    executeInitCode();
-                } else {
-                    setTimeout(checkAndExecute, CONSTANTS.JSMIND_CHECK_INTERVAL);
+            // ============================================================================
+            // Console Interceptor
+            // ============================================================================
+            const ConsoleInterceptor = {
+                originalConsole: {
+                    log: console.log,
+                    info: console.info,
+                    warn: console.warn,
+                    error: console.error
+                },
+
+                setup: function() {
+                    const consoleMethods = ['log', 'info', 'warn', 'error'];
+                    consoleMethods.forEach(method => {
+                        const original = this.originalConsole[method];
+                        console[method] = function(...args) {
+                            original.apply(console, args);
+                            ConsoleOutput.addLine(method, ...args);
+                        };
+                    });
                 }
-            }
-            
-            checkAndExecute();
-        });
+            };
+
+            // ============================================================================
+            // Code Executor
+            // ============================================================================
+            const CodeExecutor = {
+                createExecuteContext: function() {
+                    return {
+                        jsMind: window.jsMind,
+                        jm: window.jm,
+                        mind: window.mind,
+                        console: console,
+                        setTimeout,
+                        clearTimeout,
+                        setInterval,
+                        clearInterval,
+                        Promise,
+                        Date,
+                        JSON,
+                    };
+                },
+
+                execute: async function(code) {
+                    try {
+                        const executeContext = this.createExecuteContext();
+                        const paramNames = Object.keys(executeContext);
+                        const paramValues = Object.values(executeContext);
+
+                        // Wrap code in async function to support await
+                        const asyncCode = `return (async function() {\n${code}\n})();`;
+                        const func = new Function(...paramNames, asyncCode);
+                        const result = func(...paramValues);
+
+                        // Ensure result is a Promise and wait for it to complete
+                        const promise = result instanceof Promise ? result : Promise.resolve(result);
+                        await promise;
+                    } catch (error) {
+                        // Re-throw to allow caller to handle
+                        throw error;
+                    }
+                }
+            };
+
+            // ============================================================================
+            // Node Info Bar Management
+            // ============================================================================
+            const NodeInfoBar = {
+                nodeIdElement: null,
+                contentValueElement: null,
+                copyIconElement: null,
+
+                init: function() {
+                    this.nodeIdElement = document.getElementById('node-id-value');
+                    this.contentValueElement = document.getElementById('content-value');
+                    this.copyIconElement = document.getElementById('copy-node-id-icon');
+                },
+
+                update: function(nodeId, contentValue) {
+                    // Update node ID
+                    if (this.nodeIdElement) {
+                        this.nodeIdElement.textContent = nodeId || '-';
+                    }
+
+                    // Show/hide copy icon based on whether nodeId exists
+                    if (this.copyIconElement) {
+                        if (nodeId && nodeId !== '-') {
+                            this.copyIconElement.classList.remove('hidden');
+                        } else {
+                            this.copyIconElement.classList.add('hidden');
+                        }
+                    }
+
+                    // Update content value
+                    if (this.contentValueElement) {
+                        this.contentValueElement.textContent = Utils.formatValue(contentValue);
+                    }
+                },
+
+                clear: function() {
+                    this.update(null, null);
+                },
+
+                copyNodeId: function() {
+                    if (!this.nodeIdElement) return;
+
+                    const nodeId = this.nodeIdElement.textContent;
+                    if (!nodeId || nodeId === '-') {
+                        return;
+                    }
+
+                    Utils.copyToClipboard(nodeId, () => {
+                        Utils.showCopyFeedback(this.copyIconElement);
+                    });
+                }
+            };
+
+            // ============================================================================
+            // Node Click Listener
+            // ============================================================================
+            const NodeClickListener = {
+                isSetup: false,
+
+                setup: function() {
+                    const container = document.getElementById('jsmind_container');
+                    if (!container || this.isSetup) return;
+
+                    // Use event delegation to listen for node clicks
+                    container.addEventListener('click', (event) => {
+                        let target = event.target;
+                        let foundNode = false;
+                        
+                        while (target && target !== container) {
+                            // Check if it's a jsmind-node element
+                            if (target.classList && target.classList.contains('jsmind-node')) {
+                                const nodeId = target.getAttribute('data-jm-node-id');
+                                if (nodeId) {
+                                    this.handleNodeClick(nodeId);
+                                    foundNode = true;
+                                    return;
+                                }
+                            }
+                            target = target.parentElement;
+                        }
+                        
+                        // If no node found, clear info bar
+                        if (!foundNode) {
+                            NodeInfoBar.clear();
+                        }
+                    });
+                    
+                    this.isSetup = true;
+                    console.log('Node click listener has been set up');
+                },
+
+                handleNodeClick: function(nodeId) {
+                    console.log('Clicked node:', nodeId);
+                    
+                    let contentValue = null;
+                    if (window.mind) {
+                        const node = window.mind.findNodeById(nodeId);
+                        if (node) {
+                            contentValue = node.content ? node.content.value : null;
+                            console.log('Node info:', { nodeId, contentValue });
+                        } else {
+                            console.warn('Node not found:', nodeId);
+                        }
+                    } else {
+                        console.warn('mind is not defined');
+                    }
+                    
+                    NodeInfoBar.update(nodeId, contentValue);
+                },
+
+                reset: function() {
+                    this.isSetup = false;
+                }
+            };
+
+            // ============================================================================
+            // Code Editor Management
+            // ============================================================================
+            const CodeEditor = {
+                textarea: null,
+                initCodeElement: null,
+
+                init: function() {
+                    // Initialize read-only code display area
+                    this.initCodeElement = document.getElementById('init-code-editor');
+                    const initPre = document.createElement('pre');
+                    initPre.textContent = INIT_CODE;
+                    initPre.className = 'code-display';
+                    this.initCodeElement.appendChild(initPre);
+
+                    // Initialize editable code editor
+                    const codeEditorElement = document.getElementById('code-editor');
+                    this.textarea = document.createElement('textarea');
+                    this.textarea.value = DEFAULT_USER_CODE;
+                    this.textarea.className = 'code-textarea';
+                    codeEditorElement.appendChild(this.textarea);
+                },
+
+                getValue: function() {
+                    return this.textarea ? this.textarea.value : '';
+                },
+
+                setValue: function(value) {
+                    if (this.textarea) {
+                        this.textarea.value = value;
+                        this.textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                        this.textarea.focus();
+                    }
+                },
+
+                loadTemplate: function(templateName) {
+                    if (!CODE_TEMPLATES[templateName]) {
+                        console.error('Template not found:', templateName);
+                        return;
+                    }
+                    this.setValue(CODE_TEMPLATES[templateName]);
+                }
+            };
+
+            // ============================================================================
+            // Application Initialization
+            // ============================================================================
+            const App = {
+                /**
+                 * Execute user code
+                 */
+                executeCode: async function() {
+                    try {
+                        const code = CodeEditor.getValue();
+                        await CodeExecutor.execute(code);
+                        console.log('Code execution completed');
+                    } catch (error) {
+                        console.error('Code execution failed:', error);
+                        if (error.stack) {
+                            console.error('Stack trace:', error.stack);
+                        }
+                    }
+                },
+
+                /**
+                 * Reset mind map and re-execute initialization code
+                 */
+                resetMindMap: async function() {
+                    if (window.jm) {
+                        window.jm.close();
+                        window.jm = null;
+                    }
+                    window.mind = null;
+                    const container = document.getElementById('jsmind_container');
+                    container.innerHTML = '';
+                    NodeInfoBar.clear();
+                    NodeClickListener.reset();
+                    
+                    await App.executeInitCode();
+                },
+
+                /**
+                 * Execute initialization code
+                 */
+                executeInitCode: async function() {
+                    if (!window.jsMind) {
+                        console.error('jsMind not loaded, cannot execute initialization code');
+                        return;
+                    }
+
+                    try {
+                        await CodeExecutor.execute(INIT_CODE + '\n' + INIT_WINDOW_VARIABLES);
+                        console.log('Initialization code execution completed, mind map created');
+                        // Wait for DOM rendering to complete before setting up node click listener
+                        setTimeout(() => {
+                            NodeClickListener.setup();
+                        }, CONFIG.NODE_CLICK_LISTENER_DELAY);
+                    } catch (error) {
+                        console.error('Failed to execute initialization code:', error);
+                    }
+                },
+
+                /**
+                 * Initialize application
+                 */
+                init: function() {
+                    // Initialize components
+                    ConsoleOutput.init();
+                    ConsoleInterceptor.setup();
+                    NodeInfoBar.init();
+                    CodeEditor.init();
+
+                    // Setup event handlers using event delegation
+                    this.setupEventHandlers();
+
+                    // Wait for jsMind to load, then execute initialization code
+                    this.waitForJsMind();
+                },
+
+                /**
+                 * Setup event handlers using event delegation
+                 */
+                setupEventHandlers: function() {
+                    document.addEventListener('click', (event) => {
+                        const target = event.target;
+                        const action = target.getAttribute('data-action');
+                        const template = target.getAttribute('data-template');
+
+                        if (action === 'clear-console') {
+                            event.preventDefault();
+                            ConsoleOutput.clear();
+                        } else if (action === 'copy-node-id') {
+                            event.preventDefault();
+                            NodeInfoBar.copyNodeId();
+                        } else if (action === 'execute-code') {
+                            event.preventDefault();
+                            App.executeCode();
+                        } else if (action === 'reset-mindmap') {
+                            event.preventDefault();
+                            App.resetMindMap();
+                        } else if (template) {
+                            event.preventDefault();
+                            CodeEditor.loadTemplate(template);
+                        }
+                    });
+                },
+
+                /**
+                 * Wait for jsMind library to load
+                 */
+                waitForJsMind: function() {
+                    function checkAndExecute() {
+                        if (window.jsMind) {
+                            console.log('jsMind loaded, version:', window.jsMind.Version || 'unknown');
+                            App.executeInitCode();
+                        } else {
+                            setTimeout(checkAndExecute, CONFIG.JSMIND_CHECK_INTERVAL);
+                        }
+                    }
+                    checkAndExecute();
+                }
+            };
+
+            // ============================================================================
+            // Initialize Application
+            // ============================================================================
+            window.addEventListener('DOMContentLoaded', function() {
+                App.init();
+            });
+
+            // Expose necessary APIs to window for backward compatibility (if needed)
+            window.Playground = {
+                executeCode: () => App.executeCode(),
+                resetMindMap: () => App.resetMindMap(),
+                loadTemplate: (name) => CodeEditor.loadTemplate(name),
+                clearConsole: () => ConsoleOutput.clear()
+            };
+        })();
     </script>
 </body>
 </html>

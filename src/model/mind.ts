@@ -91,6 +91,25 @@ export class JmMind {
     }
 
 
+    addChildNode(content: unknown, parentId: string): JmNode {
+        if(!parent) {
+            throw new JsMindError(`parent node with ID '${parentId}' not found`);
+        }
+        if(!content) {
+            throw new JsMindError('content is required for addChildNode');
+        }
+
+        let nodeContent: JmNodeContent;
+        if(content instanceof JmNodeContent) {
+            nodeContent = content;
+        } else if(typeof content === 'string') {
+            nodeContent = JmNodeContent.createText(content);
+        } else {
+            throw new JsMindError('content must be a string or a JmNodeContent object');
+        }
+        return this.addNode(nodeContent, { parentId: parentId });
+    }
+
     /**
      * Adds a new node to the mind map at a specific destination.
      *
