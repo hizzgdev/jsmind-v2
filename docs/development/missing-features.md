@@ -1,5 +1,16 @@
 # jsmind-v2 Missing Features Checklist
 
+> **⚠️ Status note (2026-11): this checklist is partially outdated.**
+>
+> It was written early in development and several modules listed below as missing have since been implemented:
+>
+> - **Layout system** — `src/arranger/mindmap.ts` is complete, covered by 644 lines of tests in `__tests__/arranger/mindmap.test.ts`
+> - **View system (basic)** — `src/view/` implements `measureNodeSizes` and `settle` (measure → place nodes → draw edges); node elements are `div`, edges are SVG `<path>`
+> - **Serialization** — JSON and FreeMind serializers both exist with tests
+> - **Test infrastructure** — 17 test files, run via `node --test`
+>
+> **Before concluding that a feature is missing, verify against `src/` and `__tests__/`.** Unticked boxes below only mean "not verified recently", not necessarily "not implemented".
+
 This document lists the features that are still missing in jsmind-v2 compared to jsmind (original version). jsmind-v2 is a TypeScript rewrite upgrade that aims to include all original features and uses Promise-based asynchronous mode when rendering nodes.
 
 ## I. Core Runtime Features (JsMind Main Class)
@@ -320,25 +331,28 @@ This document lists the features that are still missing in jsmind-v2 compared to
 
 ## Summary
 
-jsmind-v2 has currently completed:
-1. ✅ Core model system (JmMind, JmNode, JmEdge, JmNodeContent)
+**Verified implemented (2026-11):**
+1. ✅ Core model system (JmMind, JmNode, JmEdge, JmNodeContent) — includes hybrid edge storage
 2. ✅ Event system (Observer, ObserverManager)
-3. ✅ Serialization system (JSON, FreeMind)
+3. ✅ Serialization system (JSON, FreeMind) — both with tests
 4. ✅ ID generator
-5. ✅ Basic view interface
+5. ✅ **Layout system** — `src/arranger/mindmap.ts`, 644 lines of tests
+6. ✅ **Basic view system** — `src/view/`: `measureNodeSizes` → `settle` (place nodes + draw edges)
+7. ✅ Test infrastructure — 17 files, `node --test`
 
-**Main missing feature modules:**
-1. ❌ Complete view system implementation (ViewProvider)
-2. ❌ Layout system (LayoutProvider)
-3. ❌ Data provider (DataProvider)
-4. ❌ Shortcut system (ShortcutProvider)
+**Still missing (verified):**
+1. ❌ Theme / styling system — edge color is hardcoded `'black'` in `JmEdgeView.drawLine`
+2. ❌ Curved edges — currently straight lines (`M x1 y1 L x2 y2`)
+3. ❌ Editing interactions — select / drag / inline edit / shortcuts
+4. ❌ Zoom / pan / view dragging
 5. ❌ Plugin system
-6. ❌ Utility functions (util)
-7. ❌ DOM utilities
-8. ❌ Complete API implementation for main class (JsMind)
-9. ❌ Async rendering support (Promise)
+6. ❌ `node_array` and `text` data formats
+7. ❌ Complete main class API surface
 
-**Priority recommendations:**
-1. **High priority**: View system, layout system, data provider (core features)
-2. **Medium priority**: Main class API, shortcut system, utility functions
-3. **Low priority**: Plugin system, advanced features
+**Needs re-verification (listed below but not recently checked):**
+- Shortcut system, utility functions, DOM utilities, event listener API, expander styles, async rendering polish
+
+**Priority recommendations (revised):**
+1. **High priority**: styling/theme system, curved edges, editing interactions (what a usable viewer needs)
+2. **Medium priority**: zoom/pan, `node_array` format, main class API surface
+3. **Low priority**: plugin system, shortcut system, advanced features
