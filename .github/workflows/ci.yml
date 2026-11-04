@@ -18,13 +18,14 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      # v7 runs on node24; v4 ran on node20, which GitHub deprecated.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
 
       # Deterministic install from the lockfile. This is npm's built-in
@@ -32,8 +33,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The pipeline itself lives in package.json (scripts.ci) so that CI, the
-      # pre-push hook and a manual run cannot drift apart. Coverage thresholds
-      # are part of that script.
-      - name: Run checks
-        run: npm run ci
+      - name: Format check
+        run: npm run format-check
+
+      - name: Type check
+        run: npm run type-check
+
+      # Coverage runs here only. scripts.ci / ci2 and the pre-push hook stay on
+      # test-lite / test on purpose: they are the manual and local paths, where
+      # the full coverage report is slow and noisy. Thresholds live in
+      # package.json (scripts.test:coverage).
+      - name: Tests with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build

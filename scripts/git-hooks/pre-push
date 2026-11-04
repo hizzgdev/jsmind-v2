@@ -132,15 +132,14 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Run tests with coverage -- the same thresholds the CI job enforces, so a
-# push that passes locally cannot fail in CI on coverage alone.
-echo "[pre-push] Running test:coverage..."
+# Run test
+echo "[pre-push] Running test..."
 echo "" >> "$STATUS_FILE"
-echo "[pre-push] Running test:coverage..." >> "$STATUS_FILE"
-npm run test:coverage >> "$STATUS_FILE" 2>&1
+echo "[pre-push] Running test..." >> "$STATUS_FILE"
+npm run test >> "$STATUS_FILE" 2>&1
 if [ $? -ne 0 ]; then
     record_end_time
-    echo "❌ test:coverage failed. Check detailed output in: $STATUS_FILE"
+    echo "❌ test failed. Check detailed output in: $STATUS_FILE"
     exit 1
 fi
 
