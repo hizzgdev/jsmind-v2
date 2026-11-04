@@ -16,6 +16,7 @@ docs/
 │   ├── node-move.md            # Node move functionality
 │   └── serialization.md        # Serialization system
 └── development/                # Development-related documents
+    ├── roadmap.md              # Development plan (PR sequence, test strategy)
     ├── missing-features.md     # Missing features checklist
     └── tslib-explanation.md    # tslib library explanation
 ```
@@ -41,6 +42,10 @@ Contains detailed documentation for specific features.
 - **serialization.md** - Architecture and usage guide for the serialization system
 
 ### Development (development/)
+
+- **roadmap.md** - Development plan: layered PR sequence, per-PR scope, and test strategy (written in Chinese)
+
+### Other development docs
 Contains development status, plans, and task-related documents.
 
 - **missing-features.md** - Checklist of features missing in jsmind-v2 compared to the original jsmind
