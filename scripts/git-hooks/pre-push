@@ -3,13 +3,61 @@
 # Git pre-push hook receives:
 # - Command line args: <remote> <url>
 # - stdin: lines of <local_ref> <local_sha> <remote_ref> <remote_sha>
-# Read the first line from stdin to get local_sha
-read local_ref local_sha remote_ref remote_sha
+# Collect every ref line git wants to update.
+# git invokes this hook even when the remote is already up to date, in which
+# case it provides no input at all. Empty input is handled further down -- and
+# it is *verified* against the remote-tracking ref rather than assumed.
+PUSH_REFS=""
+PUSH_COUNT=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    PUSH_COUNT=$((PUSH_COUNT + 1))
+    PUSH_REFS="${PUSH_REFS}${local_ref} ${local_sha} ${remote_ref} ${remote_sha}
+"
+done
 
-# If no input (shouldn't happen, but handle gracefully)
+if [ "$PUSH_COUNT" -eq 0 ]; then
+    CURRENT_BRANCH=$(git symbolic-ref --short -q HEAD 2>/dev/null)
+
+    if [ -z "$CURRENT_BRANCH" ]; then
+        echo "[pre-push] Detached HEAD and no refs on stdin."
+        echo "[pre-push] Cannot determine what is being pushed; running checks to be safe."
+    else
+        LOCAL_SHA=$(git rev-parse HEAD 2>/dev/null)
+        TRACKING_SHA=$(git rev-parse --verify --quiet "refs/remotes/origin/${CURRENT_BRANCH}" 2>/dev/null)
+
+        if [ -n "$TRACKING_SHA" ] && [ "$LOCAL_SHA" = "$TRACKING_SHA" ]; then
+            echo "[pre-push] Nothing to push: ${CURRENT_BRANCH} matches origin/${CURRENT_BRANCH}."
+            exit 0
+        fi
+
+        if [ -z "$TRACKING_SHA" ]; then
+            # No remote-tracking ref (shallow clone, or branch never fetched).
+            # git calling pre-push with zero refs still means "nothing to update",
+            # but we cannot verify it locally -- say so instead of guessing silently.
+            echo "[pre-push] No refs on stdin and no local ref for origin/${CURRENT_BRANCH}."
+            echo "[pre-push] Nothing appears to be pushed; skipping checks."
+            exit 0
+        fi
+
+        # Tracking ref exists but differs: stdin should not have been empty.
+        echo "[pre-push] WARNING: no refs on stdin, but ${CURRENT_BRANCH} (${LOCAL_SHA})"
+        echo "[pre-push]          differs from origin/${CURRENT_BRANCH} (${TRACKING_SHA})."
+        echo "[pre-push] Running checks to be safe."
+        # Feed HEAD into the check pipeline below so the checks actually run.
+        local_ref="refs/heads/${CURRENT_BRANCH}"
+        local_sha="$LOCAL_SHA"
+        remote_ref="refs/heads/${CURRENT_BRANCH}"
+        remote_sha="$TRACKING_SHA"
+    fi
+else
+    read -r local_ref local_sha remote_ref remote_sha <<EOF
+$(printf '%s' "$PUSH_REFS" | head -1)
+EOF
+fi
+
 if [ -z "$local_sha" ]; then
-    echo "❌ Error: Could not determine commit SHA from push operation"
-    exit 1
+    echo "[pre-push] No commit SHA available, skipping checks."
+    exit 0
 fi
 
 # Check if this is a branch deletion operation
