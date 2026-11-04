@@ -42,33 +42,57 @@ jsmind
 ├── validate         ← 跨边界：校验
 ├── render           ← 跨边界：渲染
 ├── convert          ← 跨边界：格式转换（S13，随 adapter）
-└── mind             ← 数据命令组
-    ├── add-child
-    ├── add-node
-    ├── move
-    ├── remove-node
-    ├── add-edge
-    ├── remove-edge
-    ├── find
-    ├── edges
+├── mind             ← 改树结构（谁的父是谁、有几个孩子）和边
+│   ├── add-child
+│   ├── add-node
+│   ├── move
+│   ├── remove-node
+│   ├── add-edge
+│   ├── remove-edge
+│   ├── edges
+│   └── find
+└── node             ← 改单个节点自身的属性（文本、折叠、方向、样式）
     ├── set-text
-    └── set-style
+    ├── set-folded
+    ├── set-side
+    └── set-style    （S4 之后）
 ```
 
-### 2.1 为什么分两类
+### 2.1 为什么分三类
 
 | 类型 | 特征 | 命令 |
 |---|---|---|
 | **跨边界** | 不是单纯的数据操作，涉及文件 IO / 渲染 / 校验，或跨越数据结构 | `context` `validate` `render` `convert` |
-| **数据操作** | 一一对应 `JmMind` 的某个方法 | `jsmind mind *` |
+| **改结构** | 改变节点之间的父子关系或边；对应 `JmMind` 的方法 | `jsmind mind *` |
+| **改属性** | 只改某一个节点自身的字段，不动树结构；对应 `JmNode` 的字段赋值 | `jsmind node *` |
 
-**数据命令收进 `mind` 子命令组的理由：** `JmMind` 是唯一的写入口，把它提供的能力集中在一个命名空间下，两边能一一对照。CLI 有但 JS API 没有的东西（`set-text` / `set-style`）也放这里，因为它们改的是同一份数据。
+### 2.2 `mind` 与 `node` 的分界来自代码
+
+**这条分界不是凭感觉划的，现有代码里已经存在：**
+
+```typescript
+// src/model/mind.ts:477
+this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
+```
+
+| 字段 | 可写 | 怎么改 |
+|---|---|---|
+| `id` / `parent` / `children` | ❌ 只读 | 只能走 `JmMind` 的方法（`addChildNode` / `moveNode` / `removeNode`） |
+| `content` / `folded` / `side` | ✅ 可写 | 直接赋值，经 `NodeManager.setterTrap` 触发 `_onNodeUpdated` |
+
+**也就是说：结构字段在语言层面就锁死了，只能由 `JmMind` 维护一致性；属性字段开放赋值，由节点自己承担。** CLI 按同一条线分成 `mind` 和 `node`，是对现有模型的映射，不是新发明的区分。
+
+**`JmNode` 没有任何 setter 方法**（只有 `getAllSubnodeIds` / `equals` / `isDescendant` / `isRoot` 这类查询），所以 `node` 组的命令对应的是**字段赋值**，不是方法调用 —— 这一点跟 `mind` 组不同。
 
 ---
 
-## 3. 数据命令：镜像 JS API
+## 3. 命令与 JS API 的对应
 
-**原则：JS API 提供什么能力，CLI 就有什么命令。**
+> ⚠️ **下表是当前草案，命名在 S7 实现时可能调整。**
+>
+> **方法名与命令名不是同名映射：** JS 用 camelCase（`addChildNode`），CLI 用 kebab-case（`add-child`），两者靠**语义**对应而非字面。不要假设 `addChildNode` 一定叫 `add-child`，以 S7 的实现为准。
+
+### 3.1 `jsmind mind *` —— 对应 `JmMind` 的方法
 
 | `JmMind` 方法 | CLI 命令 |
 |---|---|
@@ -80,12 +104,25 @@ jsmind
 | `addEdge(source, target, type, options?)` | `jsmind mind add-edge <file> --source-id <id> --target-id <id> [--type <t>] [--label <text>]` |
 | `removeEdge(edgeId)` | `jsmind mind remove-edge <file> --edge-id <id>` |
 | `getEdges(nodeId, type?)` | `jsmind mind edges <file> --node-id <id> [--type <t>]` |
-| （无对应方法） | `jsmind mind set-text <file> --node-id <id> --text <text>` |
-| （无对应方法） | `jsmind mind set-style <file> --node-id <id> [--tone ...] [--font-size ...] ...` |
 
-**`set-text` / `set-style` 没有对应的 JS 方法** —— 那是 CLI 层为了 agent 好用以组合出来的，实现上走 `node` 的 setter。
+### 3.2 `jsmind node *` —— 对应 `JmNode` 的可写字段
 
-### 3.1 定位参数一律用 id
+| `JmNode` 字段 | CLI 命令 |
+|---|---|
+| `content` | `jsmind node set-text <file> --node-id <id> --text <text>` |
+| `folded` | `jsmind node set-folded <file> --node-id <id> [--folded \| --no-folded]` |
+| `side` | `jsmind node set-side <file> --node-id <id> --side left\|right\|center` |
+| `style`（S1 之后） | `jsmind node set-style <file> --node-id <id> [--tone ...] [--font-size ...] ...` |
+
+**`JmNode` 没有 setter 方法**，所以这一组对应的是**字段赋值**（经 `NodeManager.setterTrap`），跟 `mind` 组的方法调用不同。
+
+**`set-side` 在 CLI 层接受 `left` / `right` / `center`，写入磁盘时转成 `JmNodeSide` 的数字**（`-1` / `0` / `1`）。磁盘格式的可读性让给 JSON，命令行的可读性留给人 —— 详见 `v2-data-format.md` 4.2。
+
+---
+
+## 4. 定位参数（两类命令共用）
+
+### 4.1 定位参数一律用 id
 
 **详见 `v2-data-format.md` 第 8 节。这里是结论：**
 
@@ -114,9 +151,9 @@ jsmind
 
 ---
 
-## 4. 跨边界命令
+## 5. 跨边界命令
 
-### 4.1 `context` —— agent 的发现步骤
+### 5.1 `context` —— agent 的发现步骤
 
 **这是唯一允许模糊匹配的地方。** 它是 agent 在动手前的侦察工具。
 
@@ -158,7 +195,7 @@ No node matches "粗暴". Closest:
   n20  数据准备
 ```
 
-### 4.2 `validate`
+### 5.2 `validate`
 
 ```bash
 jsmind validate <file> [--json] [--autofix]
@@ -177,7 +214,7 @@ Fixed 3 integrity problems:
 Wrote mind.json
 ```
 
-### 4.3 `render`
+### 5.3 `render`
 
 ```bash
 jsmind render <file> [--output <path>] [--width N] [--json]
@@ -187,7 +224,7 @@ jsmind render <file> [--output <path>] [--width N] [--json]
 
 **渲染细节见 `v2-requirements.md` 4.6、4.7 节。**
 
-### 4.4 `convert`
+### 5.4 `convert`
 
 ```bash
 jsmind convert <input> --from v1 --to v2 [--output <path>]
@@ -197,11 +234,11 @@ jsmind convert <input> --from v1 --to v2 [--output <path>]
 
 ---
 
-## 5. 输出约定
+## 6. 输出约定
 
 **agent 要解析输出，所以输出契约必须稳定。**
 
-### 5.1 stdout 与 stderr 分离
+### 6.1 stdout 与 stderr 分离
 
 | 流 | 内容 | 谁看 |
 |---|---|---|
@@ -210,13 +247,13 @@ jsmind convert <input> --from v1 --to v2 [--output <path>]
 
 **道理很简单：`jsmind context x.json | jq` 必须能用。** 任何诊断信息混进 stdout 都会破坏管道。
 
-### 5.2 `--json` 开关
+### 6.2 `--json` 开关
 
 **所有命令都支持 `--json`，输出机器可读格式。**
 
 对人友好的是默认格式（表格 / 树），对 agent 友好的是 `--json`。**两者都存在，但不能只有一种** —— 人看 JSON 累，机器解析表格脆。
 
-### 5.3 退出码
+### 6.3 退出码
 
 **必须让调用方用退出码区分类别，而不是去正则匹配错误文案。**
 
@@ -231,9 +268,9 @@ jsmind convert <input> --from v1 --to v2 [--output <path>]
 
 ---
 
-## 6. 文件写入策略
+## 7. 文件写入策略
 
-### 6.1 默认原地修改
+### 7.1 默认原地修改
 
 ```bash
 jsmind mind add-child mind.json --parent-id n4 --text "去重"
@@ -242,7 +279,7 @@ jsmind mind add-child mind.json --parent-id n4 --text "去重"
 
 **理由：agent 的工作流是"读一个文件、改它、再读它"，把结果打到 stdout 会逼它重定向，多一次出错机会。**
 
-### 6.2 三个保护
+### 7.2 三个保护
 
 | 选项 | 作用 |
 |---|---|
@@ -250,7 +287,7 @@ jsmind mind add-child mind.json --parent-id n4 --text "去重"
 | `--output <path>` | 写到别处，不动原文件 |
 | `--backup` | 写入前留 `<file>.bak` |
 
-### 6.3 写后必须校验
+### 7.3 写后必须校验
 
 **任何修改类命令在写盘之后、返回之前，必须跑一遍完整性校验；不通过则回滚并报错。**
 
@@ -266,7 +303,7 @@ File unchanged.
 
 ---
 
-## 7. 未定项
+## 8. 未定项
 
 | 项 | 当前倾向 |
 |---|---|

@@ -199,10 +199,12 @@ node.style.fontSize = 18
 - `context`（agent 的发现步骤，唯一允许模糊匹配的命令）
 - `validate`（调 S2）
 - `render`（先输出调试信息，真正的出图在 S8 之后）
-- `mind` 数据命令组：`find` / `add-child` / `add-node` / `move` / `remove-node` / `add-edge` / `remove-edge` / `edges` / `set-text`
-  —— 全是对现有 `JmMind` API 的薄封装，定位参数一律用 id
+- `mind` 数据命令组：`find` / `add-child` / `add-node` / `move` / `remove-node` / `add-edge` / `remove-edge` / `edges`
+  —— 对 `JmMind` 方法的薄封装，定位参数一律用 id
+- `node` 数据命令组：`set-text` / `set-folded` / `set-side`
+  —— 对应 `JmNode` 的可写字段（`content` / `folded` / `side`），走字段赋值不调方法
 
-**`mind set-style` 不在这个 PR** —— 它依赖 S1 的 schema 和 S4 的样式实现。
+**`node set-style` 不在这个 PR** —— 它依赖 S1 的 schema 和 S4 的样式实现。
 
 **注意**：`convert` 命令**不在这个 PR** —— 它依赖 adapter，跟 S13 一起做
 
