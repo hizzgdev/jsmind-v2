@@ -92,8 +92,8 @@ export class JmMind {
 
 
     addChildNode(content: unknown, parentId: string): JmNode {
-        if(!parent) {
-            throw new JsMindError(`parent node with ID '${parentId}' not found`);
+        if(!parentId) {
+            throw new JsMindError('parentId is required for addChildNode');
         }
         if(!content) {
             throw new JsMindError('content is required for addChildNode');
