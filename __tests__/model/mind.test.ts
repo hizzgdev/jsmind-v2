@@ -78,7 +78,7 @@ test('construct JmMind with partial options - merges with defaults', () => {
     assert.strictEqual(edgeIds.length, 0);
 });
 
-test('addChildNode with custom nodeId', () => {
+test('addNode with custom nodeId', () => {
     const mind = new JmMind(metadata);
 
     // Add a child node with a custom ID
@@ -94,7 +94,7 @@ test('addChildNode with custom nodeId', () => {
     assert.strictEqual(mind._nodes[customNodeId].id, customNodeId);
 });
 
-test('addChildNode with NodeCreationOptions - sets all options', () => {
+test('addNode with NodeCreationOptions - sets all options', () => {
     const mind = new JmMind(metadata);
 
     // Add a child node with all options
@@ -119,7 +119,7 @@ test('addChildNode with NodeCreationOptions - sets all options', () => {
     assert.strictEqual(mind._nodes['custom_node_456'].id, 'custom_node_456');
 });
 
-test('addChildNode with partial NodeCreationOptions - preserves defaults', () => {
+test('addNode with partial NodeCreationOptions - preserves defaults', () => {
     const mind = new JmMind(metadata);
 
     // Add a child node with only some options
@@ -139,7 +139,7 @@ test('addChildNode with partial NodeCreationOptions - preserves defaults', () =>
     assert.deepStrictEqual(child.data, {}); // Preserved from JmNode constructor default
 });
 
-test('addChildNode without options - preserves all constructor defaults', () => {
+test('addNode without options - preserves all constructor defaults', () => {
     const mind = new JmMind(metadata);
 
     // Add a child node without any options
@@ -196,7 +196,7 @@ test('JmMind.findNodeById', ()=>{
     assert.strictEqual(mind.findNodeById('id-not-existing'), null);
 });
 
-test('JmMind.addChildNode', () => {
+test('JmMind.addNode', () => {
     const mind = new JmMind(metadata, options);
     const child = mind.addNode(JmNodeContent.createText('child'), { parentId: 'test_root' });
 
@@ -742,3 +742,135 @@ test('JmMind.removeNode cleans up edges', () => {
     assert.ok(mind._edges[edge3.id]); // edge3 should still exist
 });
 
+
+// ---------------------------------------------------------------------------
+// addChildNode
+//
+// These tests call addChildNode directly. The previous tests named
+// "addChildNode ..." all invoked addNode, which is why a ReferenceError inside
+// this method went unnoticed: the method was never executed by any test.
+// ---------------------------------------------------------------------------
+
+test('addChildNode with string content', () => {
+    const mind = new JmMind(metadata, options);
+
+    const child = mind.addChildNode('child text', mind.root.id);
+
+    assert.ok(child);
+    assert.ok(child.id);
+    assert.strictEqual(child.content.value, 'child text');
+    assert.strictEqual(child.parent.id, mind.root.id);
+
+    // The node exists in the internal collection and is linked from the parent
+    assert.ok(mind._nodes[child.id]);
+    assert.strictEqual(mind._nodes[child.id].content.value, 'child text');
+    assert.ok(mind.root.children.some(c => c.id === child.id));
+});
+
+test('addChildNode with JmNodeContent instance', () => {
+    const mind = new JmMind(metadata, options);
+    const content = JmNodeContent.createText('content object');
+
+    const child = mind.addChildNode(content, mind.root.id);
+
+    assert.strictEqual(child.content.value, 'content object');
+    assert.ok(mind._nodes[child.id]);
+});
+
+test('addChildNode on a non-root parent builds the hierarchy', () => {
+    const mind = new JmMind(metadata, options);
+
+    const level1 = mind.addChildNode('level 1', mind.root.id);
+    const level2 = mind.addChildNode('level 2', level1.id);
+
+    assert.strictEqual(level2.parent.id, level1.id);
+    assert.strictEqual(level1.parent.id, mind.root.id);
+    assert.ok(mind._nodes[level1.id].children.some(c => c.id === level2.id));
+    assert.strictEqual(mind._nodes[level1.id].parent.id, mind.root.id);
+});
+
+test('addChildNode throws when parentId is missing', () => {
+    const mind = new JmMind(metadata, options);
+
+    assert.throws(
+        () => mind.addChildNode('orphan', ''),
+        (err: unknown) => {
+            assert.ok(err instanceof JsMindError);
+            assert.match(err.message, /parentId is required for addChildNode/);
+            return true;
+        }
+    );
+
+    // Nothing should have been added
+    assert.strictEqual(Object.keys(mind._nodes).length, 1);
+});
+
+test('addChildNode rejects an unknown parent id', () => {
+    const mind = new JmMind(metadata, options);
+
+    // The node lookup is delegated to addNode, which owns that check
+    assert.throws(
+        () => mind.addChildNode('orphan', 'nonexistent-parent-id'),
+        (err: unknown) => {
+            assert.ok(err instanceof JsMindError);
+            assert.match(err.message, /node\[id=nonexistent-parent-id\] does not exist/);
+            return true;
+        }
+    );
+
+    assert.strictEqual(Object.keys(mind._nodes).length, 1);
+});
+
+test('addChildNode throws when content is falsy', () => {
+    const mind = new JmMind(metadata, options);
+
+    assert.throws(
+        () => mind.addChildNode('', mind.root.id),
+        (err: unknown) => {
+            assert.ok(err instanceof JsMindError);
+            assert.match(err.message, /content is required/);
+            return true;
+        }
+    );
+
+    assert.throws(
+        () => mind.addChildNode(null, mind.root.id),
+        (err: unknown) => {
+            assert.ok(err instanceof JsMindError);
+            assert.match(err.message, /content is required/);
+            return true;
+        }
+    );
+});
+
+test('addChildNode throws when content type is unsupported', () => {
+    const mind = new JmMind(metadata, options);
+
+    assert.throws(
+        () => mind.addChildNode(42, mind.root.id),
+        (err: unknown) => {
+            assert.ok(err instanceof JsMindError);
+            assert.match(err.message, /content must be a string or a JmNodeContent object/);
+            return true;
+        }
+    );
+});
+
+test('addChildNode emits a node-added event', () => {
+    const mind = new JmMind(metadata, options);
+    const mockedNotifyObservers = mock.method(mind.observerManager, 'notifyObservers');
+
+    const child = mind.addChildNode('with event', mind.root.id);
+
+    assert.strictEqual(mockedNotifyObservers.mock.callCount(), 1);
+
+    const event = mockedNotifyObservers.mock.calls[0].arguments[0];
+    assert.ok(event instanceof JmMindEvent);
+    assert.strictEqual(event.type, JmMindEventType.NodeAdded);
+
+    const eventData = event.data as JmMindEventDataOnNodeAdded;
+    assert.ok(eventData.node instanceof JmNode);
+    assert.strictEqual(eventData.node.id, child.id);
+    assert.strictEqual(eventData.node.content.value, 'with event');
+    assert.ok(eventData.node.parent!.equals(mind.root));
+});
