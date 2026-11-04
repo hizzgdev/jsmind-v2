@@ -7,6 +7,8 @@ This directory contains all documentation for the jsMind V2 project.
 ```
 docs/
 ├── README.md                    # This index document
+├── requirements/               # Product requirements
+│   └── v2-requirements.md      # jsmind-v2 requirements (scope, goals, decisions)
 ├── architecture/               # Architecture design documents
 │   └── hybrid-edge-system.md   # Hybrid edge system design
 ├── features/                   # Feature documentation
@@ -19,6 +21,12 @@ docs/
 ```
 
 ## Document Categories
+
+### Requirements (requirements/)
+
+Product-level scope and decisions: what v2 aims to be, what it explicitly will not do, and which approaches were rejected and why.
+
+- **v2-requirements.md** - Requirements document (written in Chinese)
 
 ### Architecture (architecture/)
 Contains system architecture and design decision documents.

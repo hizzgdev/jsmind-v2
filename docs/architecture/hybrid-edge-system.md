@@ -34,6 +34,18 @@ The hybrid edge system was designed based on several key requirements and analys
 
 **Alternative Considered**: Pure edge system was rejected due to performance overhead and complexity of bidirectional management.
 
+**Additional considerations (2026-11)** — three more arguments for the hybrid model, not covered above:
+
+1. **Sibling ordering.** Mind map siblings have a defined top-to-bottom order. In the tree model, `children: ["a", "b", "c"]` carries that order for free — array index *is* display order. A pure edge model has no notion of order in the edge list; expressing it requires an `order` field on each edge, which pushes ordering logic out of the data structure and into traversal code.
+
+2. **LLM generation cost.** For an AI agent authoring a mind map, nested structure is self-describing — `{ "topic": "A", "children": [...] }` cannot be mis-nested. A pure edge model requires the model to allocate node ids, emit edges referencing them, and guarantee no orphans, no cycles, and exactly one parent per node — i.e. it must maintain an id ledger. That is a materially larger surface for generation errors.
+
+3. **Payload size.** For a parent with 3 children, the tree form needs roughly 20 bytes (`"children":["a","b","c"]`), while the edge form needs roughly 200 bytes (three objects, each carrying `id`, `source`, `target`, `type`). A 5–10× difference — which matters for the self-contained HTML files this project ships.
+
+**Corollary — the tree is a domain constraint, not a special case of a graph.** The mind-map invariants (exactly one parent per node, ordered siblings, no cycles) are guaranteed *by the data structure itself* in the tree model. A pure edge model can only enforce them through runtime validation — meaning every operation has to re-prove "it is still a tree".
+
+**Where this reverses:** only if multi-parent nodes become a requirement (a DAG, e.g. one item belonging to two categories). At that point the tree model is insufficient and a general graph is required — but that is a knowledge graph, not a mind map.
+
 #### 2. Direct Fields vs. Edge-Based Tree Structure
 **Decision**: Use direct `parent` and `children` fields in `JmNode` for tree relationships.
 
