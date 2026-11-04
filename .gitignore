@@ -6,3 +6,9 @@ logs/
 .vscode/settings.json
 
 
+
+# agent scratch space (experiments, screenshots, probes)
+/tmp/
+
+# 含凭证的本机约定，切勿提交
+/AGENTS.local.md
