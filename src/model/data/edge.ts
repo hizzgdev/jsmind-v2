@@ -1,4 +1,5 @@
 import { JsMindError } from '../../common/error.ts';
+import type { JmLineStyle } from './style.ts';
 
 /**
  * Options for creating a new edge.
@@ -10,6 +11,8 @@ export interface EdgeCreationOptions {
     edgeId?: string;
     /** Optional label for the edge. */
     label?: string;
+    /** Optional visual style for the edge line. */
+    style?: JmLineStyle;
 }
 
 /**
@@ -35,6 +38,15 @@ export class JmEdge {
 
     /** The optional label of the edge. */
     label: string | null;
+
+    /**
+     * Visual style of the edge line.
+     *
+     * @remarks
+     * Uses the same `JmLineStyle` as `JmNodeStyle.incoming` so that
+     * hierarchical and additional relationships share one vocabulary.
+     */
+    style?: JmLineStyle;
 
     /**
      * Creates a new edge.

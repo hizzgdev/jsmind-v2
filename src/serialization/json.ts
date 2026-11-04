@@ -12,6 +12,14 @@ import { JsMindError } from '../common/error.ts';
 import type { MindMetadata } from '../common/option.ts';
 import type { JmNodeSide } from '../model/data/node.ts';
 import type { JmNodeContentType } from '../model/data/node-content.ts';
+import type { JmNodeStyle, JmLineStyle, JmThemeRef } from '../model/data/style.ts';
+
+/**
+ * Format identifier written to every v2 data file.
+ *
+ * @public
+ */
+export const JMIND_FORMAT_V2 = 'jsmind_v2';
 
 /**
  * Serialized node data structure.
@@ -29,6 +37,8 @@ export interface SerializedNode {
     folded: boolean;
     side: JmNodeSide;
     data: Record<string, unknown>;
+    /** Visual overrides for the node. Absent when the node uses the theme as-is. */
+    style?: JmNodeStyle;
 }
 
 /**
@@ -42,6 +52,8 @@ export interface SerializedEdge {
     targetNodeId: string;
     type: JmEdgeType;
     label: string | null;
+    /** Visual style of the edge line. */
+    style?: JmLineStyle;
 }
 
 /**
@@ -50,6 +62,10 @@ export interface SerializedEdge {
  * @public
  */
 export interface SerializedMindMap {
+    /** Format identifier. Always `jsmind_v2` for data written by this version. */
+    format?: string;
+    /** Theme reference: a preset name or an inline theme definition. */
+    theme?: JmThemeRef;
     meta: MindMetadata;
     root: string;
     nodes: Record<string, SerializedNode>;
@@ -84,11 +100,16 @@ export class JmMindJsonSerializer implements JmMindSerializer {
         }
 
         const serializedData: SerializedMindMap = {
+            format: JMIND_FORMAT_V2,
             meta: mind.meta,
             root: mind._root.id,
             nodes: {},
             edges: {}
         };
+
+        if (mind.theme !== undefined) {
+            serializedData.theme = mind.theme;
+        }
 
         // Serialize all nodes
         Object.values(mind._nodes).forEach(node => {
@@ -117,6 +138,9 @@ export class JmMindJsonSerializer implements JmMindSerializer {
 
         // Create mind map with metadata and options
         const mind = new JmMind(data.meta, { rootNodeId: data.root });
+        if (data.theme !== undefined) {
+            mind.theme = data.theme;
+        }
 
         // Restore nodes
         Object.values(data.nodes).forEach((nodeData: SerializedNode) => {
@@ -184,7 +208,8 @@ export class JmMindJsonSerializer implements JmMindSerializer {
             children: node.children.map(child => child.id),
             folded: node.folded,
             side: node.side,
-            data: { ...node.data }
+            data: { ...node.data },
+            ...(node.style ? { style: copyNodeStyle(node.style) } : {})
         };
     }
 
@@ -202,6 +227,9 @@ export class JmMindJsonSerializer implements JmMindSerializer {
         node.folded = nodeData.folded;
         node.side = nodeData.side;
         node.data = { ...nodeData.data };
+        if (nodeData.style) {
+            node.style = copyNodeStyle(nodeData.style);
+        }
 
         return node;
     }
@@ -219,7 +247,8 @@ export class JmMindJsonSerializer implements JmMindSerializer {
             sourceNodeId: edge.sourceNodeId,
             targetNodeId: edge.targetNodeId,
             type: edge.type,
-            label: edge.label
+            label: edge.label,
+            ...(edge.style ? { style: { ...edge.style } } : {})
         };
     }
 
@@ -231,13 +260,17 @@ export class JmMindJsonSerializer implements JmMindSerializer {
      * @returns The deserialized edge.
      */
     _deserializeEdge(edgeData: SerializedEdge): JmEdge {
-        return new JmEdge(
+        const edge = new JmEdge(
             edgeData.id,
             edgeData.sourceNodeId,
             edgeData.targetNodeId,
             edgeData.type,
             edgeData.label
         );
+        if (edgeData.style) {
+            edge.style = { ...edgeData.style };
+        }
+        return edge;
     }
 
     /**
@@ -271,3 +304,20 @@ export class JmMindJsonSerializer implements JmMindSerializer {
     }
 }
 
+/**
+ * Copies a node style so the serialized snapshot does not share nested objects
+ * with the live model.
+ *
+ * @remarks
+ * `incoming` is the only nested field, so a two-level copy covers the whole
+ * structure. Sharing it would let a later edit to `node.style.incoming` reach
+ * back into data that was already serialized.
+ *
+ * @param style - The style to copy.
+ * @returns A detached copy.
+ */
+function copyNodeStyle(style: JmNodeStyle): JmNodeStyle {
+    return style.incoming
+        ? { ...style, incoming: { ...style.incoming } }
+        : { ...style };
+}

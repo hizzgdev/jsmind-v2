@@ -4,6 +4,7 @@ import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeSi
 import { JmNodeContent } from './data/node-content.ts';
 import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS, mergeFlatOptions } from '../common/option.ts';
 import { SimpleIdGenerator } from '../generation/index.ts';
+import type { JmThemeRef } from './data/style.ts';
 
 import { JmMindEvent } from './event/data.ts';
 import { JsMindError } from '../common/error.ts';
@@ -19,6 +20,16 @@ export class JmMind {
 
     /** Configuration options for the mind map. */
     options: MindOptions;
+
+    /**
+     * Theme reference for the mind map.
+     *
+     * @remarks
+     * Either a preset name or an inline theme definition. Absent means the
+     * built-in default. Resolution and deep merging happen at render time via
+     * `resolveJmTheme`, not here — this field only stores what the file said.
+     */
+    theme?: JmThemeRef;
 
     /** Manager for observers of this mind map. */
     observerManager: JmObserverManager<JmMind>;
@@ -82,6 +93,9 @@ export class JmMind {
         const edgeId = (options && options.edgeId) || this._idGenerator.newId();
         const label = (options && options.label) || null;
         const edge = new JmEdge(edgeId, sourceNodeId, targetNodeId, type, label);
+        if (options && options.style !== undefined) {
+            edge.style = options.style;
+        }
         this._edges[edgeId] = edge;
 
         // Emit event
@@ -371,6 +385,9 @@ export class JmMind {
             }
             if (nodeOptions.data !== undefined) {
                 node.data = nodeOptions.data;
+            }
+            if (nodeOptions.style !== undefined) {
+                node.style = nodeOptions.style;
             }
         }
         this._nodes[nodeId] = node;

@@ -265,10 +265,18 @@ export type JmTone = typeof JmTone[keyof typeof JmTone];
 ### 5.2 `JmNodeStyle`
 
 ```typescript
+export const JmLineStyleType = {
+    Solid:  'solid',
+    Dashed: 'dashed',
+    Dotted: 'dotted',
+} as const;
+
+export type JmLineStyleType = typeof JmLineStyleType[keyof typeof JmLineStyleType];
+
 interface JmLineStyle {
     color?: string;
     width?: number;
-    style?: "solid" | "dashed" | "dotted";
+    style?: JmLineStyleType;
 }
 
 interface JmNodeStyle {
@@ -277,7 +285,7 @@ interface JmNodeStyle {
     color?: string;
     borderColor?: string;
     borderWidth?: number;
-    borderStyle?: "solid" | "dashed" | "dotted";
+    borderStyle?: JmLineStyleType;
     fontSize?: number;                    // px
     fontWeight?: "normal" | "bold";
     incoming?: JmLineStyle;               // 连向本节点的这条线

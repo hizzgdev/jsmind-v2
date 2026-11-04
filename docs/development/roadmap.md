@@ -107,8 +107,10 @@ node.isRoot     node.parent    node.side     node.ts
 
 #### S1 `feat(model): add style, theme and format to v2 data`
 
-- 类型：`ToneName` / `JmTonePalette` / `JmTheme` / `JmNodeStyle` / `JmLineStyle`
-- `JmNode` 加 `style?: JmNodeStyle`
+- 类型：`JmTone` / `JmLineStyleType` / `JmTonePalette` / `JmTheme` / `JmNodeStyle` / `JmLineStyle`
+- `JmNode` 加 `style?: JmNodeStyle`，`JmEdge` 加 `style?: JmLineStyle`
+- `JmMind` 加 `theme?: JmThemeRef`
+- `NodeCreationOptions` / `EdgeCreationOptions` 接受 `style`
 - 序列化顶层加 `format` / `theme`
 - `SerializedNode` 加 `style`，`SerializedEdge` 加 `style`
 - **只存不画** —— 渲染层完全不动
