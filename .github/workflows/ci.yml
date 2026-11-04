@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # Push to master only: branches under review are covered by the
+  # pull_request trigger below, so pushing a feature branch twice (once
+  # before opening the PR, once after) does not burn two runs.
   push:
-    branches: ['**']
+    branches: [master]
   pull_request:
     branches: [master]
 
