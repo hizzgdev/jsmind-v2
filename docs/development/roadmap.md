@@ -191,11 +191,20 @@ node.style.fontSize = 18
 
 ### 第 3 层：产物
 
-#### S7 `feat(cli): validate and render commands`
+#### S7 `feat(cli): context, validate and render commands`
 
-- CLI 骨架（参数解析、退出码）
+**完整设计见 `docs/requirements/v2-cli.md`。**
+
+- CLI 骨架（参数解析、退出码三分：数据无效 / 用法错误 / IO 错误）
+- `context`（agent 的发现步骤，唯一允许模糊匹配的命令）
 - `validate`（调 S2）
 - `render`（先输出调试信息，真正的出图在 S8 之后）
+- `mind` 数据命令组：`find` / `add-child` / `add-node` / `move` / `remove-node` / `add-edge` / `remove-edge` / `edges`
+  —— 对 `JmMind` 方法的薄封装，定位参数一律用 id
+- `node` 数据命令组：`set-text` / `set-folded` / `set-side`
+  —— 对应 `JmNode` 的可写字段（`content` / `folded` / `side`），走字段赋值不调方法
+
+**`node set-style` 不在这个 PR** —— 它依赖 S1 的 schema 和 S4 的样式实现。
 
 **注意**：`convert` 命令**不在这个 PR** —— 它依赖 adapter，跟 S13 一起做
 

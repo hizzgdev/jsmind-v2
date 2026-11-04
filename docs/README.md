@@ -9,7 +9,8 @@ docs/
 ├── README.md                    # This index document
 ├── requirements/               # Product requirements
 │   ├── v2-requirements.md      # jsmind-v2 requirements (scope, goals, decisions)
-│   └── v2-data-format.md       # v2 data format specification (schema)
+│   ├── v2-data-format.md       # v2 data format specification (schema)
+│   └── v2-cli.md               # CLI command structure, output and exit-code contracts
 ├── architecture/               # Architecture design documents
 │   └── hybrid-edge-system.md   # Hybrid edge system design
 ├── features/                   # Feature documentation
@@ -30,6 +31,7 @@ Product-level scope and decisions: what v2 aims to be, what it explicitly will n
 
 - **v2-requirements.md** - Requirements document (written in Chinese)
 - **v2-data-format.md** - Data format specification: node/edge/theme schema, id stability, validation rules, autofix semantics (written in Chinese)
+- **v2-cli.md** - CLI design: command structure, why data operations mirror the JS API, id-only locators, stdout/stderr split, three-way exit codes, write-then-validate rule (written in Chinese)
 
 ### Architecture (architecture/)
 Contains system architecture and design decision documents.
