@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  # Push to master only: branches under review are covered by the
+  # pull_request trigger below, so pushing a feature branch twice (once
+  # before opening the PR, once after) does not burn two runs.
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# New pushes to the same branch cancel older runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Format, types, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # v7 runs on node24; v4 ran on node20, which GitHub deprecated.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      # Deterministic install from the lockfile. This is npm's built-in
+      # "npm ci", unrelated to the "ci" script in package.json.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format check
+        run: npm run format-check
+
+      - name: Type check
+        run: npm run type-check
+
+      # Coverage runs here only. scripts.ci / ci2 and the pre-push hook stay on
+      # test-lite / test on purpose: they are the manual and local paths, where
+      # the full coverage report is slow and noisy. Thresholds live in
+      # package.json (scripts.test:coverage).
+      - name: Tests with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
