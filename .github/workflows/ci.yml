@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   checks:
-    name: Format, types, tests
+    name: Format, types, tests, build
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -27,20 +27,13 @@ jobs:
           node-version: '22'
           cache: npm
 
+      # Deterministic install from the lockfile. This is npm's built-in
+      # "npm ci", unrelated to the "ci" script in package.json.
       - name: Install dependencies
         run: npm ci
 
-      - name: Format check
-        run: npm run format-check
-
-      - name: Type check
-        run: npm run type-check
-
-      # Thresholds live in package.json (test:coverage) so the local pre-push
-      # hook and CI enforce exactly the same numbers.
-      # Current baseline: 97.1% lines / 95.7% branches / 93.9% functions.
-      - name: Tests with coverage
-        run: npm run test:coverage
-
-      - name: Build
-        run: npm run build
+      # The pipeline itself lives in package.json (scripts.ci) so that CI, the
+      # pre-push hook and a manual run cannot drift apart. Coverage thresholds
+      # are part of that script.
+      - name: Run checks
+        run: npm run ci
