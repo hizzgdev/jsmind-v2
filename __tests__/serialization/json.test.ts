@@ -99,9 +99,20 @@ test('JmMindJsonSerializer - validate with valid data', () => {
     const serializer = new JmMindJsonSerializer();
 
     const validData = {
-        meta: { name: 'Test Mind' },
+        format: 'jsmind_v2',
+        meta: { name: 'Test Mind', author: 'Test Author', version: '1.0' },
         root: 'root',
-        nodes: { root: { id: 'root' } },
+        nodes: {
+            root: {
+                id: 'root',
+                content: { type: 'text', value: 'Root' },
+                parent: null,
+                children: [],
+                folded: false,
+                side: 1,
+                data: {}
+            }
+        },
         edges: {}
     };
 
@@ -159,6 +170,7 @@ test('JmMindJsonSerializer - deserialize basic mind map', () => {
         data: {}
     };
     const testData = {
+        format: 'jsmind_v2',
         meta: { name: 'Test Mind', author: 'Test Author', version: '1.0' },
         root: 'root',
         nodes: {

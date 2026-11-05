@@ -1,0 +1,85 @@
+{
+  "format": "jsmind_v2",
+  "style": {
+    "theme": "default",
+    "background": "#fafafa",
+    "tones": {
+      "primary": { "fillColor": "#dbeafe", "textColor": "#1a5fb4", "borderColor": "#7ab0f0", "lineColor": "#5a9ae8" }
+    },
+    "node": { "radius": 8, "fontSize": 15 },
+    "line": { "width": 3, "pattern": "solid" },
+    "expander": { "size": 14 }
+  },
+  "meta": {
+    "name": "Styled example",
+    "author": "zzgbot",
+    "version": "2.0"
+  },
+  "root": "root",
+  "nodes": {
+    "root": {
+      "id": "root",
+      "content": { "type": "text", "value": "AI 工程实践" },
+      "parent": null,
+      "children": ["jm-a1", "jm-a2"],
+      "folded": false,
+      "side": 0,
+      "data": {},
+      "style": {
+        "tone": "primary",
+        "fontSize": 22,
+        "fontWeight": "bold"
+      }
+    },
+    "jm-a1": {
+      "id": "jm-a1",
+      "content": { "type": "text", "value": "数据准备" },
+      "parent": "root",
+      "children": ["jm-b1"],
+      "folded": false,
+      "side": 1,
+      "data": { "owner": "data-team" },
+      "style": {
+        "tone": "success",
+        "incoming": { "color": "#4fb681", "width": 3, "pattern": "dashed" }
+      }
+    },
+    "jm-b1": {
+      "id": "jm-b1",
+      "content": { "type": "text", "value": "清洗规则" },
+      "parent": "jm-a1",
+      "children": [],
+      "folded": true,
+      "side": 1,
+      "data": {},
+      "style": {
+        "tone": "warning",
+        "borderWidth": 2,
+        "borderStyle": "dotted"
+      }
+    },
+    "jm-a2": {
+      "id": "jm-a2",
+      "content": { "type": "text", "value": "模型选择" },
+      "parent": "root",
+      "children": [],
+      "folded": false,
+      "side": -1,
+      "data": {},
+      "style": {
+        "tone": "danger",
+        "fontWeight": "bold"
+      }
+    }
+  },
+  "edges": {
+    "jm-e1": {
+      "id": "jm-e1",
+      "sourceNodeId": "jm-b1",
+      "targetNodeId": "jm-a2",
+      "type": "link",
+      "label": "affects",
+      "style": { "color": "#d97069", "width": 2, "pattern": "dashed" }
+    }
+  }
+}

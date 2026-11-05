@@ -13,6 +13,7 @@ import type { MindMetadata } from '../common/option.ts';
 import type { JmNodeSide } from '../model/data/node.ts';
 import type { JmNodeContentType } from '../model/data/node-content.ts';
 import type { JmNodeStyle, JmLineStyle, JmStyle } from '../model/data/style.ts';
+import { validateMindData, type JmValidationIssue, type JmValidationResult } from './validation.ts';
 
 /**
  * Format identifier written to every v2 data file.
@@ -132,8 +133,13 @@ export class JmMindJsonSerializer implements JmMindSerializer {
      * @throws {@link JsMindError} If the JSON data format is invalid.
      */
     deserialize(data: SerializedMindMap): JmMind {
-        if (!this.validate(data)) {
-            throw new JsMindError('Invalid JSON data format');
+        const result = this.check(data);
+        if (!result.valid) {
+            throw new JsMindError(
+                `Invalid JSON data format: ${summarise(result.errors)}`,
+                { errors: result.errors },
+                result.errors[0].code
+            );
         }
 
         // Create mind map with metadata and options
@@ -172,22 +178,22 @@ export class JmMindJsonSerializer implements JmMindSerializer {
      * @returns True if the data is valid for this format.
      */
     validate(data: unknown): data is SerializedMindMap {
-        if (!data || typeof data !== 'object') {
-            return false;
-        }
+        return this.check(data).valid;
+    }
 
-        const d = data as Record<string, unknown>;
-        if (!d.meta || !d.root || !d.nodes || !d.edges) {
-            return false;
-        }
-
-        const rootId = d.root;
-        const nodes = d.nodes as Record<string, unknown>;
-        if (!rootId || typeof rootId !== 'string' || !nodes[rootId]) {
-            return false;
-        }
-
-        return true;
+    /**
+     * Validates data and returns every problem found.
+     *
+     * @remarks
+     * Use this instead of `validate` when the caller needs to know *why* data
+     * was rejected. Each issue carries a stable `code`, a `path` into the
+     * document, and a message written for humans.
+     *
+     * @param data - The data to validate.
+     * @returns Every issue found; `valid` is true only when there are none.
+     */
+    check(data: unknown): JmValidationResult {
+        return validateMindData(data);
     }
 
     /**
@@ -302,6 +308,23 @@ export class JmMindJsonSerializer implements JmMindSerializer {
                 .filter((child: JmNode | undefined) => child !== undefined) as JmNode[];
         });
     }
+}
+
+/**
+ * Summarises validation issues into one readable sentence.
+ *
+ * @remarks
+ * The first issue carries the most useful detail; the remaining count tells
+ * the reader whether to expect more. Full detail is in `error.data.errors`.
+ *
+ * @param errors - Issues to summarise.
+ * @returns A single human-readable line.
+ */
+function summarise(errors: JmValidationIssue[]): string {
+    const first = errors[0];
+    const rest = errors.length - 1;
+    const suffix = rest > 0 ? ` (and ${rest} more)` : '';
+    return `${first.code} at ${first.path || '<root>'}: ${first.message}${suffix}`;
 }
 
 /**

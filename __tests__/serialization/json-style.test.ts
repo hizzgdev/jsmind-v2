@@ -249,12 +249,14 @@ test('json-style - round trip is byte-for-byte identical', () => {
     );
 });
 
-test('json-style - legacy data without format or style still deserializes', () => {
-    // Files written before the format/style fields existed must keep working.
+test('json-style - data without the format field is rejected', () => {
+    // S2 made the format field mandatory (E_FORMAT). This reverses the
+    // tolerance S1 had: there is no v2 data in the wild without the field, so
+    // accepting it would only hide documents that predate the format.
     const serializer = new JmMindJsonSerializer();
 
-    const legacy: SerializedMindMap = {
-        meta: { id: 'm3', name: 'Legacy', author: '', version: '2.0.0' },
+    const missingFormat = {
+        meta: { name: 'Legacy', author: '', version: '2.0.0' },
         root: 'root',
         nodes: {
             root: {
@@ -270,10 +272,35 @@ test('json-style - legacy data without format or style still deserializes', () =
         edges: {},
     };
 
-    const mind = serializer.deserialize(legacy);
-    assert.strictEqual(mind.style, undefined, 'no style in, no style out');
-    assert.strictEqual(mind._nodes['root'].style, undefined);
+    assert.throws(
+        () => serializer.deserialize(missingFormat as unknown as SerializedMindMap),
+        (err: unknown) => (err as { code?: string }).code === 'E_FORMAT',
+        'missing format should be rejected with E_FORMAT'
+    );
+});
 
-    // Re-serializing adds the format identifier; that is expected and harmless.
-    assert.strictEqual(serializer.serialize(mind).format, JSMIND_FORMAT_V2);
+test('json-style - data with an unknown format value is rejected', () => {
+    const serializer = new JmMindJsonSerializer();
+
+    const wrongFormat = {
+        format: 'jsmind_v1',
+        meta: { name: 'Mislabelled', author: '', version: '2.0.0' },
+        root: 'root',
+        nodes: {
+            root: {
+                id: 'root',
+                content: { type: 'text', value: 'Root' },
+                parent: null,
+                children: [],
+                folded: false,
+                side: 1,
+                data: {},
+            },
+        },
+        edges: {},
+    };
+
+    const result = serializer.check(wrongFormat);
+    assert.strictEqual(result.valid, false);
+    assert.strictEqual(result.errors[0].code, 'E_FORMAT');
 });
