@@ -362,6 +362,37 @@ test('validation - E_NODES_MISSING when nodes is absent', () => {
     assert.deepStrictEqual(codes(validateMindData(doc)), [JmValidationCode.NodesMissing]);
 });
 
+test('validation - both missing containers are reported, not just the first', () => {
+    // The early return after a missing `nodes` must not swallow the far simpler
+    // fact that `edges` is missing too.
+    const doc = validDoc();
+    delete doc.nodes;
+    delete doc.edges;
+
+    assert.deepStrictEqual(
+        codes(validateMindData(doc)).sort(),
+        [JmValidationCode.EdgesMissing, JmValidationCode.NodesMissing].sort()
+    );
+});
+
+test('validation - a malformed parent is not also counted as a second root', () => {
+    // A parent of the wrong type is undetermined, not root-like. Counting it as
+    // a null parent would report E_MULTIPLE_ROOTS for the same broken field,
+    // blaming a second, unrelated rule.
+    const doc = validDoc();
+    const nodes = doc.nodes as Record<string, Record<string, unknown>>;
+    nodes.n1.parent = 42;
+
+    const result = validateMindData(doc);
+    const got = codes(result);
+
+    assert.ok(got.includes(JmValidationCode.NodeParentMissing), 'the real fault is reported');
+    assert.ok(
+        !got.includes(JmValidationCode.MultipleRoots),
+        `malformed parent must not produce E_MULTIPLE_ROOTS, got ${JSON.stringify(got)}`
+    );
+});
+
 test('validation - E_EDGES_MISSING when edges is absent', () => {
     const doc = validDoc();
     delete doc.edges;

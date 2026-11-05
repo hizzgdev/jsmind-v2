@@ -114,19 +114,6 @@ const TONES: ReadonlySet<string> = new Set(Object.values(JmTone));
 const CONTENT_TYPES: ReadonlySet<string> = new Set(Object.values(JmNodeContentType));
 
 /**
- * Collects issues while walking the document.
- *
- * @private
- */
-class IssueList {
-    readonly errors: JmValidationIssue[] = [];
-
-    add(code: JmValidationCode, path: string, message: string): void {
-        this.errors.push({ code, path, message });
-    }
-}
-
-/**
  * Narrows to a plain object.
  *
  * @param value - Value to test.
@@ -162,34 +149,42 @@ function str(holder: Record<string, unknown>, key: string): string | null {
  * @public
  */
 export function validateMindData(data: unknown): JmValidationResult {
-    const issues = new IssueList();
+    const errors: JmValidationIssue[] = [];
 
     if (!isRecord(data)) {
-        issues.add(JmValidationCode.Format, '', 'Data is not an object.');
-        return { valid: false, errors: issues.errors };
+        errors.push({
+            code: JmValidationCode.Format,
+            path: '',
+            message: 'Data is not an object.',
+        });
+        return { valid: false, errors };
     }
 
     // ---- format ----
     if (data.format !== 'jsmind_v2') {
-        issues.add(
-            JmValidationCode.Format,
-            'format',
-            `Expected format "jsmind_v2", got ${JSON.stringify(data.format) ?? 'nothing'}.`
-        );
+        errors.push({
+            code: JmValidationCode.Format,
+            path: 'format',
+            message: `Expected format "jsmind_v2", got ${JSON.stringify(data.format) ?? 'nothing'}.`,
+        });
     }
 
     // ---- meta ----
     const meta = data.meta;
     if (!isRecord(meta)) {
-        issues.add(JmValidationCode.Meta, 'meta', 'Missing "meta" object.');
+        errors.push({
+            code: JmValidationCode.Meta,
+            path: 'meta',
+            message: 'Missing "meta" object.',
+        });
     } else {
         for (const key of ['name', 'author', 'version'] as const) {
             if (typeof meta[key] !== 'string') {
-                issues.add(
-                    JmValidationCode.Meta,
-                    `meta/${key}`,
-                    `"meta.${key}" must be a string.`
-                );
+                errors.push({
+                    code: JmValidationCode.Meta,
+                    path: `meta/${key}`,
+                    message: `"meta.${key}" must be a string.`,
+                });
             }
         }
     }
@@ -198,12 +193,26 @@ export function validateMindData(data: unknown): JmValidationResult {
     const nodes = data.nodes;
     const edges = data.edges;
 
+    // Both container checks run before the early return: a document missing both
+    // should learn about both, not just whichever is checked first.
     if (!isRecord(nodes)) {
-        issues.add(JmValidationCode.NodesMissing, 'nodes', 'Missing "nodes" object.');
-        return { valid: false, errors: issues.errors };
+        errors.push({
+            code: JmValidationCode.NodesMissing,
+            path: 'nodes',
+            message: 'Missing "nodes" object.',
+        });
     }
     if (!isRecord(edges)) {
-        issues.add(JmValidationCode.EdgesMissing, 'edges', 'Missing "edges" object.');
+        errors.push({
+            code: JmValidationCode.EdgesMissing,
+            path: 'edges',
+            message: 'Missing "edges" object.',
+        });
+    }
+    if (!isRecord(nodes)) {
+        // Without nodes there is not a single reference in the document that can
+        // be resolved, so every later rule would only repeat itself.
+        return { valid: false, errors };
     }
 
     const nodeIds = new Set(Object.keys(nodes));
@@ -211,31 +220,35 @@ export function validateMindData(data: unknown): JmValidationResult {
     // ---- root ----
     const rootId = str(data, 'root');
     if (!rootId) {
-        issues.add(JmValidationCode.RootMissing, 'root', '"root" must be a non-empty string.');
+        errors.push({
+            code: JmValidationCode.RootMissing,
+            path: 'root',
+            message: '"root" must be a non-empty string.',
+        });
     } else if (!nodeIds.has(rootId)) {
-        issues.add(
-            JmValidationCode.RootMissing,
-            'root',
-            `"root" points at "${rootId}", which is not in "nodes".`
-        );
+        errors.push({
+            code: JmValidationCode.RootMissing,
+            path: 'root',
+            message: `"root" points at "${rootId}", which is not in "nodes".`,
+        });
     }
 
     // ---- node keys ----
     for (const [key, node] of Object.entries(nodes)) {
         if (!isRecord(node)) {
-            issues.add(
-                JmValidationCode.NodeKeyMismatch,
-                `nodes/${key}`,
-                `Node under key "${key}" is not an object.`
-            );
+            errors.push({
+                code: JmValidationCode.NodeKeyMismatch,
+                path: `nodes/${key}`,
+                message: `Node under key "${key}" is not an object.`,
+            });
             continue;
         }
         if (node.id !== key) {
-            issues.add(
-                JmValidationCode.NodeKeyMismatch,
-                `nodes/${key}`,
-                `Key "${key}" does not match the node's own id ${JSON.stringify(node.id)}.`
-            );
+            errors.push({
+                code: JmValidationCode.NodeKeyMismatch,
+                path: `nodes/${key}`,
+                message: `Key "${key}" does not match the node's own id ${JSON.stringify(node.id)}.`,
+            });
         }
     }
 
@@ -243,19 +256,19 @@ export function validateMindData(data: unknown): JmValidationResult {
     if (isRecord(edges)) {
         for (const [key, edge] of Object.entries(edges)) {
             if (!isRecord(edge)) {
-                issues.add(
-                    JmValidationCode.EdgeKeyMismatch,
-                    `edges/${key}`,
-                    `Edge under key "${key}" is not an object.`
-                );
+                errors.push({
+                    code: JmValidationCode.EdgeKeyMismatch,
+                    path: `edges/${key}`,
+                    message: `Edge under key "${key}" is not an object.`,
+                });
                 continue;
             }
             if (edge.id !== key) {
-                issues.add(
-                    JmValidationCode.EdgeKeyMismatch,
-                    `edges/${key}`,
-                    `Key "${key}" does not match the edge's own id ${JSON.stringify(edge.id)}.`
-                );
+                errors.push({
+                    code: JmValidationCode.EdgeKeyMismatch,
+                    path: `edges/${key}`,
+                    message: `Key "${key}" does not match the edge's own id ${JSON.stringify(edge.id)}.`,
+                });
             }
         }
     }
@@ -272,15 +285,19 @@ export function validateMindData(data: unknown): JmValidationResult {
         // content
         const content = node.content;
         if (!isRecord(content)) {
-            issues.add(JmValidationCode.ContentType, `${at}/content`, 'Missing "content" object.');
+            errors.push({
+                code: JmValidationCode.ContentType,
+                path: `${at}/content`,
+                message: 'Missing "content" object.',
+            });
         } else {
             const type = content.type;
             if (typeof type !== 'string' || !CONTENT_TYPES.has(type)) {
-                issues.add(
-                    JmValidationCode.ContentType,
-                    `${at}/content/type`,
-                    `Unknown content type ${JSON.stringify(type)}. Expected one of ${[...CONTENT_TYPES].join(', ')}.`
-                );
+                errors.push({
+                    code: JmValidationCode.ContentType,
+                    path: `${at}/content/type`,
+                    message: `Unknown content type ${JSON.stringify(type)}. Expected one of ${[...CONTENT_TYPES].join(', ')}.`,
+                });
             }
         }
 
@@ -291,37 +308,40 @@ export function validateMindData(data: unknown): JmValidationResult {
         } else if (typeof parent === 'string') {
             parentOf.set(key, parent);
             if (!nodeIds.has(parent)) {
-                issues.add(
-                    JmValidationCode.NodeParentMissing,
-                    `${at}/parent`,
-                    `Parent "${parent}" is not in "nodes".`
-                );
+                errors.push({
+                    code: JmValidationCode.NodeParentMissing,
+                    path: `${at}/parent`,
+                    message: `Parent "${parent}" is not in "nodes".`,
+                });
             }
         } else {
-            issues.add(
-                JmValidationCode.NodeParentMissing,
-                `${at}/parent`,
-                '"parent" must be a node id or null.'
-            );
-            parentOf.set(key, null);
+            errors.push({
+                code: JmValidationCode.NodeParentMissing,
+                path: `${at}/parent`,
+                message: '"parent" must be a node id or null.',
+            });
+            // Deliberately NOT recorded as null. A malformed parent is
+            // undetermined, not root-like: recording it as null makes the root
+            // count below report an extra E_MULTIPLE_ROOTS for the same broken
+            // field, which is a false positive on a different code.
         }
 
         // children references
         const children = node.children;
         if (!Array.isArray(children)) {
-            issues.add(
-                JmValidationCode.NodeChildMissing,
-                `${at}/children`,
-                '"children" must be an array.'
-            );
+            errors.push({
+                code: JmValidationCode.NodeChildMissing,
+                path: `${at}/children`,
+                message: '"children" must be an array.',
+            });
         } else {
             for (const childId of children) {
                 if (typeof childId !== 'string' || !nodeIds.has(childId)) {
-                    issues.add(
-                        JmValidationCode.NodeChildMissing,
-                        `${at}/children`,
-                        `Child ${JSON.stringify(childId)} is not in "nodes".`
-                    );
+                    errors.push({
+                        code: JmValidationCode.NodeChildMissing,
+                        path: `${at}/children`,
+                        message: `Child ${JSON.stringify(childId)} is not in "nodes".`,
+                    });
                 }
             }
         }
@@ -330,15 +350,15 @@ export function validateMindData(data: unknown): JmValidationResult {
         // 1 right. No name conversion happens at this layer.
         const side = node.side;
         if (typeof side !== 'number' || !SIDE_VALUES.has(side)) {
-            issues.add(
-                JmValidationCode.Side,
-                `${at}/side`,
-                `"side" must be -1, 0 or 1, got ${JSON.stringify(side)}.`
-            );
+            errors.push({
+                code: JmValidationCode.Side,
+                path: `${at}/side`,
+                message: `"side" must be -1, 0 or 1, got ${JSON.stringify(side)}.`,
+            });
         }
 
         // per-node style
-        validateNodeStyle(node.style, `${at}/style`, issues);
+        validateNodeStyle(node.style, `${at}/style`, errors);
     }
 
     // ---- parent/children agreement ----
@@ -355,30 +375,32 @@ export function validateMindData(data: unknown): JmValidationResult {
                 continue;
             }
             if (child.parent !== key) {
-                issues.add(
-                    JmValidationCode.ParentChildMismatch,
-                    `nodes/${childId}/parent`,
-                    `Listed as a child of "${key}", but its parent is ${JSON.stringify(child.parent)}.`
-                );
+                errors.push({
+                    code: JmValidationCode.ParentChildMismatch,
+                    path: `nodes/${childId}/parent`,
+                    message: `Listed as a child of "${key}", but its parent is ${JSON.stringify(child.parent)}.`,
+                });
             }
         }
     }
 
     // ---- exactly one root ----
+    // Nodes with a malformed parent are absent from parentOf entirely, so a
+    // broken field cannot masquerade as a second root.
     const roots = [...parentOf.entries()].filter(([, parent]) => parent === null).map(([id]) => id);
     if (roots.length > 1) {
-        issues.add(
-            JmValidationCode.MultipleRoots,
-            'nodes',
-            `${roots.length} nodes have a null parent: ${roots.join(', ')}. Exactly one is allowed.`
-        );
+        errors.push({
+            code: JmValidationCode.MultipleRoots,
+            path: 'nodes',
+            message: `${roots.length} nodes have a null parent: ${roots.join(', ')}. Exactly one is allowed.`,
+        });
     }
     if (rootId && parentOf.has(rootId) && parentOf.get(rootId) !== null) {
-        issues.add(
-            JmValidationCode.RootParentSet,
-            `nodes/${rootId}/parent`,
-            'The root node must have a null parent.'
-        );
+        errors.push({
+            code: JmValidationCode.RootParentSet,
+            path: `nodes/${rootId}/parent`,
+            message: 'The root node must have a null parent.',
+        });
     }
 
     // ---- cycles ----
@@ -403,11 +425,11 @@ export function validateMindData(data: unknown): JmValidationResult {
         }
         reportedCycles.add(key);
 
-        issues.add(
-            JmValidationCode.Cycle,
-            `nodes/${members[0]}`,
-            `Following "parent" from this node returns to it (cycle: ${members.join(' -> ')} -> ${members[0]}).`
-        );
+        errors.push({
+            code: JmValidationCode.Cycle,
+            path: `nodes/${members[0]}`,
+            message: `Following "parent" from this node returns to it (cycle: ${members.join(' -> ')} -> ${members[0]}).`,
+        });
     }
 
     // ---- edges ----
@@ -419,31 +441,31 @@ export function validateMindData(data: unknown): JmValidationResult {
             const at = `edges/${key}`;
             const edgeType = edge.type;
             if (typeof edgeType !== 'string' || !EDGE_TYPES.has(edgeType)) {
-                issues.add(
-                    JmValidationCode.EdgeType,
-                    `${at}/type`,
-                    `Unknown edge type ${JSON.stringify(edgeType)}. Expected one of ${[...EDGE_TYPES].join(', ')}.`
-                );
+                errors.push({
+                    code: JmValidationCode.EdgeType,
+                    path: `${at}/type`,
+                    message: `Unknown edge type ${JSON.stringify(edgeType)}. Expected one of ${[...EDGE_TYPES].join(', ')}.`,
+                });
             }
 
             for (const field of ['sourceNodeId', 'targetNodeId'] as const) {
                 const endpoint = edge[field];
                 if (typeof endpoint !== 'string' || !nodeIds.has(endpoint)) {
-                    issues.add(
-                        JmValidationCode.EdgeNodeMissing,
-                        `${at}/${field}`,
-                        `Edge endpoint ${JSON.stringify(endpoint)} is not in "nodes".`
-                    );
+                    errors.push({
+                        code: JmValidationCode.EdgeNodeMissing,
+                        path: `${at}/${field}`,
+                        message: `Edge endpoint ${JSON.stringify(endpoint)} is not in "nodes".`,
+                    });
                 }
             }
-            validateLineStyle(edge.style, `${at}/style`, issues);
+            validateLineStyle(edge.style, `${at}/style`, errors);
         }
     }
 
     // ---- mind map style ----
-    validateMindStyle(data.style, issues);
+    validateMindStyle(data.style, errors);
 
-    return { valid: issues.errors.length === 0, errors: issues.errors };
+    return { valid: errors.length === 0, errors };
 }
 
 /**
@@ -488,50 +510,54 @@ function findParentCycle(
  *
  * @param style - Candidate style value.
  * @param at - Path prefix for messages.
- * @param issues - Collector.
+ * @param errors - Collector.
  */
-function validateNodeStyle(style: unknown, at: string, issues: IssueList): void {
+function validateNodeStyle(style: unknown, at: string, errors: JmValidationIssue[]): void {
     if (style === undefined) {
         return;
     }
     if (!isRecord(style)) {
-        issues.add(JmValidationCode.StyleRange, at, '"style" must be an object.');
+        errors.push({
+            code: JmValidationCode.StyleRange,
+            path: at,
+            message: '"style" must be an object.',
+        });
         return;
     }
 
     const tone = style.tone;
     if (tone !== undefined && (typeof tone !== 'string' || !TONES.has(tone))) {
-        issues.add(
-            JmValidationCode.Tone,
-            `${at}/tone`,
-            `Unknown tone ${JSON.stringify(tone)}. Expected one of ${[...TONES].join(', ')}.`
-        );
+        errors.push({
+            code: JmValidationCode.Tone,
+            path: `${at}/tone`,
+            message: `Unknown tone ${JSON.stringify(tone)}. Expected one of ${[...TONES].join(', ')}.`,
+        });
     }
 
     const borderPattern = style.borderStyle;
     if (borderPattern !== undefined) {
         if (typeof borderPattern !== 'string' || !LINE_PATTERNS.has(borderPattern)) {
-            issues.add(
-                JmValidationCode.LineStyle,
-                `${at}/borderStyle`,
-                `Unknown line pattern ${JSON.stringify(borderPattern)}. Expected one of ${[...LINE_PATTERNS].join(', ')}.`
-            );
+            errors.push({
+                code: JmValidationCode.LineStyle,
+                path: `${at}/borderStyle`,
+                message: `Unknown line pattern ${JSON.stringify(borderPattern)}. Expected one of ${[...LINE_PATTERNS].join(', ')}.`,
+            });
         }
     }
 
     for (const field of ['borderWidth', 'fontSize'] as const) {
         const value = style[field];
         if (value !== undefined && (typeof value !== 'number' || !(value > 0))) {
-            issues.add(
-                JmValidationCode.StyleRange,
-                `${at}/${field}`,
-                `"${field}" must be a positive number, got ${JSON.stringify(value)}.`
-            );
+            errors.push({
+                code: JmValidationCode.StyleRange,
+                path: `${at}/${field}`,
+                message: `"${field}" must be a positive number, got ${JSON.stringify(value)}.`,
+            });
         }
     }
 
     if (style.incoming !== undefined) {
-        validateLineStyle(style.incoming, `${at}/incoming`, issues);
+        validateLineStyle(style.incoming, `${at}/incoming`, errors);
     }
 }
 
@@ -540,35 +566,39 @@ function validateNodeStyle(style: unknown, at: string, issues: IssueList): void 
  *
  * @param style - Candidate line style.
  * @param at - Path prefix for messages.
- * @param issues - Collector.
+ * @param errors - Collector.
  */
-function validateLineStyle(style: unknown, at: string, issues: IssueList): void {
+function validateLineStyle(style: unknown, at: string, errors: JmValidationIssue[]): void {
     if (style === undefined) {
         return;
     }
     if (!isRecord(style)) {
-        issues.add(JmValidationCode.LineStyle, at, 'Line style must be an object.');
+        errors.push({
+            code: JmValidationCode.LineStyle,
+            path: at,
+            message: 'Line style must be an object.',
+        });
         return;
     }
 
     if (style.pattern !== undefined) {
         const pattern = style.pattern;
         if (typeof pattern !== 'string' || !LINE_PATTERNS.has(pattern)) {
-            issues.add(
-                JmValidationCode.LineStyle,
-                `${at}/pattern`,
-                `Unknown line pattern ${JSON.stringify(pattern)}. Expected one of ${[...LINE_PATTERNS].join(', ')}.`
-            );
+            errors.push({
+                code: JmValidationCode.LineStyle,
+                path: `${at}/pattern`,
+                message: `Unknown line pattern ${JSON.stringify(pattern)}. Expected one of ${[...LINE_PATTERNS].join(', ')}.`,
+            });
         }
     }
 
     const width = style.width;
     if (width !== undefined && (typeof width !== 'number' || !(width > 0))) {
-        issues.add(
-            JmValidationCode.StyleRange,
-            `${at}/width`,
-            `"width" must be a positive number, got ${JSON.stringify(width)}.`
-        );
+        errors.push({
+            code: JmValidationCode.StyleRange,
+            path: `${at}/width`,
+            message: `"width" must be a positive number, got ${JSON.stringify(width)}.`,
+        });
     }
 }
 
@@ -576,41 +606,53 @@ function validateLineStyle(style: unknown, at: string, issues: IssueList): void 
  * Validates the mind map level style declaration.
  *
  * @param style - Candidate style declaration.
- * @param issues - Collector.
+ * @param errors - Collector.
  */
-function validateMindStyle(style: unknown, issues: IssueList): void {
+function validateMindStyle(style: unknown, errors: JmValidationIssue[]): void {
     if (style === undefined) {
         return;
     }
     if (!isRecord(style)) {
-        issues.add(JmValidationCode.StyleRange, 'style', '"style" must be an object.');
+        errors.push({
+            code: JmValidationCode.StyleRange,
+            path: 'style',
+            message: '"style" must be an object.',
+        });
         return;
     }
 
     const themeName = style.theme;
     if (themeName !== undefined) {
         if (typeof themeName !== 'string') {
-            issues.add(JmValidationCode.ThemeUnknown, 'style/theme', '"style.theme" must be a string.');
+            errors.push({
+                code: JmValidationCode.ThemeUnknown,
+                path: 'style/theme',
+                message: '"style.theme" must be a string.',
+            });
         } else if (!(themeName in JSMIND_THEME_PRESETS)) {
-            issues.add(
-                JmValidationCode.ThemeUnknown,
-                'style/theme',
-                `Unknown theme ${JSON.stringify(themeName)}. Known themes: ${Object.keys(JSMIND_THEME_PRESETS).join(', ')}.`
-            );
+            errors.push({
+                code: JmValidationCode.ThemeUnknown,
+                path: 'style/theme',
+                message: `Unknown theme ${JSON.stringify(themeName)}. Known themes: ${Object.keys(JSMIND_THEME_PRESETS).join(', ')}.`,
+            });
         }
     }
 
     if (style.tones !== undefined) {
         if (!isRecord(style.tones)) {
-            issues.add(JmValidationCode.StyleRange, 'style/tones', '"style.tones" must be an object.');
+            errors.push({
+                code: JmValidationCode.StyleRange,
+                path: 'style/tones',
+                message: '"style.tones" must be an object.',
+            });
         } else {
             for (const toneName of Object.keys(style.tones)) {
                 if (!TONES.has(toneName)) {
-                    issues.add(
-                        JmValidationCode.Tone,
-                        `style/tones/${toneName}`,
-                        `Unknown tone ${JSON.stringify(toneName)}.`
-                    );
+                    errors.push({
+                        code: JmValidationCode.Tone,
+                        path: `style/tones/${toneName}`,
+                        message: `Unknown tone ${JSON.stringify(toneName)}.`,
+                    });
                 }
             }
         }
@@ -621,11 +663,11 @@ function validateMindStyle(style: unknown, issues: IssueList): void {
             continue;
         }
         if (!isRecord(style[section])) {
-            issues.add(
-                JmValidationCode.StyleRange,
-                `style/${section}`,
-                `"style.${section}" must be an object.`
-            );
+            errors.push({
+                code: JmValidationCode.StyleRange,
+                path: `style/${section}`,
+                message: `"style.${section}" must be an object.`,
+            });
         }
     }
 }
