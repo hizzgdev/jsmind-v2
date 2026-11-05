@@ -472,6 +472,8 @@ No node matches "粗暴". Closest:
 |---|---|
 | `format` 存在且等于 `"jsmind_v2"` | `E_FORMAT` |
 | `meta` 三个字段齐全且为字符串 | `E_META` |
+| `nodes` 是对象 | `E_NODES_MISSING` |
+| `edges` 是对象 | `E_EDGES_MISSING` |
 | `root` 指向的节点存在于 `nodes` | `E_ROOT_MISSING` |
 | `nodes` 每个 key 等于其值的 `id` | `E_NODE_KEY_MISMATCH` |
 | `edges` 每个 key 等于其值的 `id` | `E_EDGE_KEY_MISMATCH` |
@@ -499,11 +501,14 @@ No node matches "粗暴". Closest:
 |---|---|
 | 从每个节点向上追溯 `parent`，不得回到自身 | `E_CYCLE` |
 
+**环要报在环自己的成员上，不是报在指向环的节点上。** 若 `d.parent = a` 而 `a → b → c → a` 成环，从 `d` 向上追溯确实会重复经过节点，但重复的是 `a` 不是 `d` —— 报在 `d` 上等于说"从 d 出发会回到 d"，是错的。同一个环从不同起点追溯会得到同一批成员，按成员集合去重，**每个不交叠的环各报一次**，报在成员 id 最小的那个上以保证输出稳定。
+
 ### 9.5 取值合法性
 
 | 检查 | 错误码 |
 |---|---|
 | `content.type` 为 `"text"` | `E_CONTENT_TYPE` |
+| `edge.type` ∈ `JmEdgeType` 已知值（当前只有 `"link"`） | `E_EDGE_TYPE` |
 | `side` ∈ `{-1, 0, 1}`（JSON 里是数字，见 4.2） | `E_SIDE` |
 | `style.tone` ∈ 六个 tone 值 | `E_TONE` |
 | `style.borderStyle` / `incoming.pattern` ∈ `{solid,dashed,dotted}` | `E_LINE_STYLE` |

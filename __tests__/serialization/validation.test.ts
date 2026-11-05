@@ -274,32 +274,131 @@ test('validation - E_PARENT_CHILD_MISMATCH when the two sides disagree', () => {
     assert.ok(codes(validateMindData(doc)).includes(JmValidationCode.ParentChildMismatch));
 });
 
+/**
+ * Builds a document with a cycle a -> b -> c -> a plus a node d hanging off it.
+ *
+ * @returns A document whose only structural fault is the cycle.
+ */
+function cycleDoc(): Record<string, unknown> {
+    const node = (id: string, parent: string, children: string[]) => ({
+        id,
+        content: { type: 'text', value: id },
+        parent,
+        children,
+        folded: false,
+        side: 0,
+        data: {},
+    });
+
+    return validDoc({
+        root: 'a',
+        nodes: {
+            a: node('a', 'b', ['c', 'd']),
+            b: node('b', 'c', ['a']),
+            c: node('c', 'a', ['b']),
+            d: node('d', 'a', []),
+        },
+    });
+}
+
 test('validation - E_CYCLE when parent links loop', () => {
+    assert.ok(codes(validateMindData(cycleDoc())).includes(JmValidationCode.Cycle));
+});
+
+test('validation - E_CYCLE blames the cycle, not a node pointing into it', () => {
+    // Walking up from d (d -> a -> b -> c -> a) does revisit a node, but that
+    // node is a, not d. Reporting at d would claim "following parent from this
+    // node returns to it", which is false: it returns to a.
+    const result = validateMindData(cycleDoc());
+    const cycleIssues = result.errors.filter(issue => issue.code === JmValidationCode.Cycle);
+
+    assert.strictEqual(cycleIssues.length, 1, 'one cycle should produce one issue');
+    assert.strictEqual(cycleIssues[0].path, 'nodes/a', 'blamed node must be a cycle member');
+    assert.ok(
+        cycleIssues[0].message.includes('returns to it'),
+        'message should describe a self-return'
+    );
+});
+
+test('validation - E_CYCLE reports each disjoint cycle separately', () => {
+    // Two independent cycles must produce two issues, not one. Stopping at the
+    // first would hide the second entirely.
+    const node = (id: string, parent: string, children: string[]) => ({
+        id,
+        content: { type: 'text', value: id },
+        parent,
+        children,
+        folded: false,
+        side: 0,
+        data: {},
+    });
+
     const doc = validDoc({
         root: 'a',
         nodes: {
-            a: {
-                id: 'a',
-                content: { type: 'text', value: 'A' },
-                parent: 'b',
-                children: ['b'],
-                folded: false,
-                side: 0,
-                data: {},
-            },
-            b: {
-                id: 'b',
-                content: { type: 'text', value: 'B' },
-                parent: 'a',
-                children: ['a'],
-                folded: false,
-                side: 0,
-                data: {},
+            a: node('a', 'b', ['b']),
+            b: node('b', 'a', ['a']),
+            x: node('x', 'y', ['y']),
+            y: node('y', 'x', ['x']),
+        },
+    });
+
+    const cycleIssues = validateMindData(doc).errors.filter(
+        issue => issue.code === JmValidationCode.Cycle
+    );
+
+    assert.strictEqual(cycleIssues.length, 2, 'both cycles should be reported');
+    assert.deepStrictEqual(
+        cycleIssues.map(issue => issue.path).sort(),
+        ['nodes/a', 'nodes/x'],
+        'each cycle blamed at its own smallest member'
+    );
+});
+
+test('validation - E_NODES_MISSING when nodes is absent', () => {
+    const doc = validDoc();
+    delete doc.nodes;
+
+    assert.deepStrictEqual(codes(validateMindData(doc)), [JmValidationCode.NodesMissing]);
+});
+
+test('validation - E_EDGES_MISSING when edges is absent', () => {
+    const doc = validDoc();
+    delete doc.edges;
+
+    assert.deepStrictEqual(codes(validateMindData(doc)), [JmValidationCode.EdgesMissing]);
+});
+
+test('validation - E_EDGE_TYPE when an edge type is unknown', () => {
+    const doc = validDoc({
+        edges: {
+            e1: {
+                id: 'e1',
+                sourceNodeId: 'root',
+                targetNodeId: 'n1',
+                type: 'hyperlink',
+                label: null,
             },
         },
     });
 
-    assert.ok(codes(validateMindData(doc)).includes(JmValidationCode.Cycle));
+    assert.deepStrictEqual(codes(validateMindData(doc)), [JmValidationCode.EdgeType]);
+});
+
+test('validation - a known edge type passes', () => {
+    const doc = validDoc({
+        edges: {
+            e1: {
+                id: 'e1',
+                sourceNodeId: 'root',
+                targetNodeId: 'n1',
+                type: 'link',
+                label: null,
+            },
+        },
+    });
+
+    assert.deepStrictEqual(validateMindData(doc).errors, []);
 });
 
 test('validation - E_CONTENT_TYPE when content.type is unknown', () => {

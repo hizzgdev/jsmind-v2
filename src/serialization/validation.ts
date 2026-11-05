@@ -13,6 +13,7 @@ import { JmTone } from '../model/data/style.ts';
 import { JSMIND_THEME_PRESETS } from '../model/data/style.ts';
 import { JmLinePattern } from '../model/data/style.ts';
 import { JmNodeSide } from '../model/data/node.ts';
+import { JmEdgeType } from '../model/data/edge.ts';
 import { JmNodeContentType } from '../model/data/node-content.ts';
 
 /**
@@ -29,6 +30,10 @@ export const JmValidationCode = {
     Format: 'E_FORMAT',
     /** `meta` missing or its fields are not strings. */
     Meta: 'E_META',
+    /** The top-level `nodes` object is absent or not an object. */
+    NodesMissing: 'E_NODES_MISSING',
+    /** The top-level `edges` object is absent or not an object. */
+    EdgesMissing: 'E_EDGES_MISSING',
     /** `root` does not point at an existing node. */
     RootMissing: 'E_ROOT_MISSING',
     /** A `nodes` key differs from the `id` of its value. */
@@ -51,6 +56,8 @@ export const JmValidationCode = {
     Cycle: 'E_CYCLE',
     /** `content.type` is not a known content type. */
     ContentType: 'E_CONTENT_TYPE',
+    /** `edge.type` is not a known edge type. */
+    EdgeType: 'E_EDGE_TYPE',
     /** `side` is not a known side value. */
     Side: 'E_SIDE',
     /** `style.tone` is not one of the six tones. */
@@ -90,6 +97,9 @@ export interface JmValidationResult {
     /** Every problem found, in document order. */
     errors: JmValidationIssue[];
 }
+
+/** Edge types accepted for `edge.type`. */
+const EDGE_TYPES: ReadonlySet<string> = new Set(Object.values(JmEdgeType));
 
 /** Numeric side values accepted for a node. */
 const SIDE_VALUES: ReadonlySet<number> = new Set(Object.values(JmNodeSide));
@@ -189,11 +199,11 @@ export function validateMindData(data: unknown): JmValidationResult {
     const edges = data.edges;
 
     if (!isRecord(nodes)) {
-        issues.add(JmValidationCode.RootMissing, 'nodes', 'Missing "nodes" object.');
+        issues.add(JmValidationCode.NodesMissing, 'nodes', 'Missing "nodes" object.');
         return { valid: false, errors: issues.errors };
     }
     if (!isRecord(edges)) {
-        issues.add(JmValidationCode.EdgeKeyMismatch, 'edges', 'Missing "edges" object.');
+        issues.add(JmValidationCode.EdgesMissing, 'edges', 'Missing "edges" object.');
     }
 
     const nodeIds = new Set(Object.keys(nodes));
@@ -372,17 +382,32 @@ export function validateMindData(data: unknown): JmValidationResult {
     }
 
     // ---- cycles ----
+    // A node whose parent chain runs INTO a cycle but does not belong to one
+    // must not be blamed: walking up from D (D -> A -> B -> C -> A) does revisit
+    // a node, but it is A, not D. Report the cycle's own members instead.
+    const reportedCycles = new Set<string>();
+
     for (const startId of nodeIds) {
-        if (hasParentCycle(startId, parentOf)) {
-            issues.add(
-                JmValidationCode.Cycle,
-                `nodes/${startId}`,
-                'Following "parent" from this node returns to it.'
-            );
-            // One report per cycle is enough; the remaining nodes in it would
-            // produce the same message.
-            break;
+        const cycle = findParentCycle(startId, parentOf);
+        if (cycle === null) {
+            continue;
         }
+
+        // Same cycle reached from different entry points yields the same member
+        // set; sort it so one cycle is reported exactly once, and pick a stable
+        // node to hang the issue on.
+        const members = [...cycle].sort();
+        const key = members.join(',');
+        if (reportedCycles.has(key)) {
+            continue;
+        }
+        reportedCycles.add(key);
+
+        issues.add(
+            JmValidationCode.Cycle,
+            `nodes/${members[0]}`,
+            `Following "parent" from this node returns to it (cycle: ${members.join(' -> ')} -> ${members[0]}).`
+        );
     }
 
     // ---- edges ----
@@ -392,6 +417,15 @@ export function validateMindData(data: unknown): JmValidationResult {
                 continue;
             }
             const at = `edges/${key}`;
+            const edgeType = edge.type;
+            if (typeof edgeType !== 'string' || !EDGE_TYPES.has(edgeType)) {
+                issues.add(
+                    JmValidationCode.EdgeType,
+                    `${at}/type`,
+                    `Unknown edge type ${JSON.stringify(edgeType)}. Expected one of ${[...EDGE_TYPES].join(', ')}.`
+                );
+            }
+
             for (const field of ['sourceNodeId', 'targetNodeId'] as const) {
                 const endpoint = edge[field];
                 if (typeof endpoint !== 'string' || !nodeIds.has(endpoint)) {
@@ -413,25 +447,40 @@ export function validateMindData(data: unknown): JmValidationResult {
 }
 
 /**
- * Checks whether following parent links from a node returns to it.
+ * Walks parent links from a node and returns the members of the cycle it hits.
+ *
+ * @remarks
+ * Returns the cycle itself, not the starting node. Walking up from a node that
+ * merely points *into* a cycle passes through that cycle without belonging to
+ * it — the caller needs the members to blame the right nodes and to recognise
+ * the same cycle reached from different starting points.
  *
  * @param startId - Node to start from.
  * @param parentOf - Parent map built during the walk.
- * @returns True when the chain loops.
+ * @returns Member ids of the cycle, in traversal order; null when the chain
+ *          ends without looping.
  */
-function hasParentCycle(startId: string, parentOf: Map<string, string | null>): boolean {
-    const seen = new Set<string>();
+function findParentCycle(
+    startId: string,
+    parentOf: Map<string, string | null>
+): string[] | null {
+    const path: string[] = [];
+    const indexOf = new Map<string, number>();
     let cursor: string | null | undefined = startId;
 
     while (cursor !== null && cursor !== undefined) {
-        if (seen.has(cursor)) {
-            return cursor === startId || seen.has(cursor);
+        const seenAt = indexOf.get(cursor);
+        if (seenAt !== undefined) {
+            // Everything from the first sighting onwards is the cycle; what came
+            // before it is the tail that led in and is not part of it.
+            return path.slice(seenAt);
         }
-        seen.add(cursor);
+        indexOf.set(cursor, path.length);
+        path.push(cursor);
         cursor = parentOf.get(cursor);
     }
 
-    return false;
+    return null;
 }
 
 /**
