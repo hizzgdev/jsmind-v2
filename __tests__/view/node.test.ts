@@ -11,7 +11,6 @@ import { ViewExpanderStyle } from '../../src/common/option.ts';
 
 const TestData = {
     viewOptions: {
-        theme: 'default',
         padding: {
             left: 50,
             right: 50,

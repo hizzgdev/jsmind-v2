@@ -50,7 +50,7 @@ v2 的数据有**三种表示**，各自服务不同用途：
     "author": "张同学",
     "version": "1.0"
   },
-  "theme": "default",
+  "style": { "theme": "default" },
   "root": "root",
   "nodes": {
     "root": {
@@ -122,19 +122,8 @@ interface SerializedMindMap {
     root: string;
     nodes: Record<string, SerializedNode>;
     edges: Record<string, SerializedEdge>;
-}
-```
-
-**本规范在现有接口上新增两个可选字段（`format`、`theme`）**，标注如下：
-
-```typescript
-interface SerializedMindMap {
-    meta: MindMetadata;                         // 现有
-    root: string;                               // 现有
-    nodes: Record<string, SerializedNode>;      // 现有
-    edges: Record<string, SerializedEdge>;      // 现有
-    format?: "jsmind_v2";                       // 新增，见 1.2
-    theme?: JmThemeRef;                         // 新增，见 5.3
+    format?: "jsmind_v2";
+    style?: JmStyle;
 }
 ```
 
@@ -145,7 +134,7 @@ interface SerializedMindMap {
 | `nodes` | `Record<string, SerializedNode>` | ✅ | — | 现有 |
 | `edges` | `Record<string, SerializedEdge>` | ✅ | `{}` | 现有 |
 | `format` | `"jsmind_v2"` | ❌ | 无 | **新增** |
-| `theme` | `string \| JmTheme` | ❌ | `"default"` | **新增** |
+| `style` | `JmStyle` | ❌ | 继承 `default` | **新增** |
 
 **关于 `root` 的取值**：现有实现里根节点 id 来自 `JsMindOptions.mind.rootNodeId`，默认是固定字符串 `"root"`，**不经过 `SimpleIdGenerator`**。所以文件里常见 `"root": "root"`。这个值不参与 id 稳定性约束（它是配置项，不是动态生成的节点 id），但**同一文件内必须唯一且指向真实存在的节点**。
 
@@ -179,7 +168,7 @@ interface SerializedNode {
     folded: boolean;
     side: JmNodeSide;
     data: Record<string, unknown>;
-    style?: JmNodeStyle;              // 新增
+    style?: JmNodeStyle;
 }
 ```
 
@@ -213,9 +202,9 @@ type JmNodeContentType = typeof JmNodeContentType[keyof typeof JmNodeContentType
 
 ```typescript
 export const JmNodeSide = {
-    SideB: -1,      // 左
-    Center: 0,      // 中
-    SideA: 1,       // 右
+    SideB: -1,      // left
+    Center: 0,      // center
+    SideA: 1,       // right
 } as const;
 export type JmNodeSide = typeof JmNodeSide[keyof typeof JmNodeSide];
 ```
@@ -265,10 +254,18 @@ export type JmTone = typeof JmTone[keyof typeof JmTone];
 ### 5.2 `JmNodeStyle`
 
 ```typescript
+export const JmLinePattern = {
+    Solid:  'solid',
+    Dashed: 'dashed',
+    Dotted: 'dotted',
+} as const;
+
+export type JmLinePattern = typeof JmLinePattern[keyof typeof JmLinePattern];
+
 interface JmLineStyle {
     color?: string;
     width?: number;
-    style?: "solid" | "dashed" | "dotted";
+    pattern?: JmLinePattern;
 }
 
 interface JmNodeStyle {
@@ -277,10 +274,10 @@ interface JmNodeStyle {
     color?: string;
     borderColor?: string;
     borderWidth?: number;
-    borderStyle?: "solid" | "dashed" | "dotted";
+    borderStyle?: JmLinePattern;
     fontSize?: number;                    // px
     fontWeight?: "normal" | "bold";
-    incoming?: JmLineStyle;               // 连向本节点的这条线
+    incoming?: JmLineStyle;               // the line connecting this node to its parent
 }
 ```
 
@@ -292,14 +289,14 @@ interface JmNodeStyle {
 
 ```typescript
 interface JmTonePalette {
-    fill: string;
-    text: string;
-    border: string;
-    line: string;
+    fillColor: string;
+    textColor: string;
+    borderColor: string;
+    lineColor: string;
 }
 
-interface JmTheme {
-    name?: string;
+interface JmStyle {
+    theme?: string;
     background?: string;
     tones?: Partial<Record<JmTone, Partial<JmTonePalette>>>;
     node?: Partial<{
@@ -311,25 +308,27 @@ interface JmTheme {
     }>;
     line?: Partial<{
         width: number;
-        style: "solid" | "dashed" | "dotted";
+        pattern: JmLinePattern;
     }>;
     expander?: Partial<{ size: number }>;
 }
-
-type JmThemeRef = string | JmTheme;
 ```
 
-**三种引用形态：**
+**读法只有一种：** `style` 是「这个 mindmap 的样式声明」—— 它**继承 `style.theme` 指向的预设**（不写就继承 `default`），然后**应用声明的其余字段**。
 
-| 写法 | 含义 | 查找逻辑 |
-|---|---|---|
-| `"theme": "default"` | 引用内置预设 | 查内置表 |
-| `"theme": { "name": "default", ...覆盖 }` | 预设 + 局部覆盖 | 取内置 → **深度合并** |
-| `"theme": { ...完整定义 }`（无 `name`） | 完整自定义 | 直接用 |
+```json
+"style": { "theme": "default", "background": "#fafafa" }
+```
+= 继承 `default`，把背景改成 `#fafafa`。
 
-**必须深度合并，不能用浅合并** —— `tones: { primary: { fill: "#f00" } }` 做浅合并会把整个 `primary` 替换掉，`text`/`border`/`line` 全丢，节点变黑底黑字。
+```json
+"style": { "background": "#101010", "node": { "radius": 8 } }
+```
+= 同样继承 `default`（`theme` 隐含），只改这两处。
 
-**第一版只内置 `default` 一个主题。** 暗色是另一个 theme 定义，不是「同一主题的 dark 变体」。
+**必须深度合并，不能用浅合并** —— `tones: { primary: { fillColor: "#f00" } }` 做浅合并会把整个 `primary` 替换掉，`textColor`/`borderColor`/`lineColor` 全丢，节点变黑底黑字。
+
+**第一版只内置 `default` 一个预设。** 暗色是另一个预设，不是「同一主题的 dark 变体」。
 
 ### 5.4 覆盖链
 
@@ -352,7 +351,7 @@ interface SerializedEdge {
     targetNodeId: string;
     type: JmEdgeType;
     label: string | null;
-    style?: JmLineStyle;              // 新增
+    style?: JmLineStyle;
 }
 ```
 
@@ -386,15 +385,15 @@ interface SerializedEdge {
 ```typescript
 // src/generation/index.ts
 class SimpleIdGenerator {
-    seed = new Date().getTime();      // 实例创建时的毫秒时间戳
+    seed = new Date().getTime();      // millisecond timestamp at instance creation
     seq  = 0;
 
     newId() {
-        this.seq++;                                           // 只增不减
+        this.seq++;                                           // monotonically increasing
         return this.prefix + (this.seed + this.seq).toString(36);
     }
 }
-// JmMind 使用 new SimpleIdGenerator('jm-')
+// JmMind creates new SimpleIdGenerator('jm-')
 ```
 
 **稳定性的来源：**
@@ -507,9 +506,9 @@ No node matches "粗暴". Closest:
 | `content.type` 为 `"text"` | `E_CONTENT_TYPE` |
 | `side` ∈ `{left, right, center}` | `E_SIDE` |
 | `style.tone` ∈ 六个 tone 值 | `E_TONE` |
-| `style.borderStyle` / `incoming.style` ∈ `{solid,dashed,dotted}` | `E_LINE_STYLE` |
+| `style.borderStyle` / `incoming.pattern` ∈ `{solid,dashed,dotted}` | `E_LINE_STYLE` |
 | `style.fontSize` / `borderWidth` 为正数 | `E_STYLE_RANGE` |
-| `theme` 若是对象且无 `name`，则必须是完整定义 | `E_THEME_INCOMPLETE` |
+| `style.theme` 若是字符串，必须在内置预设表中 | `E_THEME_UNKNOWN` |
 
 ### 9.6 错误输出格式
 
@@ -584,7 +583,7 @@ Wrote mind.json
 | `expanded` | `folded` | **取反** |
 | `direction` | `side` | `left`/`right` 直接映射 |
 | `data` | `data` | 直接 |
-| （无） | `style` / `theme` | **导出 v1 时丢弃 + 报告** |
+| （无） | `style` / `style` | **导出 v1 时丢弃 + 报告** |
 | （无） | `edges` | **导出 v1 时丢弃 + 报告** |
 
 **方向性：v1 格式冻结，能力上 v2 覆盖 v1。** 但**数据结构不同，必须经 adapter 转换，不能直接互通**。

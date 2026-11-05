@@ -3,6 +3,8 @@
  *
  * @public
  */
+
+import { mergeObjects } from './object.ts';
 export interface MindMetadata {
     /** The author of the mind map. */
     author: string;
@@ -41,7 +43,6 @@ export interface ViewExpanderOptions {
     // collapsed: string;
 }
 export interface ViewOptions {
-    theme: string;
     padding: ViewPadding;
     expander: ViewExpanderOptions;
 }
@@ -75,7 +76,6 @@ export const DEFAULT_OPTIONS: JsMindOptions = {
         rootNodeId: 'root'
     },
     view: {
-        theme: 'default',
         padding: {
             left: 100,
             right: 100,
@@ -111,33 +111,13 @@ export function mergeJsMindOptions(options?: Partial<JsMindOptions>): JsMindOpti
 
     return {
         mind: {
-            ...mergeFlatOptions(DEFAULT_OPTIONS.mind, options.mind)
+            ...mergeObjects(DEFAULT_OPTIONS.mind, options.mind)
         },
         view: {
-            ...mergeFlatOptions(DEFAULT_OPTIONS.view, options.view)
+            ...mergeObjects(DEFAULT_OPTIONS.view, options.view)
         },
         layout: {
-            ...mergeFlatOptions(DEFAULT_OPTIONS.layout, options.layout)
+            ...mergeObjects(DEFAULT_OPTIONS.layout, options.layout)
         }
     };
-}
-
-
-/**
- * Merges user values with default values.
- *
- * @private
- * @param defaultValues - Default values.
- * @param userValues - User-provided values.
- * @returns Merged values.
- */
-export function mergeFlatOptions<T>(defaultValues: T, userValues?: Partial<T>): T {
-    if (!userValues) {
-        return { ...defaultValues };
-    }
-
-    return {
-        ...defaultValues,
-        ...userValues
-    } as T;
 }

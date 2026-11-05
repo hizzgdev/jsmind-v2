@@ -416,55 +416,52 @@ XMLSerializer 序列化 SVG
 default | primary | success | warning | danger | info
 ```
 
-与 v1 的 CSS 类名对齐，学习成本为零，adapter 转换也直接。每个 tone 四项颜色：`fill`（背景）/ `text`（文字）/ `border`（边框）/ `line`（从这里发出去的线的颜色）。
+与 v1 的 CSS 类名对齐，学习成本为零，adapter 转换也直接。每个 tone 四项颜色：`fillColor`（背景）/ `textColor`（文字）/ `borderColor`（边框）/ `lineColor`（从这里发出去的线的颜色）。
 
 **tone 只管颜色，不管几何** —— 语义角色的本质就是颜色；几何应该正交（一个节点可以同时是"warning 色 + 粗边框 + 大字号"）；对 Agent 友好（副作用越小，生成结果越可控）。
 
 **theme 是内嵌 JSON，不是外部 CSS 文件** —— 外部 CSS 破坏自包含、Agent 难生成、写错了浏览器静默忽略。
 
 ```ts
-interface JmTonePalette { fill: string; text: string; border: string; line: string; }
+interface JmTonePalette { fillColor: string; textColor: string; borderColor: string; lineColor: string; }
 
-interface JmTheme {
-    name?: string;
+interface JmStyle {
+    theme?: string;
     background?: string;
-    tones?: Partial<Record<ToneName, Partial<JmTonePalette>>>;
+    tones?: Partial<Record<JmTone, Partial<JmTonePalette>>>;
     node?: Partial<{ radius: number; padding: number; fontSize: number; fontFamily: string; borderWidth: number }>;
-    line?: Partial<{ width: number; style: 'solid' | 'dashed' | 'dotted' }>;
+    line?: Partial<{ width: number; pattern: JmLinePattern }>;
     expander?: Partial<{ size: number }>;
 }
-
-type JmThemeRef = string | JmTheme;
 ```
 
-**三种引用形态：**
+**读法只有一种：** `style` 是「这个 mindmap 的样式声明」—— **继承 `style.theme` 指向的预设**（不写就继承 `default`），然后**应用声明的其余字段**，深度合并。
 
-| 写法 | 含义 | 查找逻辑 |
-|---|---|---|
-| `"theme": "default"` | 引用内置预设 | 查内置表 |
-| `"theme": { "name": "default", …覆盖 }` | 预设 + 局部覆盖 | 取内置 → **深度合并** |
-| `"theme": { …完整定义 }`（无 `name`） | 完整自定义 | 直接用，字段须齐全 |
+```json
+"style": { "theme": "default", "background": "#fafafa" }
+```
 
-**必须用深度合并，绝不能用浅合并** —— `tones: { primary: { fill: "#f00" } }` 做浅合并会把整个 `primary` 替换掉，`text` / `border` / `line` 全丢，节点变成黑底黑字。
+= 继承 `default`，改背景。不写 `theme` 也一样继承 `default`。
 
-**第一版只内置 `default` 一个主题。** 暗色不是"内置第二套"，而是**另一个 theme 定义**（用户自己写 JSON 或社区分发）。不做"明暗双套 tone"（每个 tone 带 light/dark），那会让 schema 体积和 Agent 生成负担都翻倍。
+**必须用深度合并，绝不能用浅合并** —— `tones: { primary: { fillColor: "#f00" } }` 做浅合并会把整个 `primary` 替换掉，`textColor` / `borderColor` / `lineColor` 全丢，节点变成黑底黑字。
+
+**第一版只内置 `default` 一个预设。** 暗色不是"内置第二套"，而是**另一个预设**（用户自己写 JSON 或社区分发）。不做"明暗双套 tone"（每个 tone 带 light/dark），那会让 schema 体积和 Agent 生成负担都翻倍。
 
 **节点样式：**
 
 ```ts
-interface JmLineStyle { color?: string; width?: number; style?: 'solid' | 'dashed' | 'dotted'; }
+interface JmLineStyle { color?: string; width?: number; pattern?: JmLinePattern; }
 
 interface JmNodeStyle {
-    tone?:        ToneName;
+    tone?:        JmTone;
     background?:  string;
     color?:       string;
     borderColor?: string;
     borderWidth?: number;
-    borderStyle?: 'solid' | 'dashed' | 'dotted';
+    borderStyle?: JmLinePattern;
     fontSize?:    number;                      // px
     fontWeight?:  'normal' | 'bold';
-    incoming?:    JmLineStyle;                 // 连向本节点的线
-    css?:         string;                      // 逃生舱，最后应用
+    incoming?:    JmLineStyle;                 // the line connecting this node to its parent
 }
 ```
 
@@ -477,7 +474,7 @@ interface JmNodeStyle {
 ```
 颜色：  node.style.<显式>          ??  theme.tones[有效 tone].<对应色>
 几何：  node.style.<显式>          ??  theme.node.<默认>
-线颜色：node.style.incoming.color  ??  theme.tones[父节点 tone].line  ??  theme.line.<兜底>
+线颜色：node.style.incoming.color  ??  theme.tones[父节点 tone].lineColor  ??  theme.line.<兜底>
 ```
 
 `css` 字段永远最后应用（最具体）。**线的颜色默认取父节点的 tone** —— "从 warning 节点长出去的分支是橙色"很自然，一条分支天然同色。

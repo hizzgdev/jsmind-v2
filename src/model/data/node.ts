@@ -3,6 +3,7 @@ import { JsMindError } from '../../common/error.ts';
 import { JmPoint } from '../../common/index.ts';
 import { JmSize } from '../../common/index.ts';
 import type { JmNodeContent } from './node-content.ts';
+import type { JmNodeStyle } from './style.ts';
 
 /**
  * Options for creating a new node.
@@ -18,6 +19,8 @@ export interface NodeCreationOptions {
     side?: JmNodeSide;
     /** Additional data for the node (default: {}). */
     data?: Record<string, unknown>;
+    /** Visual overrides for the node (default: none). */
+    style?: JmNodeStyle;
 }
 
 /**
@@ -86,6 +89,15 @@ export class JmNode {
 
     /** Additional data associated with the node. */
     data: Record<string, unknown>;
+
+    /**
+     * Visual overrides for this node.
+     *
+     * @remarks
+     * Unset fields fall back to the theme. Storing only the difference keeps
+     * theme changes propagating to every node that did not override anything.
+     */
+    style?: JmNodeStyle;
 
     /** View data associated with the node. */
     _data: NodeInternalData;

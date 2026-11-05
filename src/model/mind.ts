@@ -2,8 +2,10 @@ import { JmObserverManager } from '../observer/manager.ts';
 import { JmEdge, type EdgeCreationOptions, type JmEdgeType } from './data/edge.ts';
 import { JmNode, type NodeCreationOptions, type NodeDestinationOptions, JmNodeSide } from './data/node.ts';
 import { JmNodeContent } from './data/node-content.ts';
-import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS, mergeFlatOptions } from '../common/option.ts';
+import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../common/option.ts';
+import { mergeObjects } from '../common/object.ts';
 import { SimpleIdGenerator } from '../generation/index.ts';
+import type { JmStyle } from './data/style.ts';
 
 import { JmMindEvent } from './event/data.ts';
 import { JsMindError } from '../common/error.ts';
@@ -19,6 +21,17 @@ export class JmMind {
 
     /** Configuration options for the mind map. */
     options: MindOptions;
+
+    /**
+     * Style declaration for the mind map.
+     *
+     * @remarks
+     * This mind map inherits from `style.theme` (default `"default"`) and
+     * overrides whatever else the declaration lists. Resolution and deep
+     * merging happen at render time via `resolveJmStyle`, not here — this
+     * field only stores what the file said.
+     */
+    style?: JmStyle;
 
     /** Manager for observers of this mind map. */
     observerManager: JmObserverManager<JmMind>;
@@ -45,8 +58,8 @@ export class JmMind {
      * @param options - Configuration options for the mind map.
      */
     constructor(metadata: Partial<MindMetadata> = {}, options: Partial<MindOptions> = {}) {
-        this.meta = mergeFlatOptions(DEFAULT_METADATA, metadata) as MindMetadata;
-        this.options = mergeFlatOptions(DEFAULT_OPTIONS.mind, options) as MindOptions;
+        this.meta = mergeObjects(DEFAULT_METADATA, metadata) as MindMetadata;
+        this.options = mergeObjects(DEFAULT_OPTIONS.mind, options) as MindOptions;
         this.observerManager = new JmObserverManager<JmMind>(this);
         this.nodeManager = new JmNodeManager(this);
         this._idGenerator = new SimpleIdGenerator('jm-');
@@ -82,6 +95,9 @@ export class JmMind {
         const edgeId = (options && options.edgeId) || this._idGenerator.newId();
         const label = (options && options.label) || null;
         const edge = new JmEdge(edgeId, sourceNodeId, targetNodeId, type, label);
+        if (options && options.style !== undefined) {
+            edge.style = options.style;
+        }
         this._edges[edgeId] = edge;
 
         // Emit event
@@ -371,6 +387,9 @@ export class JmMind {
             }
             if (nodeOptions.data !== undefined) {
                 node.data = nodeOptions.data;
+            }
+            if (nodeOptions.style !== undefined) {
+                node.style = nodeOptions.style;
             }
         }
         this._nodes[nodeId] = node;
