@@ -131,6 +131,77 @@ test('cli - validate exits 3 when the file does not exist', () => {
     rmSync(dir, { recursive: true, force: true });
 });
 
+test('cli - unparseable JSON is a data error, not an IO error', () => {
+    // A reachable file with unreadable content is the caller's data problem:
+    // exit 1 tells it to fix the file, exit 3 would send it to a human.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    writeFileSync(file, '{ this is not json');
+
+    assert.throws(
+        () => {
+            capture(() => {
+                runValidate(file, false);
+            });
+        },
+        (err: unknown) => {
+            assert.ok(err instanceof CliError);
+            assert.strictEqual(err.exit, CliExit.InvalidData, 'should be exit 1, not 3');
+            assert.ok(err.message.includes('Not valid JSON'));
+            return true;
+        }
+    );
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('cli - find reports invalid structure as a data error, not a crash', () => {
+    // find bypasses the mutation pipeline, so it has to validate on its own;
+    // otherwise a JsMindError escapes and lands in the generic exit-3 branch.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+    doc.nodes['jm-b1'].parent = 'ghost';
+    doc.nodes['jm-a1'].children = [];
+    writeFileSync(file, JSON.stringify(doc));
+
+    assert.throws(
+        () => {
+            capture(() => {
+                runMind(file, 'find', { 'node-id': 'jm-b1' }, WRITE);
+            });
+        },
+        (err: unknown) => {
+            assert.ok(err instanceof CliError);
+            assert.strictEqual(err.exit, CliExit.InvalidData, 'should be exit 1, not 3');
+            assert.ok(err.message.includes('E_NODE_PARENT_MISSING'));
+            return true;
+        }
+    );
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('cli - edges reports invalid structure as a data error too', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+    doc.nodes.root.content = null;
+    writeFileSync(file, JSON.stringify(doc));
+
+    assert.throws(
+        () => {
+            capture(() => {
+                runMind(file, 'edges', { 'node-id': 'root' }, WRITE);
+            });
+        },
+        (err: unknown) => {
+            assert.ok(err instanceof CliError);
+            assert.strictEqual(err.exit, CliExit.InvalidData);
+            return true;
+        }
+    );
+    rmSync(dir, { recursive: true, force: true });
+});
+
 test('cli - context shows the tree with ids in a left column', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
@@ -230,7 +301,6 @@ test('cli - mind add-child writes and validates', () => {
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
 
-    const created = '';
     capture(() => {
         runMind(file, 'add-child', { 'parent-id': 'root', 'text': '新节点' }, WRITE);
     });
@@ -245,7 +315,6 @@ test('cli - mind add-child writes and validates', () => {
         code = runValidate(file, false);
     });
     assert.strictEqual(code, CliExit.Ok);
-    void created;
     rmSync(dir, { recursive: true, force: true });
 });
 

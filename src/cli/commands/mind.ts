@@ -10,13 +10,14 @@
  */
 
 import { JmMindJsonSerializer } from '../../serialization/json.ts';
-import { JmNodeSide, type JmNode } from '../../model/data/node.ts';
+import type { JmNodeSide } from '../../model/data/node.ts';
 import { JmNodeContent } from '../../model/data/node-content.ts';
 import { JmEdgeType } from '../../model/data/edge.ts';
 import type { JmMind } from '../../model/mind.ts';
 import { runMutation } from '../mutate.ts';
 import { readJsonFile, requireOption, optionalOption, type WriteOptions } from '../io.ts';
 import { CliExit, usageError, dataError } from '../exit.ts';
+import { parseSide, report, describeNode, describeEdge, loadMindOrThrow } from '../shared.ts';
 
 /** Subcommands this group understands. */
 const SUBCOMMANDS = [
@@ -29,34 +30,6 @@ const SUBCOMMANDS = [
     'remove-edge',
     'edges',
 ] as const;
-
-/**
- * Human-readable side names accepted on the command line.
- *
- * @remarks
- * The JSON stores numbers; the CLI takes words. Passing `--side left` reads
- * better than `--side -1`, and the conversion happens here, in one place.
- */
-const SIDE_NAMES: Record<string, JmNodeSide> = {
-    left: JmNodeSide.SideB,
-    center: JmNodeSide.Center,
-    right: JmNodeSide.SideA,
-};
-
-/**
- * Converts a `--side` value to the numeric enum.
- *
- * @param raw - Value from the command line.
- * @returns The numeric side.
- * @throws {@link CliError} With `Usage` for an unknown name.
- */
-function parseSide(raw: string): JmNodeSide {
-    const value = SIDE_NAMES[raw];
-    if (value === undefined) {
-        throw usageError(`--side must be left, center or right, got "${raw}"`);
-    }
-    return value;
-}
 
 /**
  * Parses an optional integer option.
@@ -76,26 +49,6 @@ function optionalInt(values: Record<string, unknown>, name: string): number | un
         throw usageError(`--${name} must be an integer, got "${String(raw)}"`);
     }
     return value;
-}
-
-/**
- * Reports a node as JSON.
- *
- * @param node - Node to describe.
- * @returns Plain object for output.
- */
-function describeNode(node: JmNode): Record<string, unknown> {
-    // parent and children hold live JmNode references, not ids: serialising them
-    // as-is walks straight back into the tree and blows the stack. Every id
-    // crossing this boundary has to be extracted explicitly.
-    return {
-        id: node.id,
-        text: node.content.value,
-        parent: node.parent === null ? null : node.parent.id,
-        children: node.children.map(child => child.id),
-        folded: node.folded,
-        side: node.side,
-    };
 }
 
 /**
@@ -125,7 +78,7 @@ export function runMind(
     if (subcommand === 'find') {
         const nodeId = requireOption(values, 'node-id');
         const doc = readJsonFile(file);
-        const mind = new JmMindJsonSerializer().deserialize(doc as never);
+        const mind = loadMindOrThrow(new JmMindJsonSerializer(), doc, file);
         const node = mind.findNodeById(nodeId);
         if (node === null) {
             throw dataError(`No node with id "${nodeId}" in ${file}`);
@@ -137,7 +90,7 @@ export function runMind(
     if (subcommand === 'edges') {
         const nodeId = requireOption(values, 'node-id');
         const doc = readJsonFile(file);
-        const mind = new JmMindJsonSerializer().deserialize(doc as never);
+        const mind = loadMindOrThrow(new JmMindJsonSerializer(), doc, file);
         if (mind.findNodeById(nodeId) === null) {
             throw dataError(`No node with id "${nodeId}" in ${file}`);
         }
@@ -242,39 +195,6 @@ export function runMind(
 }
 
 /**
- * Describes an edge for output.
- *
- * @param edge - Edge to describe.
- * @returns Plain object for output.
- */
-function describeEdge(edge: {
-    id: string;
-    sourceNodeId: string;
-    targetNodeId: string;
-    type: string;
-    label: string | null;
-}): Record<string, unknown> {
-    return {
-        id: edge.id,
-        source: edge.sourceNodeId,
-        target: edge.targetNodeId,
-        type: edge.type,
-        label: edge.label,
-    };
-}
-
-/**
- * Writes a command result in the shape the caller asked for.
- *
- * @param asJson - Emit JSON instead of prose.
- * @param prose - Human-readable summary.
- * @param payload - Machine-readable result.
- */
-function report(asJson: boolean, prose: string, payload: Record<string, unknown>): void {
-    process.stdout.write(asJson ? `${JSON.stringify(payload, null, 2)}\n` : `${prose}\n`);
-}
-
-/**
  * Describes the `mind` command group for `--help`.
  */
 export const mindHelp = `jsmind mind <subcommand> <file> [options]
@@ -288,7 +208,8 @@ Structure and edges (mirrors JmMind methods). Locators are ids only.
                 [--position <n>] [--side left|center|right]
   move          --node-id <id> --parent-id <id>      Reparent (JmMind.moveNode)
                 [--position <n>]
-  remove-node   --node-id <id>                       Remove subtree (JmMind.removeNode)
+  remove-node   --node-id <id>                       Remove the node, its whole
+                                                     subtree, and every edge touching any of them
   add-edge      --source-id <id> --target-id <id>    Add a relation (JmMind.addEdge)
                 [--type link] [--label <text>]
   remove-edge   --edge-id <id>                       Remove a relation

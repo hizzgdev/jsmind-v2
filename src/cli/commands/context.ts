@@ -300,30 +300,6 @@ function emit(entries: { node: JmNode; level: number }[], options: ContextOption
     }
 }
 
-/**
- * Reads a numeric option with a default.
- *
- * @param raw - Raw option value.
- * @param fallback - Value to use when absent.
- * @param name - Option name, for the error message.
- * @returns The number.
- * @throws {@link CliError} With `Usage` when present but not a number.
- */
-export function numberOption(
-    raw: unknown,
-    fallback: number,
-    name: string
-): number {
-    if (raw === undefined) {
-        return fallback;
-    }
-    const value = Number(raw);
-    if (!Number.isInteger(value) || value < 0) {
-        throw new Error(`--${name} must be a non-negative integer, got "${String(raw)}"`);
-    }
-    return value;
-}
-
 /** Default depth, re-exported for the dispatcher. */
 export { DEFAULT_DEPTH, DEFAULT_MAX_TEXT };
 

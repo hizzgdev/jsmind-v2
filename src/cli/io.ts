@@ -5,7 +5,7 @@
  */
 
 import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs';
-import { ioError, usageError } from './exit.ts';
+import { dataError, ioError, usageError } from './exit.ts';
 
 /**
  * Reads and parses a JSON file.
@@ -33,7 +33,10 @@ export function readJsonFile(path: string): unknown {
     try {
         return JSON.parse(text);
     } catch (err) {
-        throw ioError(`Not valid JSON: ${path} (${(err as Error).message})`);
+        // Reachable file, unreadable content: that is a data problem, not a
+        // filesystem one. Exit 1 tells the caller to fix the file; exit 3 would
+        // send it to a human for something it can see for itself.
+        throw dataError(`Not valid JSON: ${path} (${(err as Error).message})`);
     }
 }
 
@@ -123,6 +126,54 @@ export function restoreFile(target: string, previous: string): void {
         // Nothing useful to add; the caller reports the validation failure,
         // which is the real problem.
     }
+}
+
+/**
+ * Reads an integer option that must be present.
+ *
+ * @param values - Parsed option values.
+ * @param name - Option name without dashes.
+ * @returns The integer.
+ * @throws {@link CliError} With `Usage` when absent or not an integer.
+ */
+export function requireIntOption(values: Record<string, unknown>, name: string): number {
+    const raw = values[name];
+    if (raw === undefined) {
+        throw usageError(`Missing required option --${name}`);
+    }
+    return parseIntOption(raw, name);
+}
+
+/**
+ * Reads an integer option, falling back when it is absent.
+ *
+ * @param raw - Raw option value.
+ * @param fallback - Used when the option is absent.
+ * @param name - Option name for the error message.
+ * @returns The integer.
+ * @throws {@link CliError} With `Usage` when present but not a non-negative integer.
+ */
+export function intOption(raw: unknown, fallback: number, name: string): number {
+    if (raw === undefined) {
+        return fallback;
+    }
+    return parseIntOption(raw, name);
+}
+
+/**
+ * Converts one raw option value to a non-negative integer.
+ *
+ * @param raw - Raw value.
+ * @param name - Option name for the error message.
+ * @returns The integer.
+ * @throws {@link CliError} With `Usage` when the value is not a non-negative integer.
+ */
+function parseIntOption(raw: unknown, name: string): number {
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 0) {
+        throw usageError(`--${name} must be a non-negative integer, got "${String(raw)}"`);
+    }
+    return value;
 }
 
 /**

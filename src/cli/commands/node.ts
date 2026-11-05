@@ -13,22 +13,15 @@
  * @packageDocumentation
  */
 
-import { JmNodeSide } from '../../model/data/node.ts';
 import { JmNodeContent } from '../../model/data/node-content.ts';
 import type { JmMind } from '../../model/mind.ts';
 import { runMutation } from '../mutate.ts';
 import { requireOption, type WriteOptions } from '../io.ts';
+import { parseSide, report } from '../shared.ts';
 import { CliExit, usageError, dataError } from '../exit.ts';
 
 /** Subcommands this group understands. */
 const SUBCOMMANDS = ['set-text', 'set-folded', 'set-side'] as const;
-
-/** Human-readable side names accepted on the command line. */
-const SIDE_NAMES: Record<string, JmNodeSide> = {
-    left: JmNodeSide.SideB,
-    center: JmNodeSide.Center,
-    right: JmNodeSide.SideA,
-};
 
 /**
  * Parses a boolean flag value written as a word.
@@ -103,10 +96,7 @@ export function runNode(
 
         case 'set-side': {
             const raw = requireOption(values, 'side');
-            const side = SIDE_NAMES[raw];
-            if (side === undefined) {
-                throw usageError(`--side must be left, center or right, got "${raw}"`);
-            }
+            const side = parseSide(raw);
             runMutation(file, options, (mind: JmMind) => {
                 const node = mind.findNodeById(nodeId);
                 if (node === null) {
@@ -122,17 +112,6 @@ export function runNode(
         default:
             throw usageError(`Unhandled node subcommand: ${subcommand}`);
     }
-}
-
-/**
- * Writes a command result in the shape the caller asked for.
- *
- * @param asJson - Emit JSON instead of prose.
- * @param prose - Human-readable summary.
- * @param payload - Machine-readable result.
- */
-function report(asJson: boolean, prose: string, payload: Record<string, unknown>): void {
-    process.stdout.write(asJson ? `${JSON.stringify(payload, null, 2)}\n` : `${prose}\n`);
 }
 
 /**

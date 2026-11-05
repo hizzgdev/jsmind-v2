@@ -17,6 +17,7 @@
 
 import { parseArgs } from 'node:util';
 import { CliError, CliExit, usageError } from './exit.ts';
+import { intOption, type WriteOptions } from './io.ts';
 import { runValidate, validateHelp, assertValidateArgs } from './commands/validate.ts';
 import { runMind, mindHelp } from './commands/mind.ts';
 import { runNode, nodeHelp } from './commands/node.ts';
@@ -116,37 +117,13 @@ function parse(argv: string[]): ParsedArgs {
 }
 
 /**
- * Reads an integer option that has a default.
- *
- * @param raw - Raw option value.
- * @param fallback - Used when the option is absent.
- * @param name - Option name for the error message.
- * @returns The integer.
- * @throws {@link CliError} With `Usage` when present but not a non-negative integer.
- */
-function intOption(raw: unknown, fallback: number, name: string): number {
-    if (raw === undefined) {
-        return fallback;
-    }
-    const value = Number(raw);
-    if (!Number.isInteger(value) || value < 0) {
-        throw usageError(`--${name} must be a non-negative integer, got "${String(raw)}"`);
-    }
-    return value;
-}
-
-/**
  * Reads the write-behaviour flags.
  *
  * @param values - Parsed options.
  * @returns Write options for the mutation pipeline.
  */
-function writeOptions(values: Record<string, unknown>): {
-    dryRun: boolean;
-    output?: string;
-    backup: boolean;
-} {
-    const result: { dryRun: boolean; output?: string; backup: boolean } = {
+function writeOptions(values: Record<string, unknown>): WriteOptions {
+    const result: WriteOptions = {
         dryRun: values['dry-run'] === true,
         backup: values.backup === true,
     };

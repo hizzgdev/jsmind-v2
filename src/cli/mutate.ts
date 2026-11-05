@@ -12,23 +12,12 @@
  */
 
 import { JmMindJsonSerializer, type SerializedMindMap } from '../serialization/json.ts';
-import { validateMindData, type JmValidationIssue } from '../serialization/validation.ts';
+import { validateMindData } from '../serialization/validation.ts';
+import { formatIssues } from './format.ts';
 import type { JmMind } from '../model/mind.ts';
 import { readJsonFile, renderJson, writeJsonFile, restoreFile, type WriteOptions } from './io.ts';
-import { CliExit, dataError } from './exit.ts';
+import { dataError } from './exit.ts';
 import { readFileSync } from 'node:fs';
-
-/**
- * What a mutating command has to produce.
- *
- * @public
- */
-export interface MutationResult<T> {
-    /** The mind map, already modified. */
-    mind: JmMind;
-    /** Value the command should report (node id, edge id, …). */
-    value: T;
-}
 
 /**
  * Runs one mutating command against a file.
@@ -98,23 +87,3 @@ export function runMutation<T>(
     return value;
 }
 
-/**
- * Renders validation issues for a human-readable error.
- *
- * @param errors - Issues to render.
- * @returns One block of text.
- */
-export function formatIssues(errors: JmValidationIssue[]): string {
-    return errors
-        .map(issue => `  ${issue.code}  ${issue.path || '<root>'}\n    ${issue.message}`)
-        .join('\n');
-}
-
-/**
- * Reports the exit code a mutating command should end with.
- *
- * @returns Always `CliExit.Ok`; present so call sites read symmetrically.
- */
-export function mutationExit(): number {
-    return CliExit.Ok;
-}
