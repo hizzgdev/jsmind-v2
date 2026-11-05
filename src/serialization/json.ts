@@ -12,7 +12,7 @@ import { JsMindError } from '../common/error.ts';
 import type { MindMetadata } from '../common/option.ts';
 import type { JmNodeSide } from '../model/data/node.ts';
 import type { JmNodeContentType } from '../model/data/node-content.ts';
-import type { JmNodeStyle, JmLineStyle, JmThemeRef } from '../model/data/style.ts';
+import type { JmNodeStyle, JmLineStyle, JmStyles } from '../model/data/style.ts';
 
 /**
  * Format identifier written to every v2 data file.
@@ -64,8 +64,8 @@ export interface SerializedEdge {
 export interface SerializedMindMap {
     /** Format identifier. Always `jsmind_v2` for data written by this version. */
     format?: string;
-    /** Theme reference: a preset name or an inline theme definition. */
-    theme?: JmThemeRef;
+    /** Style declaration: which theme to inherit from, plus overrides. */
+    styles?: JmStyles;
     meta: MindMetadata;
     root: string;
     nodes: Record<string, SerializedNode>;
@@ -107,8 +107,8 @@ export class JmMindJsonSerializer implements JmMindSerializer {
             edges: {}
         };
 
-        if (mind.theme !== undefined) {
-            serializedData.theme = mind.theme;
+        if (mind.styles !== undefined) {
+            serializedData.styles = mind.styles;
         }
 
         // Serialize all nodes
@@ -138,8 +138,8 @@ export class JmMindJsonSerializer implements JmMindSerializer {
 
         // Create mind map with metadata and options
         const mind = new JmMind(data.meta, { rootNodeId: data.root });
-        if (data.theme !== undefined) {
-            mind.theme = data.theme;
+        if (data.styles !== undefined) {
+            mind.styles = data.styles;
         }
 
         // Restore nodes

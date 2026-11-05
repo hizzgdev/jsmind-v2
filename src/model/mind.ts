@@ -5,7 +5,7 @@ import { JmNodeContent } from './data/node-content.ts';
 import { type MindMetadata, type MindOptions, DEFAULT_METADATA, DEFAULT_OPTIONS } from '../common/option.ts';
 import { mergeObjects } from '../common/object.ts';
 import { SimpleIdGenerator } from '../generation/index.ts';
-import type { JmThemeRef } from './data/style.ts';
+import type { JmStyles } from './data/style.ts';
 
 import { JmMindEvent } from './event/data.ts';
 import { JsMindError } from '../common/error.ts';
@@ -23,14 +23,15 @@ export class JmMind {
     options: MindOptions;
 
     /**
-     * Theme reference for the mind map.
+     * Style declaration for the mind map.
      *
      * @remarks
-     * Either a preset name or an inline theme definition. Absent means the
-     * built-in default. Resolution and deep merging happen at render time via
-     * `resolveJmTheme`, not here — this field only stores what the file said.
+     * This mind map inherits from `styles.theme` (default `"default"`) and
+     * overrides whatever else the declaration lists. Resolution and deep
+     * merging happen at render time via `resolveJmStyles`, not here — this
+     * field only stores what the file said.
      */
-    theme?: JmThemeRef;
+    styles?: JmStyles;
 
     /** Manager for observers of this mind map. */
     observerManager: JmObserverManager<JmMind>;

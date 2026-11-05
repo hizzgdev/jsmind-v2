@@ -10,8 +10,8 @@ import {
     JSMIND_THEME_DEFAULT,
     JSMIND_THEME_PRESETS,
     mergeJmTheme,
-    resolveJmTheme,
-    type JmTheme,
+    resolveJmStyles,
+    type JmStyles,
 } from '../../../src/model/data/style.ts';
 
 test('style - JmTone has exactly six semantic tones', () => {
@@ -53,6 +53,16 @@ test('style - default theme has geometry for node, line and expander', () => {
     assert.strictEqual(typeof JSMIND_THEME_DEFAULT.expander.size, 'number');
 });
 
+test('style - default theme carries no theme name of its own', () => {
+    // JmTheme is the resolved result, not a declaration. A `name` here is what
+    // made `{ name, ...overrides }` ambiguous to begin with.
+    assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(JSMIND_THEME_DEFAULT, 'name'),
+        false,
+        'a resolved theme has no name field'
+    );
+});
+
 test('style - only the default preset is built in', () => {
     assert.deepStrictEqual(
         Object.keys(JSMIND_THEME_PRESETS),
@@ -62,13 +72,12 @@ test('style - only the default preset is built in', () => {
 });
 
 test('style - mergeJmTheme deep merges tone palettes', () => {
-    // This is the regression guard for the shallow-merge trap: overriding only
-    // `fill` must keep text/border/line. A shallow merge would drop them and
-    // the node would render black-on-black.
-    const base = resolveJmTheme('default');
-    const basePrimary = base.tones![JmTone.Primary]!;
+    // Regression guard for the shallow-merge trap: overriding only fillColor
+    // must keep textColor/borderColor/lineColor. A shallow merge would drop
+    // them and the node would render black-on-black.
+    const basePrimary = JSMIND_THEME_DEFAULT.tones![JmTone.Primary]!;
 
-    const merged = mergeJmTheme(base, {
+    const merged = mergeJmTheme(JSMIND_THEME_DEFAULT, {
         tones: { [JmTone.Primary]: { fillColor: '#ff0000' } },
     });
 
@@ -80,43 +89,78 @@ test('style - mergeJmTheme deep merges tone palettes', () => {
 });
 
 test('style - mergeJmTheme does not mutate its inputs', () => {
-    const base = resolveJmTheme('default');
-    const baseSnapshot = JSON.parse(JSON.stringify(base));
+    const baseSnapshot = JSON.parse(JSON.stringify(JSMIND_THEME_DEFAULT));
 
-    const override = { tones: { [JmTone.Primary]: { fillColor: '#123456' } } };
+    const override: JmStyles = { tones: { [JmTone.Primary]: { fillColor: '#123456' } } };
     const overrideSnapshot = JSON.parse(JSON.stringify(override));
 
-    mergeJmTheme(base, override);
+    mergeJmTheme(JSMIND_THEME_DEFAULT, override);
 
-    assert.deepStrictEqual(base, baseSnapshot, 'base must be untouched');
+    assert.deepStrictEqual(JSMIND_THEME_DEFAULT, baseSnapshot, 'base must be untouched');
     assert.deepStrictEqual(override, overrideSnapshot, 'override must be untouched');
 });
 
-test('style - mergeJmTheme merges geometry sections shallowly', () => {
-    // node/line/expander hold scalars only, so a plain spread is correct there.
-    const base = resolveJmTheme('default');
-    const merged = mergeJmTheme(base, { node: { radius: 20 } });
+test('style - mergeJmTheme merges geometry sections one level deep', () => {
+    const merged = mergeJmTheme(JSMIND_THEME_DEFAULT, { node: { radius: 20 } });
 
     assert.strictEqual(merged.node!.radius, 20, 'radius should be overridden');
-    assert.strictEqual(merged.node!.padding, base.node!.padding, 'padding must survive');
-    assert.strictEqual(merged.node!.fontSize, base.node!.fontSize, 'fontSize must survive');
+    assert.strictEqual(
+        merged.node!.padding,
+        JSMIND_THEME_DEFAULT.node!.padding,
+        'padding must survive'
+    );
+    assert.strictEqual(
+        merged.node!.fontSize,
+        JSMIND_THEME_DEFAULT.node!.fontSize,
+        'fontSize must survive'
+    );
 });
 
-test('style - resolveJmTheme with no argument returns the default theme', () => {
-    const resolved = resolveJmTheme();
-    assert.strictEqual(resolved.name, 'default');
-    assert.strictEqual(resolved.background, JSMIND_THEME_DEFAULT.background);
+test('style - mergeJmTheme ignores the theme field', () => {
+    // `theme` names the preset to inherit from and is consumed by
+    // resolveJmStyles. It must not leak into the resolved theme.
+    const merged = mergeJmTheme(JSMIND_THEME_DEFAULT, { theme: 'default', background: '#222' });
+
+    assert.strictEqual(merged.background, '#222', 'background applies');
+    assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(merged, 'theme'),
+        false,
+        'theme must not appear in the resolved result'
+    );
 });
 
-test('style - resolveJmTheme resolves a preset name', () => {
-    const resolved = resolveJmTheme('default');
-    assert.strictEqual(resolved.name, 'default');
+test('style - resolveJmStyles with no argument returns the default theme', () => {
+    assert.deepStrictEqual(resolveJmStyles(), JSMIND_THEME_DEFAULT);
+});
+
+test('style - resolveJmStyles inherits default when theme is not named', () => {
+    // The point of the flat declaration: inheriting is the default, so a file
+    // that only overrides a colour does not have to name the preset.
+    const resolved = resolveJmStyles({ background: '#101010' });
+
+    assert.strictEqual(resolved.background, '#101010', 'override applies');
+    assert.deepStrictEqual(
+        resolved.tones,
+        JSMIND_THEME_DEFAULT.tones,
+        'tones inherited from default'
+    );
+    assert.deepStrictEqual(
+        resolved.node,
+        JSMIND_THEME_DEFAULT.node,
+        'geometry inherited from default'
+    );
+});
+
+test('style - resolveJmStyles honours an explicit theme name', () => {
+    const resolved = resolveJmStyles({ theme: 'default', background: '#333333' });
+
+    assert.strictEqual(resolved.background, '#333333');
     assert.deepStrictEqual(resolved.tones, JSMIND_THEME_DEFAULT.tones);
 });
 
-test('style - resolveJmTheme merges preset plus overrides when name is present', () => {
-    const resolved = resolveJmTheme({
-        name: 'default',
+test('style - resolveJmStyles deep merges overrides onto the inherited preset', () => {
+    const resolved = resolveJmStyles({
+        theme: 'default',
         tones: { [JmTone.Danger]: { fillColor: '#000000' } },
     });
 
@@ -133,26 +177,25 @@ test('style - resolveJmTheme merges preset plus overrides when name is present',
     );
 });
 
-test('style - resolveJmTheme uses an inline theme as-is when it has no name', () => {
-    const custom: JmTheme = { background: '#101010' };
-    const resolved = resolveJmTheme(custom);
-
-    assert.strictEqual(resolved.background, '#101010');
-    assert.strictEqual(resolved.name, undefined, 'a nameless theme does not inherit a preset');
+test('style - resolveJmStyles throws on an unknown theme name', () => {
+    assert.throws(() => resolveJmStyles({ theme: 'nope' }), /unknown theme: nope/);
 });
 
-test('style - resolveJmTheme throws on an unknown preset name', () => {
-    assert.throws(() => resolveJmTheme('nope'), /unknown theme preset: nope/);
-});
-
-test('style - resolveJmTheme throws on an unknown preset name inside an inline theme', () => {
+test('style - resolveJmStyles throws on a non-string theme name', () => {
     assert.throws(
-        () => resolveJmTheme({ name: 'nope' }),
-        /unknown theme preset: nope/
+        () => resolveJmStyles({ theme: 42 } as unknown as JmStyles),
+        /invalid theme name/
     );
 });
 
-test('style - JmLinePattern exposes the three dash styles', () => {
+test('style - resolveJmStyles throws on a non-object declaration', () => {
+    assert.throws(
+        () => resolveJmStyles('default' as unknown as JmStyles),
+        /invalid styles declaration/
+    );
+});
+
+test('style - JmLinePattern exposes the three line patterns', () => {
     assert.deepStrictEqual(
         Object.values(JmLinePattern).sort(),
         ['dashed', 'dotted', 'solid']

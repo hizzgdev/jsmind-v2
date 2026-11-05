@@ -194,8 +194,40 @@ export interface JmThemeExpander {
  * @public
  */
 export interface JmTheme {
-    /** Name of the built-in preset to merge onto. Omit for a self-contained theme. */
-    name?: string;
+    /** Canvas background color. */
+    background?: string;
+    /** Per-tone color palettes. */
+    tones?: Partial<Record<JmTone, Partial<JmTonePalette>>>;
+    /** Node geometry. */
+    node?: Partial<JmThemeNode>;
+    /** Line geometry. */
+    line?: Partial<JmThemeLine>;
+    /** Expander geometry. */
+    expander?: Partial<JmThemeExpander>;
+}
+
+/**
+ * Style declaration for a mind map, as stored in the data file.
+ *
+ * @remarks
+ * Read this as: "this mind map looks like this — it inherits from `theme`, then
+ * overrides the fields listed below."
+ *
+ * Splitting inheritance from overrides into one flat declaration avoids the
+ * ambiguity of a nested `{ name, ...overrides }` form, where `name` could be
+ * read either as "what this theme is called" or as "which theme to inherit".
+ * Here `theme` can only mean the latter.
+ *
+ * - `theme` names a built-in preset to inherit from. Omitted means `"default"`,
+ *   so a file that only overrides a few colors does not have to name it.
+ * - Every other field is an override applied on top of that preset, merged
+ *   deeply.
+ *
+ * @public
+ */
+export interface JmStyles {
+    /** Name of the built-in theme to inherit from. Defaults to `"default"`. */
+    theme?: string;
     /** Canvas background color. */
     background?: string;
     /** Per-tone color overrides. */
@@ -209,18 +241,6 @@ export interface JmTheme {
 }
 
 /**
- * Reference to a theme: either a preset name or an inline theme definition.
- *
- * @remarks
- * `"default"` refers to a built-in preset. `{ name: "default", ... }` refers to
- * a preset plus overrides, merged deeply. `{ ... }` without `name` is a
- * self-contained theme used as-is.
- *
- * @public
- */
-export type JmThemeRef = string | JmTheme;
-
-/**
  * The only theme built into this version.
  *
  * @remarks
@@ -230,7 +250,6 @@ export type JmThemeRef = string | JmTheme;
  * @public
  */
 export const JSMIND_THEME_DEFAULT: JmTheme = {
-    name: 'default',
     background: '#ffffff',
     tones: {
         default: { fillColor: '#ffffff', textColor: '#333333', borderColor: '#cccccc', lineColor: '#b0b0b0' },
@@ -290,13 +309,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * @public
  */
-export function mergeJmTheme(base: JmTheme, override: Partial<JmTheme>): JmTheme {
+export function mergeJmTheme(base: JmTheme, override: JmStyles): JmTheme {
     const result: JmTheme = { ...base };
 
-    // Top-level scalars are plain assignment; there is nothing to merge.
-    if (override.name !== undefined) {
-        result.name = override.name;
-    }
+    // `theme` names the preset to inherit from and is consumed by
+    // resolveJmStyles before this runs, so there is nothing to carry over here.
     if (override.background !== undefined) {
         result.background = override.background;
     }
@@ -357,46 +374,36 @@ function mergeTonePalettes(
 }
 
 /**
- * Resolves a theme reference against the built-in presets.
+ * Resolves a style declaration into a complete theme.
  *
- * @param ref - A preset name, an inline theme, or nothing.
- * @returns The resolved theme, always fully populated.
- * @throws {@link Error} If a preset name is not built in.
+ * @remarks
+ * `styles.theme` picks the preset to inherit from (default `"default"`), then
+ * every other field in `styles` is merged on top of it, deeply.
+ *
+ * @param styles - The style declaration, if the data carried one.
+ * @returns A fully populated theme; never partial.
+ * @throws {@link Error} If the named preset does not exist.
  *
  * @public
  */
-export function resolveJmTheme(ref?: JmThemeRef): JmTheme {
-    if (ref === undefined || ref === null) {
+export function resolveJmStyles(styles?: JmStyles): JmTheme {
+    if (styles === undefined || styles === null) {
         return { ...JSMIND_THEME_DEFAULT };
     }
 
-    if (typeof ref === 'string') {
-        const preset = JSMIND_THEME_PRESETS[ref];
-        if (!preset) {
-            throw new Error(`unknown theme preset: ${ref}`);
-        }
-        return { ...preset };
+    if (!isPlainObject(styles)) {
+        throw new Error('invalid styles declaration');
     }
 
-    if (!isPlainObject(ref)) {
-        throw new Error('invalid theme definition');
+    const themeName = styles.theme ?? 'default';
+    if (typeof themeName !== 'string') {
+        throw new Error('invalid theme name');
     }
 
-    // Narrow once here: `isPlainObject` leaves every field as `unknown`, while
-    // an inline theme is exactly a JmTheme.
-    const inlineTheme = ref as JmTheme;
-
-    if (inlineTheme.name !== undefined) {
-        const name = inlineTheme.name;
-        if (typeof name !== 'string') {
-            throw new Error('invalid theme name');
-        }
-        const preset = JSMIND_THEME_PRESETS[name];
-        if (!preset) {
-            throw new Error(`unknown theme preset: ${name}`);
-        }
-        return mergeJmTheme(preset, inlineTheme);
+    const preset = JSMIND_THEME_PRESETS[themeName];
+    if (!preset) {
+        throw new Error(`unknown theme: ${themeName}`);
     }
 
-    return { ...inlineTheme };
+    return mergeJmTheme(preset, styles);
 }
