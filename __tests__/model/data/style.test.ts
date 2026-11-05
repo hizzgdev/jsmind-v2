@@ -7,8 +7,8 @@ import assert from 'node:assert';
 import {
     JmTone,
     JmLineStyleType,
-    JM_THEME_DEFAULT,
-    JM_THEME_PRESETS,
+    JSMIND_THEME_DEFAULT,
+    JSMIND_THEME_PRESETS,
     mergeJmTheme,
     resolveJmTheme,
     type JmTheme,
@@ -23,13 +23,13 @@ test('style - JmTone has exactly six semantic tones', () => {
 });
 
 test('style - default theme defines a complete palette for every tone', () => {
-    const tones = JM_THEME_DEFAULT.tones;
+    const tones = JSMIND_THEME_DEFAULT.tones;
     assert.ok(tones, 'default theme must define tones');
 
     for (const tone of Object.values(JmTone)) {
         const palette = tones[tone];
         assert.ok(palette, `tone ${tone} must have a palette`);
-        for (const key of ['fill', 'text', 'border', 'line'] as const) {
+        for (const key of ['fillColor', 'textColor', 'borderColor', 'lineColor'] as const) {
             assert.strictEqual(
                 typeof palette[key],
                 'string',
@@ -41,21 +41,21 @@ test('style - default theme defines a complete palette for every tone', () => {
 });
 
 test('style - default theme has geometry for node, line and expander', () => {
-    assert.ok(JM_THEME_DEFAULT.node);
-    assert.ok(JM_THEME_DEFAULT.line);
-    assert.ok(JM_THEME_DEFAULT.expander);
+    assert.ok(JSMIND_THEME_DEFAULT.node);
+    assert.ok(JSMIND_THEME_DEFAULT.line);
+    assert.ok(JSMIND_THEME_DEFAULT.expander);
 
-    assert.strictEqual(typeof JM_THEME_DEFAULT.node.radius, 'number');
-    assert.strictEqual(typeof JM_THEME_DEFAULT.node.padding, 'number');
-    assert.strictEqual(typeof JM_THEME_DEFAULT.node.fontSize, 'number');
-    assert.strictEqual(typeof JM_THEME_DEFAULT.node.fontFamily, 'string');
-    assert.strictEqual(typeof JM_THEME_DEFAULT.line.width, 'number');
-    assert.strictEqual(typeof JM_THEME_DEFAULT.expander.size, 'number');
+    assert.strictEqual(typeof JSMIND_THEME_DEFAULT.node.radius, 'number');
+    assert.strictEqual(typeof JSMIND_THEME_DEFAULT.node.padding, 'number');
+    assert.strictEqual(typeof JSMIND_THEME_DEFAULT.node.fontSize, 'number');
+    assert.strictEqual(typeof JSMIND_THEME_DEFAULT.node.fontFamily, 'string');
+    assert.strictEqual(typeof JSMIND_THEME_DEFAULT.line.width, 'number');
+    assert.strictEqual(typeof JSMIND_THEME_DEFAULT.expander.size, 'number');
 });
 
 test('style - only the default preset is built in', () => {
     assert.deepStrictEqual(
-        Object.keys(JM_THEME_PRESETS),
+        Object.keys(JSMIND_THEME_PRESETS),
         ['default'],
         'first version ships exactly one preset'
     );
@@ -69,21 +69,21 @@ test('style - mergeJmTheme deep merges tone palettes', () => {
     const basePrimary = base.tones![JmTone.Primary]!;
 
     const merged = mergeJmTheme(base, {
-        tones: { [JmTone.Primary]: { fill: '#ff0000' } },
+        tones: { [JmTone.Primary]: { fillColor: '#ff0000' } },
     });
 
     const mergedPrimary = merged.tones![JmTone.Primary]!;
-    assert.strictEqual(mergedPrimary.fill, '#ff0000', 'fill should be overridden');
-    assert.strictEqual(mergedPrimary.text, basePrimary.text, 'text must survive');
-    assert.strictEqual(mergedPrimary.border, basePrimary.border, 'border must survive');
-    assert.strictEqual(mergedPrimary.line, basePrimary.line, 'line must survive');
+    assert.strictEqual(mergedPrimary.fillColor, '#ff0000', 'fillColor should be overridden');
+    assert.strictEqual(mergedPrimary.textColor, basePrimary.textColor, 'textColor must survive');
+    assert.strictEqual(mergedPrimary.borderColor, basePrimary.borderColor, 'borderColor must survive');
+    assert.strictEqual(mergedPrimary.lineColor, basePrimary.lineColor, 'lineColor must survive');
 });
 
 test('style - mergeJmTheme does not mutate its inputs', () => {
     const base = resolveJmTheme('default');
     const baseSnapshot = JSON.parse(JSON.stringify(base));
 
-    const override = { tones: { [JmTone.Primary]: { fill: '#123456' } } };
+    const override = { tones: { [JmTone.Primary]: { fillColor: '#123456' } } };
     const overrideSnapshot = JSON.parse(JSON.stringify(override));
 
     mergeJmTheme(base, override);
@@ -105,30 +105,30 @@ test('style - mergeJmTheme merges geometry sections shallowly', () => {
 test('style - resolveJmTheme with no argument returns the default theme', () => {
     const resolved = resolveJmTheme();
     assert.strictEqual(resolved.name, 'default');
-    assert.strictEqual(resolved.background, JM_THEME_DEFAULT.background);
+    assert.strictEqual(resolved.background, JSMIND_THEME_DEFAULT.background);
 });
 
 test('style - resolveJmTheme resolves a preset name', () => {
     const resolved = resolveJmTheme('default');
     assert.strictEqual(resolved.name, 'default');
-    assert.deepStrictEqual(resolved.tones, JM_THEME_DEFAULT.tones);
+    assert.deepStrictEqual(resolved.tones, JSMIND_THEME_DEFAULT.tones);
 });
 
 test('style - resolveJmTheme merges preset plus overrides when name is present', () => {
     const resolved = resolveJmTheme({
         name: 'default',
-        tones: { [JmTone.Danger]: { fill: '#000000' } },
+        tones: { [JmTone.Danger]: { fillColor: '#000000' } },
     });
 
-    assert.strictEqual(resolved.tones![JmTone.Danger]!.fill, '#000000', 'override applied');
+    assert.strictEqual(resolved.tones![JmTone.Danger]!.fillColor, '#000000', 'override applied');
     assert.strictEqual(
-        resolved.tones![JmTone.Danger]!.text,
-        JM_THEME_DEFAULT.tones![JmTone.Danger]!.text,
+        resolved.tones![JmTone.Danger]!.textColor,
+        JSMIND_THEME_DEFAULT.tones![JmTone.Danger]!.textColor,
         'unmentioned palette fields come from the preset'
     );
     assert.strictEqual(
-        resolved.tones![JmTone.Primary]!.fill,
-        JM_THEME_DEFAULT.tones![JmTone.Primary]!.fill,
+        resolved.tones![JmTone.Primary]!.fillColor,
+        JSMIND_THEME_DEFAULT.tones![JmTone.Primary]!.fillColor,
         'other tones are untouched'
     );
 });

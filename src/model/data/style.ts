@@ -8,6 +8,8 @@
  * @packageDocumentation
  */
 
+import { mergeFlatOptions } from '../../common/option.ts';
+
 /**
  * Semantic tone. Expresses color only, never geometry.
  *
@@ -67,8 +69,15 @@ export interface JmLineStyle {
     color?: string;
     /** Line width in pixels. */
     width?: number;
-    /** Dash style. */
-    style?: JmLineStyleType;
+    /**
+     * Line pattern.
+     *
+     * @remarks
+     * Named `pattern` rather than `style` because this type is itself reached
+     * through `node.style.incoming`, and `.style.style` reads badly. `pattern`
+     * also covers `solid` honestly — `solid` is not a dash.
+     */
+    pattern?: JmLineStyleType;
 }
 
 /**
@@ -116,14 +125,22 @@ export interface JmNodeStyle {
  * @public
  */
 export interface JmTonePalette {
-    /** Node background color. */
-    fill: string;
+    /**
+     * Node background color.
+     *
+     * @remarks
+     * Every field here carries a `Color` suffix. The palette sits alongside
+     * `JmNodeStyle`, which already uses `borderColor`, so `borderColor` means
+     * the same thing in both places and an agent reading the JSON never has to
+     * guess whether `fill` or `border` is a color or a length.
+     */
+    fillColor: string;
     /** Node text color. */
-    text: string;
+    textColor: string;
     /** Node border color. */
-    border: string;
+    borderColor: string;
     /** Connecting line color. */
-    line: string;
+    lineColor: string;
 }
 
 /**
@@ -152,8 +169,8 @@ export interface JmThemeNode {
 export interface JmThemeLine {
     /** Default line width in pixels. */
     width: number;
-    /** Default dash style. */
-    style: JmLineStyleType;
+    /** Default line pattern. Named `pattern` to match `JmLineStyle.pattern`. */
+    pattern: JmLineStyleType;
 }
 
 /**
@@ -212,16 +229,16 @@ export type JmThemeRef = string | JmTheme;
  *
  * @public
  */
-export const JM_THEME_DEFAULT: JmTheme = {
+export const JSMIND_THEME_DEFAULT: JmTheme = {
     name: 'default',
     background: '#ffffff',
     tones: {
-        default: { fill: '#ffffff', text: '#333333', border: '#cccccc', line: '#b0b0b0' },
-        primary: { fill: '#e8f3ff', text: '#1a5fb4', border: '#7ab0f0', line: '#5a9ae8' },
-        success: { fill: '#e9f7ef', text: '#1e7b4d', border: '#6cc79a', line: '#4fb681' },
-        warning: { fill: '#fff8e6', text: '#8a6100', border: '#e8c46a', line: '#d4a944' },
-        danger:  { fill: '#fdecec', text: '#b3261e', border: '#e88a84', line: '#d97069' },
-        info:    { fill: '#eef4fb', text: '#2a6296', border: '#8bb8dd', line: '#6fa5d2' },
+        default: { fillColor: '#ffffff', textColor: '#333333', borderColor: '#cccccc', lineColor: '#b0b0b0' },
+        primary: { fillColor: '#e8f3ff', textColor: '#1a5fb4', borderColor: '#7ab0f0', lineColor: '#5a9ae8' },
+        success: { fillColor: '#e9f7ef', textColor: '#1e7b4d', borderColor: '#6cc79a', lineColor: '#4fb681' },
+        warning: { fillColor: '#fff8e6', textColor: '#8a6100', borderColor: '#e8c46a', lineColor: '#d4a944' },
+        danger:  { fillColor: '#fdecec', textColor: '#b3261e', borderColor: '#e88a84', lineColor: '#d97069' },
+        info:    { fillColor: '#eef4fb', textColor: '#2a6296', borderColor: '#8bb8dd', lineColor: '#6fa5d2' },
     },
     node: {
         radius: 4,
@@ -232,7 +249,7 @@ export const JM_THEME_DEFAULT: JmTheme = {
     },
     line: {
         width: 2,
-        style: JmLineStyleType.Solid,
+        pattern: JmLineStyleType.Solid,
     },
     expander: {
         size: 12,
@@ -244,8 +261,8 @@ export const JM_THEME_DEFAULT: JmTheme = {
  *
  * @public
  */
-export const JM_THEME_PRESETS: Record<string, JmTheme> = {
-    default: JM_THEME_DEFAULT,
+export const JSMIND_THEME_PRESETS: Record<string, JmTheme> = {
+    default: JSMIND_THEME_DEFAULT,
 };
 
 /**
@@ -276,6 +293,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export function mergeJmTheme(base: JmTheme, override: Partial<JmTheme>): JmTheme {
     const result: JmTheme = { ...base };
 
+    // Top-level scalars are plain assignment; there is nothing to merge.
     if (override.name !== undefined) {
         result.name = override.name;
     }
@@ -283,30 +301,59 @@ export function mergeJmTheme(base: JmTheme, override: Partial<JmTheme>): JmTheme
         result.background = override.background;
     }
 
-    if (override.tones) {
-        const tones: Partial<Record<JmTone, Partial<JmTonePalette>>> = { ...base.tones };
-        for (const key of Object.keys(override.tones) as JmTone[]) {
-            const basePalette = tones[key];
-            const overridePalette = override.tones[key];
-            if (!overridePalette) {
-                continue;
-            }
-            tones[key] = basePalette ? { ...basePalette, ...overridePalette } : { ...overridePalette };
-        }
-        result.tones = tones;
-    }
-
+    // node/line/expander each hold scalars, so they merge one level deep with
+    // the same flat merge the options layer uses. Spread the base first:
+    // mergeFlatOptions replaces a missing default wholesale, which would drop
+    // every field the override did not mention.
     if (override.node) {
-        result.node = { ...base.node, ...override.node };
+        result.node = mergeFlatOptions({ ...base.node }, override.node);
     }
     if (override.line) {
-        result.line = { ...base.line, ...override.line };
+        result.line = mergeFlatOptions({ ...base.line }, override.line);
     }
     if (override.expander) {
-        result.expander = { ...base.expander, ...override.expander };
+        result.expander = mergeFlatOptions({ ...base.expander }, override.expander);
+    }
+
+    // `tones` is the one section nested two levels deep: tone -> palette. Each
+    // palette must be merged field by field, or an override that names only
+    // `fillColor` would drop textColor/borderColor/lineColor and the node
+    // would render black on black.
+    if (override.tones) {
+        result.tones = mergeTonePalettes(base.tones, override.tones);
     }
 
     return result;
+}
+
+/**
+ * Merges tone palette overrides into a set of palettes.
+ *
+ * @remarks
+ * Per tone, the palette is merged field by field. Tones the override does not
+ * mention are passed through untouched.
+ *
+ * @param base - The palettes to merge onto, possibly absent.
+ * @param override - The per-tone overrides to apply.
+ * @returns New palettes; neither input is mutated.
+ *
+ * @private
+ */
+function mergeTonePalettes(
+    base: Partial<Record<JmTone, Partial<JmTonePalette>>> | undefined,
+    override: Partial<Record<JmTone, Partial<JmTonePalette>>>
+): Partial<Record<JmTone, Partial<JmTonePalette>>> {
+    const tones: Partial<Record<JmTone, Partial<JmTonePalette>>> = { ...base };
+
+    for (const key of Object.keys(override) as JmTone[]) {
+        const overridePalette = override[key];
+        if (!overridePalette) {
+            continue;
+        }
+        tones[key] = mergeFlatOptions(tones[key], overridePalette);
+    }
+
+    return tones;
 }
 
 /**
@@ -320,11 +367,11 @@ export function mergeJmTheme(base: JmTheme, override: Partial<JmTheme>): JmTheme
  */
 export function resolveJmTheme(ref?: JmThemeRef): JmTheme {
     if (ref === undefined || ref === null) {
-        return { ...JM_THEME_DEFAULT };
+        return { ...JSMIND_THEME_DEFAULT };
     }
 
     if (typeof ref === 'string') {
-        const preset = JM_THEME_PRESETS[ref];
+        const preset = JSMIND_THEME_PRESETS[ref];
         if (!preset) {
             throw new Error(`unknown theme preset: ${ref}`);
         }
@@ -344,7 +391,7 @@ export function resolveJmTheme(ref?: JmThemeRef): JmTheme {
         if (typeof name !== 'string') {
             throw new Error('invalid theme name');
         }
-        const preset = JM_THEME_PRESETS[name];
+        const preset = JSMIND_THEME_PRESETS[name];
         if (!preset) {
             throw new Error(`unknown theme preset: ${name}`);
         }

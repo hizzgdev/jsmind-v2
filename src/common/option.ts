@@ -40,8 +40,16 @@ export interface ViewExpanderOptions {
     // expanded: string;
     // collapsed: string;
 }
+/**
+ * View options.
+ *
+ * @remarks
+ * Deliberately has no `theme` field. The theme belongs to the mind map data
+ * (`JmMind.theme`) because it has to travel with the file; a renderer setting
+ * would be lost the moment the map is serialized. Resolution falls back to the
+ * built-in default when the data names no theme.
+ */
 export interface ViewOptions {
-    theme: string;
     padding: ViewPadding;
     expander: ViewExpanderOptions;
 }
@@ -75,7 +83,6 @@ export const DEFAULT_OPTIONS: JsMindOptions = {
         rootNodeId: 'root'
     },
     view: {
-        theme: 'default',
         padding: {
             left: 100,
             right: 100,

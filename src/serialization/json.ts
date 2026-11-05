@@ -19,7 +19,7 @@ import type { JmNodeStyle, JmLineStyle, JmThemeRef } from '../model/data/style.t
  *
  * @public
  */
-export const JMIND_FORMAT_V2 = 'jsmind_v2';
+export const JSMIND_FORMAT_V2 = 'jsmind_v2';
 
 /**
  * Serialized node data structure.
@@ -100,7 +100,7 @@ export class JmMindJsonSerializer implements JmMindSerializer {
         }
 
         const serializedData: SerializedMindMap = {
-            format: JMIND_FORMAT_V2,
+            format: JSMIND_FORMAT_V2,
             meta: mind.meta,
             root: mind._root.id,
             nodes: {},
@@ -248,7 +248,7 @@ export class JmMindJsonSerializer implements JmMindSerializer {
             targetNodeId: edge.targetNodeId,
             type: edge.type,
             label: edge.label,
-            ...(edge.style ? { style: { ...edge.style } } : {})
+            ...(edge.style ? { style: copyLineStyle(edge.style) } : {})
         };
     }
 
@@ -268,7 +268,7 @@ export class JmMindJsonSerializer implements JmMindSerializer {
             edgeData.label
         );
         if (edgeData.style) {
-            edge.style = { ...edgeData.style };
+            edge.style = copyLineStyle(edgeData.style);
         }
         return edge;
     }
@@ -318,6 +318,21 @@ export class JmMindJsonSerializer implements JmMindSerializer {
  */
 function copyNodeStyle(style: JmNodeStyle): JmNodeStyle {
     return style.incoming
-        ? { ...style, incoming: { ...style.incoming } }
+        ? { ...style, incoming: copyLineStyle(style.incoming) }
         : { ...style };
+}
+
+/**
+ * Copies a line style.
+ *
+ * @remarks
+ * `JmLineStyle` holds scalars only, so a spread is a full copy. Kept as a
+ * named function so node styles and edge styles go through one path — if the
+ * shape ever grows a nested field, only this function needs to change.
+ *
+ * @param style - The line style to copy.
+ * @returns A detached copy.
+ */
+function copyLineStyle(style: JmLineStyle): JmLineStyle {
+    return { ...style };
 }

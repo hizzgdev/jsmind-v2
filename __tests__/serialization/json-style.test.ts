@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import {
     JmMindJsonSerializer,
-    JMIND_FORMAT_V2,
+    JSMIND_FORMAT_V2,
     type SerializedMindMap,
 } from '../../src/serialization/json.ts';
 import { JmMind } from '../../src/model/mind.ts';
@@ -18,7 +18,7 @@ test('json-style - serialize writes the v2 format identifier', () => {
     const serializer = new JmMindJsonSerializer();
     const data = serializer.serialize(new JmMind());
 
-    assert.strictEqual(data.format, JMIND_FORMAT_V2);
+    assert.strictEqual(data.format, JSMIND_FORMAT_V2);
     assert.strictEqual(data.format, 'jsmind_v2');
 });
 
@@ -63,7 +63,7 @@ test('json-style - serialize carries node style', () => {
                 fontWeight: 'bold',
                 borderWidth: 2,
                 borderStyle: JmLineStyleType.Dashed,
-                incoming: { color: '#ff8800', width: 3, style: JmLineStyleType.Dotted },
+                incoming: { color: '#ff8800', width: 3, pattern: JmLineStyleType.Dotted },
             },
         }
     );
@@ -80,7 +80,7 @@ test('json-style - serialize carries node style', () => {
     assert.deepStrictEqual(serialized.style.incoming, {
         color: '#ff8800',
         width: 3,
-        style: JmLineStyleType.Dotted,
+        pattern: JmLineStyleType.Dotted,
     });
 });
 
@@ -93,7 +93,7 @@ test('json-style - serialize carries theme', () => {
 
     mind.theme = {
         name: 'default',
-        tones: { [JmTone.Primary]: { fill: '#123456' } },
+        tones: { [JmTone.Primary]: { fillColor: '#123456' } },
     };
     const inline = serializer.serialize(mind).theme;
     assert.ok(typeof inline === 'object', 'inline theme should serialize as an object');
@@ -108,7 +108,7 @@ test('json-style - serialize carries edge style', () => {
     const b = mind.addNode(JmNodeContent.createText('B'), { parentId: mind.root.id });
     const edge = mind.addEdge(a.id, b.id, JmEdgeType.Link, {
         label: 'relates',
-        style: { color: '#00aa00', width: 2, style: JmLineStyleType.Dashed },
+        style: { color: '#00aa00', width: 2, pattern: JmLineStyleType.Dashed },
     });
 
     const serialized = serializer.serialize(mind).edges[edge.id];
@@ -116,7 +116,7 @@ test('json-style - serialize carries edge style', () => {
     assert.deepStrictEqual(serialized.style, {
         color: '#00aa00',
         width: 2,
-        style: JmLineStyleType.Dashed,
+        pattern: JmLineStyleType.Dashed,
     });
 });
 
@@ -124,7 +124,7 @@ test('json-style - deserialize restores theme and styles', () => {
     const serializer = new JmMindJsonSerializer();
 
     const source: SerializedMindMap = {
-        format: JMIND_FORMAT_V2,
+        format: JSMIND_FORMAT_V2,
         theme: { name: 'default', background: '#fafafa' },
         meta: { id: 'm1', name: 'Styled', author: '', version: '2.0.0' },
         root: 'root',
@@ -194,13 +194,13 @@ test('json-style - round trip is byte-for-byte identical', () => {
     const serializer = new JmMindJsonSerializer();
 
     const original: SerializedMindMap = {
-        format: JMIND_FORMAT_V2,
+        format: JSMIND_FORMAT_V2,
         theme: {
             name: 'default',
             background: '#ffffff',
-            tones: { [JmTone.Primary]: { fill: '#e8f3ff', text: '#1a5fb4' } },
+            tones: { [JmTone.Primary]: { fillColor: '#e8f3ff', textColor: '#1a5fb4' } },
             node: { radius: 6, fontSize: 15 },
-            line: { width: 3, style: JmLineStyleType.Solid },
+            line: { width: 3, pattern: JmLineStyleType.Solid },
         },
         meta: { id: 'm2', name: 'Round trip', author: 'me', version: '2.0.0' },
         root: 'root',
@@ -226,7 +226,7 @@ test('json-style - round trip is byte-for-byte identical', () => {
                 style: {
                     tone: JmTone.Danger,
                     borderStyle: JmLineStyleType.Dotted,
-                    incoming: { color: '#d97069', width: 2, style: JmLineStyleType.Dashed },
+                    incoming: { color: '#d97069', width: 2, pattern: JmLineStyleType.Dashed },
                 },
             },
         },
@@ -274,5 +274,5 @@ test('json-style - legacy data without format or theme still deserializes', () =
     assert.strictEqual(mind._nodes['root'].style, undefined);
 
     // Re-serializing adds the format identifier; that is expected and harmless.
-    assert.strictEqual(serializer.serialize(mind).format, JMIND_FORMAT_V2);
+    assert.strictEqual(serializer.serialize(mind).format, JSMIND_FORMAT_V2);
 });

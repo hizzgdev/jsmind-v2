@@ -129,12 +129,12 @@ interface SerializedMindMap {
 
 ```typescript
 interface SerializedMindMap {
-    meta: MindMetadata;                         // 现有
-    root: string;                               // 现有
-    nodes: Record<string, SerializedNode>;      // 现有
-    edges: Record<string, SerializedEdge>;      // 现有
-    format?: "jsmind_v2";                       // 新增，见 1.2
-    theme?: JmThemeRef;                         // 新增，见 5.3
+    meta: MindMetadata;                         // existing
+    root: string;                               // existing
+    nodes: Record<string, SerializedNode>;      // existing
+    edges: Record<string, SerializedEdge>;      // existing
+    format?: "jsmind_v2";                       // added, see 1.2
+    theme?: JmThemeRef;                         // added, see 5.3
 }
 ```
 
@@ -179,7 +179,7 @@ interface SerializedNode {
     folded: boolean;
     side: JmNodeSide;
     data: Record<string, unknown>;
-    style?: JmNodeStyle;              // 新增
+    style?: JmNodeStyle;              // added
 }
 ```
 
@@ -213,9 +213,9 @@ type JmNodeContentType = typeof JmNodeContentType[keyof typeof JmNodeContentType
 
 ```typescript
 export const JmNodeSide = {
-    SideB: -1,      // 左
-    Center: 0,      // 中
-    SideA: 1,       // 右
+    SideB: -1,      // left
+    Center: 0,      // center
+    SideA: 1,       // right
 } as const;
 export type JmNodeSide = typeof JmNodeSide[keyof typeof JmNodeSide];
 ```
@@ -276,7 +276,7 @@ export type JmLineStyleType = typeof JmLineStyleType[keyof typeof JmLineStyleTyp
 interface JmLineStyle {
     color?: string;
     width?: number;
-    style?: JmLineStyleType;
+    pattern?: JmLineStyleType;
 }
 
 interface JmNodeStyle {
@@ -288,7 +288,7 @@ interface JmNodeStyle {
     borderStyle?: JmLineStyleType;
     fontSize?: number;                    // px
     fontWeight?: "normal" | "bold";
-    incoming?: JmLineStyle;               // 连向本节点的这条线
+    incoming?: JmLineStyle;               // the line connecting this node to its parent
 }
 ```
 
@@ -300,10 +300,10 @@ interface JmNodeStyle {
 
 ```typescript
 interface JmTonePalette {
-    fill: string;
-    text: string;
-    border: string;
-    line: string;
+    fillColor: string;
+    textColor: string;
+    borderColor: string;
+    lineColor: string;
 }
 
 interface JmTheme {
@@ -319,7 +319,7 @@ interface JmTheme {
     }>;
     line?: Partial<{
         width: number;
-        style: "solid" | "dashed" | "dotted";
+        pattern: JmLineStyleType;
     }>;
     expander?: Partial<{ size: number }>;
 }
@@ -360,7 +360,7 @@ interface SerializedEdge {
     targetNodeId: string;
     type: JmEdgeType;
     label: string | null;
-    style?: JmLineStyle;              // 新增
+    style?: JmLineStyle;              // added
 }
 ```
 
@@ -394,15 +394,15 @@ interface SerializedEdge {
 ```typescript
 // src/generation/index.ts
 class SimpleIdGenerator {
-    seed = new Date().getTime();      // 实例创建时的毫秒时间戳
+    seed = new Date().getTime();      // millisecond timestamp at instance creation
     seq  = 0;
 
     newId() {
-        this.seq++;                                           // 只增不减
+        this.seq++;                                           // monotonically increasing
         return this.prefix + (this.seed + this.seq).toString(36);
     }
 }
-// JmMind 使用 new SimpleIdGenerator('jm-')
+// JmMind creates new SimpleIdGenerator('jm-')
 ```
 
 **稳定性的来源：**
