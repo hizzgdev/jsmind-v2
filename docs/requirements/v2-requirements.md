@@ -443,8 +443,6 @@ interface JmStyles {
 
 = 继承 `default`，改背景。不写 `theme` 也一样继承 `default`。
 
-**为什么不用 `{ "name": "...", …覆盖 }`：** `name` 既能读成「这个主题叫什么」，也能读成「继承谁」，两种理解都通。压平成 `styles.theme` 之后只可能是后者。
-
 **必须用深度合并，绝不能用浅合并** —— `tones: { primary: { fillColor: "#f00" } }` 做浅合并会把整个 `primary` 替换掉，`textColor` / `borderColor` / `lineColor` 全丢，节点变成黑底黑字。
 
 **第一版只内置 `default` 一个预设。** 暗色不是"内置第二套"，而是**另一个预设**（用户自己写 JSON 或社区分发）。不做"明暗双套 tone"（每个 tone 带 light/dark），那会让 schema 体积和 Agent 生成负担都翻倍。

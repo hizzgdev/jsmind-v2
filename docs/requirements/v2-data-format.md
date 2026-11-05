@@ -326,8 +326,6 @@ interface JmStyles {
 ```
 = 同样继承 `default`（`theme` 隐含），只改这两处。
 
-**为什么不用 `{ "name": "...", ...覆盖 }` 那种写法：** `name` 既可以读成「这个主题叫什么」，也可以读成「继承谁」，两种理解都讲得通。压平成 `styles.theme` 之后，它只可能是后者。
-
 **必须深度合并，不能用浅合并** —— `tones: { primary: { fillColor: "#f00" } }` 做浅合并会把整个 `primary` 替换掉，`textColor`/`borderColor`/`lineColor` 全丢，节点变黑底黑字。
 
 **第一版只内置 `default` 一个预设。** 暗色是另一个预设，不是「同一主题的 dark 变体」。
