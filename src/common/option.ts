@@ -3,6 +3,8 @@
  *
  * @public
  */
+
+import { mergeObjects } from './object.ts';
 export interface MindMetadata {
     /** The author of the mind map. */
     author: string;
@@ -40,15 +42,6 @@ export interface ViewExpanderOptions {
     // expanded: string;
     // collapsed: string;
 }
-/**
- * View options.
- *
- * @remarks
- * Deliberately has no `theme` field. The theme belongs to the mind map data
- * (`JmMind.theme`) because it has to travel with the file; a renderer setting
- * would be lost the moment the map is serialized. Resolution falls back to the
- * built-in default when the data names no theme.
- */
 export interface ViewOptions {
     padding: ViewPadding;
     expander: ViewExpanderOptions;
@@ -118,33 +111,13 @@ export function mergeJsMindOptions(options?: Partial<JsMindOptions>): JsMindOpti
 
     return {
         mind: {
-            ...mergeFlatOptions(DEFAULT_OPTIONS.mind, options.mind)
+            ...mergeObjects(DEFAULT_OPTIONS.mind, options.mind)
         },
         view: {
-            ...mergeFlatOptions(DEFAULT_OPTIONS.view, options.view)
+            ...mergeObjects(DEFAULT_OPTIONS.view, options.view)
         },
         layout: {
-            ...mergeFlatOptions(DEFAULT_OPTIONS.layout, options.layout)
+            ...mergeObjects(DEFAULT_OPTIONS.layout, options.layout)
         }
     };
-}
-
-
-/**
- * Merges user values with default values.
- *
- * @private
- * @param defaultValues - Default values.
- * @param userValues - User-provided values.
- * @returns Merged values.
- */
-export function mergeFlatOptions<T>(defaultValues: T, userValues?: Partial<T>): T {
-    if (!userValues) {
-        return { ...defaultValues };
-    }
-
-    return {
-        ...defaultValues,
-        ...userValues
-    } as T;
 }

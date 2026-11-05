@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import {
     JmTone,
-    JmLineStyleType,
+    JmLinePattern,
     JSMIND_THEME_DEFAULT,
     JSMIND_THEME_PRESETS,
     mergeJmTheme,
@@ -152,9 +152,9 @@ test('style - resolveJmTheme throws on an unknown preset name inside an inline t
     );
 });
 
-test('style - JmLineStyleType exposes the three dash styles', () => {
+test('style - JmLinePattern exposes the three dash styles', () => {
     assert.deepStrictEqual(
-        Object.values(JmLineStyleType).sort(),
+        Object.values(JmLinePattern).sort(),
         ['dashed', 'dotted', 'solid']
     );
 });

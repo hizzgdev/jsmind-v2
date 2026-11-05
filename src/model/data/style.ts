@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-import { mergeFlatOptions } from '../../common/option.ts';
+import { mergeObjects } from '../../common/object.ts';
 
 /**
  * Semantic tone. Expresses color only, never geometry.
@@ -43,7 +43,7 @@ export type JmTone = typeof JmTone[keyof typeof JmTone];
  *
  * @public
  */
-export const JmLineStyleType = {
+export const JmLinePattern = {
     /** Continuous line. */
     Solid: 'solid',
     /** Dashed line. */
@@ -52,7 +52,7 @@ export const JmLineStyleType = {
     Dotted: 'dotted',
 } as const;
 
-export type JmLineStyleType = typeof JmLineStyleType[keyof typeof JmLineStyleType];
+export type JmLinePattern = typeof JmLinePattern[keyof typeof JmLinePattern];
 
 /**
  * Visual style of a single line.
@@ -77,7 +77,7 @@ export interface JmLineStyle {
      * through `node.style.incoming`, and `.style.style` reads badly. `pattern`
      * also covers `solid` honestly — `solid` is not a dash.
      */
-    pattern?: JmLineStyleType;
+    pattern?: JmLinePattern;
 }
 
 /**
@@ -106,7 +106,7 @@ export interface JmNodeStyle {
     /** Border width in pixels. */
     borderWidth?: number;
     /** Border dash style. */
-    borderStyle?: JmLineStyleType;
+    borderStyle?: JmLinePattern;
     /** Font size in pixels. */
     fontSize?: number;
     /** Font weight. */
@@ -170,7 +170,7 @@ export interface JmThemeLine {
     /** Default line width in pixels. */
     width: number;
     /** Default line pattern. Named `pattern` to match `JmLineStyle.pattern`. */
-    pattern: JmLineStyleType;
+    pattern: JmLinePattern;
 }
 
 /**
@@ -249,7 +249,7 @@ export const JSMIND_THEME_DEFAULT: JmTheme = {
     },
     line: {
         width: 2,
-        pattern: JmLineStyleType.Solid,
+        pattern: JmLinePattern.Solid,
     },
     expander: {
         size: 12,
@@ -303,16 +303,16 @@ export function mergeJmTheme(base: JmTheme, override: Partial<JmTheme>): JmTheme
 
     // node/line/expander each hold scalars, so they merge one level deep with
     // the same flat merge the options layer uses. Spread the base first:
-    // mergeFlatOptions replaces a missing default wholesale, which would drop
+    // mergeObjects replaces a missing default wholesale, which would drop
     // every field the override did not mention.
     if (override.node) {
-        result.node = mergeFlatOptions({ ...base.node }, override.node);
+        result.node = mergeObjects({ ...base.node }, override.node);
     }
     if (override.line) {
-        result.line = mergeFlatOptions({ ...base.line }, override.line);
+        result.line = mergeObjects({ ...base.line }, override.line);
     }
     if (override.expander) {
-        result.expander = mergeFlatOptions({ ...base.expander }, override.expander);
+        result.expander = mergeObjects({ ...base.expander }, override.expander);
     }
 
     // `tones` is the one section nested two levels deep: tone -> palette. Each
@@ -350,7 +350,7 @@ function mergeTonePalettes(
         if (!overridePalette) {
             continue;
         }
-        tones[key] = mergeFlatOptions(tones[key], overridePalette);
+        tones[key] = mergeObjects(tones[key], overridePalette);
     }
 
     return tones;

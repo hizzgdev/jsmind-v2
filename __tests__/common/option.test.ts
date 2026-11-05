@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { DEFAULT_METADATA, DEFAULT_OPTIONS, mergeJsMindOptions, mergeFlatOptions, type JsMindOptions } from '../../src/common/option.ts';
+import { DEFAULT_METADATA, DEFAULT_OPTIONS, mergeJsMindOptions, type JsMindOptions } from '../../src/common/option.ts';
+import { mergeObjects } from '../../src/common/object.ts';
 
 describe('option', () => {
     it('DEFAULT_METADATA', () => {
@@ -44,10 +45,10 @@ describe('option', () => {
         assert.strictEqual(merged.layout.siblingSpace, DEFAULT_OPTIONS.layout.siblingSpace);
     });
 
-    describe('mergeFlatOptions', () => {
+    describe('mergeObjects', () => {
         it('should return default values when userValues is undefined', () => {
             const defaults = { a: 1, b: 2, c: 3 };
-            const merged = mergeFlatOptions(defaults);
+            const merged = mergeObjects(defaults);
             assert.deepStrictEqual(merged, defaults);
             // Ensure it's a new object, not a reference
             assert.notStrictEqual(merged, defaults);
@@ -56,7 +57,7 @@ describe('option', () => {
         it('should merge user values with default values', () => {
             const defaults = { a: 1, b: 2, c: 3 };
             const userValues = { b: 20, c: 30 };
-            const merged = mergeFlatOptions(defaults, userValues);
+            const merged = mergeObjects(defaults, userValues);
             assert.strictEqual(merged.a, 1);
             assert.strictEqual(merged.b, 20);
             assert.strictEqual(merged.c, 30);
@@ -65,7 +66,7 @@ describe('option', () => {
         it('should preserve default values for properties not in userValues', () => {
             const defaults = { a: 1, b: 2, c: 3 };
             const userValues = { b: 20 };
-            const merged = mergeFlatOptions(defaults, userValues);
+            const merged = mergeObjects(defaults, userValues);
             assert.strictEqual(merged.a, 1);
             assert.strictEqual(merged.b, 20);
             assert.strictEqual(merged.c, 3);
@@ -74,7 +75,7 @@ describe('option', () => {
         it('should handle empty userValues object', () => {
             const defaults = { a: 1, b: 2 };
             const userValues = {};
-            const merged = mergeFlatOptions(defaults, userValues);
+            const merged = mergeObjects(defaults, userValues);
             assert.deepStrictEqual(merged, defaults);
         });
 
@@ -94,8 +95,8 @@ describe('option', () => {
                     right: 100
                 }
             } as Partial<typeof defaults>;
-            const merged = mergeFlatOptions(defaults, userValues);
-            // Note: mergeFlatOptions does shallow merge, so nested objects are replaced
+            const merged = mergeObjects(defaults, userValues);
+            // Note: mergeObjects does shallow merge, so nested objects are replaced
             assert.strictEqual(merged.padding.left, 100);
             assert.strictEqual(merged.padding.right, 100);
             assert.strictEqual(merged.theme, 'default');
@@ -115,7 +116,7 @@ describe('option', () => {
                 number: 100,
                 boolean: false
             };
-            const merged = mergeFlatOptions(defaults, userValues);
+            const merged = mergeObjects(defaults, userValues);
             assert.strictEqual(merged.string, 'custom');
             assert.strictEqual(merged.number, 100);
             assert.strictEqual(merged.boolean, false);

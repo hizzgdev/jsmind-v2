@@ -12,7 +12,7 @@ import {
 import { JmMind } from '../../src/model/mind.ts';
 import { JmNodeContent } from '../../src/model/data/node-content.ts';
 import { JmEdgeType } from '../../src/model/data/edge.ts';
-import { JmTone, JmLineStyleType } from '../../src/model/data/style.ts';
+import { JmTone, JmLinePattern } from '../../src/model/data/style.ts';
 
 test('json-style - serialize writes the v2 format identifier', () => {
     const serializer = new JmMindJsonSerializer();
@@ -62,8 +62,8 @@ test('json-style - serialize carries node style', () => {
                 fontSize: 18,
                 fontWeight: 'bold',
                 borderWidth: 2,
-                borderStyle: JmLineStyleType.Dashed,
-                incoming: { color: '#ff8800', width: 3, pattern: JmLineStyleType.Dotted },
+                borderStyle: JmLinePattern.Dashed,
+                incoming: { color: '#ff8800', width: 3, pattern: JmLinePattern.Dotted },
             },
         }
     );
@@ -76,11 +76,11 @@ test('json-style - serialize carries node style', () => {
     assert.strictEqual(serialized.style.fontSize, 18);
     assert.strictEqual(serialized.style.fontWeight, 'bold');
     assert.strictEqual(serialized.style.borderWidth, 2);
-    assert.strictEqual(serialized.style.borderStyle, JmLineStyleType.Dashed);
+    assert.strictEqual(serialized.style.borderStyle, JmLinePattern.Dashed);
     assert.deepStrictEqual(serialized.style.incoming, {
         color: '#ff8800',
         width: 3,
-        pattern: JmLineStyleType.Dotted,
+        pattern: JmLinePattern.Dotted,
     });
 });
 
@@ -108,7 +108,7 @@ test('json-style - serialize carries edge style', () => {
     const b = mind.addNode(JmNodeContent.createText('B'), { parentId: mind.root.id });
     const edge = mind.addEdge(a.id, b.id, JmEdgeType.Link, {
         label: 'relates',
-        style: { color: '#00aa00', width: 2, pattern: JmLineStyleType.Dashed },
+        style: { color: '#00aa00', width: 2, pattern: JmLinePattern.Dashed },
     });
 
     const serialized = serializer.serialize(mind).edges[edge.id];
@@ -116,7 +116,7 @@ test('json-style - serialize carries edge style', () => {
     assert.deepStrictEqual(serialized.style, {
         color: '#00aa00',
         width: 2,
-        pattern: JmLineStyleType.Dashed,
+        pattern: JmLinePattern.Dashed,
     });
 });
 
@@ -200,7 +200,7 @@ test('json-style - round trip is byte-for-byte identical', () => {
             background: '#ffffff',
             tones: { [JmTone.Primary]: { fillColor: '#e8f3ff', textColor: '#1a5fb4' } },
             node: { radius: 6, fontSize: 15 },
-            line: { width: 3, pattern: JmLineStyleType.Solid },
+            line: { width: 3, pattern: JmLinePattern.Solid },
         },
         meta: { id: 'm2', name: 'Round trip', author: 'me', version: '2.0.0' },
         root: 'root',
@@ -225,8 +225,8 @@ test('json-style - round trip is byte-for-byte identical', () => {
                 data: {},
                 style: {
                     tone: JmTone.Danger,
-                    borderStyle: JmLineStyleType.Dotted,
-                    incoming: { color: '#d97069', width: 2, pattern: JmLineStyleType.Dashed },
+                    borderStyle: JmLinePattern.Dotted,
+                    incoming: { color: '#d97069', width: 2, pattern: JmLinePattern.Dashed },
                 },
             },
         },

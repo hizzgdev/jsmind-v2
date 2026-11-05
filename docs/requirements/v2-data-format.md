@@ -122,19 +122,8 @@ interface SerializedMindMap {
     root: string;
     nodes: Record<string, SerializedNode>;
     edges: Record<string, SerializedEdge>;
-}
-```
-
-**本规范在现有接口上新增两个可选字段（`format`、`theme`）**，标注如下：
-
-```typescript
-interface SerializedMindMap {
-    meta: MindMetadata;                         // existing
-    root: string;                               // existing
-    nodes: Record<string, SerializedNode>;      // existing
-    edges: Record<string, SerializedEdge>;      // existing
-    format?: "jsmind_v2";                       // added, see 1.2
-    theme?: JmThemeRef;                         // added, see 5.3
+    format?: "jsmind_v2";
+    theme?: JmThemeRef;
 }
 ```
 
@@ -179,7 +168,7 @@ interface SerializedNode {
     folded: boolean;
     side: JmNodeSide;
     data: Record<string, unknown>;
-    style?: JmNodeStyle;              // added
+    style?: JmNodeStyle;
 }
 ```
 
@@ -265,18 +254,18 @@ export type JmTone = typeof JmTone[keyof typeof JmTone];
 ### 5.2 `JmNodeStyle`
 
 ```typescript
-export const JmLineStyleType = {
+export const JmLinePattern = {
     Solid:  'solid',
     Dashed: 'dashed',
     Dotted: 'dotted',
 } as const;
 
-export type JmLineStyleType = typeof JmLineStyleType[keyof typeof JmLineStyleType];
+export type JmLinePattern = typeof JmLinePattern[keyof typeof JmLinePattern];
 
 interface JmLineStyle {
     color?: string;
     width?: number;
-    pattern?: JmLineStyleType;
+    pattern?: JmLinePattern;
 }
 
 interface JmNodeStyle {
@@ -285,7 +274,7 @@ interface JmNodeStyle {
     color?: string;
     borderColor?: string;
     borderWidth?: number;
-    borderStyle?: JmLineStyleType;
+    borderStyle?: JmLinePattern;
     fontSize?: number;                    // px
     fontWeight?: "normal" | "bold";
     incoming?: JmLineStyle;               // the line connecting this node to its parent
@@ -319,7 +308,7 @@ interface JmTheme {
     }>;
     line?: Partial<{
         width: number;
-        pattern: JmLineStyleType;
+        pattern: JmLinePattern;
     }>;
     expander?: Partial<{ size: number }>;
 }
@@ -360,7 +349,7 @@ interface SerializedEdge {
     targetNodeId: string;
     type: JmEdgeType;
     label: string | null;
-    style?: JmLineStyle;              // added
+    style?: JmLineStyle;
 }
 ```
 
