@@ -425,7 +425,7 @@ default | primary | success | warning | danger | info
 ```ts
 interface JmTonePalette { fillColor: string; textColor: string; borderColor: string; lineColor: string; }
 
-interface JmStyles {
+interface JmStyle {
     theme?: string;
     background?: string;
     tones?: Partial<Record<JmTone, Partial<JmTonePalette>>>;
@@ -435,10 +435,10 @@ interface JmStyles {
 }
 ```
 
-**读法只有一种：** `styles` 是「这个 mindmap 的样式声明」—— **继承 `styles.theme` 指向的预设**（不写就继承 `default`），然后**应用声明的其余字段**，深度合并。
+**读法只有一种：** `style` 是「这个 mindmap 的样式声明」—— **继承 `style.theme` 指向的预设**（不写就继承 `default`），然后**应用声明的其余字段**，深度合并。
 
 ```json
-"styles": { "theme": "default", "background": "#fafafa" }
+"style": { "theme": "default", "background": "#fafafa" }
 ```
 
 = 继承 `default`，改背景。不写 `theme` 也一样继承 `default`。

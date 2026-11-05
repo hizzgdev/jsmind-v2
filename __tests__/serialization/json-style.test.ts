@@ -22,14 +22,14 @@ test('json-style - serialize writes the v2 format identifier', () => {
     assert.strictEqual(data.format, 'jsmind_v2');
 });
 
-test('json-style - serialize omits styles when the mind map has none', () => {
+test('json-style - serialize omits style when the mind map has none', () => {
     const serializer = new JmMindJsonSerializer();
     const data = serializer.serialize(new JmMind());
 
     assert.strictEqual(
-        Object.prototype.hasOwnProperty.call(data, 'styles'),
+        Object.prototype.hasOwnProperty.call(data, 'style'),
         false,
-        'absent styles must not appear as an undefined key'
+        'absent style must not appear as an undefined key'
     );
 });
 
@@ -84,19 +84,19 @@ test('json-style - serialize carries node style', () => {
     });
 });
 
-test('json-style - serialize carries styles', () => {
+test('json-style - serialize carries the mind map style', () => {
     const serializer = new JmMindJsonSerializer();
     const mind = new JmMind();
-    mind.styles = { theme: 'default', background: '#fafafa' };
+    mind.style = { theme: 'default', background: '#fafafa' };
 
-    const explicit = serializer.serialize(mind).styles;
-    assert.ok(explicit, 'styles should be serialized');
+    const explicit = serializer.serialize(mind).style;
+    assert.ok(explicit, 'style should be serialized');
     assert.strictEqual(explicit.theme, 'default');
     assert.strictEqual(explicit.background, '#fafafa');
 
     // Naming the inherited theme is optional: inheriting default is implied.
-    mind.styles = { background: '#101010' };
-    const implied = serializer.serialize(mind).styles;
+    mind.style = { background: '#101010' };
+    const implied = serializer.serialize(mind).style;
     assert.strictEqual(implied?.theme, undefined, 'theme may be left out');
     assert.strictEqual(implied?.background, '#101010');
 });
@@ -121,12 +121,12 @@ test('json-style - serialize carries edge style', () => {
     });
 });
 
-test('json-style - deserialize restores styles', () => {
+test('json-style - deserialize restores the mind map style', () => {
     const serializer = new JmMindJsonSerializer();
 
     const source: SerializedMindMap = {
         format: JSMIND_FORMAT_V2,
-        styles: { theme: 'default', background: '#fafafa' },
+        style: { theme: 'default', background: '#fafafa' },
         meta: { id: 'm1', name: 'Styled', author: '', version: '2.0.0' },
         root: 'root',
         nodes: {
@@ -159,7 +159,7 @@ test('json-style - deserialize restores styles', () => {
 
     const mind = serializer.deserialize(source);
 
-    assert.deepStrictEqual(mind.styles, source.styles, 'styles should round-trip');
+    assert.deepStrictEqual(mind.style, source.style, 'style should round-trip');
     assert.strictEqual(mind._nodes['n1'].style?.tone, JmTone.Success);
     assert.strictEqual(mind._nodes['n1'].style?.fontSize, 16);
     assert.deepStrictEqual(mind._nodes['n1'].style?.incoming, {
@@ -196,7 +196,7 @@ test('json-style - round trip is byte-for-byte identical', () => {
 
     const original: SerializedMindMap = {
         format: JSMIND_FORMAT_V2,
-        styles: {
+        style: {
             theme: 'default',
             background: '#ffffff',
             tones: { [JmTone.Primary]: { fillColor: '#e8f3ff', textColor: '#1a5fb4' } },
@@ -249,8 +249,8 @@ test('json-style - round trip is byte-for-byte identical', () => {
     );
 });
 
-test('json-style - legacy data without format or styles still deserializes', () => {
-    // Files written before the format/styles fields existed must keep working.
+test('json-style - legacy data without format or style still deserializes', () => {
+    // Files written before the format/style fields existed must keep working.
     const serializer = new JmMindJsonSerializer();
 
     const legacy: SerializedMindMap = {
@@ -271,7 +271,7 @@ test('json-style - legacy data without format or styles still deserializes', () 
     };
 
     const mind = serializer.deserialize(legacy);
-    assert.strictEqual(mind.styles, undefined, 'no styles in, no styles out');
+    assert.strictEqual(mind.style, undefined, 'no style in, no style out');
     assert.strictEqual(mind._nodes['root'].style, undefined);
 
     // Re-serializing adds the format identifier; that is expected and harmless.

@@ -50,7 +50,7 @@ v2 的数据有**三种表示**，各自服务不同用途：
     "author": "张同学",
     "version": "1.0"
   },
-  "styles": { "theme": "default" },
+  "style": { "theme": "default" },
   "root": "root",
   "nodes": {
     "root": {
@@ -123,7 +123,7 @@ interface SerializedMindMap {
     nodes: Record<string, SerializedNode>;
     edges: Record<string, SerializedEdge>;
     format?: "jsmind_v2";
-    styles?: JmStyles;
+    style?: JmStyle;
 }
 ```
 
@@ -134,7 +134,7 @@ interface SerializedMindMap {
 | `nodes` | `Record<string, SerializedNode>` | ✅ | — | 现有 |
 | `edges` | `Record<string, SerializedEdge>` | ✅ | `{}` | 现有 |
 | `format` | `"jsmind_v2"` | ❌ | 无 | **新增** |
-| `styles` | `JmStyles` | ❌ | 继承 `default` | **新增** |
+| `style` | `JmStyle` | ❌ | 继承 `default` | **新增** |
 
 **关于 `root` 的取值**：现有实现里根节点 id 来自 `JsMindOptions.mind.rootNodeId`，默认是固定字符串 `"root"`，**不经过 `SimpleIdGenerator`**。所以文件里常见 `"root": "root"`。这个值不参与 id 稳定性约束（它是配置项，不是动态生成的节点 id），但**同一文件内必须唯一且指向真实存在的节点**。
 
@@ -295,7 +295,7 @@ interface JmTonePalette {
     lineColor: string;
 }
 
-interface JmStyles {
+interface JmStyle {
     theme?: string;
     background?: string;
     tones?: Partial<Record<JmTone, Partial<JmTonePalette>>>;
@@ -314,15 +314,15 @@ interface JmStyles {
 }
 ```
 
-**读法只有一种：** `styles` 是「这个 mindmap 的样式声明」—— 它**继承 `styles.theme` 指向的预设**（不写就继承 `default`），然后**应用声明的其余字段**。
+**读法只有一种：** `style` 是「这个 mindmap 的样式声明」—— 它**继承 `style.theme` 指向的预设**（不写就继承 `default`），然后**应用声明的其余字段**。
 
 ```json
-"styles": { "theme": "default", "background": "#fafafa" }
+"style": { "theme": "default", "background": "#fafafa" }
 ```
 = 继承 `default`，把背景改成 `#fafafa`。
 
 ```json
-"styles": { "background": "#101010", "node": { "radius": 8 } }
+"style": { "background": "#101010", "node": { "radius": 8 } }
 ```
 = 同样继承 `default`（`theme` 隐含），只改这两处。
 
@@ -508,7 +508,7 @@ No node matches "粗暴". Closest:
 | `style.tone` ∈ 六个 tone 值 | `E_TONE` |
 | `style.borderStyle` / `incoming.pattern` ∈ `{solid,dashed,dotted}` | `E_LINE_STYLE` |
 | `style.fontSize` / `borderWidth` 为正数 | `E_STYLE_RANGE` |
-| `styles.theme` 若是字符串，必须在内置预设表中 | `E_THEME_UNKNOWN` |
+| `style.theme` 若是字符串，必须在内置预设表中 | `E_THEME_UNKNOWN` |
 
 ### 9.6 错误输出格式
 
@@ -583,7 +583,7 @@ Wrote mind.json
 | `expanded` | `folded` | **取反** |
 | `direction` | `side` | `left`/`right` 直接映射 |
 | `data` | `data` | 直接 |
-| （无） | `style` / `styles` | **导出 v1 时丢弃 + 报告** |
+| （无） | `style` / `style` | **导出 v1 时丢弃 + 报告** |
 | （无） | `edges` | **导出 v1 时丢弃 + 报告** |
 
 **方向性：v1 格式冻结，能力上 v2 覆盖 v1。** 但**数据结构不同，必须经 adapter 转换，不能直接互通**。

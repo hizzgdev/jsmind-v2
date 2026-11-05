@@ -10,8 +10,8 @@ import {
     JSMIND_THEME_DEFAULT,
     JSMIND_THEME_PRESETS,
     mergeJmTheme,
-    resolveJmStyles,
-    type JmStyles,
+    resolveJmStyle,
+    type JmStyle,
 } from '../../../src/model/data/style.ts';
 
 test('style - JmTone has exactly six semantic tones', () => {
@@ -91,7 +91,7 @@ test('style - mergeJmTheme deep merges tone palettes', () => {
 test('style - mergeJmTheme does not mutate its inputs', () => {
     const baseSnapshot = JSON.parse(JSON.stringify(JSMIND_THEME_DEFAULT));
 
-    const override: JmStyles = { tones: { [JmTone.Primary]: { fillColor: '#123456' } } };
+    const override: JmStyle = { tones: { [JmTone.Primary]: { fillColor: '#123456' } } };
     const overrideSnapshot = JSON.parse(JSON.stringify(override));
 
     mergeJmTheme(JSMIND_THEME_DEFAULT, override);
@@ -118,7 +118,7 @@ test('style - mergeJmTheme merges geometry sections one level deep', () => {
 
 test('style - mergeJmTheme ignores the theme field', () => {
     // `theme` names the preset to inherit from and is consumed by
-    // resolveJmStyles. It must not leak into the resolved theme.
+    // resolveJmStyle. It must not leak into the resolved theme.
     const merged = mergeJmTheme(JSMIND_THEME_DEFAULT, { theme: 'default', background: '#222' });
 
     assert.strictEqual(merged.background, '#222', 'background applies');
@@ -129,14 +129,14 @@ test('style - mergeJmTheme ignores the theme field', () => {
     );
 });
 
-test('style - resolveJmStyles with no argument returns the default theme', () => {
-    assert.deepStrictEqual(resolveJmStyles(), JSMIND_THEME_DEFAULT);
+test('style - resolveJmStyle with no argument returns the default theme', () => {
+    assert.deepStrictEqual(resolveJmStyle(), JSMIND_THEME_DEFAULT);
 });
 
-test('style - resolveJmStyles inherits default when theme is not named', () => {
+test('style - resolveJmStyle inherits default when theme is not named', () => {
     // The point of the flat declaration: inheriting is the default, so a file
     // that only overrides a colour does not have to name the preset.
-    const resolved = resolveJmStyles({ background: '#101010' });
+    const resolved = resolveJmStyle({ background: '#101010' });
 
     assert.strictEqual(resolved.background, '#101010', 'override applies');
     assert.deepStrictEqual(
@@ -151,15 +151,15 @@ test('style - resolveJmStyles inherits default when theme is not named', () => {
     );
 });
 
-test('style - resolveJmStyles honours an explicit theme name', () => {
-    const resolved = resolveJmStyles({ theme: 'default', background: '#333333' });
+test('style - resolveJmStyle honours an explicit theme name', () => {
+    const resolved = resolveJmStyle({ theme: 'default', background: '#333333' });
 
     assert.strictEqual(resolved.background, '#333333');
     assert.deepStrictEqual(resolved.tones, JSMIND_THEME_DEFAULT.tones);
 });
 
-test('style - resolveJmStyles deep merges overrides onto the inherited preset', () => {
-    const resolved = resolveJmStyles({
+test('style - resolveJmStyle deep merges overrides onto the inherited preset', () => {
+    const resolved = resolveJmStyle({
         theme: 'default',
         tones: { [JmTone.Danger]: { fillColor: '#000000' } },
     });
@@ -177,21 +177,21 @@ test('style - resolveJmStyles deep merges overrides onto the inherited preset', 
     );
 });
 
-test('style - resolveJmStyles throws on an unknown theme name', () => {
-    assert.throws(() => resolveJmStyles({ theme: 'nope' }), /unknown theme: nope/);
+test('style - resolveJmStyle throws on an unknown theme name', () => {
+    assert.throws(() => resolveJmStyle({ theme: 'nope' }), /unknown theme: nope/);
 });
 
-test('style - resolveJmStyles throws on a non-string theme name', () => {
+test('style - resolveJmStyle throws on a non-string theme name', () => {
     assert.throws(
-        () => resolveJmStyles({ theme: 42 } as unknown as JmStyles),
+        () => resolveJmStyle({ theme: 42 } as unknown as JmStyle),
         /invalid theme name/
     );
 });
 
-test('style - resolveJmStyles throws on a non-object declaration', () => {
+test('style - resolveJmStyle throws on a non-object declaration', () => {
     assert.throws(
-        () => resolveJmStyles('default' as unknown as JmStyles),
-        /invalid styles declaration/
+        () => resolveJmStyle('default' as unknown as JmStyle),
+        /invalid style declaration/
     );
 });
 

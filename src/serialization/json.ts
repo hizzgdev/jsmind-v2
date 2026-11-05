@@ -12,7 +12,7 @@ import { JsMindError } from '../common/error.ts';
 import type { MindMetadata } from '../common/option.ts';
 import type { JmNodeSide } from '../model/data/node.ts';
 import type { JmNodeContentType } from '../model/data/node-content.ts';
-import type { JmNodeStyle, JmLineStyle, JmStyles } from '../model/data/style.ts';
+import type { JmNodeStyle, JmLineStyle, JmStyle } from '../model/data/style.ts';
 
 /**
  * Format identifier written to every v2 data file.
@@ -65,7 +65,7 @@ export interface SerializedMindMap {
     /** Format identifier. Always `jsmind_v2` for data written by this version. */
     format?: string;
     /** Style declaration: which theme to inherit from, plus overrides. */
-    styles?: JmStyles;
+    style?: JmStyle;
     meta: MindMetadata;
     root: string;
     nodes: Record<string, SerializedNode>;
@@ -107,8 +107,8 @@ export class JmMindJsonSerializer implements JmMindSerializer {
             edges: {}
         };
 
-        if (mind.styles !== undefined) {
-            serializedData.styles = mind.styles;
+        if (mind.style !== undefined) {
+            serializedData.style = mind.style;
         }
 
         // Serialize all nodes
@@ -138,8 +138,8 @@ export class JmMindJsonSerializer implements JmMindSerializer {
 
         // Create mind map with metadata and options
         const mind = new JmMind(data.meta, { rootNodeId: data.root });
-        if (data.styles !== undefined) {
-            mind.styles = data.styles;
+        if (data.style !== undefined) {
+            mind.style = data.style;
         }
 
         // Restore nodes

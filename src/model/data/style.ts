@@ -207,9 +207,15 @@ export interface JmTheme {
 }
 
 /**
- * Style declaration for a mind map, as stored in the data file.
+ * Style declaration for a whole mind map, as stored in the data file.
  *
  * @remarks
+ * Named in the singular, like the per-node and per-edge style fields: one
+ * `style` concept, with the scope decided by where it sits. `mind.style` covers
+ * the whole map; `node.style` covers one node; `edge.style` covers one edge.
+ * Carrying both `styles` and `style` in one document only differed by an `s`,
+ * which is a trap for an agent generating the JSON.
+ *
  * Read this as: "this mind map looks like this — it inherits from `theme`, then
  * overrides the fields listed below."
  *
@@ -225,7 +231,7 @@ export interface JmTheme {
  *
  * @public
  */
-export interface JmStyles {
+export interface JmStyle {
     /** Name of the built-in theme to inherit from. Defaults to `"default"`. */
     theme?: string;
     /** Canvas background color. */
@@ -309,11 +315,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * @public
  */
-export function mergeJmTheme(base: JmTheme, override: JmStyles): JmTheme {
+export function mergeJmTheme(base: JmTheme, override: JmStyle): JmTheme {
     const result: JmTheme = { ...base };
 
     // `theme` names the preset to inherit from and is consumed by
-    // resolveJmStyles before this runs, so there is nothing to carry over here.
+    // resolveJmStyle before this runs, so there is nothing to carry over here.
     if (override.background !== undefined) {
         result.background = override.background;
     }
@@ -377,25 +383,25 @@ function mergeTonePalettes(
  * Resolves a style declaration into a complete theme.
  *
  * @remarks
- * `styles.theme` picks the preset to inherit from (default `"default"`), then
- * every other field in `styles` is merged on top of it, deeply.
+ * `style.theme` picks the preset to inherit from (default `"default"`), then
+ * every other field in `style` is merged on top of it, deeply.
  *
- * @param styles - The style declaration, if the data carried one.
+ * @param style - The style declaration, if the data carried one.
  * @returns A fully populated theme; never partial.
  * @throws {@link Error} If the named preset does not exist.
  *
  * @public
  */
-export function resolveJmStyles(styles?: JmStyles): JmTheme {
-    if (styles === undefined || styles === null) {
+export function resolveJmStyle(style?: JmStyle): JmTheme {
+    if (style === undefined || style === null) {
         return { ...JSMIND_THEME_DEFAULT };
     }
 
-    if (!isPlainObject(styles)) {
-        throw new Error('invalid styles declaration');
+    if (!isPlainObject(style)) {
+        throw new Error('invalid style declaration');
     }
 
-    const themeName = styles.theme ?? 'default';
+    const themeName = style.theme ?? 'default';
     if (typeof themeName !== 'string') {
         throw new Error('invalid theme name');
     }
@@ -405,5 +411,5 @@ export function resolveJmStyles(styles?: JmStyles): JmTheme {
         throw new Error(`unknown theme: ${themeName}`);
     }
 
-    return mergeJmTheme(preset, styles);
+    return mergeJmTheme(preset, style);
 }
