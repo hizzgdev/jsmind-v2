@@ -135,16 +135,18 @@ node.isRoot     node.parent    node.side     node.ts
 
 ### 第 2 层：渲染
 
-#### S3 `feat(view): theme system`
+#### ~~S3 `feat(view): theme system`~~ —— 已并入 S1
 
-- 三种引用形态的解析：`"default"` / `{ name, ...覆盖 }` / 完整定义
-- **深度合并**（浅合并会丢 tone 的 `text` / `border` / `line`）
-- 内置 `default` 主题（六色 tone）
-- 产出 `resolveTheme(ref): JmTheme`
+**原计划的四条全部由 S1（PR #9）完成：**
 
-**测试**：纯单测，不涉及 DOM。重点测深度合并——浅合并的 bug 表现为"节点变黑底黑字"
+| 原计划 | 实际落点 |
+|---|---|
+| 三种引用形态的解析 | **只剩一种**：`style: { theme, ...覆盖 }`。`{ name, ... }` 与"完整定义"两种形态在评审中判定为语义含糊，已合并 |
+| 深度合并 | `mergeJmTheme`，`tones` 逐字段合并，浅合并会让节点变黑底黑字，有专门回归测试 |
+| 内置 `default` 主题（六色 tone） | `JSMIND_THEME_DEFAULT` |
+| `resolveTheme(ref): JmTheme` | `resolveJmStyle(style?)`，产出完整 `JmTheme`，不返回半截 |
 
-**不碰渲染**：本 PR 只产出解析好的 theme 对象
+**渲染层不需要再单独做一遍主题解析。** S4 直接消费 `resolveJmStyle()` 的产出。
 
 ---
 
@@ -193,7 +195,8 @@ node.style.fontSize = 18
 
 ### 第 3 层：产物
 
-#### S7 `feat(cli): context, validate and render commands`
+#### S7a `feat(cli): context, validate and mind/node data commands` —— 已完成
+#### S7b `feat(cli): render command` —— 待渲染层就绪
 
 **完整设计见 `docs/requirements/v2-cli.md`。**
 
@@ -207,6 +210,19 @@ node.style.fontSize = 18
   —— 对应 `JmNode` 的可写字段（`content` / `folded` / `side`），走字段赋值不调方法
 
 **`node set-style` 不在这个 PR** —— 它依赖 S1 的 schema 和 S4 的样式实现。
+
+**实施时的拆分（S7a 已交付）：**
+
+| 部分 | 状态 | 说明 |
+|---|---|---|
+| `validate` | ✅ | 接 S2 的校验器，四档退出码 |
+| `context` | ✅ | 唯一允许模糊匹配；未命中给候选而非 not found |
+| `mind` 组 | ✅ | `find` / `add-child` / `add-node` / `move` / `remove-node` / `add-edge` / `remove-edge` / `edges` |
+| `node` 组 | ✅ | `set-text` / `set-folded` / `set-side` |
+| `node set-style` | ⏳ | 等 S4 |
+| `render` | ⏳ | 等 S4–S6；S7b 单独做 |
+
+**为什么先做 S7a 而不是 S4：** S1+S2 把数据层做完了，CLI 是把这些能力暴露给 agent 的最短路径 —— 数据层再完整，agent 也只能靠读代码来用。渲染层（S4–S6）服务于人看图，可以后做。而且 S7a 完全不碰 DOM，纯 Node 可测。
 
 **注意**：`convert` 命令**不在这个 PR** —— 它依赖 adapter，跟 S13 一起做
 

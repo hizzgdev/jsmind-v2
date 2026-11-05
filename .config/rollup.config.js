@@ -30,6 +30,25 @@ export default [
             }),
         ],
     },
+    // CLI bundle for Node — must not pull in the renderer, which needs a DOM.
+    {
+        input: 'src/cli/index.ts',
+        output: {
+            file: 'dist/cli.js',
+            format: 'es',
+            banner: banner,
+            sourcemap: true,
+        },
+        external: [/^node:/],
+        plugins: [
+            typescript({
+                tsconfig: './tsconfig.json',
+                declaration: false,
+                declarationMap: false,
+                sourceMap: true,
+            }),
+        ],
+    },
     // TypeScript declaration files
     {
         input: 'src/application/jsmind.ts',
