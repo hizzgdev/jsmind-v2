@@ -504,7 +504,7 @@ No node matches "粗暴". Closest:
 | 检查 | 错误码 |
 |---|---|
 | `content.type` 为 `"text"` | `E_CONTENT_TYPE` |
-| `side` ∈ `{left, right, center}` | `E_SIDE` |
+| `side` ∈ `{-1, 0, 1}`（JSON 里是数字，见 4.2） | `E_SIDE` |
 | `style.tone` ∈ 六个 tone 值 | `E_TONE` |
 | `style.borderStyle` / `incoming.pattern` ∈ `{solid,dashed,dotted}` | `E_LINE_STYLE` |
 | `style.fontSize` / `borderWidth` 为正数 | `E_STYLE_RANGE` |
