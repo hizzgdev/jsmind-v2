@@ -60,7 +60,7 @@ export const JmValidationCode = {
     EdgeType: 'E_EDGE_TYPE',
     /** `side` is not a known side value. */
     Side: 'E_SIDE',
-    /** `style.tone` is not one of the six tones. */
+    /** `style.tone` is not one of the known tones. */
     Tone: 'E_TONE',
     /** A line pattern is not solid/dashed/dotted. */
     LineStyle: 'E_LINE_STYLE',

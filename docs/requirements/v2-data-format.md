@@ -234,22 +234,29 @@ export type JmNodeSide = typeof JmNodeSide[keyof typeof JmNodeSide];
 
 ## 5. 样式与主题
 
-### 5.1 tone：六个语义色
+### 5.1 tone：五个语义色 + 两个中性色
 
 ```typescript
 export const JmTone = {
-    Default: 'default',
-    Primary: 'primary',
-    Success: 'success',
-    Warning: 'warning',
-    Danger:  'danger',
-    Info:    'info',
+    Default: 'default',   // 没有表态
+    Primary: 'primary',   // 重点
+    Success: 'success',   // 成立 / 通过
+    Warning: 'warning',   // 注意
+    Danger:  'danger',    // 有问题
+    Info:    'info',      // 补充信息
+    Accent:  'accent',    // 只是想让它在视觉上跳出来，不含判断
 } as const;
 
 export type JmTone = typeof JmTone[keyof typeof JmTone];
 ```
 
+**`primary` 到 `info` 是语义的** —— 它们表达「这个节点在这张图里扮演什么角色」，是对内容的判断。
+
+**`accent` 不是语义的** —— 它只说「让这个显眼一点」，不附带「重要」「有问题」之类的断言。之所以单独留一个，是因为 v1 的 `theme-wisteria`（紫色）在五个语义色里没有归宿，硬塞进去会让某个语义色的含义被稀释。
+
 **tone 只表达颜色，不表达几何。** 语义角色的本质就是颜色；几何应该正交（一个节点可以同时是「warning 色 + 粗边框 + 大字号」）；对 Agent 友好（副作用越小，生成越可控）。
+
+**配色用实心填充 + 白字**，取自 v1。淡色调（浅底深字）在小尺寸下几乎看不出区别，一屏十几个节点时「哪个不一样」要靠找。v1 那批配色名里有四个与语义色几乎同色相（`belizehole` 与 `primary` 差 4°、`pomegranate` 与 `danger` 差 4°、`pumpkin` 与 `warning` 差 7°、`nephrite` 与 `success` 差 25°），因此并入对应 tone，不再单列；`greensea`/`orange` 同理。三档中性灰（`asbestos`/`clouds`/`asphalt`）由 `default` 承担，不另设。
 
 ### 5.2 `JmNodeStyle`
 
@@ -295,6 +302,19 @@ interface JmTonePalette {
     lineColor: string;
 }
 
+interface JmThemeShadowLayer {
+    offsetX: number;      // px
+    offsetY: number;      // px
+    blur: number;         // px
+    color: string;
+}
+
+interface JmThemeShadow {
+    normal: JmThemeShadowLayer;      // 静止
+    hover: JmThemeShadowLayer;       // 指针悬停
+    selected: JmThemeShadowLayer;    // 选中
+}
+
 interface JmStyle {
     theme?: string;
     background?: string;
@@ -303,16 +323,36 @@ interface JmStyle {
         radius: number;
         padding: number;
         fontSize: number;
+        rootFontSize: number;        // 根节点字号，与正文分开
         fontFamily: string;
+        lineHeight: number;          // 倍率，不是像素
         borderWidth: number;
+        maxWidth: number;            // 超过则换行
+        shadow: Partial<{
+            normal: Partial<JmThemeShadowLayer>;
+            hover: Partial<JmThemeShadowLayer>;
+            selected: Partial<JmThemeShadowLayer>;
+        }>;
     }>;
     line?: Partial<{
         width: number;
         pattern: JmLinePattern;
     }>;
-    expander?: Partial<{ size: number }>;
+    expander?: Partial<{
+        size: number;
+        radius: number;
+        fontSize: number;
+        lineHeight: number;          // px
+        borderWidth: number;
+    }>;
 }
 ```
+
+**`shadow` 为什么拆成四段而不是一个 CSS 字符串** —— `"1px 1px 1px #666"` 没法按字段合并，改一个模糊半径也得重写整串；拆开之后 `hover.blur` 单独设置是合法的，其余沿用预设。
+
+**`rootFontSize` 与 `fontSize` 分开** —— 根节点是这张图的标题，v1 用 24px 配 16px 正文。合成一个字段就必须二选一，层级感随之消失。
+
+**`lineHeight` 是倍率** —— 跟随 `fontSize` 缩放，不需要为每个字号另配一个像素值。**`expander.lineHeight` 例外，是像素**，因为展开器的文字大小和尺寸各自独立，倍率没有意义。
 
 **读法只有一种：** `style` 是「这个 mindmap 的样式声明」—— 它**继承 `style.theme` 指向的预设**（不写就继承 `default`），然后**应用声明的其余字段**。
 
@@ -510,7 +550,7 @@ No node matches "粗暴". Closest:
 | `content.type` 为 `"text"` | `E_CONTENT_TYPE` |
 | `edge.type` ∈ `JmEdgeType` 已知值（当前只有 `"link"`） | `E_EDGE_TYPE` |
 | `side` ∈ `{-1, 0, 1}`（JSON 里是数字，见 4.2） | `E_SIDE` |
-| `style.tone` ∈ 六个 tone 值 | `E_TONE` |
+| `style.tone` ∈ 已知 tone 值（见附录） | `E_TONE` |
 | `style.borderStyle` / `incoming.pattern` ∈ `{solid,dashed,dotted}` | `E_LINE_STYLE` |
 | `style.fontSize` / `borderWidth` 为正数 | `E_STYLE_RANGE` |
 | `style.theme` 若是字符串，必须在内置预设表中 | `E_THEME_UNKNOWN` |

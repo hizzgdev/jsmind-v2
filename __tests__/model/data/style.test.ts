@@ -14,11 +14,18 @@ import {
     type JmStyle,
 } from '../../../src/model/data/style.ts';
 
-test('style - JmTone has exactly six semantic tones', () => {
+test('style - JmTone has the six semantic tones plus accent', () => {
+    // Five semantic roles read as a statement about the content: this one
+    // succeeded, this one is in danger. `default` is the absence of a statement.
+    // `accent` is deliberately not semantic — it means "make this stand out"
+    // without claiming anything — so it is listed apart rather than folded into
+    // the same group.
+    const semantic = ['danger', 'default', 'info', 'primary', 'success', 'warning'];
+    const all = [...semantic, 'accent'];
     assert.deepStrictEqual(
         Object.values(JmTone).sort(),
-        ['danger', 'default', 'info', 'primary', 'success', 'warning'],
-        'tones should be the six agreed semantic colors'
+        [...all].sort(),
+        'tones should be the six semantic colors plus accent'
     );
 });
 
@@ -200,4 +207,70 @@ test('style - JmLinePattern exposes the three line patterns', () => {
         Object.values(JmLinePattern).sort(),
         ['dashed', 'dotted', 'solid']
     );
+});
+
+test('style - default theme carries the v1 geometry values', () => {
+    // These are the numbers the stylesheet used, ported rather than retuned.
+    // Changing one is a visual change to every map, so the test pins them.
+    const node = JSMIND_THEME_DEFAULT.node;
+    assert.ok(node);
+    assert.strictEqual(node.padding, 10);
+    assert.strictEqual(node.radius, 5);
+    assert.strictEqual(node.fontSize, 16);
+    assert.strictEqual(node.rootFontSize, 24);
+    assert.strictEqual(node.lineHeight, 1.125);
+    assert.strictEqual(node.maxWidth, 400);
+    assert.match(node.fontFamily, /Verdana/);
+    // Zero: v1 drew no node border and got its depth from the shadow.
+    assert.strictEqual(node.borderWidth, 0);
+});
+
+test('style - default theme defines a shadow for every state', () => {
+    const shadow = JSMIND_THEME_DEFAULT.node?.shadow;
+    assert.ok(shadow, 'default theme must define node shadows');
+
+    for (const state of ['normal', 'hover', 'selected'] as const) {
+        const layer = shadow[state];
+        assert.ok(layer, `${state} shadow must exist`);
+        for (const key of ['offsetX', 'offsetY', 'blur'] as const) {
+            assert.strictEqual(typeof layer[key], 'number', `${state}.${key} must be a number`);
+        }
+        assert.strictEqual(typeof layer.color, 'string', `${state}.color must be a string`);
+    }
+});
+
+test('style - expander carries the v1 geometry', () => {
+    const expander = JSMIND_THEME_DEFAULT.expander;
+    assert.ok(expander);
+    assert.strictEqual(expander.size, 13);
+    assert.strictEqual(expander.radius, 6.5, 'half of size, i.e. the circle the stylesheet drew');
+    assert.strictEqual(expander.fontSize, 8);
+    assert.strictEqual(expander.lineHeight, 11);
+    assert.strictEqual(expander.borderWidth, 1);
+});
+
+test('style - mergeJmTheme deep merges one shadow state without losing the others', () => {
+    const merged = mergeJmTheme(JSMIND_THEME_DEFAULT, {
+        node: { shadow: { hover: { blur: 16 } } },
+    });
+    const shadow = merged.node?.shadow;
+    assert.ok(shadow);
+
+    assert.strictEqual(shadow.hover.blur, 16, 'the overridden field');
+    assert.strictEqual(shadow.hover.offsetX, 2, 'siblings inside the same layer survive');
+    assert.strictEqual(shadow.normal.blur, 1, 'states the override did not mention survive');
+    assert.strictEqual(shadow.selected.blur, 8);
+});
+
+test('style - mergeJmTheme leaves the shadow untouched when the override omits it', () => {
+    const merged = mergeJmTheme(JSMIND_THEME_DEFAULT, { node: { padding: 20 } });
+    assert.strictEqual(merged.node?.padding, 20);
+    assert.deepStrictEqual(merged.node?.shadow, JSMIND_THEME_DEFAULT.node?.shadow);
+});
+
+test('style - mergeJmTheme composes shadow over an inherited preset', () => {
+    const merged = resolveJmStyle({ node: { shadow: { normal: { color: '#ff0000' } } } });
+    assert.strictEqual(merged.node?.shadow.normal.color, '#ff0000');
+    assert.strictEqual(merged.node?.shadow.normal.offsetX, 1, 'rest of the layer kept');
+    assert.strictEqual(merged.node?.shadow.hover.blur, 8, 'other states kept');
 });
