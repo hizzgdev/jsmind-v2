@@ -175,6 +175,10 @@ function dispatch(parsed: ParsedArgs): number {
                 text: requireOption(parsed.values, 'text'),
                 force: parsed.values.force === true,
                 dryRun: parsed.values['dry-run'] === true,
+                // --output is deliberately not forwarded: for create the path
+                // is already a positional argument, and an output redirect
+                // would give two competing answers to "where does this go".
+                backup: parsed.values.backup === true,
             };
             if (typeof parsed.values.name === 'string') {
                 options.name = parsed.values.name;

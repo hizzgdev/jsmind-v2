@@ -2,50 +2,15 @@
  * @fileoverview Tests for the create command.
  */
 
-import { test, mock } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
 import { runCreate } from '../../src/cli/commands/create.ts';
 import { runValidate } from '../../src/cli/commands/validate.ts';
 import { CliError, CliExit } from '../../src/cli/exit.ts';
-
-/**
- * Creates a scratch directory.
- *
- * @returns The directory path.
- */
-function scratch(): string {
-    return mkdtempSync(join(tmpdir(), 'jsmind-create-'));
-}
-
-/**
- * Captures what a command writes.
- *
- * @param run - Callback that triggers the command.
- * @returns What was written to stdout.
- */
-function capture(run: () => void): { out: string; err: string } {
-    const out: string[] = [];
-    const err: string[] = [];
-    const o = mock.method(process.stdout, 'write', (chunk: string | Uint8Array) => {
-        out.push(String(chunk));
-        return true;
-    });
-    const e = mock.method(process.stderr, 'write', (chunk: string | Uint8Array) => {
-        err.push(String(chunk));
-        return true;
-    });
-    try {
-        run();
-    } finally {
-        o.mock.restore();
-        e.mock.restore();
-    }
-    return { out: out.join(''), err: err.join('') };
-}
+import { scratch, capture } from './helpers.ts';
 
 test('create - produces a file that validates immediately', () => {
     const dir = scratch();
@@ -53,7 +18,7 @@ test('create - produces a file that validates immediately', () => {
 
     let code = -1;
     capture(() => {
-        code = runCreate({ file, text: '根节点', force: false, dryRun: false });
+        code = runCreate({ file, text: '根节点', force: false, dryRun: false, backup: false });
     });
 
     assert.strictEqual(code, CliExit.Ok);
@@ -74,7 +39,7 @@ test('create - the document has one root with the given text', () => {
     const file = join(dir, 'new.json');
 
     capture(() => {
-        runCreate({ file, text: '起点', name: '我的图', author: 'someone', force: false, dryRun: false });
+        runCreate({ file, text: '起点', name: '我的图', author: 'someone', force: false, dryRun: false, backup: false });
     });
 
     const doc = JSON.parse(readFileSync(file, 'utf8'));
@@ -97,7 +62,7 @@ test('create - refuses to overwrite without --force', () => {
     assert.throws(
         () => {
             capture(() => {
-                runCreate({ file, text: 'x', force: false, dryRun: false });
+                runCreate({ file, text: 'x', force: false, dryRun: false, backup: false });
             });
         },
         (err: unknown) => {
@@ -119,7 +84,7 @@ test('create - --force replaces the file', () => {
     writeFileSync(file, '{"old":true}');
 
     capture(() => {
-        runCreate({ file, text: '新的', force: true, dryRun: false });
+        runCreate({ file, text: '新的', force: true, dryRun: false, backup: false });
     });
 
     const doc = JSON.parse(readFileSync(file, 'utf8'));
@@ -132,7 +97,7 @@ test('create - --dry-run prints the document and writes nothing', () => {
     const file = join(dir, 'new.json');
 
     const { out } = capture(() => {
-        runCreate({ file, text: '只看不写', force: false, dryRun: true });
+        runCreate({ file, text: '只看不写', force: false, dryRun: true, backup: false });
     });
 
     assert.ok(!existsSync(file), 'dry-run must not create the file');
@@ -144,10 +109,9 @@ test('create - --dry-run prints the document and writes nothing', () => {
 test('create - omitting name and author leaves the defaults intact', () => {
     const dir = scratch();
     const file = join(dir, 'new.json');
-    writeFileSync(file, '{}');
 
     capture(() => {
-        runCreate({ file, text: 'x', force: true, dryRun: false });
+        runCreate({ file, text: 'x', force: true, dryRun: false, backup: false });
     });
 
     const doc = JSON.parse(readFileSync(file, 'utf8'));
@@ -155,5 +119,50 @@ test('create - omitting name and author leaves the defaults intact', () => {
     // present catches a regression where create silently blanks the metadata.
     assert.ok(typeof doc.meta.name === 'string');
     assert.ok(typeof doc.meta.author === 'string');
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('create - --force --backup keeps a copy of the replaced file', () => {
+    const dir = scratch();
+    const file = join(dir, 'new.json');
+    const bak = `${file}.bak`;
+    writeFileSync(file, '{"previous":"content"}');
+
+    capture(() => {
+        runCreate({ file, text: '覆盖后的', force: true, dryRun: false, backup: true });
+    });
+
+    // The flag used to be hardcoded to false, so --backup was silently ignored
+    // and the previous file was unrecoverable.
+    assert.ok(existsSync(bak), 'the .bak copy must exist');
+    assert.strictEqual(JSON.parse(readFileSync(bak, 'utf8')).previous, 'content');
+    assert.strictEqual(JSON.parse(readFileSync(file, 'utf8')).nodes.root.content.value, '覆盖后的');
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('create - --backup on a fresh path creates no .bak', () => {
+    const dir = scratch();
+    const file = join(dir, 'new.json');
+
+    capture(() => {
+        runCreate({ file, text: '全新的', force: false, dryRun: false, backup: true });
+    });
+
+    // Nothing was overwritten, so there is nothing to back up.
+    assert.ok(existsSync(file));
+    assert.ok(!existsSync(`${file}.bak`), 'no .bak should be produced when nothing was replaced');
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('create - without --backup the previous file is not kept', () => {
+    const dir = scratch();
+    const file = join(dir, 'new.json');
+    writeFileSync(file, '{"previous":"content"}');
+
+    capture(() => {
+        runCreate({ file, text: '覆盖', force: true, dryRun: false, backup: false });
+    });
+
+    assert.ok(!existsSync(`${file}.bak`));
     rmSync(dir, { recursive: true, force: true });
 });

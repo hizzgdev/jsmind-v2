@@ -31,6 +31,7 @@ export interface CreateOptions {
     author?: string;
     force: boolean;
     dryRun: boolean;
+    backup: boolean;
 }
 
 /**
@@ -48,6 +49,13 @@ export function runCreate(options: CreateOptions): number {
         );
     }
 
+    // Build the object only from the fields that were actually given.
+    //
+    // Do not "simplify" this to `new JmMind({ name, author })`: mergeObjects
+    // spreads user values over the defaults, and a present-but-undefined key
+    // overwrites the default with undefined rather than being skipped. That
+    // silently produces a document missing meta.name and meta.author, which the
+    // validator then rejects as E_META.
     const metadata: { name?: string; author?: string } = {};
     if (options.name !== undefined) {
         metadata.name = options.name;
@@ -78,7 +86,7 @@ export function runCreate(options: CreateOptions): number {
         return CliExit.Ok;
     }
 
-    writeJsonFile(doc, options.file, { dryRun: false, backup: false });
+    writeJsonFile(doc, options.file, { dryRun: false, backup: options.backup });
     process.stdout.write(`created ${options.file}\n`);
     return CliExit.Ok;
 }
@@ -94,6 +102,7 @@ Start a new mind map containing a single root node.
   --name <name>      Document name recorded in meta
   --author <author>  Author recorded in meta
   --force            Overwrite the file if it already exists
+  --backup           Keep a .bak copy of the file being overwritten
   --dry-run          Print the document instead of writing it
 
 Refuses to overwrite an existing file without --force. Every other command
