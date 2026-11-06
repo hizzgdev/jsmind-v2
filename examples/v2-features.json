@@ -2,7 +2,7 @@
   "format": "jsmind_v2",
   "meta": {
     "author": "zzgbot",
-    "name": "jsMind v2 能力地图",
+    "name": "jsMind v2 capability map",
     "version": "1.0"
   },
   "root": "root",
@@ -15,231 +15,231 @@
       },
       "parent": null,
       "children": [
-        "jm-mw4odkbz",
-        "jm-mw4odkey",
-        "jm-mw4odkhu",
-        "jm-mw4odkks"
+        "jm-mw4ottqm",
+        "jm-mw4ottu9",
+        "jm-mw4ottx5",
+        "jm-mw4otu01"
       ],
       "folded": false,
       "side": 0,
       "data": {}
     },
-    "jm-mw4odkbz": {
-      "id": "jm-mw4odkbz",
+    "jm-mw4ottqm": {
+      "id": "jm-mw4ottqm",
       "content": {
         "type": "text",
-        "value": "数据层"
+        "value": "Data Layer"
       },
       "parent": "root",
       "children": [
-        "jm-mw4odkrd",
-        "jm-mw4odkui",
-        "jm-mw4odkxc"
+        "jm-mw4otu6g",
+        "jm-mw4otu9d",
+        "jm-mw4otucf"
       ],
       "folded": false,
       "side": -1,
       "data": {}
     },
-    "jm-mw4odkey": {
-      "id": "jm-mw4odkey",
+    "jm-mw4ottu9": {
+      "id": "jm-mw4ottu9",
       "content": {
         "type": "text",
         "value": "CLI"
       },
       "parent": "root",
       "children": [
-        "jm-mw4odl09",
-        "jm-mw4odl39",
-        "jm-mw4odl67",
-        "jm-mw4odl97"
+        "jm-mw4otufc",
+        "jm-mw4otuie",
+        "jm-mw4otulg",
+        "jm-mw4otuoi"
       ],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odkhu": {
-      "id": "jm-mw4odkhu",
+    "jm-mw4ottx5": {
+      "id": "jm-mw4ottx5",
       "content": {
         "type": "text",
-        "value": "渲染层"
+        "value": "Renderer"
       },
       "parent": "root",
       "children": [
-        "jm-mw4odlc7",
-        "jm-mw4odlf3",
-        "jm-mw4odli0"
+        "jm-mw4oturg",
+        "jm-mw4otuuq",
+        "jm-mw4otuxo"
       ],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odkks": {
-      "id": "jm-mw4odkks",
+    "jm-mw4otu01": {
+      "id": "jm-mw4otu01",
       "content": {
         "type": "text",
-        "value": "测试"
+        "value": "Tests"
       },
       "parent": "root",
       "children": [
-        "jm-mw4odll6",
-        "jm-mw4odloe",
-        "jm-mw4odlrn"
+        "jm-mw4otv0n",
+        "jm-mw4otv3n",
+        "jm-mw4otv6k"
       ],
       "folded": false,
       "side": -1,
       "data": {}
     },
-    "jm-mw4odkrd": {
-      "id": "jm-mw4odkrd",
+    "jm-mw4otu6g": {
+      "id": "jm-mw4otu6g",
       "content": {
         "type": "text",
-        "value": "Schema 与样式"
+        "value": "Schema and style"
       },
-      "parent": "jm-mw4odkbz",
+      "parent": "jm-mw4ottqm",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odkui": {
-      "id": "jm-mw4odkui",
+    "jm-mw4otu9d": {
+      "id": "jm-mw4otu9d",
       "content": {
         "type": "text",
-        "value": "校验：21 个错误码"
+        "value": "Validation: 21 codes"
       },
-      "parent": "jm-mw4odkbz",
+      "parent": "jm-mw4ottqm",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odkxc": {
-      "id": "jm-mw4odkxc",
+    "jm-mw4otucf": {
+      "id": "jm-mw4otucf",
       "content": {
         "type": "text",
-        "value": "v1 兼容序列化"
+        "value": "v1 compatibility"
       },
-      "parent": "jm-mw4odkbz",
+      "parent": "jm-mw4ottqm",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odl09": {
-      "id": "jm-mw4odl09",
+    "jm-mw4otufc": {
+      "id": "jm-mw4otufc",
       "content": {
         "type": "text",
         "value": "create"
       },
-      "parent": "jm-mw4odkey",
+      "parent": "jm-mw4ottu9",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odl39": {
-      "id": "jm-mw4odl39",
+    "jm-mw4otuie": {
+      "id": "jm-mw4otuie",
       "content": {
         "type": "text",
         "value": "context"
       },
-      "parent": "jm-mw4odkey",
+      "parent": "jm-mw4ottu9",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odl67": {
-      "id": "jm-mw4odl67",
+    "jm-mw4otulg": {
+      "id": "jm-mw4otulg",
       "content": {
         "type": "text",
         "value": "mind / node"
       },
-      "parent": "jm-mw4odkey",
+      "parent": "jm-mw4ottu9",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odl97": {
-      "id": "jm-mw4odl97",
+    "jm-mw4otuoi": {
+      "id": "jm-mw4otuoi",
       "content": {
         "type": "text",
         "value": "validate"
       },
-      "parent": "jm-mw4odkey",
+      "parent": "jm-mw4ottu9",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odlc7": {
-      "id": "jm-mw4odlc7",
+    "jm-mw4oturg": {
+      "id": "jm-mw4oturg",
       "content": {
         "type": "text",
-        "value": "布局引擎"
+        "value": "Layout engine"
       },
-      "parent": "jm-mw4odkhu",
+      "parent": "jm-mw4ottx5",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odlf3": {
-      "id": "jm-mw4odlf3",
+    "jm-mw4otuuq": {
+      "id": "jm-mw4otuuq",
       "content": {
         "type": "text",
-        "value": "节点与连线"
+        "value": "Nodes and edges"
       },
-      "parent": "jm-mw4odkhu",
+      "parent": "jm-mw4ottx5",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odli0": {
-      "id": "jm-mw4odli0",
+    "jm-mw4otuxo": {
+      "id": "jm-mw4otuxo",
       "content": {
         "type": "text",
-        "value": "主题系统"
+        "value": "Theme system"
       },
-      "parent": "jm-mw4odkhu",
+      "parent": "jm-mw4ottx5",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odll6": {
-      "id": "jm-mw4odll6",
+    "jm-mw4otv0n": {
+      "id": "jm-mw4otv0n",
       "content": {
         "type": "text",
-        "value": "单元测试"
+        "value": "Unit tests"
       },
-      "parent": "jm-mw4odkks",
+      "parent": "jm-mw4otu01",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odloe": {
-      "id": "jm-mw4odloe",
+    "jm-mw4otv3n": {
+      "id": "jm-mw4otv3n",
       "content": {
         "type": "text",
-        "value": "E2E 双向"
+        "value": "E2E both ways"
       },
-      "parent": "jm-mw4odkks",
+      "parent": "jm-mw4otu01",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mw4odlrn": {
-      "id": "jm-mw4odlrn",
+    "jm-mw4otv6k": {
+      "id": "jm-mw4otv6k",
       "content": {
         "type": "text",
-        "value": "UI 渲染测试"
+        "value": "UI render tests"
       },
-      "parent": "jm-mw4odkks",
+      "parent": "jm-mw4otu01",
       "children": [],
       "folded": false,
       "side": 1,
