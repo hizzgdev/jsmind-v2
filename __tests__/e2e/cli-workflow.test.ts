@@ -339,28 +339,40 @@ test('e2e - a map built by the API is readable and editable by the CLI', () => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-test('e2e - CLI rejects an API map that the API allowed to become invalid', () => {
-    // Guarding the boundary from the other side: if something writes a document
-    // the validator would reject, the CLI must say so with exit 1 rather than
-    // half-reading it.
+test('e2e - CLI refuses a document whose tree is inconsistent', () => {
+    // This is NOT about the API producing bad files — it cannot; the previous
+    // test asserts its output validates. The API is used here as an honest
+    // base: everything except the one field broken below is real, generated
+    // output. That keeps the failure precise, so the assertion can name the
+    // exact codes instead of waving at "some error".
     const dir = mkdtempSync(join(tmpdir(), 'jsmind-e2e-'));
     const file = join(dir, 'dangling.json');
 
     const mind = new JmMind({ name: 'going bad' });
     mind.root.content = JmNodeContent.createText('根');
     const child = mind.addChildNode('子', mind.root.id);
-    const doc = new JmMindJsonSerializer().serialize(mind);
 
-    // Point a child at a parent that is not in the document.
+    // Check the premise rather than assume it: the base really is valid.
+    const clean = new JmMindJsonSerializer().serialize(mind);
+    assert.strictEqual(validateMindData(clean).valid, true, 'the base must start valid');
+
+    // Now break exactly one thing: point the child at a parent that is not in
+    // the document, while root still lists it as a child.
+    const doc = clean;
     (doc.nodes[child.id] as { parent: string | null }).parent = 'not-a-real-id';
-
     writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
 
     const validated = runCli(['validate', file]);
     assert.strictEqual(validated.code, 1, 'invalid data is exit 1');
-    assert.ok(validated.stderr.includes('E_NODE_PARENT_MISSING'), validated.stderr);
 
-    // And a read command must refuse rather than return a partial tree.
+    // One edit, two codes: the parent is missing, and the node is simultaneously
+    // claimed by root as a child. Both describe the same contradiction from
+    // different angles, and neither should be dropped.
+    assert.ok(validated.stderr.includes('E_NODE_PARENT_MISSING'), validated.stderr);
+    assert.ok(validated.stderr.includes('E_PARENT_CHILD_MISMATCH'), validated.stderr);
+    assert.ok(validated.stderr.includes('2 problem(s)'), validated.stderr);
+
+    // A read command must refuse rather than return a partial tree.
     const outline = runCli(['context', file, '--json']);
     assert.strictEqual(outline.code, 1, 'context must not read a broken document');
 
