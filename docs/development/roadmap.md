@@ -219,8 +219,14 @@ node.style.fontSize = 18
 | `context` | ✅ | 唯一允许模糊匹配；未命中给候选而非 not found |
 | `mind` 组 | ✅ | `find` / `add-child` / `add-node` / `move` / `remove-node` / `add-edge` / `remove-edge` / `edges` |
 | `node` 组 | ✅ | `set-text` / `set-folded` / `set-side` |
+| `create` | ✅ | 从零建图；拒绝覆盖已存在文件 |
 | `node set-style` | ⏳ | 等 S4 |
 | `render` | ⏳ | 等 S4–S6；S7b 单独做 |
+
+**闭环缺口（S7a 之后）：** 数据层面的闭环在加上 `create` 后成立 ——
+`create` → `context` 找 id → `mind`/`node` 改 → `validate` 查。
+但「agent 改完的图要给人看」这一步还缺，在 S7b 的 `render`。
+**入口有了、出口还没有。**
 
 **为什么先做 S7a 而不是 S4：** S1+S2 把数据层做完了，CLI 是把这些能力暴露给 agent 的最短路径 —— 数据层再完整，agent 也只能靠读代码来用。渲染层（S4–S6）服务于人看图，可以后做。而且 S7a 完全不碰 DOM，纯 Node 可测。
 
@@ -317,6 +323,21 @@ node.style.fontSize = 18
 - **S2 正好有"坏数据要被拒绝"这个横切能力**，是最自然的第一个 E2E 场景
 
 **为什么"完整 E2E"要等到 S6**：渲染层没做完之前，"JSON → 图"这条链是断的，E2E 只能测到序列化，不构成端到端。
+
+### E2E：CLI 与 API 的一致性
+
+`__tests__/e2e/cli-workflow.test.ts` 走真实子进程，从零建一张 21 节点的图，再用公开 API
+读回来验证结构。**它验的不是命令各自对不对（那些有单元测试），是两件事：**
+
+1. **CLI 写出来的文件，API 能不能按预期读回来。** 两边各有一套对数据形状的理解，
+   任何一边漂了，单元测试都发现不了 —— 它们各自用自己的假设。
+2. **退出码跨进程边界是否成立。** 函数级测试断言返回值，这里断言真实的 `process.exit`。
+
+**为什么不用 `dist/`**：CI 里 test 跑在 build 之前，依赖产物就得改流水线顺序。项目开了
+`erasableSyntaxOnly`，Node 能直接跑 `.ts`，所以测试 spawn 的是源码 —— 附带好处是比 `tsx`
+快四倍（348ms vs 1400ms 每次启动）。
+
+**代价**：整套约 30 次进程启动，这个文件自己占约 12 秒。慢，但这是真集成测试的价格。
 
 ### 测试的硬要求
 

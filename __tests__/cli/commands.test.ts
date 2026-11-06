@@ -10,11 +10,10 @@
  * into the next.
  */
 
-import { test, mock } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, copyFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, rmSync, copyFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { runValidate } from '../../src/cli/commands/validate.ts';
@@ -22,44 +21,10 @@ import { runContext } from '../../src/cli/commands/context.ts';
 import { runMind } from '../../src/cli/commands/mind.ts';
 import { runNode } from '../../src/cli/commands/node.ts';
 import { CliError, CliExit } from '../../src/cli/exit.ts';
+import { scratch, capture } from './helpers.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(HERE, '../e2e/fixtures/valid-styled.json');
-
-/**
- * Creates a scratch directory containing a copy of the fixture.
- *
- * @returns The directory path.
- */
-function scratch(): string {
-    return mkdtempSync(join(tmpdir(), 'jsmind-cli-'));
-}
-
-/**
- * Captures everything a command writes to stdout and stderr.
- *
- * @param run - Callback that triggers the command.
- * @returns What was written.
- */
-function capture(run: () => void): { out: string; err: string } {
-    const out: string[] = [];
-    const err: string[] = [];
-    const outMock = mock.method(process.stdout, 'write', (chunk: string | Uint8Array) => {
-        out.push(String(chunk));
-        return true;
-    });
-    const errMock = mock.method(process.stderr, 'write', (chunk: string | Uint8Array) => {
-        err.push(String(chunk));
-        return true;
-    });
-    try {
-        run();
-    } finally {
-        outMock.mock.restore();
-        errMock.mock.restore();
-    }
-    return { out: out.join(''), err: err.join('') };
-}
 
 /** Write options that touch the real file. */
 const WRITE = { dryRun: false, backup: false };

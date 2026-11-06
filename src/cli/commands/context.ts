@@ -16,6 +16,7 @@ import { JmMindJsonSerializer } from '../../serialization/json.ts';
 import type { JmNode } from '../../model/data/node.ts';
 import type { JmMind } from '../../model/mind.ts';
 import { readJsonFile } from '../io.ts';
+import { loadMindOrThrow } from '../shared.ts';
 import { CliExit, dataError } from '../exit.ts';
 
 /** Default number of levels shown below the root. */
@@ -203,7 +204,10 @@ function renderTree(
  */
 export function runContext(options: ContextOptions): number {
     const doc = readJsonFile(options.file);
-    const mind: JmMind = new JmMindJsonSerializer().deserialize(doc as never);
+    // Same loader as every other read path: a structural fault must surface as
+    // InvalidData rather than escaping as a raw JsMindError and landing in the
+    // generic exit-3 branch.
+    const mind: JmMind = loadMindOrThrow(new JmMindJsonSerializer(), doc, options.file);
     const root = mind.findNodeById(mind.root?.id ?? '');
 
     if (root === null) {
