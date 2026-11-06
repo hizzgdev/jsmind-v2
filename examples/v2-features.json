@@ -38,7 +38,10 @@
       ],
       "folded": false,
       "side": -1,
-      "data": {}
+      "data": {},
+      "style": {
+        "tone": "primary"
+      }
     },
     "jm-mw4ottu9": {
       "id": "jm-mw4ottu9",
