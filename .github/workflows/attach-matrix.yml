@@ -1,0 +1,93 @@
+name: attach matrix
+
+# Temporary. Answers one question with evidence instead of argument: what does
+# `gh --attach` actually require?
+#
+# Three jobs run the identical command under different permission
+# declarations. If all three fail the same way, the token is not the variable.
+# If one succeeds, that is the answer.
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  no-permissions-block:
+    name: 1. No permissions block
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Environment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "gh: $(gh --version | head -1)"
+          echo "repo: ${{ github.repository }} / PR ${{ github.event.pull_request.number }}"
+
+      - name: Try --attach
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set +e
+          out=$(gh pr comment "$PR" --repo "$REPO" \
+            --attach 'README.md#probe' --body "matrix: no permissions block" 2>&1)
+          code=$?
+          set -e
+          echo "EXIT=$code"
+          echo "$out"
+          [ "$code" -eq 0 ] && echo "VERDICT: SUCCEEDED" || echo "VERDICT: FAILED"
+
+  pull-requests-only:
+    name: 2. Only pull-requests:write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Try --attach
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set +e
+          out=$(gh pr comment "$PR" --repo "$REPO" \
+            --attach 'README.md#probe' --body "matrix: pull-requests only" 2>&1)
+          code=$?
+          set -e
+          echo "EXIT=$code"
+          echo "$out"
+          [ "$code" -eq 0 ] && echo "VERDICT: SUCCEEDED" || echo "VERDICT: FAILED"
+
+  contents-write:
+    name: 3. contents:write + pull-requests:write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Try --attach
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set +e
+          out=$(gh pr comment "$PR" --repo "$REPO" \
+            --attach 'README.md#probe' --body "matrix: contents write" 2>&1)
+          code=$?
+          set -e
+          echo "EXIT=$code"
+          echo "$out"
+          [ "$code" -eq 0 ] && echo "VERDICT: SUCCEEDED" || echo "VERDICT: FAILED"
