@@ -122,12 +122,12 @@ jobs:
 
           echo "attach failed:"
           cat /tmp/attach.err
-          echo "--- token permissions seen by the runner ---"
-          gh api "repos/$REPO" --jq '.permissions' || true
-          echo "--- permission the API accepts ---"
-          curl -sS -I -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/$REPO" 2>/dev/null \
-            | grep -i "x-accepted-github-permissions" || true
+          # Deleting the previous comment above succeeded, so pull-requests:write
+          # is in effect. Only contents is being withheld, which is the single
+          # permission --attach needs.
+          echo "--- contents permission ---"
+          gh api "repos/$REPO/actions/permissions/workflow" 2>/dev/null \
+            || echo "cannot read the setting (needs admin on the repository)"
 
           {
             cat /tmp/body.md
