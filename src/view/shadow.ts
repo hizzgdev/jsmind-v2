@@ -167,28 +167,7 @@ export const JSMIND_VIEW_STYLES = `
         color: #333333;
     }
 
-    /* Small screens get a tighter map.
-     *
-     * Scaled with calc rather than restated as literals. applyThemeToHost
-     * writes the theme's custom properties inline on the host, and inline beats
-     * a stylesheet rule — so assigning new values to the variables here would
-     * do nothing. Writing literals would work, but would also overrule the
-     * theme outright: a mind map with a larger padding would come out small on
-     * a phone no matter what it asked for.
-     *
-     * The factors reproduce the old stylesheet's numbers exactly for the
-     * default theme — 10/2 = 5, 5 × 0.6 = 3, 16 × 0.875 = 14, 24 × 0.875 = 21 —
-     * while staying proportional for any other theme. */
-    @media screen and (max-device-width: 1024px) {
-        .jsmind-node {
-            padding: calc(var(--jm-node-padding) / 2);
-            border-radius: calc(var(--jm-node-radius) * 0.6);
-            font-size: calc(var(--jm-node-font-size) * 0.875);
-        }
-        .jsmind-node-root {
-            font-size: calc(var(--jm-node-root-font-size) * 0.875);
-        }
-    }
+
 
     .jmnode-overflow-wrap .jsmind-nodes {
         min-width: 420px;
