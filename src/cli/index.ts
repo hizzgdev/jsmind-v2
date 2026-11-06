@@ -17,11 +17,12 @@
 
 import { parseArgs } from 'node:util';
 import { CliError, CliExit, usageError } from './exit.ts';
-import { intOption, type WriteOptions } from './io.ts';
+import { intOption, requireOption, type WriteOptions } from './io.ts';
 import { runValidate, validateHelp, assertValidateArgs } from './commands/validate.ts';
 import { runMind, mindHelp } from './commands/mind.ts';
 import { runNode, nodeHelp } from './commands/node.ts';
 import { runContext, contextHelp, DEFAULT_DEPTH, DEFAULT_MAX_TEXT } from './commands/context.ts';
+import { runCreate, createHelp } from './commands/create.ts';
 
 const PROGRAM = 'jsmind';
 
@@ -30,6 +31,7 @@ const HELP = `${PROGRAM} v2 — mind map data commands
 Usage: ${PROGRAM} <command> [options]
 
 Cross-boundary commands:
+  create <file> --text <text>     Start a new mind map
   validate <file>                 Check a file against the format spec
   context <file> [options]        Discovery: show the tree and its ids
 
@@ -51,6 +53,8 @@ Exit codes:
   1  invalid data
   2  usage error
   3  IO or runtime error
+
+${createHelp}
 
 ${validateHelp}
 
@@ -106,6 +110,10 @@ function parse(argv: string[]): ParsedArgs {
                 'max-text': { type: 'string' },
                 'full-text': { type: 'boolean', default: false },
                 'ids-only': { type: 'boolean', default: false },
+                // create
+                'name': { type: 'string' },
+                'author': { type: 'string' },
+                'force': { type: 'boolean', default: false },
             },
         });
         return { values: values as Record<string, unknown>, positionals };
@@ -153,6 +161,28 @@ function dispatch(parsed: ParsedArgs): number {
         case 'validate': {
             assertValidateArgs(rest);
             return runValidate(rest[0], asJson);
+        }
+        case 'create': {
+            const [file, ...extra] = rest;
+            if (file === undefined) {
+                throw usageError('create requires a file path');
+            }
+            if (extra.length > 0) {
+                throw usageError(`Unexpected arguments: ${extra.join(' ')}`);
+            }
+            const options: Parameters<typeof runCreate>[0] = {
+                file,
+                text: requireOption(parsed.values, 'text'),
+                force: parsed.values.force === true,
+                dryRun: parsed.values['dry-run'] === true,
+            };
+            if (typeof parsed.values.name === 'string') {
+                options.name = parsed.values.name;
+            }
+            if (typeof parsed.values.author === 'string') {
+                options.author = parsed.values.author;
+            }
+            return runCreate(options);
         }
         case 'context': {
             const [file, ...extra] = rest;

@@ -219,8 +219,14 @@ node.style.fontSize = 18
 | `context` | ✅ | 唯一允许模糊匹配；未命中给候选而非 not found |
 | `mind` 组 | ✅ | `find` / `add-child` / `add-node` / `move` / `remove-node` / `add-edge` / `remove-edge` / `edges` |
 | `node` 组 | ✅ | `set-text` / `set-folded` / `set-side` |
+| `create` | ✅ | 从零建图；拒绝覆盖已存在文件 |
 | `node set-style` | ⏳ | 等 S4 |
 | `render` | ⏳ | 等 S4–S6；S7b 单独做 |
+
+**闭环缺口（S7a 之后）：** 数据层面的闭环在加上 `create` 后成立 ——
+`create` → `context` 找 id → `mind`/`node` 改 → `validate` 查。
+但「agent 改完的图要给人看」这一步还缺，在 S7b 的 `render`。
+**入口有了、出口还没有。**
 
 **为什么先做 S7a 而不是 S4：** S1+S2 把数据层做完了，CLI 是把这些能力暴露给 agent 的最短路径 —— 数据层再完整，agent 也只能靠读代码来用。渲染层（S4–S6）服务于人看图，可以后做。而且 S7a 完全不碰 DOM，纯 Node 可测。
 
