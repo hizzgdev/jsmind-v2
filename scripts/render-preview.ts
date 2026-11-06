@@ -7,9 +7,8 @@
  * question a passing test suite cannot answer.
  *
  * Runs in CI so every pull request carries a picture of what the renderer
- * currently produces. Uses the same harness approach as the UI tests: a real
- * headless Chromium over DevTools, because text measurement needs a layout
- * engine and jsdom has none.
+ * currently produces. Drives a real headless Chromium over DevTools, because
+ * text measurement needs a layout engine and jsdom has none.
  *
  * Usage:
  *   node --experimental-strip-types scripts/render-preview.ts <map.json> <out.png> [--width N] [--height N]
@@ -24,6 +23,12 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BUNDLE = join(REPO_ROOT, 'dist/jsmind.js');
 const STYLESHEET = join(REPO_ROOT, 'styles/jsmind.css');
+
+/** Launch attempts before giving up, each on a fresh port. */
+const LAUNCH_ATTEMPTS = 3;
+
+/** DevTools polls per launch, 200ms apart, so about 30 seconds. */
+const WAIT_ATTEMPTS = 150;
 
 /** Candidate Chromium binaries. */
 const CANDIDATES = [
@@ -87,19 +92,20 @@ function findBrowser(): string | null {
  * Polls the DevTools endpoint until it answers.
  *
  * @param port - Debugging port.
+ * @param exited - Reads the child exit code, or null while it is alive.
  * @returns The `/json/version` payload.
  */
 async function waitForDevTools(
     port: number,
     exited: () => number | null
 ): Promise<Record<string, string>> {
-    for (let attempt = 0; attempt < 80; attempt++) {
+    for (let attempt = 0; attempt < WAIT_ATTEMPTS; attempt++) {
         const code = exited();
         if (code !== null) {
-            throw new Error(`browser exited with code ${code} before opening DevTools`);
+            throw new Error('browser exited with code ' + code + ' before opening DevTools');
         }
         try {
-            const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+            const response = await fetch('http://127.0.0.1:' + port + '/json/version');
             if (response.ok) {
                 return (await response.json()) as Record<string, string>;
             }
@@ -108,7 +114,171 @@ async function waitForDevTools(
         }
         await new Promise(resolve => setTimeout(resolve, 200));
     }
-    throw new Error(`browser never exposed DevTools on port ${port}`);
+    throw new Error(
+        'browser never exposed DevTools on port ' + port + ' within ' + WAIT_ATTEMPTS * 200 + 'ms'
+    );
+}
+
+/** A DevTools command channel bound to one page. */
+interface Session {
+    send: (
+        method: string,
+        params?: Record<string, unknown>
+    ) => Promise<{ result: Record<string, unknown> }>;
+    close: () => void;
+}
+
+/**
+ * Starts a browser and attaches to a blank page.
+ *
+ * @remarks
+ * Retries with a fresh port each attempt. Starting Chromium on a CI runner is
+ * not reliably fast: one run spent 16 seconds waiting for DevTools and failed,
+ * the next opened it in two. A retry on a new port also clears the case where a
+ * previous attempt left something holding the old one.
+ *
+ * @param binary - Chromium path.
+ * @param width - Viewport width.
+ * @param height - Viewport height.
+ * @returns An attached session plus a cleanup function.
+ */
+async function launch(
+    binary: string,
+    width: number,
+    height: number
+): Promise<{ session: Session; cleanup: () => Promise<void> }> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= LAUNCH_ATTEMPTS; attempt++) {
+        const port = 9600 + Math.floor(Math.random() * 300);
+        // A private profile is not optional: without it Chromium reaches for a
+        // shared default that another process may hold, and exits rather than
+        // starting.
+        const profileDir = mkdtempSync(join(tmpdir(), 'jsmind-preview-'));
+
+        const chrome = spawn(
+            binary,
+            [
+                '--headless=new',
+                '--remote-debugging-port=' + port,
+                '--user-data-dir=' + profileDir,
+                '--no-sandbox',
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--hide-scrollbars',
+                'about:blank',
+            ],
+            // Piped, not ignored: when the browser refuses to start, its stderr
+            // is the only thing that says why.
+            { stdio: ['ignore', 'ignore', 'pipe'] }
+        );
+
+        let stderr = '';
+        chrome.stderr?.on('data', (chunk: Buffer) => {
+            stderr += chunk.toString();
+        });
+        let exitCode: number | null = null;
+        chrome.on('exit', (code: number | null) => {
+            exitCode = code;
+        });
+
+        let socket: WebSocket | null = null;
+        try {
+            const version = await waitForDevTools(port, () => exitCode);
+            socket = new WebSocket(version.webSocketDebuggerUrl);
+            await new Promise<void>((res, rej) => {
+                socket!.onopen = () => res();
+                socket!.onerror = () => rej(new Error('DevTools socket failed to open'));
+            });
+
+            let nextId = 0;
+            const pending = new Map<number, (value: unknown) => void>();
+            let sessionId = '';
+
+            socket.onmessage = (event: MessageEvent) => {
+                const message = JSON.parse(String(event.data)) as { id?: number };
+                if (message.id !== undefined && pending.has(message.id)) {
+                    const res = pending.get(message.id)!;
+                    pending.delete(message.id);
+                    res(message);
+                }
+            };
+
+            const send = (
+                method: string,
+                params: Record<string, unknown> = {}
+            ): Promise<{ result: Record<string, unknown> }> =>
+                new Promise(res => {
+                    const id = ++nextId;
+                    pending.set(id, res as (value: unknown) => void);
+                    socket!.send(
+                        JSON.stringify({
+                            id,
+                            method,
+                            params,
+                            ...(sessionId ? { sessionId } : {}),
+                        })
+                    );
+                });
+
+            const created = await send('Target.createTarget', { url: 'about:blank' });
+            const attached = await send('Target.attachToTarget', {
+                targetId: created.result.targetId as string,
+                flatten: true,
+            });
+            sessionId = attached.result.sessionId as string;
+
+            await send('Page.enable');
+            await send('Runtime.enable');
+            await send('Emulation.setDeviceMetricsOverride', {
+                width,
+                height,
+                deviceScaleFactor: 2,
+                mobile: false,
+            });
+
+            const liveSocket = socket;
+            return {
+                session: { send, close: () => liveSocket.close() },
+                cleanup: async () => {
+                    try {
+                        liveSocket.close();
+                    } catch {
+                        // Already closed.
+                    }
+                    chrome.kill('SIGKILL');
+                    await new Promise(res => setTimeout(res, 150));
+                    rmSync(profileDir, { recursive: true, force: true });
+                },
+            };
+        } catch (error) {
+            lastError = error as Error;
+            try {
+                socket?.close();
+            } catch {
+                // Ignore.
+            }
+            chrome.kill('SIGKILL');
+            await new Promise(res => setTimeout(res, 200));
+            rmSync(profileDir, { recursive: true, force: true });
+
+            // dbus complaints are on every runner and have nothing to do with
+            // rendering; keep them out of the message.
+            const relevant = stderr
+                .split('\n')
+                .filter(line => !line.toLowerCase().includes('dbus'))
+                .filter(line => !line.includes('Failed to connect to the bus'))
+                .slice(-8)
+                .join('\n')
+                .trim();
+            console.error('launch ' + attempt + '/' + LAUNCH_ATTEMPTS + ' failed: ' + lastError.message);
+            if (relevant) {
+                console.error(relevant);
+            }
+        }
+    }
+
+    throw lastError ?? new Error('could not start a browser');
 }
 
 /**
@@ -118,16 +288,17 @@ async function main(): Promise<void> {
     const { input, output, width, height } = parseArgs();
 
     if (!existsSync(input)) {
-        console.error(`no such file: ${input}`);
+        console.error('no such file: ' + input);
         process.exit(2);
     }
     if (!existsSync(BUNDLE)) {
-        console.error(`missing ${BUNDLE} — run \`npm run build\` first`);
+        console.error('missing ' + BUNDLE + ' - run npm run build first');
         process.exit(3);
     }
+
     const binary = findBrowser();
     if (!binary) {
-        console.error('no Chromium found — set CHROME_PATH');
+        console.error('no Chromium found - set CHROME_PATH');
         process.exit(3);
     }
 
@@ -135,129 +306,35 @@ async function main(): Promise<void> {
     const css = readFileSync(STYLESHEET, 'utf8');
     const bundle = readFileSync(BUNDLE, 'utf8');
 
-    const port = 9600 + Math.floor(Math.random() * 300);
-    // A private profile directory is not optional. Without it the browser picks
-    // up a shared default profile, which on CI a previous or concurrent process
-    // may hold a lock on — the symptom is Chromium exiting immediately and the
-    // DevTools port never opening, which reads as "browser did not start".
-    const profileDir = mkdtempSync(join(tmpdir(), 'jsmind-preview-'));
-    const chrome = spawn(
-        binary,
-        [
-            '--headless=new',
-            `--remote-debugging-port=${port}`,
-            `--user-data-dir=${profileDir}`,
-            '--no-sandbox',
-            '--disable-gpu',
-            '--disable-dev-shm-usage',
-            '--hide-scrollbars',
-            '--force-device-scale-factor=1',
-            'about:blank',
-        ],
-        // Piped, not ignored: when the browser refuses to start, its stderr is
-        // the only thing that says why. High-resolution output comes from the
-        // capture clip's scale, not from the device pixel ratio.
-        { stdio: ['ignore', 'ignore', 'pipe'] }
-    );
-
-    let socket: WebSocket | null = null;
+    const { session, cleanup } = await launch(binary, width, height);
     try {
-        let stderr = '';
-        chrome.stderr?.on('data', (chunk: Buffer) => {
-            stderr += chunk.toString();
-        });
-
-        let exitCode: number | null = null;
-        chrome.on('exit', (code: number | null) => {
-            exitCode = code;
-        });
-        let version: Record<string, string>;
-        try {
-            version = await waitForDevTools(port, () => exitCode);
-        } catch (error) {
-            if (stderr.trim()) {
-                console.error('browser stderr:\n' + stderr.trim().split('\n')
-                    .slice(-15)
-                    .join('\n'));
-            }
-            throw error;
-        }
-        socket = new WebSocket(version.webSocketDebuggerUrl);
-        await new Promise<void>((res, rej) => {
-            socket!.onopen = () => res();
-            socket!.onerror = () => rej(new Error('DevTools socket failed'));
-        });
-
-        let nextId = 0;
-        const pending = new Map<number, (value: unknown) => void>();
-        socket.onmessage = (event: MessageEvent) => {
-            const message = JSON.parse(String(event.data)) as { id?: number };
-            if (message.id !== undefined && pending.has(message.id)) {
-                const res = pending.get(message.id)!;
-                pending.delete(message.id);
-                res(message);
-            }
-        };
-
-        let sessionId = '';
-        const send = (
-            method: string,
-            params: Record<string, unknown> = {}
-        ): Promise<{ result: Record<string, unknown> }> =>
-            new Promise(res => {
-                const id = ++nextId;
-                pending.set(id, res as (value: unknown) => void);
-                socket!.send(
-                    JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })
-                );
-            });
-
-        const created = await send('Target.createTarget', { url: 'about:blank' });
-        const attached = await send('Target.attachToTarget', {
-            targetId: created.result.targetId as string,
-            flatten: true,
-        });
-        sessionId = attached.result.sessionId as string;
-
-        await send('Page.enable');
-        await send('Runtime.enable');
-        await send('Emulation.setDeviceMetricsOverride', {
-            width,
-            height,
-            deviceScaleFactor: 2,
-            mobile: false,
-        });
-
-        const frame = await send('Page.getFrameTree');
+        const frame = await session.send('Page.getFrameTree');
         const frameId = (frame.result.frameTree as { frame: { id: string } }).frame.id;
-        await send('Page.setDocumentContent', {
+        await session.send('Page.setDocumentContent', {
             frameId,
             html:
-                `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}` +
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + css +
                 'html,body{margin:0;padding:0;background:#f7f8fa}' +
-                `#stage{width:${width}px;height:${height}px;background:#f7f8fa}` +
+                '#stage{width:' + width + 'px;height:' + height + 'px;background:#f7f8fa}' +
                 '</style></head><body><div id="stage"></div></body></html>',
         });
 
-        await send('Runtime.evaluate', { expression: bundle });
+        await session.send('Runtime.evaluate', { expression: bundle });
 
-        const render = await send('Runtime.evaluate', {
+        const render = await session.send('Runtime.evaluate', {
             expression: `
                 (async () => {
                     const stage = document.getElementById('stage');
                     const payload = ${JSON.stringify(JSON.stringify(data))};
                     const jm = await jsMind.create(stage);
-                    const serializer = jsMind.Serializer.create('json');
-                    const mind = serializer.deserialize(JSON.parse(payload));
+                    const mind = jsMind.Serializer.create('json').deserialize(JSON.parse(payload));
                     await jm.open(mind);
                     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
                     const nodes = stage.querySelectorAll('.jsmind-node');
                     if (nodes.length === 0) {
                         return JSON.stringify({ nodes: 0, bounds: null });
                     }
-                    // Union of every node box, so the capture can be cropped to
-                    // the drawing instead of a fixed viewport that leaves the
-                    // map stranded in a corner.
                     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                     for (const el of nodes) {
                         const r = el.getBoundingClientRect();
@@ -282,25 +359,23 @@ async function main(): Promise<void> {
         };
         if (raw.exceptionDetails) {
             throw new Error(
-                `render failed: ${raw.exceptionDetails.exception?.description ?? 'unknown'}`
+                'render failed: ' + (raw.exceptionDetails.exception?.description ?? 'unknown')
             );
         }
         const info = JSON.parse(raw.result!.value as string) as {
             nodes: number;
             bounds: { x: number; y: number; width: number; height: number } | null;
         };
-        console.log(`rendered ${info.nodes} nodes from ${input}`);
+        console.log('rendered ' + info.nodes + ' nodes from ' + input);
 
-        // Let fonts settle before capturing; a screenshot taken mid-swap can
-        // capture fallback glyphs.
-        await send('Runtime.evaluate', {
+        // Let fonts settle; a capture mid-swap can catch fallback glyphs.
+        await session.send('Runtime.evaluate', {
             expression: 'document.fonts ? document.fonts.ready.then(() => true) : true',
             awaitPromise: true,
             returnByValue: true,
         });
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(res => setTimeout(res, 300));
 
-        // Padding around the map; without it labels sit flush against the edge.
         const PAD = 40;
         const clip = info.bounds
             ? {
@@ -312,21 +387,14 @@ async function main(): Promise<void> {
             }
             : { x: 0, y: 0, width, height, scale: 2 };
 
-        const shot = await send('Page.captureScreenshot', { format: 'png', clip });
+        const shot = await session.send('Page.captureScreenshot', { format: 'png', clip });
         const buffer = Buffer.from(shot.result.data as string, 'base64');
 
         mkdirSync(dirname(output), { recursive: true });
         writeFileSync(output, buffer);
-        console.log(`wrote ${output} (${(buffer.length / 1024).toFixed(1)} KB)`);
+        console.log('wrote ' + output + ' (' + (buffer.length / 1024).toFixed(1) + ' KB)');
     } finally {
-        try {
-            socket?.close();
-        } catch {
-            // Already closed.
-        }
-        chrome.kill('SIGKILL');
-        await new Promise(resolve => setTimeout(resolve, 150));
-        rmSync(profileDir, { recursive: true, force: true });
+        await cleanup();
     }
 }
 
