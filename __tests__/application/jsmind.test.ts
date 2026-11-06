@@ -28,14 +28,20 @@ describe('JsMind', async () => {
         assert.strictEqual(jm.mind.root.id, TEST_MIND.options.rootNodeId);
         assert.strictEqual(jm.mind.root.content.value, TEST_MIND.meta.name);
 
+        // Rendered content lives in a shadow root, so the host element's own
+        // querySelector cannot see it. That is the isolation working, not a
+        // missing node — the root is open, so it stays reachable.
         const containerElement = document.getElementById(JSMIND_CONTAINER_ID);
-        const node1Element = containerElement?.querySelector(`[data-jm-node-id="${TEST_NODE_1.id}"]`);
+        const shadowRoot = containerElement?.shadowRoot;
+        assert.ok(shadowRoot, 'the view must render into an open shadow root');
+
+        const node1Element = shadowRoot.querySelector(`[data-jm-node-id="${TEST_NODE_1.id}"]`);
         assert.ok(node1Element);
-        const node2Element = containerElement?.querySelector(`[data-jm-node-id="${TEST_NODE_2.id}"]`);
+        const node2Element = shadowRoot.querySelector(`[data-jm-node-id="${TEST_NODE_2.id}"]`);
         assert.ok(node2Element);
-        const node11Element = containerElement?.querySelector(`[data-jm-node-id="${TEST_NODE_11.id}"]`);
+        const node11Element = shadowRoot.querySelector(`[data-jm-node-id="${TEST_NODE_11.id}"]`);
         assert.ok(node11Element);
-        const edge11to2Element = containerElement?.querySelector(`[data-jm-edge-id="${TEST_EDGE_11TO2.id}"]`);
+        const edge11to2Element = shadowRoot.querySelector(`[data-jm-edge-id="${TEST_EDGE_11TO2.id}"]`);
         assert.ok(!edge11to2Element);
     });
 });

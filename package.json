@@ -13,8 +13,7 @@
             "import": "./dist/jsmind.js",
             "require": "./dist/jsmind.js",
             "types": "./dist/jsmind.d.ts"
-        },
-        "./jsmind.css": "./dist/jsmind.css"
+        }
     },
     "directories": {
         "doc": "docs",

@@ -22,7 +22,6 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BUNDLE = join(REPO_ROOT, 'dist/jsmind.js');
-const STYLESHEET = join(REPO_ROOT, 'styles/jsmind.css');
 
 /** Launch attempts before giving up, each on a fresh port. */
 const LAUNCH_ATTEMPTS = 3;
@@ -303,7 +302,6 @@ async function main(): Promise<void> {
     }
 
     const data = JSON.parse(readFileSync(input, 'utf8')) as Record<string, unknown>;
-    const css = readFileSync(STYLESHEET, 'utf8');
     const bundle = readFileSync(BUNDLE, 'utf8');
 
     const { session, cleanup } = await launch(binary, width, height);
@@ -313,7 +311,9 @@ async function main(): Promise<void> {
         await session.send('Page.setDocumentContent', {
             frameId,
             html:
-                '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + css +
+                // No library CSS to inline: the view installs its own rules in
+                // the shadow root. Only the page chrome matters here.
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' +
                 'html,body{margin:0;padding:0;background:#f7f8fa}' +
                 '#stage{width:' + width + 'px;height:' + height + 'px;background:#f7f8fa}' +
                 '</style></head><body><div id="stage"></div></body></html>',
@@ -331,7 +331,9 @@ async function main(): Promise<void> {
                     await jm.open(mind);
                     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-                    const nodes = stage.querySelectorAll('.jsmind-node');
+                    // Nodes render inside the shadow root the view created, so
+                    // they are invisible to a plain descendant query on the host.
+                    const nodes = stage.shadowRoot ? stage.shadowRoot.querySelectorAll('.jsmind-node') : [];
                     if (nodes.length === 0) {
                         return JSON.stringify({ nodes: 0, bounds: null });
                     }

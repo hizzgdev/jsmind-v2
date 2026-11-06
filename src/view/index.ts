@@ -3,6 +3,7 @@ import { JsMindError } from '../common/error.ts';
 import type { ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
+import { attachViewShadowRoot } from './shadow.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
 import type { JmNode } from '../model/data/node.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
@@ -40,7 +41,11 @@ export class JmView {
 
     static async create(container: string | HTMLElement, arranger: Arranger, options: ViewOptions): Promise<JmView> {
         const jmContainer = await this._initContainer(container);
-        const innerContainer = this._initInnerContainer(jmContainer);
+        // Rendered content lives in a shadow root: the map's structural rules
+        // are installed there, so the host page cannot reach them and they
+        // cannot reach the host page.
+        const shadowRoot = attachViewShadowRoot(jmContainer);
+        const innerContainer = this._initInnerContainer(shadowRoot);
         const nodeView = new JmNodeView(innerContainer, options);
         const edgeView = new JmEdgeView(innerContainer);
         return new JmView(jmContainer, innerContainer, nodeView, edgeView, arranger, options);
@@ -61,10 +66,12 @@ export class JmView {
         return container;
     }
 
-    private static _initInnerContainer(container: HTMLElement): JmElement {
+    private static _initInnerContainer(shadowRoot: ShadowRoot): JmElement {
         const jmElement = JmDomUtility.createElement('div', 'jsmind-inner');
         jmElement.classList.add('jsmind-inner');
-        container.appendChild(jmElement.element);
+        // Appended to the shadow root, not to its host: this is what puts the
+        // rendered tree inside the style boundary.
+        shadowRoot.appendChild(jmElement.element);
         return jmElement;
     }
 
