@@ -96,10 +96,16 @@ jobs:
       - name: Upload the preview
         id: preview
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v5
+        # v7 with `archive: false`, not v5. Uploading unzipped means the browser
+        # opens the PNG directly instead of handing over a zip — which is the
+        # whole point of the link in the comment below. Older versions and the
+        # default `archive: true` still zip, by design, for backwards
+        # compatibility.
+        uses: actions/upload-artifact@v7
         with:
           name: render-preview
           path: preview.png
+          archive: false
           retention-days: 30
 
       - name: Post it on the pull request
@@ -165,7 +171,7 @@ jobs:
             echo
             echo "**[Open the image](https://github.com/$REPO/actions/runs/$RUN_ID/artifacts/$ARTIFACT_ID)**"
             echo
-            echo "GitHub serves artifacts as a zip containing this one PNG. To pull it locally:"
+            echo "Or fetch it locally:"
             echo
             echo '```sh'
             echo "gh run download $RUN_ID --repo $REPO -n render-preview"
