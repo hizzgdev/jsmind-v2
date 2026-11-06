@@ -42,16 +42,23 @@ jobs:
       - name: Type check
         run: npm run type-check
 
-      # Build before tests, not after. The UI tests drive a real browser against
-      # the UMD bundle in dist/, because that is what a browser loads — they
-      # cannot exercise the TypeScript sources. Building here keeps the bundle a
-      # step rather than something a test spawns mid-run.
-      - name: Build
-        run: npm run build
-
       # Coverage runs here only. scripts.ci / ci2 and the pre-push hook stay on
       # test-lite / test on purpose: they are the manual and local paths, where
       # the full coverage report is slow and noisy. Thresholds live in
       # package.json (scripts.test:coverage).
+      #
+      # This runs the unit and data-layer suites only. The UI tests are a
+      # separate command further down, because they need the built bundle.
       - name: Tests with coverage
         run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      # Last, and separate, on purpose: these drive a real browser against
+      # dist/jsmind.js rather than the TypeScript sources, so they need the build
+      # above. Kept out of test / test:coverage so that suite stays fast and
+      # needs no browser, and so the manual packages (`npm run ci`) keep their
+      # existing order.
+      - name: UI tests
+        run: npm run test:ui
