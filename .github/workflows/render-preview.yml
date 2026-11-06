@@ -12,6 +12,7 @@ name: Render preview
 # picture catches that in the half second it takes to glance at it.
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [master]
 
@@ -45,6 +46,33 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Diagnose token permissions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== token 对仓库的权限 ==="
+          gh api "repos/${{ github.repository }}" --jq '.permissions' || true
+          echo ""
+          echo "=== 仓库的 workflow permissions 设置 ==="
+          gh api "repos/${{ github.repository }}/actions/permissions/workflow" || true
+          echo ""
+          echo "=== token 能看到的 scopes ==="
+          curl -sS -I -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}" \
+            | grep -i "x-accepted-github-permissions\|x-oauth-scopes" || true
+          echo ""
+          echo "=== 直接用 API 试上传（不经过 gh）==="
+          head -c 2000 preview_probe.png 2>/dev/null || \
+            printf 'x' > probe.txt && \
+          curl -sS -o /tmp/up.json -w "http_status=%{http_code}\n" \
+            -X POST \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Content-Type: image/png" \
+            -H "Accept: application/vnd.github+json" \
+            --data-binary @probe.txt \
+            "https://uploads.github.com/user-attachments/assets" 2>&1 || true
+          head -c 300 /tmp/up.json 2>/dev/null || true
 
       - name: Build
         run: npm run build
