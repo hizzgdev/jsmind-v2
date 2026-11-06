@@ -56,8 +56,9 @@ jobs:
             examples/v2-features.json preview.png
 
       - name: Upload as an artifact
-        # Kept even though the comment carries the image: artifacts survive
-        # comment edits and give a stable URL to link to later.
+        id: upload
+        # The comment needs the artifact id to link straight at the file rather
+        # than at the run page, where the reader would have to find it first.
         uses: actions/upload-artifact@v5
         with:
           name: render-preview
@@ -73,6 +74,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_ID: ${{ github.run_id }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -131,10 +133,18 @@ jobs:
           {
             cat /tmp/body.md
             echo
-            echo "**[View the image as an artifact](https://github.com/$REPO/actions/runs/$RUN_ID#artifacts)**"
+            echo "**[Open the image](https://github.com/$REPO/actions/runs/$RUN_ID/artifacts/$ARTIFACT_ID)**"
             echo
-            echo "<sub>Inline embedding needs \`GITHUB_TOKEN\` to have push access. "
-            echo "Set via Settings → Actions → General → Workflow permissions.</sub>"
+            echo "GitHub serves artifacts as a zip containing this one PNG. To pull it locally:"
+            echo
+            echo '```sh'
+            echo "gh run download $RUN_ID --repo $REPO -n render-preview"
+            echo '```'
+            echo
+            echo "<sub>Inline embedding needs \`GITHUB_TOKEN\` to have \`contents: write\`. "
+            echo "Repositories whose Actions settings use the read-only default withhold it, "
+            echo "and a workflow cannot grant it for itself — "
+            echo "Settings → Actions → General → Workflow permissions → Read and write changes that.</sub>"
           } > /tmp/fallback.md
 
           gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file /tmp/fallback.md
