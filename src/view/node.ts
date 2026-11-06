@@ -2,6 +2,8 @@ import type { JmNode } from '../model/data/node.ts';
 import { JmDomUtility, type JmElement } from '../common/dom.ts';
 import { JmSize, type JmPoint } from '../common/index.ts';
 import { ViewExpanderStyle, type ViewOptions } from '../common/option.ts';
+import { JmTone, type JmTheme } from '../model/data/style.ts';
+import { applyTonePalette } from './shadow.ts';
 
 /**
  * View operator for nodes.
@@ -16,6 +18,9 @@ export class JmNodeView {
     /** The view options. */
     private readonly options: ViewOptions;
 
+    /** The resolved theme, or null until one is applied. */
+    private theme: JmTheme | null = null;
+
     /**
      * Creates a new node view operator.
      *
@@ -24,6 +29,21 @@ export class JmNodeView {
     constructor(innerContainer: JmElement, viewOptions: ViewOptions) {
         this.container = this._initNodesContainer(innerContainer);
         this.options = viewOptions;
+    }
+
+    /**
+     * Sets the theme whose tone palettes node elements resolve against.
+     *
+     * @remarks
+     * Only the palettes are needed here. Geometry is written onto the host as
+     * custom properties once per map, and every node inherits it — repeating a
+     * padding value on every element would multiply work by node count for no
+     * benefit.
+     *
+     * @param theme - The resolved theme.
+     */
+    setTheme(theme: JmTheme): void {
+        this.theme = theme;
     }
 
     async createAndMeasure(node: JmNode): Promise<JmSize> {
@@ -121,6 +141,7 @@ export class JmNodeView {
         if(node.isRoot()) {
             element.classList.add('jsmind-node-root');
         }
+        this._applyTone(element, node);
         const rect = await JmDomUtility.measureElement(element, this.container);
         element.cachedRect = rect;
         return element;
@@ -129,7 +150,65 @@ export class JmNodeView {
     private _createNodeExpander(node: JmNode): JmElement {
         const element = JmDomUtility.createElement('div', 'jsmind-node-expander', {'node-id': node.id});
         element.hide();
+        // No tone here on purpose. The expander sits outside the node's box and
+        // its stylesheet draws a neutral outline; feeding it the node's palette
+        // would put a white circle beside every untoned node.
         return element;
+    }
+
+    /**
+     * Resolves a node's tone and its own style overrides into custom properties.
+     *
+     * @remarks
+     * Written on the element, not on the host, because that is the whole point
+     * of the tone concept: one node differs while its siblings do not. Custom
+     * properties inherit downward, so a value set here wins for this subtree and
+     * nothing else.
+     *
+     * Precedence follows `JmNodeStyle`'s contract — a field the node states
+     * beats the tone beats the theme.
+     *
+     * @param element - The element to paint.
+     * @param node - The node it represents.
+     *
+     * @private
+     */
+    private _applyTone(element: JmElement, node: JmNode): void {
+        const style = node.style;
+        const tone = style?.tone ?? JmTone.Default;
+
+        applyTonePalette(element, this.theme?.tones?.[tone]);
+
+        if (!style) {
+            return;
+        }
+
+        /** Sets a custom property only when the node actually states it. */
+        const set = (name: string, value: string | undefined): void => {
+            if (value !== undefined) {
+                element.style.setProperty(name, value);
+            }
+        };
+
+        // Explicit fields win over the tone they sat alongside.
+        set('--jm-node-fill', style.background);
+        set('--jm-node-text', style.color);
+        set('--jm-node-border-color', style.borderColor);
+        if (style.borderWidth !== undefined) {
+            element.style.borderWidth = `${style.borderWidth}px`;
+        }
+        if (style.borderStyle !== undefined) {
+            element.style.borderStyle = style.borderStyle;
+        }
+        // Font size and weight are set inline rather than through a custom
+        // property: only the root adjusts size through the stylesheet, so a
+        // per-node value has to override a rule rather than a default.
+        if (style.fontSize !== undefined) {
+            element.style.fontSize = `${style.fontSize}px`;
+        }
+        if (style.fontWeight !== undefined) {
+            element.style.fontWeight = style.fontWeight;
+        }
     }
 }
 
