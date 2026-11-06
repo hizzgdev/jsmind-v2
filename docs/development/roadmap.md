@@ -135,16 +135,18 @@ node.isRoot     node.parent    node.side     node.ts
 
 ### 第 2 层：渲染
 
-#### S3 `feat(view): theme system`
+#### ~~S3 `feat(view): theme system`~~ —— 已并入 S1
 
-- 三种引用形态的解析：`"default"` / `{ name, ...覆盖 }` / 完整定义
-- **深度合并**（浅合并会丢 tone 的 `text` / `border` / `line`）
-- 内置 `default` 主题（六色 tone）
-- 产出 `resolveTheme(ref): JmTheme`
+**原计划的四条全部由 S1（PR #9）完成：**
 
-**测试**：纯单测，不涉及 DOM。重点测深度合并——浅合并的 bug 表现为"节点变黑底黑字"
+| 原计划 | 实际落点 |
+|---|---|
+| 三种引用形态的解析 | **只剩一种**：`style: { theme, ...覆盖 }`。`{ name, ... }` 与"完整定义"两种形态在评审中判定为语义含糊，已合并 |
+| 深度合并 | `mergeJmTheme`，`tones` 逐字段合并，浅合并会让节点变黑底黑字，有专门回归测试 |
+| 内置 `default` 主题（六色 tone） | `JSMIND_THEME_DEFAULT` |
+| `resolveTheme(ref): JmTheme` | `resolveJmStyle(style?)`，产出完整 `JmTheme`，不返回半截 |
 
-**不碰渲染**：本 PR 只产出解析好的 theme 对象
+**渲染层不需要再单独做一遍主题解析。** S4 直接消费 `resolveJmStyle()` 的产出。
 
 ---
 
@@ -193,7 +195,8 @@ node.style.fontSize = 18
 
 ### 第 3 层：产物
 
-#### S7 `feat(cli): context, validate and render commands`
+#### S7a `feat(cli): context, validate and mind/node data commands` —— 已完成
+#### S7b `feat(cli): render command` —— 待渲染层就绪
 
 **完整设计见 `docs/requirements/v2-cli.md`。**
 
@@ -207,6 +210,19 @@ node.style.fontSize = 18
   —— 对应 `JmNode` 的可写字段（`content` / `folded` / `side`），走字段赋值不调方法
 
 **`node set-style` 不在这个 PR** —— 它依赖 S1 的 schema 和 S4 的样式实现。
+
+**实施时的拆分（S7a 已交付）：**
+
+| 部分 | 状态 | 说明 |
+|---|---|---|
+| `validate` | ✅ | 接 S2 的校验器，四档退出码 |
+| `context` | ✅ | 唯一允许模糊匹配；未命中给候选而非 not found |
+| `mind` 组 | ✅ | `find` / `add-child` / `add-node` / `move` / `remove-node` / `add-edge` / `remove-edge` / `edges` |
+| `node` 组 | ✅ | `set-text` / `set-folded` / `set-side` |
+| `node set-style` | ⏳ | 等 S4 |
+| `render` | ⏳ | 等 S4–S6；S7b 单独做 |
+
+**为什么先做 S7a 而不是 S4：** S1+S2 把数据层做完了，CLI 是把这些能力暴露给 agent 的最短路径 —— 数据层再完整，agent 也只能靠读代码来用。渲染层（S4–S6）服务于人看图，可以后做。而且 S7a 完全不碰 DOM，纯 Node 可测。
 
 **注意**：`convert` 命令**不在这个 PR** —— 它依赖 adapter，跟 S13 一起做
 
@@ -327,3 +343,69 @@ node.style.fontSize = 18
 **adapter 之后可能还有一轮 schema 调整。** 等真做 S13 时，很可能发现"这个字段当初应该那么设计"。所以 S13 做完之后，可能还需要一个**收尾 PR** 处理 schema 收敛，或者引入版本化策略（`format: "jsmind_v2"` 之外，将来要不要 `"jsmind_v2.1"`）。
 
 现在不用决定，知道有这条尾巴就行。
+
+---
+
+## 8. 待办：agent skill 与产出校验机制
+
+> **状态：未开始，等 S4 做完、CLI 命令面稳定之后再动。**
+> 记在这里是因为它来自 #11 的 review 讨论，不写下来会丢。
+
+### 8.1 要解决的问题
+
+**「AI 不会输出异常文件」不能靠 AI 记得检查。**
+
+写 skill 时最容易做的事是加一句「改完记得验证一下」。这没用 —— 它把正确性押在模型的自律上，而模型会跳过、会觉得自己改得对、会在上下文压缩后忘掉这条要求。
+
+**要的是机制：AI 想跳过也跳不过，因为下一步依赖检查器的输出。**
+
+### 8.2 三档强度
+
+| 档 | 做法 | 为什么不够 |
+|---|---|---|
+| ① 弱 | skill 里写「要验证」 | 全靠自觉，压缩后可能整个忘掉 |
+| ② 中 | skill 规定「产出后跑 `jsmind validate`，非 0 就回滚」 | 有明确动作，但仍靠模型执行 |
+| ③ 强 | 产出本身经过会失败的检查器，不过就拿不到下一步要的东西 | 这一步才算机制 |
+
+**目标是 ③，退而求其次 ②。**
+
+### 8.3 jsmind 上怎么落地
+
+CLI 已经把 ③ 需要的东西准备好了 —— **写后校验 + 逐字节回滚是命令内置的，不是 skill 要提醒的事**：
+
+```typescript
+writeJsonFile(next, target, options);
+const after = validateMindData(next);
+if (!after.valid) {
+    restoreFile(target, previous);          // 逐字节还原
+    throw dataError('Validation failed after write, rolled back: ...');
+}
+```
+
+所以 skill 要做的是**别绕过它**：
+
+- **禁止** skill 里教 AI 直接写 JSON 文件（那就绕过了校验）
+- **要求**所有改动走 `jsmind mind` / `jsmind node`，让校验发生在命令内部
+- 批量改动的场景，先 `jsmind validate` 探底，改完再 `jsmind validate` 复查
+- `--dry-run` 用于「先看看会变成什么样」
+
+**关键的一点**：这条跟另一条既有约束是同一个思路 ——
+> 凡是结果必须确定的事情，都不许写进 skill
+
+确定性的东西（校验、回滚、id 生成、序列化）全部下沉到 CLI；skill 只描述**意图和顺序**，不描述**如何正确**。
+
+### 8.4 通用性
+
+不限于 jsmind。任何「AI 产出文件」的 skill 都适用：
+
+- 产出前：有没有一个检查器能判断结果对不对？
+- 产出后：检查失败会不会**挡住**下一步，还是只是打印一行警告？
+- 如果检查器不存在，**那就先做检查器，别写 skill** —— 这次 S2 的校验器就是这个检查器
+
+### 8.5 触发时机
+
+- S4（渲染层的样式与重测）做完
+- S7b（`render`）做完，`node set-style` 补上
+- 命令面稳定、不再改名之后
+
+到那时 skill 要覆盖的完整闭环是：`context` 找 id → `mind`/`node` 改 → `validate` 查 → `render` 出图。

@@ -5,6 +5,9 @@
     "type": "module",
     "main": "dist/jsmind.js",
     "types": "dist/jsmind.d.ts",
+    "bin": {
+        "jsmind": "./dist/cli.js"
+    },
     "exports": {
         ".": {
             "import": "./dist/jsmind.js",
