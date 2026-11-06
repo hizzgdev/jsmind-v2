@@ -3,7 +3,8 @@ import { JsMindError } from '../common/error.ts';
 import type { ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
-import { attachViewShadowRoot } from './shadow.ts';
+import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
+import { resolveJmStyle } from '../model/data/style.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
 import type { JmNode } from '../model/data/node.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
@@ -15,6 +16,8 @@ import type { Arranger } from '../arranger/index.ts';
  */
 export class JmView {
     private readonly container: HTMLElement;
+
+    private readonly shadowRoot: ShadowRoot;
 
     private readonly innerContainer: JmElement;
 
@@ -30,8 +33,9 @@ export class JmView {
 
     private readonly viewOffset: JmPoint = new JmPoint(0, 0);
 
-    private constructor(container: HTMLElement, innerContainer: JmElement, nodeView: JmNodeView, edgeView: JmEdgeView, arranger: Arranger, options: ViewOptions) {
+    private constructor(container: HTMLElement, shadowRoot: ShadowRoot, innerContainer: JmElement, nodeView: JmNodeView, edgeView: JmEdgeView, arranger: Arranger, options: ViewOptions) {
         this.container = container;
+        this.shadowRoot = shadowRoot;
         this.innerContainer = innerContainer;
         this.nodeView = nodeView;
         this.edgeView = edgeView;
@@ -48,7 +52,7 @@ export class JmView {
         const innerContainer = this._initInnerContainer(shadowRoot);
         const nodeView = new JmNodeView(innerContainer, options);
         const edgeView = new JmEdgeView(innerContainer);
-        return new JmView(jmContainer, innerContainer, nodeView, edgeView, arranger, options);
+        return new JmView(jmContainer, shadowRoot, innerContainer, nodeView, edgeView, arranger, options);
     }
 
     private static async _initContainer(container: string | HTMLElement): Promise<HTMLElement> {
@@ -73,6 +77,23 @@ export class JmView {
         // rendered tree inside the style boundary.
         shadowRoot.appendChild(jmElement.element);
         return jmElement;
+    }
+
+    /**
+     * Resolves the mind map's style and pushes it onto the rendered tree.
+     *
+     * @remarks
+     * Must run before measuring: a node's measured size depends on its padding,
+     * font size and line height, and those come from the theme. Applying it
+     * afterwards would lay the map out to the previous theme's geometry and
+     * leave the rendered nodes disagreeing with the coordinates beside them.
+     *
+     * @param mind - The mind map about to be rendered.
+     */
+    applyTheme(mind: JmMind): void {
+        const theme = resolveJmStyle(mind.style);
+        applyThemeToHost(this.shadowRoot, theme);
+        this.nodeView.setTheme(theme);
     }
 
     async measureNodeSizes(mind: JmMind): Promise<void> {

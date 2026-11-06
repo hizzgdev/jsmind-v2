@@ -211,3 +211,103 @@ test('ui - the root is vertically centred on its children', async () => {
             `${childrenCentre.toFixed(1)} (tolerance ${tolerance.toFixed(1)})`
     );
 });
+
+/** One node's resolved appearance, as the browser computed it. */
+interface StyledNode {
+    text: string;
+    fill: string;
+    color: string;
+    width: number;
+    height: number;
+}
+
+/**
+ * Renders a root plus one child, optionally with a tone and a mind-level style,
+ * and reports the colours and sizes the browser resolved.
+ *
+ * @param tone - Tone to put on the child, if any.
+ * @param mindStyle - Style declaration to put on the mind map, if any.
+ * @returns Both nodes, in tree order: root first, then the child.
+ */
+async function renderStyled(tone?: string, mindStyle?: Record<string, unknown>): Promise<StyledNode[]> {
+    await browser.setContent(
+        `<div id="container" style="width:${CONTAINER_WIDTH}px;height:${CONTAINER_HEIGHT}px"></div>`
+    );
+    await browser.evaluate(browser.bundleSource());
+
+    const nodes = await browser.evaluate<StyledNode[]>(
+        `
+        (async () => {
+            const container = document.getElementById('container');
+            const jm = await jsMind.create(container);
+            const mind = new jsMind.Mind({ name: 'style-test' });
+            ${mindStyle ? `mind.style = ${JSON.stringify(mindStyle)};` : ''}
+            mind.root.content = new (mind.root.content.constructor)('text', 'Root');
+            const child = mind.addChildNode('Child', mind.root.id);
+            ${tone ? `child.style = { tone: ${JSON.stringify(tone)} };` : ''}
+            await jm.open(mind);
+
+            return [...container.shadowRoot.querySelectorAll('.jsmind-node')].map(el => {
+                const computed = getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return {
+                    text: el.textContent.trim(),
+                    fill: computed.backgroundColor,
+                    color: computed.color,
+                    width: rect.width,
+                    height: rect.height,
+                };
+            });
+        })()
+    `,
+        true
+    );
+    return nodes;
+}
+
+test('ui - a node without a tone is painted with the default palette', async () => {
+    const [, child] = await renderStyled();
+
+    // #ffffff and #333333 from JSMIND_THEME_DEFAULT.tones.default
+    assert.strictEqual(child.fill, 'rgb(255, 255, 255)', 'default fill is white');
+    assert.strictEqual(child.color, 'rgb(51, 51, 51)', 'default text is #333333');
+});
+
+test('ui - a tone recolours the node that carries it and nothing else', async () => {
+    const [root, child] = await renderStyled('danger');
+
+    // #d9534f / #ffffff from JSMIND_THEME_DEFAULT.tones.danger
+    assert.strictEqual(child.fill, 'rgb(217, 83, 79)', 'child takes the danger fill');
+    assert.strictEqual(child.color, 'rgb(255, 255, 255)', 'and its text colour');
+
+    assert.strictEqual(root.fill, 'rgb(255, 255, 255)', 'root keeps the default fill');
+    assert.strictEqual(root.color, 'rgb(51, 51, 51)', 'root keeps the default text');
+});
+
+test('ui - every semantic tone resolves to its own palette', async () => {
+    const expected: Record<string, string> = {
+        primary: 'rgb(66, 139, 202)', // #428bca
+        success: 'rgb(92, 184, 92)', // #5cb85c
+        warning: 'rgb(240, 173, 78)', // #f0ad4e
+        danger: 'rgb(217, 83, 79)', // #d9534f
+        info: 'rgb(93, 192, 222)', // #5dc0de
+        accent: 'rgb(155, 89, 182)', // #9b59b6
+    };
+
+    for (const [tone, fill] of Object.entries(expected)) {
+        const [, child] = await renderStyled(tone);
+        assert.strictEqual(child.fill, fill, `tone ${tone} should paint ${fill}`);
+    }
+});
+
+test('ui - a mind-level style override reaches the rendered node', async () => {
+    const [, base] = await renderStyled();
+    const [, padded] = await renderStyled(undefined, { node: { padding: 30 } });
+
+    // Padding is a measurement input: growing it must grow the box, which is
+    // the whole reason the theme has to be applied before measuring.
+    assert.ok(
+        padded.width > base.width,
+        `padding 30 should widen the node (base ${base.width}, padded ${padded.width})`
+    );
+});

@@ -19,6 +19,10 @@ export class JmMindChangeCoordinator extends JmMindObserver {
     }
 
     async onMindMapOpened(mind: JmMind): Promise<void> {
+        // Before measuring, not after: a node's measured size depends on the
+        // theme's padding, font size and line height. Applying it later would
+        // lay the map out to the previous theme's geometry.
+        this.view.applyTheme(mind);
         await this.view.measureNodeSizes(mind);
         this.arranger.calculate(mind);
         await this.view.settle(mind);

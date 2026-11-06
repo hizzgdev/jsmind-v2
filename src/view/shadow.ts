@@ -6,20 +6,27 @@
  *   https://github.com/hizzgdev/jsmind/
  */
 
+import type { JmTheme, JmThemeShadowLayer } from '../model/data/style.ts';
+
 /**
- * Structural styles: where things sit and how they stack, never how they look.
+ * Styles installed into the shadow root.
  *
  * @remarks
- * These rules used to be an external stylesheet the caller had to load before
- * anything rendered. They are not meant to be edited by whoever embeds the
- * library, and a `.css` file shipped next to the build output invites two
- * failure modes: someone restyles it and the layout breaks in ways the tests
- * only catch as wrong coordinates, or someone forgets to include it and every
- * node stacks at 0,0. Shipping them inside the shadow root means a working
- * render has no external prerequisite.
+ * Two kinds of rule live here.
  *
- * Nothing here decides appearance. Colour, radius, padding, font and shadow
- * come from the theme and are applied per element.
+ * Positioning (`absolute`, `z-index`, `overflow`) is decided here and nowhere
+ * else. It is how the renderer finds room for a node at a coordinate it
+ * computed, not a matter of taste, so it is not a theme field.
+ *
+ * Everything that decides how a node *looks* reads a custom property rather
+ * than naming a value. Those values come from the theme, written onto the host
+ * element by {@link applyThemeToHost}. The indirection is what lets one
+ * stylesheet serve every theme while a single node still carries its own tone
+ * color: custom properties inherit, so a value set on one node wins for that
+ * node alone.
+ *
+ * These rules used to be an external stylesheet the caller had to remember to
+ * load. Forgetting it stacked every node at 0,0 and reported no error.
  *
  * @private
  */
@@ -32,6 +39,7 @@ export const JSMIND_VIEW_STYLES = `
         outline: none;
         -webkit-user-select: none;
         user-select: none;
+        background-color: var(--jm-background);
     }
 
     .jsmind-inner {
@@ -60,6 +68,29 @@ export const JSMIND_VIEW_STYLES = `
     .jsmind-node {
         position: absolute;
         cursor: default;
+
+        padding: var(--jm-node-padding);
+        border-radius: var(--jm-node-radius);
+        border: var(--jm-node-border-width) solid var(--jm-node-border-color);
+        max-width: var(--jm-node-max-width);
+        font-family: var(--jm-node-font-family);
+        font-size: var(--jm-node-font-size);
+        line-height: var(--jm-node-line-height);
+        background-color: var(--jm-node-fill);
+        color: var(--jm-node-text);
+        box-shadow: var(--jm-node-shadow-normal);
+    }
+
+    .jsmind-node:hover {
+        box-shadow: var(--jm-node-shadow-hover);
+    }
+
+    .jsmind-node-selected {
+        box-shadow: var(--jm-node-shadow-selected);
+    }
+
+    .jsmind-node-root {
+        font-size: var(--jm-node-root-font-size);
     }
 
     .jsmind-node-expander {
@@ -69,16 +100,42 @@ export const JSMIND_VIEW_STYLES = `
         text-align: center;
         cursor: pointer;
         box-sizing: border-box;
+
+        width: var(--jm-expander-size);
+        height: var(--jm-expander-size);
+        border-radius: var(--jm-expander-radius);
+        border-width: var(--jm-expander-border-width);
+        border-style: solid;
+        border-color: var(--jm-expander-border-color);
+        background-color: var(--jm-node-fill);
+        color: var(--jm-node-text);
+        box-shadow: var(--jm-node-shadow-normal);
+    }
+
+    /* The glyph is sized to sit inside the circle above, not to match the
+       node's text. A theme that enlarged node font sizes would otherwise push
+       the +/- out of a 13px control. These are details of the control itself,
+       so they stay here instead of becoming theme fields. */
+    .jsmind-node-expander-expanded::after,
+    .jsmind-node-expander-collapsed::after {
+        display: block;
+        font-family: Arial, sans-serif;
+        font-size: 18px;
+        line-height: 1;
+        margin-top: -4.5px;
     }
 
     .jsmind-node-expander-expanded::after {
-        display: block;
         content: '\\229D';
     }
 
     .jsmind-node-expander-collapsed::after {
-        display: block;
         content: '\\2295';
+    }
+
+    .jsmind-node-expander-number {
+        font-size: var(--jm-expander-font-size);
+        line-height: var(--jm-expander-line-height);
     }
 
     .jmnode-overflow-wrap .jsmind-nodes {
@@ -93,79 +150,90 @@ export const JSMIND_VIEW_STYLES = `
 `;
 
 /**
- * Appearance rules, carried over verbatim from the stylesheet that used to be
- * loaded from outside.
+ * Formats a theme shadow layer as a CSS `box-shadow` value.
  *
- * @remarks
- * The shadow boundary does not let an external `<link>` reach inside, so while
- * appearance still comes from CSS rather than from the theme, the rules have to
- * live on this side of the boundary or the map renders unstyled.
- *
- * **This block is transitional.** Every rule in it duplicates something the
- * theme already describes — padding, radius, font, shadow, the expander's size
- * and border — and goes away once the view applies the theme to elements
- * directly. Anything added here should be treated as debt, not as a decision.
+ * @param layer - The layer to format.
+ * @returns A value like `1px 1px 1px #666666`.
  *
  * @private
  */
-export const JSMIND_TRANSITIONAL_THEME_STYLES = `
-    .jsmind-node {
-        padding: 10px;
-        background-color: #fff;
-        color: #333;
-        border-radius: 5px;
-        box-shadow: 1px 1px 1px #666;
-        font: 16px/1.125 Verdana, Arial, Helvetica, sans-serif;
-        max-width: 400px;
-    }
-    .jsmind-node:hover {
-        box-shadow: 2px 2px 8px #000;
-        background-color: #ebebeb;
-        color: #333;
-    }
-    .jsmind-node-selected {
-        background-color: #11f;
-        color: #fff;
-        box-shadow: 2px 2px 8px #000;
-    }
-    .jsmind-node-root {
-        font-size: 24px;
+function formatShadow(layer: JmThemeShadowLayer): string {
+    return `${layer.offsetX}px ${layer.offsetY}px ${layer.blur}px ${layer.color}`;
+}
+
+/**
+ * Writes a theme's values onto the host element as custom properties.
+ *
+ * @remarks
+ * Done on the host rather than on the shadow root because custom properties
+ * inherit: set here, every rule inside sees them, and a value set on a single
+ * node overrides it for that node alone. That is what makes per-node tone
+ * colors possible without generating a stylesheet per mind map.
+ *
+ * Values are written complete, with units (`10px`, not `10`), because the
+ * stylesheet interpolates them directly into positions where a bare number is
+ * not a valid length.
+ *
+ * The `default` tone is applied here too, as the fallback for nodes that name
+ * no tone of their own.
+ *
+ * @param root - The shadow root whose host should carry the values.
+ * @param theme - The fully resolved theme.
+ *
+ * @private
+ */
+export function applyThemeToHost(root: ShadowRoot, theme: JmTheme): void {
+    const host = root.host as HTMLElement;
+
+    /** Sets a custom property only when the theme actually carries a value. */
+    const set = (name: string, value: string | number | undefined, unit = ''): void => {
+        if (value !== undefined) {
+            host.style.setProperty(name, `${value}${unit}`);
+        }
+    };
+
+    set('--jm-background', theme.background);
+
+    const node = theme.node;
+    if (node) {
+        set('--jm-node-padding', node.padding, 'px');
+        set('--jm-node-radius', node.radius, 'px');
+        set('--jm-node-border-width', node.borderWidth, 'px');
+        set('--jm-node-max-width', node.maxWidth, 'px');
+        set('--jm-node-font-family', node.fontFamily);
+        set('--jm-node-font-size', node.fontSize, 'px');
+        set('--jm-node-root-font-size', node.rootFontSize, 'px');
+        // Unitless on purpose: it is a multiplier of the font size, and CSS
+        // would read a pixel value as an absolute line box instead.
+        set('--jm-node-line-height', node.lineHeight);
+
+        const shadow = node.shadow;
+        if (shadow) {
+            set('--jm-node-shadow-normal', formatShadow(shadow.normal));
+            set('--jm-node-shadow-hover', formatShadow(shadow.hover));
+            set('--jm-node-shadow-selected', formatShadow(shadow.selected));
+        }
     }
 
-    .jsmind-node-expander {
-        width: 13px;
-        height: 13px;
-        border-radius: 50%;
-    }
-    .jsmind-node-expander-expanded::after,
-    .jsmind-node-expander-collapsed::after {
-        font-family: 'Arial';
-        font-size: 18px;
-        margin-top: -4.5px;
-    }
-    .jsmind-node-expander-number {
-        font-size: 8px;
-        text-align: center;
-        line-height: 11px;
-        border: solid 1px #666;
-    }
-    .jsmind-node-expander:hover {
-        box-shadow: 1px 1px 8px #000;
-        background-color: #ebebeb;
-        color: #333;
+    const expander = theme.expander;
+    if (expander) {
+        set('--jm-expander-size', expander.size, 'px');
+        set('--jm-expander-radius', expander.radius, 'px');
+        set('--jm-expander-border-width', expander.borderWidth, 'px');
+        set('--jm-expander-font-size', expander.fontSize, 'px');
+        set('--jm-expander-line-height', expander.lineHeight, 'px');
     }
 
-    @media screen and (max-device-width: 1024px) {
-        .jsmind-node {
-            padding: 5px;
-            border-radius: 3px;
-            font-size: 14px;
-        }
-        .jsmind-node-root {
-            font-size: 21px;
-        }
+    // The default tone is the fallback for nodes that name no tone of their
+    // own; a node with a tone overrides all four on its own element.
+    const fallback = theme.tones?.default;
+    if (fallback) {
+        set('--jm-node-fill', fallback.fillColor);
+        set('--jm-node-text', fallback.textColor);
+        set('--jm-node-border-color', fallback.borderColor);
+        set('--jm-expander-border-color', fallback.borderColor);
     }
-`;
+}
 
 /**
  * Attaches a shadow root to the host element and installs the styles in it.
@@ -197,7 +265,7 @@ export function attachViewShadowRoot(container: HTMLElement): ShadowRoot {
         style.setAttribute(marker, '');
         root.appendChild(style);
     }
-    style.textContent = JSMIND_VIEW_STYLES + JSMIND_TRANSITIONAL_THEME_STYLES;
+    style.textContent = JSMIND_VIEW_STYLES;
 
     return root;
 }
