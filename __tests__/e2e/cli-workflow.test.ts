@@ -23,6 +23,9 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { JmMindJsonSerializer } from '../../src/serialization/json.ts';
+import { JmMind } from '../../src/model/mind.ts';
+import { JmNodeContent } from '../../src/model/data/node-content.ts';
+import { JmEdgeType } from '../../src/model/data/edge.ts';
 import { validateMindData } from '../../src/serialization/validation.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -236,6 +239,130 @@ test('e2e - a broken file stops the CLI from editing it', () => {
     assert.strictEqual(attempt.code, 1, 'invalid data is exit 1');
     assert.ok(attempt.stderr.includes('Refusing to modify'), attempt.stderr);
     assert.strictEqual(readFileSync(file, 'utf8'), before, 'the file must be untouched');
+
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('e2e - a map built by the API is readable and editable by the CLI', () => {
+    // The other direction. The forward test proves the CLI writes something the
+    // API understands; this proves the API writes something the CLI
+    // understands. Either side can drift on its own assumptions about the
+    // format, and only a test that crosses the boundary catches it.
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-e2e-'));
+    const file = join(dir, 'from-api.json');
+
+    // ---- 1. Build entirely through the API ------------------------------
+    const mind = new JmMind({ name: 'API 建的图', author: 'api' });
+    mind.root.content = JmNodeContent.createText('API 根节点');
+
+    const backend = mind.addChildNode('后端', mind.root.id);
+    const frontend = mind.addChildNode('前端', mind.root.id);
+    const dbTask = mind.addChildNode('建表', backend.id);
+    const apiTask = mind.addChildNode('写接口', backend.id);
+    const pageTask = mind.addChildNode('写页面', frontend.id);
+
+    // An API-side attribute, so the CLI has to read a non-default fold state.
+    frontend.folded = true;
+    backend.side = -1;
+
+    // A non-hierarchical edge, with a label.
+    const edge = mind.addEdge(dbTask.id, pageTask.id, JmEdgeType.Link, { label: '连接' });
+
+    const doc = new JmMindJsonSerializer().serialize(mind);
+    writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+
+    // The API's own output must be valid before the CLI is asked to read it.
+    assert.strictEqual(validateMindData(doc).valid, true);
+
+    // ---- 2. The CLI must accept it --------------------------------------
+    const validated = runCli(['validate', file]);
+    assert.strictEqual(validated.code, 0, `CLI rejected API output: ${validated.stderr}`);
+
+    // ---- 3. The CLI must see the same tree the API built ----------------
+    const outline = runCliJson(['context', file, '--json', '--depth', '3']) as {
+        id: string;
+        level: number;
+        text: string;
+    }[];
+
+    assert.strictEqual(outline.length, 6, `expected 6 nodes, saw ${outline.length}`);
+    const texts = outline.map(entry => entry.text);
+    for (const expected of ['API 根节点', '后端', '前端', '建表', '写接口', '写页面']) {
+        assert.ok(texts.includes(expected), `the CLI should see "${expected}"`);
+    }
+
+    // Same ids — the CLI must not be re-deriving them.
+    const apiIds = [mind.root.id, backend.id, frontend.id, dbTask.id, apiTask.id, pageTask.id];
+    for (const id of apiIds) {
+        assert.ok(outline.some(entry => entry.id === id), `the CLI should report id ${id}`);
+    }
+
+    // ---- 4. The CLI must find the edge the API created ------------------
+    const edges = runCliJson(['mind', 'list-edges', file, '--node-id', dbTask.id, '--json']) as {
+        id: string;
+        source: string;
+        target: string;
+        label: string;
+    }[];
+    assert.strictEqual(edges.length, 1);
+    assert.strictEqual(edges[0].id, edge.id);
+    assert.strictEqual(edges[0].target, pageTask.id);
+    assert.strictEqual(edges[0].label, '连接');
+
+    // ---- 5. The CLI must be able to edit what the API produced ----------
+    runCliJson(['mind', 'add-child', file, '--parent-id', pageTask.id, '--text', 'CLI 加的', '--json']);
+    runCli(['node', 'set-text', file, '--node-id', apiTask.id, '--text', 'CLI 改的']);
+    runCli(['node', 'set-folded', file, '--node-id', backend.id, '--folded', 'true']);
+
+    // ---- 6. ...and that edit must still be readable by the API ----------
+    const after = new JmMindJsonSerializer().deserialize(
+        JSON.parse(readFileSync(file, 'utf8'))
+    );
+
+    const pageNode = after.findNodeById(pageTask.id);
+    assert.strictEqual(pageNode?.children.length, 1, 'the CLI-added child should be there');
+    assert.strictEqual(pageNode?.children[0].content.value, 'CLI 加的');
+    assert.strictEqual(after.findNodeById(apiTask.id)?.content.value, 'CLI 改的');
+    assert.strictEqual(after.findNodeById(backend.id)?.folded, true);
+
+    // Attributes the CLI never touched must survive the round trip.
+    assert.strictEqual(after.findNodeById(frontend.id)?.folded, true, 'untouched fold state kept');
+    assert.strictEqual(after.findNodeById(backend.id)?.side, -1, 'untouched side kept');
+    assert.strictEqual(after.findNodeById(dbTask.id)?.content.value, '建表', 'untouched text kept');
+
+    // And the map metadata the API set must still be there.
+    assert.strictEqual(after.meta.name, 'API 建的图');
+    assert.strictEqual(after.meta.author, 'api');
+
+    assert.strictEqual(validateMindData(JSON.parse(readFileSync(file, 'utf8'))).valid, true);
+
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('e2e - CLI rejects an API map that the API allowed to become invalid', () => {
+    // Guarding the boundary from the other side: if something writes a document
+    // the validator would reject, the CLI must say so with exit 1 rather than
+    // half-reading it.
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-e2e-'));
+    const file = join(dir, 'dangling.json');
+
+    const mind = new JmMind({ name: 'going bad' });
+    mind.root.content = JmNodeContent.createText('根');
+    const child = mind.addChildNode('子', mind.root.id);
+    const doc = new JmMindJsonSerializer().serialize(mind);
+
+    // Point a child at a parent that is not in the document.
+    (doc.nodes[child.id] as { parent: string | null }).parent = 'not-a-real-id';
+
+    writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+
+    const validated = runCli(['validate', file]);
+    assert.strictEqual(validated.code, 1, 'invalid data is exit 1');
+    assert.ok(validated.stderr.includes('E_NODE_PARENT_MISSING'), validated.stderr);
+
+    // And a read command must refuse rather than return a partial tree.
+    const outline = runCli(['context', file, '--json']);
+    assert.strictEqual(outline.code, 1, 'context must not read a broken document');
 
     rmSync(dir, { recursive: true, force: true });
 });
