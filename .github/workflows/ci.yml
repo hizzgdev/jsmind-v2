@@ -128,64 +128,87 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           node --experimental-strip-types --no-warnings scripts/render-preview.ts \
-            examples/v2-features.json preview.png
+            examples/v2-features.json tmp/preview.png
 
-      # The comment embeds this image with markdown, which needs a URL GitHub
-      # serves as an image. Neither artifacts nor release assets qualify:
-      # artifact URLs need auth and redirect to HTML, and release download URLs
-      # arrive as `application/octet-stream` with `Content-Disposition:
-      # attachment`, so GitHub treats them as a file to fetch rather than a
-      # picture to draw. A file on a branch is served by
-      # raw.githubusercontent.com as `image/png` - the one form that works, and
-      # what reg-actions and awesome-copilot both document.
+      # The image goes up as a comment attachment, in two steps with different
+      # tokens.
       #
-      # Force-pushed so the branch always holds exactly one commit and one file;
-      # done in a scratch directory so the checked-out tree is never disturbed.
-      - name: Publish the image to the preview branch
-        id: publish
+      # Step one uploads to https://uploads.github.com/user-attachments/assets,
+      # the endpoint gh's own `--attach` posts to, and gets back
+      # https://github.com/user-attachments/assets/<uuid>. That URL names a blob,
+      # not a commit, so rebases and force-pushes leave it alone - unlike the
+      # render-preview branch it replaces, where each push renamed the file and
+      # orphaned every earlier comment's image.
+      #
+      # Step two posts the comment with GITHUB_TOKEN, so it is attributed to
+      # github-actions[bot] like every other CI comment on the pull request. Using
+      # `--attach` would have done both in one command but under a single
+      # credential, and there is no way to say "upload as the maintainer, post as
+      # the bot" to a command that only takes one token.
+      #
+      # Hence two secrets doing different jobs: PR_PREVIEW_TOKEN owns the upload,
+      # GITHUB_TOKEN owns the comment.
+      #
+      # Forks never receive repository secrets, so the upload step warns and
+      # stops rather than failing the build: the point of this job is the tests,
+      # and the picture is a courtesy.
+      - name: Upload the preview
+        id: upload
         if: github.event_name == 'pull_request'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Two credentials in one step, doing different jobs.
+          #
+          # GH_TOKEN is the bot's, and only reads the numeric repository id;
+          # it makes no writes. gh refuses to run in Actions without it even
+          # for a plain `gh api` read, which is how this step first failed.
+          #
+          # UPLOAD_TOKEN is a maintainer's, and only performs the upload. The
+          # endpoint rejects installation tokens with "attaching files requires
+          # write access to the repository" - a statement about the kind of
+          # credential, not about the permissions block above.
+          GH_TOKEN: ${{ github.token }}
+          UPLOAD_TOKEN: ${{ secrets.PR_PREVIEW_TOKEN }}
           REPO: ${{ github.repository }}
-          SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
 
-          # The filename carries the commit, so a comment and the code it
-          # describes stay together. A single shared `preview.png` would be
-          # overwritten by every later run and quietly rewrite history in every
-          # earlier comment.
-          file="preview-${SHA}.png"
+          if [ -z "${UPLOAD_TOKEN:-}" ]; then
+            echo "::warning::PR_PREVIEW_TOKEN is not set; skipping the preview comment."
+            echo "::warning::Set it to a token with write access to $REPO, or forks never get a preview."
+            exit 0
+          fi
 
-          # Force-pushed: the branch holds exactly one commit and one file, so
-          # it never accumulates. The cost is that an older preview eventually
-          # stops resolving once the superseded commit is garbage-collected —
-          # an old pull request shows a broken image rather than, worse, a
-          # picture of somebody else's code. A preview is worth a glance at
-          # review time and not much after that.
-          #
-          # Built in a scratch directory so the checked-out tree is untouched.
-          rm -rf /tmp/preview-branch && mkdir -p /tmp/preview-branch
-          cp preview.png "/tmp/preview-branch/$file"
-          cd /tmp/preview-branch
+          repo_id=$(gh api "repos/$REPO" --jq .id)
 
-          git init -q
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$file"
-          git commit -q -m "preview: ${SHA:0:7}"
-          git push -q -f \
-            "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
-            HEAD:render-preview
-          echo "published ${SHA:0:7} as $file"
+          # --data-binary, not --data: the latter mangles the payload. The query
+          # string is what the endpoint reads for the content type, so it has to
+          # survive URL encoding unchanged.
+          response=$(curl -sS -X POST \
+            "https://uploads.github.com/user-attachments/assets?content_type=image%2Fpng&name=preview.png&repository_id=$repo_id" \
+            -H "Authorization: Bearer $UPLOAD_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @tmp/preview.png)
 
+          url=$(printf '%s' "$response" | jq -r '.url // empty')
+          if [ -z "$url" ]; then
+            echo "::error::Upload failed: $response"
+            exit 1
+          fi
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "uploaded $(du -h tmp/preview.png | cut -f1) to $url"
+
+      # Posts the comment, attributed to github-actions[bot].
       - name: Post it on the pull request
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.upload.outputs.url != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # github.token rather than secrets.GITHUB_TOKEN: same credential,
+          # but present in every context and impossible to shadow with a secret.
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_URL: ${{ steps.upload.outputs.url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          # One variable, two uses: the full sha names the file, the first seven
-          # characters go in the prose.
+          # One variable, two uses: the full sha names the commit in the prose,
+          # the first seven characters keep it readable.
           FULL_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
@@ -199,27 +222,6 @@ jobs:
           # describing code that no longer exists.
           MARKER='<!-- jsmind-render-preview -->'
 
-          # Unquoted heredoc delimiter so $short interpolates; backticks are
-          # escaped so the shell does not run them as commands.
-          cat > /tmp/body.md <<BODY
-          $MARKER
-          ### Render preview
-
-          ![jsMind render preview](https://raw.githubusercontent.com/$REPO/render-preview/preview-$FULL_SHA.png)
-
-          Rendered from the latest code on this branch, at \`$short\`.
-
-          **Worth a look for anything odd** - overlapping nodes, missing edges, text
-          spilling outside its box, a lopsided layout. The tests check that the
-          geometry is computed correctly; whether it actually *looks* right is the one
-          thing they cannot tell you, and the one thing this image is for.
-
-          [Workflow run](https://github.com/$REPO/actions/runs/$RUN_ID)
-          <sub>Generated by \`scripts/render-preview.ts\` from \`examples/v2-features.json\`.
-          The filename is the commit, so this image always matches the code above it.
-          **This file is cleaned up periodically — download it if you need to keep it.**</sub>
-          BODY
-
           # Clear any previous preview first. Deleting before posting means a
           # failure leaves the old image in place instead of no image at all.
           previous=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
@@ -229,5 +231,27 @@ jobs:
             gh api -X DELETE "repos/$REPO/issues/comments/$id" || true
           done
 
-          gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file /tmp/body.md
-          echo "posted"
+          # Unquoted heredoc delimiter so the variables interpolate; backticks
+          # are escaped so the shell does not run them as commands.
+          cat > tmp/comment.md <<BODY
+          $MARKER
+          ### Render preview
+
+          ![jsMind render preview]($PREVIEW_URL)
+
+          Rendered from the latest code on this branch, at \`$short\`.
+
+          **Worth a look for anything odd** - overlapping nodes, missing edges, text
+          spilling outside its box, a lopsided layout. The tests check that the
+          geometry is computed correctly; whether it actually *looks* right is the one
+          thing they cannot tell you, and the one thing this image is for.
+
+          [Workflow run](https://github.com/$REPO/actions/runs/$RUN_ID)
+          <sub>Generated by \`scripts/render-preview.ts\` from \`examples/v2-features.json\`,
+          pinned to this commit. Uploaded as a comment attachment, so it stays viewable
+          for as long as this comment exists.</sub>
+          BODY
+
+          gh pr comment "$PR_NUMBER" \
+            --repo "$REPO" \
+            --body-file tmp/comment.md
