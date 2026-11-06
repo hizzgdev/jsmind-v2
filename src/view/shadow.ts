@@ -81,12 +81,20 @@ export const JSMIND_VIEW_STYLES = `
         box-shadow: var(--jm-node-shadow-normal);
     }
 
+    /* Hover and selection change colour as well as shadow. Those two colours
+       are interaction state, not theme: the theme describes what a node looks
+       like at rest, and its tones say what a node means. Folding state colours
+       into that would make --jm-node-fill mean two things at once. */
     .jsmind-node:hover {
         box-shadow: var(--jm-node-shadow-hover);
+        background-color: #ebebeb;
+        color: #333333;
     }
 
     .jsmind-node-selected {
         box-shadow: var(--jm-node-shadow-selected);
+        background-color: #11f;
+        color: #ffffff;
     }
 
     .jsmind-node-root {
@@ -126,10 +134,9 @@ export const JSMIND_VIEW_STYLES = `
         content: '\\229D';
     }
 
-    /* No font-family here, matching the stylesheet this came from — the two
-       glyphs ended up on different fonts. Left as found; see the PR note. */
     .jsmind-node-expander-collapsed::after {
         display: block;
+        font-family: Arial, sans-serif;
         font-size: 18px;
         margin-top: -4.5px;
         content: '\\2295';
@@ -150,6 +157,29 @@ export const JSMIND_VIEW_STYLES = `
         box-shadow: 1px 1px 8px #000000;
         background-color: #ebebeb;
         color: #333333;
+    }
+
+    /* Small screens get a tighter map.
+     *
+     * Scaled with calc rather than restated as literals. applyThemeToHost
+     * writes the theme's custom properties inline on the host, and inline beats
+     * a stylesheet rule — so assigning new values to the variables here would
+     * do nothing. Writing literals would work, but would also overrule the
+     * theme outright: a mind map with a larger padding would come out small on
+     * a phone no matter what it asked for.
+     *
+     * The factors reproduce the old stylesheet's numbers exactly for the
+     * default theme — 10/2 = 5, 5 × 0.6 = 3, 16 × 0.875 = 14, 24 × 0.875 = 21 —
+     * while staying proportional for any other theme. */
+    @media screen and (max-device-width: 1024px) {
+        .jsmind-node {
+            padding: calc(var(--jm-node-padding) / 2);
+            border-radius: calc(var(--jm-node-radius) * 0.6);
+            font-size: calc(var(--jm-node-font-size) * 0.875);
+        }
+        .jsmind-node-root {
+            font-size: calc(var(--jm-node-root-font-size) * 0.875);
+        }
     }
 
     .jmnode-overflow-wrap .jsmind-nodes {
