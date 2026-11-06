@@ -1,0 +1,250 @@
+{
+  "format": "jsmind_v2",
+  "meta": {
+    "author": "zzgbot",
+    "name": "jsMind v2 能力地图",
+    "version": "1.0"
+  },
+  "root": "root",
+  "nodes": {
+    "root": {
+      "id": "root",
+      "content": {
+        "type": "text",
+        "value": "jsMind v2"
+      },
+      "parent": null,
+      "children": [
+        "jm-mw4odkbz",
+        "jm-mw4odkey",
+        "jm-mw4odkhu",
+        "jm-mw4odkks"
+      ],
+      "folded": false,
+      "side": 0,
+      "data": {}
+    },
+    "jm-mw4odkbz": {
+      "id": "jm-mw4odkbz",
+      "content": {
+        "type": "text",
+        "value": "数据层"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mw4odkrd",
+        "jm-mw4odkui",
+        "jm-mw4odkxc"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mw4odkey": {
+      "id": "jm-mw4odkey",
+      "content": {
+        "type": "text",
+        "value": "CLI"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mw4odl09",
+        "jm-mw4odl39",
+        "jm-mw4odl67",
+        "jm-mw4odl97"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odkhu": {
+      "id": "jm-mw4odkhu",
+      "content": {
+        "type": "text",
+        "value": "渲染层"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mw4odlc7",
+        "jm-mw4odlf3",
+        "jm-mw4odli0"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odkks": {
+      "id": "jm-mw4odkks",
+      "content": {
+        "type": "text",
+        "value": "测试"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mw4odll6",
+        "jm-mw4odloe",
+        "jm-mw4odlrn"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mw4odkrd": {
+      "id": "jm-mw4odkrd",
+      "content": {
+        "type": "text",
+        "value": "Schema 与样式"
+      },
+      "parent": "jm-mw4odkbz",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odkui": {
+      "id": "jm-mw4odkui",
+      "content": {
+        "type": "text",
+        "value": "校验：21 个错误码"
+      },
+      "parent": "jm-mw4odkbz",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odkxc": {
+      "id": "jm-mw4odkxc",
+      "content": {
+        "type": "text",
+        "value": "v1 兼容序列化"
+      },
+      "parent": "jm-mw4odkbz",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odl09": {
+      "id": "jm-mw4odl09",
+      "content": {
+        "type": "text",
+        "value": "create"
+      },
+      "parent": "jm-mw4odkey",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odl39": {
+      "id": "jm-mw4odl39",
+      "content": {
+        "type": "text",
+        "value": "context"
+      },
+      "parent": "jm-mw4odkey",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odl67": {
+      "id": "jm-mw4odl67",
+      "content": {
+        "type": "text",
+        "value": "mind / node"
+      },
+      "parent": "jm-mw4odkey",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odl97": {
+      "id": "jm-mw4odl97",
+      "content": {
+        "type": "text",
+        "value": "validate"
+      },
+      "parent": "jm-mw4odkey",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odlc7": {
+      "id": "jm-mw4odlc7",
+      "content": {
+        "type": "text",
+        "value": "布局引擎"
+      },
+      "parent": "jm-mw4odkhu",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odlf3": {
+      "id": "jm-mw4odlf3",
+      "content": {
+        "type": "text",
+        "value": "节点与连线"
+      },
+      "parent": "jm-mw4odkhu",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odli0": {
+      "id": "jm-mw4odli0",
+      "content": {
+        "type": "text",
+        "value": "主题系统"
+      },
+      "parent": "jm-mw4odkhu",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odll6": {
+      "id": "jm-mw4odll6",
+      "content": {
+        "type": "text",
+        "value": "单元测试"
+      },
+      "parent": "jm-mw4odkks",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odloe": {
+      "id": "jm-mw4odloe",
+      "content": {
+        "type": "text",
+        "value": "E2E 双向"
+      },
+      "parent": "jm-mw4odkks",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4odlrn": {
+      "id": "jm-mw4odlrn",
+      "content": {
+        "type": "text",
+        "value": "UI 渲染测试"
+      },
+      "parent": "jm-mw4odkks",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    }
+  },
+  "edges": {}
+}

@@ -1,0 +1,97 @@
+name: Render preview
+
+# Posts a picture of the current renderer output on every pull request.
+#
+# Tests answer "is the geometry right". They cannot answer "does it look like
+# anything" — a map can pass every assertion and still be unusable, with labels
+# stacked on top of each other or the whole drawing stranded in a corner. A
+# picture catches that in the half second it takes to glance at it.
+
+on:
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Render and post a screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      # Needed to write the comment. Without this the token is read-only and
+      # `gh pr comment` fails with a permissions error.
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The preview renders an example map whose labels are Chinese. The runner
+      # ships no CJK font, so without this every glyph falls back and the
+      # screenshot is unreadable — it would look like a rendering bug rather
+      # than a missing package.
+      - name: Install CJK fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk
+          fc-list :lang=zh | head -3
+
+      - name: Build
+        run: npm run build
+
+      - name: Render the example map
+        run: |
+          node --experimental-strip-types --no-warnings scripts/render-preview.ts \
+            examples/v2-features.json preview.png
+
+      - name: Upload as an artifact
+        # Kept even though the comment carries the image: artifacts survive
+        # comment edits and give a stable URL to link to later.
+        uses: actions/upload-artifact@v5
+        with:
+          name: render-preview
+          path: preview.png
+          retention-days: 30
+
+      - name: Post it on the pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          short="${COMMIT_SHA:0:7}"
+
+          # Unquoted heredoc delimiter so $short interpolates; backticks for
+          # markdown are escaped so the shell does not treat them as commands.
+          cat > /tmp/body.md <<BODY
+          ### 渲染预览
+
+          提交 \`$short\` 渲染的 \`examples/v2-features.json\`（18 个节点）。
+
+          这张图不是断言，是给人看的 —— 测试能证明几何算对了，证明不了「看起来像不像个东西」。
+
+          <sub>由 \`scripts/render-preview.ts\` 生成 · 数据来源 \`examples/v2-features.json\`</sub>
+          BODY
+
+          # --attach uploads the file to GitHub's asset store and rewrites the
+          # markdown reference, so the image renders inline instead of needing a
+          # third-party host or a commit into the repo.
+          gh pr comment "$PR_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --attach 'preview.png#jsMind render preview' \
+            --body-file /tmp/body.md
