@@ -1,0 +1,116 @@
+name: write capability probe
+
+# Temporary. Three write paths that would each let a PR comment embed an image,
+# all of which need `contents: write`. This asks the repository directly instead
+# of inferring from one failure.
+#
+#   1. gh release create      → release assets, embeddable via browser_download_url
+#   2. git push to a branch   → raw.githubusercontent.com URL, embeddable
+#   3. gh pr comment --attach → user-attachments URL, embeddable
+#
+# Every job declares contents: write. What matters is whether the repository
+# honours it.
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Can this token write?
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Who am I
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "--- token type and identity ---"
+          gh api user --jq '"user: \(.login)"' 2>&1 | head -2
+          echo "--- repo permissions as the API reports them ---"
+          gh api "repos/${{ github.repository }}" \
+            --jq '"admin=\(.permissions.admin) maintain=\(.permissions.maintain) push=\(.permissions.push) pull=\(.permissions.pull)"' 2>&1 | head -2
+          echo "--- can we read repo settings? (needs admin) ---"
+          gh api "repos/${{ github.repository }}/actions/permissions/workflow" 2>&1 | head -3
+
+      - name: Probe 1 - create a release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set +e
+          printf 'not really a png' > probe.png
+          out=$(gh release create "write-probe-$SHA" probe.png \
+                  --repo "$REPO" --title "write probe" \
+                  --notes "temporary" --prerelease 2>&1)
+          code=$?
+          set -e
+          echo "release create exit=$code"
+          echo "$out"
+          if [ $code -eq 0 ]; then
+            url=$(gh api "repos/$REPO/releases/tags/write-probe-$SHA" \
+                    --jq '.assets[0].browser_download_url')
+            echo "ASSET URL: $url"
+            echo "VERDICT 1: WORKS"
+            gh release delete "write-probe-$SHA" --repo "$REPO" --yes --cleanup-tag 2>&1 | head -2
+          else
+            echo "VERDICT 1: BLOCKED"
+          fi
+
+      - name: Probe 2 - push a branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set +e
+          git config user.name "probe"
+          git config user.email "probe@example.com"
+          echo "probe" > probe.txt
+          git checkout -b "write-probe-$SHA" 2>&1 | tail -1
+          git add probe.txt
+          git commit -q -m "probe" 2>&1 | tail -1
+          out=$(git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
+                  "write-probe-$SHA" 2>&1)
+          code=$?
+          set -e
+          echo "push exit=$code"
+          echo "$out" | tail -3
+          if [ $code -eq 0 ]; then
+            echo "RAW URL: https://raw.githubusercontent.com/$REPO/write-probe-$SHA/probe.txt"
+            echo "VERDICT 2: WORKS"
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
+              --delete "write-probe-$SHA" 2>&1 | tail -1
+          else
+            echo "VERDICT 2: BLOCKED"
+          fi
+
+      - name: Probe 3 - attach to a comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set +e
+          printf 'x' > probe.png
+          # a 1x1 png so the file type check passes
+          printf 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==' | base64 -d > probe.png
+          out=$(gh pr comment "$PR" --repo "$REPO" \
+                  --attach 'probe.png#probe' --body "write probe" 2>&1)
+          code=$?
+          set -e
+          echo "attach exit=$code"
+          echo "$out" | tail -3
+          if [ $code -eq 0 ]; then
+            echo "VERDICT 3: WORKS"
+          else
+            echo "VERDICT 3: BLOCKED"
+          fi
