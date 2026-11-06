@@ -156,10 +156,17 @@ jobs:
         id: upload
         if: github.event_name == 'pull_request'
         env:
-          # A maintainer's token, not GITHUB_TOKEN. The upload endpoint rejects
-          # installation tokens with "attaching files requires write access to
-          # the repository" - which is about the kind of credential, not about
-          # the permissions block above.
+          # Two credentials in one step, doing different jobs.
+          #
+          # GH_TOKEN is the bot's, and only reads the numeric repository id;
+          # it makes no writes. gh refuses to run in Actions without it even
+          # for a plain `gh api` read, which is how this step first failed.
+          #
+          # UPLOAD_TOKEN is a maintainer's, and only performs the upload. The
+          # endpoint rejects installation tokens with "attaching files requires
+          # write access to the repository" - a statement about the kind of
+          # credential, not about the permissions block above.
+          GH_TOKEN: ${{ github.token }}
           UPLOAD_TOKEN: ${{ secrets.PR_PREVIEW_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
@@ -195,7 +202,9 @@ jobs:
       - name: Post it on the pull request
         if: github.event_name == 'pull_request' && steps.upload.outputs.url != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # github.token rather than secrets.GITHUB_TOKEN: same credential,
+          # but present in every context and impossible to shadow with a secret.
+          GH_TOKEN: ${{ github.token }}
           PREVIEW_URL: ${{ steps.upload.outputs.url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           # One variable, two uses: the full sha names the commit in the prose,
