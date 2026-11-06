@@ -65,6 +65,9 @@ jobs:
           retention-days: 30
 
       - name: Post it on the pull request
+        # A manual dispatch has no pull request behind it, so there is nowhere to
+        # comment; the render and the artifact still run.
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
