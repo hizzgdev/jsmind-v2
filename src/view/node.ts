@@ -3,6 +3,7 @@ import { JmDomUtility, type JmElement } from '../common/dom.ts';
 import { JmSize, type JmPoint } from '../common/index.ts';
 import { ViewExpanderStyle, type ViewOptions } from '../common/option.ts';
 import { JmTone, type JmTheme } from '../model/data/style.ts';
+import { applyTonePalette } from './shadow.ts';
 
 /**
  * View operator for nodes.
@@ -149,9 +150,9 @@ export class JmNodeView {
     private _createNodeExpander(node: JmNode): JmElement {
         const element = JmDomUtility.createElement('div', 'jsmind-node-expander', {'node-id': node.id});
         element.hide();
-        // The expander sits next to the node and should read as part of it, so
-        // it takes the same tone rather than inheriting whatever the host chose.
-        this._applyTone(element, node);
+        // No tone here on purpose. The expander sits outside the node's box and
+        // its stylesheet draws a neutral outline; feeding it the node's palette
+        // would put a white circle beside every untoned node.
         return element;
     }
 
@@ -175,31 +176,24 @@ export class JmNodeView {
     private _applyTone(element: JmElement, node: JmNode): void {
         const style = node.style;
         const tone = style?.tone ?? JmTone.Default;
-        const palette = this.theme?.tones?.[tone];
 
-        /** Sets a custom property only when the palette actually carries it. */
+        applyTonePalette(element, this.theme?.tones?.[tone]);
+
+        if (!style) {
+            return;
+        }
+
+        /** Sets a custom property only when the node actually states it. */
         const set = (name: string, value: string | undefined): void => {
             if (value !== undefined) {
                 element.style.setProperty(name, value);
             }
         };
 
-        if (palette) {
-            set('--jm-node-fill', palette.fillColor);
-            set('--jm-node-text', palette.textColor);
-            set('--jm-node-border-color', palette.borderColor);
-            set('--jm-expander-border-color', palette.borderColor);
-        }
-
-        if (!style) {
-            return;
-        }
-
         // Explicit fields win over the tone they sat alongside.
         set('--jm-node-fill', style.background);
         set('--jm-node-text', style.color);
         set('--jm-node-border-color', style.borderColor);
-        set('--jm-expander-border-color', style.borderColor);
         if (style.borderWidth !== undefined) {
             element.style.borderWidth = `${style.borderWidth}px`;
         }

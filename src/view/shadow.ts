@@ -6,7 +6,7 @@
  *   https://github.com/hizzgdev/jsmind/
  */
 
-import type { JmTheme, JmThemeShadowLayer } from '../model/data/style.ts';
+import type { JmTheme, JmThemeShadowLayer, JmTonePalette } from '../model/data/style.ts';
 
 /**
  * Styles installed into the shadow root.
@@ -150,8 +150,11 @@ export const JSMIND_VIEW_STYLES = `
         content: '\\2295';
     }
 
-    /* The only variant that draws a border. #666 rather than the node's border
-       colour: the control's outline is not part of the theme. */
+    /* The only variant that draws a border, and it keeps the neutral #666 the
+       v1 stylesheet used. Not var(--jm-node-border-color): that would follow the
+       node's tone, and the default tone's border is #cccccc — a barely visible
+       ring on a white background. The control is an affordance drawn beside the
+       node, not part of what the node means. */
     .jsmind-node-expander-number {
         font-size: var(--jm-expander-font-size);
         text-align: center;
@@ -259,11 +262,52 @@ export function applyThemeToHost(root: ShadowRoot, theme: JmTheme): void {
     // own; a node with a tone overrides all four on its own element.
     const fallback = theme.tones?.default;
     if (fallback) {
-        set('--jm-node-fill', fallback.fillColor);
-        set('--jm-node-text', fallback.textColor);
-        set('--jm-node-border-color', fallback.borderColor);
-        set('--jm-expander-border-color', fallback.borderColor);
+        // ShadowRoot.host is typed as Element; at runtime it is the host element
+        // the view was opened on, so style is there.
+        applyTonePalette(root.host as HTMLElement, fallback);
     }
+}
+
+/**
+ * Writes a tone palette's three colours onto an element as custom properties.
+ *
+ * @remarks
+ * One function rather than two copies of the same three lines. `applyThemeToHost`
+ * calls it for the default tone, which becomes the fallback for every node that
+ * names no tone of its own; `JmNodeView` calls it per node, where the value wins
+ * for that node and nothing else. Keeping the mapping here means a tone that
+ * gains a field gains it in both places at once.
+ *
+ * The expander is deliberately not a consumer: it sits outside the node box,
+ * and colouring its outline from the node's tone would make a white-toned node
+ * grow a white outline. It keeps the neutral #666 its stylesheet specifies.
+ *
+ * @param target - Anything with a `style` object. Typed structurally because the
+ * two callers pass different things — `JmElement` for a node, a plain `Element`
+ * for the host — and `style.setProperty` is all this needs from either.
+ * @param palette - Tone to apply. Undefined leaves the target untouched.
+ * @returns Nothing.
+ */
+/** Anything that can carry a custom property — a node element or the host. */
+interface CustomPropertyTarget {
+    style: { setProperty(name: string, value: string): void };
+}
+
+export function applyTonePalette(
+    target: CustomPropertyTarget,
+    palette: Partial<JmTonePalette> | null | undefined
+): void {
+    if (!palette) {
+        return;
+    }
+    const set = (name: string, value: string | undefined): void => {
+        if (value !== undefined) {
+            target.style.setProperty(name, value);
+        }
+    };
+    set('--jm-node-fill', palette.fillColor);
+    set('--jm-node-text', palette.textColor);
+    set('--jm-node-border-color', palette.borderColor);
 }
 
 /**
