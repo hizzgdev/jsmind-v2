@@ -93,49 +93,63 @@ export const JSMIND_VIEW_STYLES = `
         font-size: var(--jm-node-root-font-size);
     }
 
+    /* The expander is a control, not content. Size and radius are theme fields
+       because they belong to the layout budget; everything else here — the
+       transparent fill, the clipping, the 18px glyph below — is how the control
+       itself is drawn and is fixed.
+     *
+     * No border on this variant. A border here would sit inside border-box and
+       shrink the content area to 11px, so a 13px-wide glyph would be clipped
+       unevenly and read as off-centre. The number variant is the one with a
+       border, and it is declared there. */
     .jsmind-node-expander {
         position: absolute;
         display: block;
         overflow: hidden;
         text-align: center;
         cursor: pointer;
-        box-sizing: border-box;
 
         width: var(--jm-expander-size);
         height: var(--jm-expander-size);
         border-radius: var(--jm-expander-radius);
-        border-width: var(--jm-expander-border-width);
-        border-style: solid;
-        border-color: var(--jm-expander-border-color);
-        background-color: var(--jm-node-fill);
-        color: var(--jm-node-text);
-        box-shadow: var(--jm-node-shadow-normal);
+        box-sizing: border-box;
     }
 
-    /* The glyph is sized to sit inside the circle above, not to match the
-       node's text. A theme that enlarged node font sizes would otherwise push
-       the +/- out of a 13px control. These are details of the control itself,
-       so they stay here instead of becoming theme fields. */
-    .jsmind-node-expander-expanded::after,
-    .jsmind-node-expander-collapsed::after {
+    /* 18px glyph inside a 13px circle: deliberately larger than the box, with
+       the overhang clipped on both sides. Sizing it to match node text instead
+       would let a theme's font size push the +/- out of the control. */
+    .jsmind-node-expander-expanded::after {
         display: block;
         font-family: Arial, sans-serif;
         font-size: 18px;
-        line-height: 1;
         margin-top: -4.5px;
-    }
-
-    .jsmind-node-expander-expanded::after {
         content: '\\229D';
     }
 
+    /* No font-family here, matching the stylesheet this came from — the two
+       glyphs ended up on different fonts. Left as found; see the PR note. */
     .jsmind-node-expander-collapsed::after {
+        display: block;
+        font-size: 18px;
+        margin-top: -4.5px;
         content: '\\2295';
     }
 
+    /* The only variant that draws a border. #666 rather than the node's border
+       colour: the control's outline is not part of the theme. */
     .jsmind-node-expander-number {
         font-size: var(--jm-expander-font-size);
+        text-align: center;
         line-height: var(--jm-expander-line-height);
+        border: solid var(--jm-expander-border-width) #666666;
+    }
+
+    /* Lighter than a node's hover shadow on purpose — the expander is small and
+       a full-strength shadow would swamp it. */
+    .jsmind-node-expander:hover {
+        box-shadow: 1px 1px 8px #000000;
+        background-color: #ebebeb;
+        color: #333333;
     }
 
     .jmnode-overflow-wrap .jsmind-nodes {

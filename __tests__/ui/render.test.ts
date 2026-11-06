@@ -311,3 +311,81 @@ test('ui - a mind-level style override reaches the rendered node', async () => {
         `padding 30 should widen the node (base ${base.width}, padded ${padded.width})`
     );
 });
+
+/** The expander's box and the glyph's computed style inside it. */
+interface ExpanderBox {
+    width: number;
+    height: number;
+    boxSizing: string;
+    borderWidth: string;
+    borderRadius: string;
+    glyphFontSize: string;
+    glyphLineHeight: string;
+}
+
+/**
+ * Renders a node with a collapsed child and reports the expander's geometry.
+ *
+ * @returns The expander's painted box and the resolved style of its glyph.
+ */
+async function measureExpander(): Promise<ExpanderBox> {
+    await browser.setContent(
+        `<div id="container" style="width:${CONTAINER_WIDTH}px;height:${CONTAINER_HEIGHT}px"></div>`
+    );
+    await browser.evaluate(browser.bundleSource());
+
+    const box = await browser.evaluate<ExpanderBox>(
+        `
+        (async () => {
+            const container = document.getElementById('container');
+            const jm = await jsMind.create(container);
+            const mind = new jsMind.Mind({ name: 'expander-test' });
+            mind.root.content = new (mind.root.content.constructor)('text', 'Root');
+            const child = mind.addChildNode('Child', mind.root.id);
+            mind.addChildNode('Leaf', child.id);
+            await jm.open(mind);
+
+            const el = container.shadowRoot.querySelector('.jsmind-node-expander');
+            const computed = getComputedStyle(el);
+            const glyph = getComputedStyle(el, '::after');
+            const rect = el.getBoundingClientRect();
+            return {
+                width: rect.width,
+                height: rect.height,
+                boxSizing: computed.boxSizing,
+                borderWidth: computed.borderWidth,
+                borderRadius: computed.borderRadius,
+                glyphFontSize: glyph.fontSize,
+                glyphLineHeight: glyph.lineHeight,
+            };
+        })()
+    `,
+        true
+    );
+    return box;
+}
+
+test('ui - the char expander is a 13px circle with no border', async () => {
+    const box = await measureExpander();
+
+    assert.strictEqual(box.width, 13);
+    assert.strictEqual(box.height, 13);
+    assert.strictEqual(box.borderRadius, '6.5px', 'half of 13px, i.e. a circle');
+    assert.strictEqual(box.boxSizing, 'border-box');
+
+    // The regression this guards: a border here sits inside border-box and
+    // narrows the content area to 11px, so the 13px-wide glyph below gets
+    // clipped unevenly and the minus sign reads as off-centre.
+    assert.strictEqual(box.borderWidth, '0px', 'the char variant must not draw a border');
+});
+
+test('ui - the expander glyph is 18px and keeps its default line box', async () => {
+    const box = await measureExpander();
+
+    // 18px in a 13px box on purpose: the overhang is clipped on both sides.
+    assert.strictEqual(box.glyphFontSize, '18px');
+    // `normal`, not a number: the -4.5px margin-top that centres the glyph is
+    // tuned against the default line box. Setting an explicit line-height moves
+    // the glyph vertically without any pixel assertion noticing.
+    assert.strictEqual(box.glyphLineHeight, 'normal');
+});
