@@ -111,6 +111,7 @@ function parse(argv: string[]): ParsedArgs {
                 'full-text': { type: 'boolean', default: false },
                 'ids-only': { type: 'boolean', default: false },
                 // create
+                'title': { type: 'string' },
                 'name': { type: 'string' },
                 'author': { type: 'string' },
                 'force': { type: 'boolean', default: false },
@@ -172,7 +173,7 @@ function dispatch(parsed: ParsedArgs): number {
             }
             const options: Parameters<typeof runCreate>[0] = {
                 file,
-                text: requireOption(parsed.values, 'text'),
+                title: requireOption(parsed.values, 'title'),
                 force: parsed.values.force === true,
                 dryRun: parsed.values['dry-run'] === true,
                 // --output is deliberately not forwarded: for create the path

@@ -26,7 +26,7 @@ import { CliExit, dataError, usageError } from '../exit.ts';
 /** Options accepted by the create command. */
 export interface CreateOptions {
     file: string;
-    text: string;
+    title: string;
     name?: string;
     author?: string;
     force: boolean;
@@ -57,15 +57,17 @@ export function runCreate(options: CreateOptions): number {
     // silently produces a document missing meta.name and meta.author, which the
     // validator then rejects as E_META.
     const metadata: { name?: string; author?: string } = {};
-    if (options.name !== undefined) {
-        metadata.name = options.name;
-    }
+    // A mind map is normally named after its root. Defaulting name to title
+    // means the common case needs one flag instead of two, and a document that
+    // says "jsMind Mindmap" while its root says something else needs an
+    // explicit --name to happen.
+    metadata.name = options.name ?? options.title;
     if (options.author !== undefined) {
         metadata.author = options.author;
     }
 
     const mind = new JmMind(metadata);
-    mind.root.content = new JmNodeContent('text', options.text);
+    mind.root.content = new JmNodeContent('text', options.title);
 
     const serializer = new JmMindJsonSerializer();
     const doc = serializer.serialize(mind);
@@ -94,12 +96,12 @@ export function runCreate(options: CreateOptions): number {
 /**
  * Describes the create command for `--help`.
  */
-export const createHelp = `jsmind create <file> --text <text> [options]
+export const createHelp = `jsmind create <file> --title <title> [options]
 
 Start a new mind map containing a single root node.
 
-  --text <text>      Root node label (required)
-  --name <name>      Document name recorded in meta
+  --title <title>    Root node label; also becomes meta.name (required)
+  --name <name>      Override meta.name when it should differ from the title
   --author <author>  Author recorded in meta
   --force            Overwrite the file if it already exists
   --backup           Keep a .bak copy of the file being overwritten

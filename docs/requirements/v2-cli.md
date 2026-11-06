@@ -159,16 +159,23 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 没有它，agent 想新建一张图只能手写 JSON，而那正是这套 CLI 要消灭的东西。
 
 ```bash
-jsmind create <file> --text <text> [--name <name>] [--author <author>] [--force] [--dry-run]
+jsmind create <file> --title <title> [options]
 ```
 
-| 选项 | 说明 |
-|---|---|
-| `--text` | 根节点文字（必填） |
-| `--name` | 记录进 `meta.name` |
-| `--author` | 记录进 `meta.author` |
-| `--force` | 覆盖已存在的文件 |
-| `--dry-run` | 只打印，不写盘 |
+| 选项 | 必填 | 说明 |
+|---|---|---|
+| `--title` | 是 | 根节点文字，同时作为 `meta.name` 的默认值 |
+| `--name` | 否 | 单独指定 `meta.name`，用于文档名和根节点标题不一致的情况 |
+| `--author` | 否 | 记录进 `meta.author`，不传则用模型默认值 |
+| `--force` | 否 | 覆盖已存在的文件 |
+| `--backup` | 否 | 覆盖前把原文件复制成 `.bak` |
+| `--dry-run` | 否 | 只打印生成的文档，不写盘 |
+
+**`--title` 而不是 `--text`**：这一层面对的是「这张图叫什么」，不是「某个节点的文字」，
+所以用标题的词。`--name` 不传时自动取 `--title` 的值 —— 一张图通常就以根节点命名，
+这样一个参数就能覆盖常见场景；想让文档名和根节点不同时才需要显式 `--name`。
+
+**`--backup` 只在真的覆盖时生效**：文件本来不存在，就没有东西需要备份。
 
 **默认拒绝覆盖。** 跟所有改动命令拒绝修改非法文件是同一个原则：不要悄悄毁掉已有的东西。
 

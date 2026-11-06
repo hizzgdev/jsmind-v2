@@ -18,7 +18,7 @@ test('create - produces a file that validates immediately', () => {
 
     let code = -1;
     capture(() => {
-        code = runCreate({ file, text: '根节点', force: false, dryRun: false, backup: false });
+        code = runCreate({ file, title: '根节点', force: false, dryRun: false, backup: false });
     });
 
     assert.strictEqual(code, CliExit.Ok);
@@ -39,7 +39,7 @@ test('create - the document has one root with the given text', () => {
     const file = join(dir, 'new.json');
 
     capture(() => {
-        runCreate({ file, text: '起点', name: '我的图', author: 'someone', force: false, dryRun: false, backup: false });
+        runCreate({ file, title: '起点', name: '我的图', author: 'someone', force: false, dryRun: false, backup: false });
     });
 
     const doc = JSON.parse(readFileSync(file, 'utf8'));
@@ -62,7 +62,7 @@ test('create - refuses to overwrite without --force', () => {
     assert.throws(
         () => {
             capture(() => {
-                runCreate({ file, text: 'x', force: false, dryRun: false, backup: false });
+                runCreate({ file, title: 'x', force: false, dryRun: false, backup: false });
             });
         },
         (err: unknown) => {
@@ -84,7 +84,7 @@ test('create - --force replaces the file', () => {
     writeFileSync(file, '{"old":true}');
 
     capture(() => {
-        runCreate({ file, text: '新的', force: true, dryRun: false, backup: false });
+        runCreate({ file, title: '新的', force: true, dryRun: false, backup: false });
     });
 
     const doc = JSON.parse(readFileSync(file, 'utf8'));
@@ -97,7 +97,7 @@ test('create - --dry-run prints the document and writes nothing', () => {
     const file = join(dir, 'new.json');
 
     const { out } = capture(() => {
-        runCreate({ file, text: '只看不写', force: false, dryRun: true, backup: false });
+        runCreate({ file, title: '只看不写', force: false, dryRun: true, backup: false });
     });
 
     assert.ok(!existsSync(file), 'dry-run must not create the file');
@@ -106,19 +106,42 @@ test('create - --dry-run prints the document and writes nothing', () => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-test('create - omitting name and author leaves the defaults intact', () => {
+test('create - name defaults to the title when --name is omitted', () => {
     const dir = scratch();
     const file = join(dir, 'new.json');
 
     capture(() => {
-        runCreate({ file, text: 'x', force: true, dryRun: false, backup: false });
+        runCreate({ file, title: '我的图', force: false, dryRun: false, backup: false });
     });
 
     const doc = JSON.parse(readFileSync(file, 'utf8'));
-    // Defaults come from the model, not from this command; asserting they are
-    // present catches a regression where create silently blanks the metadata.
-    assert.ok(typeof doc.meta.name === 'string');
-    assert.ok(typeof doc.meta.author === 'string');
+    // A map is normally named after its root, so one flag covers the common
+    // case; a document saying "jsMind Mindmap" with a different root title
+    // would need an explicit --name.
+    assert.strictEqual(doc.meta.name, '我的图');
+    assert.strictEqual(doc.nodes.root.content.value, '我的图');
+    assert.ok(typeof doc.meta.author === 'string', 'author still comes from the defaults');
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('create - --name overrides the title for meta.name', () => {
+    const dir = scratch();
+    const file = join(dir, 'new.json');
+
+    capture(() => {
+        runCreate({
+            file,
+            title: '根节点文字',
+            name: '文档名',
+            force: false,
+            dryRun: false,
+            backup: false,
+        });
+    });
+
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    assert.strictEqual(doc.meta.name, '文档名');
+    assert.strictEqual(doc.nodes.root.content.value, '根节点文字');
     rmSync(dir, { recursive: true, force: true });
 });
 
@@ -129,7 +152,7 @@ test('create - --force --backup keeps a copy of the replaced file', () => {
     writeFileSync(file, '{"previous":"content"}');
 
     capture(() => {
-        runCreate({ file, text: '覆盖后的', force: true, dryRun: false, backup: true });
+        runCreate({ file, title: '覆盖后的', force: true, dryRun: false, backup: true });
     });
 
     // The flag used to be hardcoded to false, so --backup was silently ignored
@@ -145,7 +168,7 @@ test('create - --backup on a fresh path creates no .bak', () => {
     const file = join(dir, 'new.json');
 
     capture(() => {
-        runCreate({ file, text: '全新的', force: false, dryRun: false, backup: true });
+        runCreate({ file, title: '全新的', force: false, dryRun: false, backup: true });
     });
 
     // Nothing was overwritten, so there is nothing to back up.
@@ -160,7 +183,7 @@ test('create - without --backup the previous file is not kept', () => {
     writeFileSync(file, '{"previous":"content"}');
 
     capture(() => {
-        runCreate({ file, text: '覆盖', force: true, dryRun: false, backup: false });
+        runCreate({ file, title: '覆盖', force: true, dryRun: false, backup: false });
     });
 
     assert.ok(!existsSync(`${file}.bak`));
