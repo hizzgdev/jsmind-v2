@@ -180,7 +180,7 @@ test('cli - find reports invalid structure as a data error, not a crash', () => 
     rmSync(dir, { recursive: true, force: true });
 });
 
-test('cli - edges reports invalid structure as a data error too', () => {
+test('cli - list-edges reports invalid structure as a data error too', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
     const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
@@ -190,7 +190,7 @@ test('cli - edges reports invalid structure as a data error too', () => {
     assert.throws(
         () => {
             capture(() => {
-                runMind(file, 'edges', { 'node-id': 'root' }, WRITE);
+                runMind(file, 'list-edges', { 'node-id': 'root' }, WRITE);
             });
         },
         (err: unknown) => {

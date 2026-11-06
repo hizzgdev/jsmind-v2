@@ -28,7 +28,7 @@ const SUBCOMMANDS = [
     'remove-node',
     'add-edge',
     'remove-edge',
-    'edges',
+    'list-edges',
 ] as const;
 
 /**
@@ -87,7 +87,7 @@ export function runMind(
         return CliExit.Ok;
     }
 
-    if (subcommand === 'edges') {
+    if (subcommand === 'list-edges') {
         const nodeId = requireOption(values, 'node-id');
         const doc = readJsonFile(file);
         const mind = loadMindOrThrow(new JmMindJsonSerializer(), doc, file);
@@ -202,7 +202,7 @@ export const mindHelp = `jsmind mind <subcommand> <file> [options]
 Structure and edges (mirrors JmMind methods). Locators are ids only.
 
   find          --node-id <id>                       Show one node
-  edges         --node-id <id>                       Edges touching a node
+  list-edges    --node-id <id>                       Edges touching a node
   add-child     --parent-id <id> --text <text>       Add a leaf (JmMind.addChildNode)
   add-node      --parent-id <id> --text <text>       Add with placement (JmMind.addNode)
                 [--position <n>] [--side left|center|right]
