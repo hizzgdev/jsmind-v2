@@ -174,8 +174,12 @@ jobs:
             echo "Or fetch it locally:"
             echo
             echo '```sh'
-            echo "gh run download $RUN_ID --repo $REPO -n render-preview"
+            echo "gh api repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip > preview.png"
             echo '```'
+            echo
+            echo "<sub>The endpoint says \`zip\`, but this artifact is uploaded unzipped, "
+            echo "so the body is the PNG itself. \`gh run download\` cannot fetch it — "
+            echo "the CLI still assumes an archive (cli/cli#13012).</sub>"
             echo
             echo "<sub>Inline embedding needs \`GITHUB_TOKEN\` to have \`contents: write\`. "
             echo "Repositories whose Actions settings use the read-only default withhold it, "
