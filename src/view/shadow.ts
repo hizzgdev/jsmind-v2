@@ -112,10 +112,20 @@ export const JSMIND_VIEW_STYLES = `
        border, and it is declared there. */
     .jsmind-node-expander {
         position: absolute;
-        display: block;
         overflow: hidden;
-        text-align: center;
         cursor: pointer;
+
+        /* Flex centring rather than text-align plus a negative margin-top.
+           The glyph is 18px inside a 13px box, so it overflows on both axes and
+           the clipping has to be even. text-align centres the line box, but
+           where the ink sits inside that line box comes from the font's ascent
+           and side bearings — which differ between Arial, DejaVu, Liberation
+           and whatever a given machine substitutes. A hand-tuned margin
+           compensates for exactly one font and reads as a 1px drift on every
+           other. Flex centres the painted glyph itself. */
+        display: flex;
+        align-items: center;
+        justify-content: center;
 
         width: var(--jm-expander-size);
         height: var(--jm-expander-size);
@@ -127,18 +137,16 @@ export const JSMIND_VIEW_STYLES = `
        the overhang clipped on both sides. Sizing it to match node text instead
        would let a theme's font size push the +/- out of the control. */
     .jsmind-node-expander-expanded::after {
-        display: block;
         font-family: Arial, sans-serif;
         font-size: 18px;
-        margin-top: -4.5px;
+        line-height: 1;
         content: '\\229D';
     }
 
     .jsmind-node-expander-collapsed::after {
-        display: block;
         font-family: Arial, sans-serif;
         font-size: 18px;
-        margin-top: -4.5px;
+        line-height: 1;
         content: '\\2295';
     }
 

@@ -319,6 +319,9 @@ interface ExpanderBox {
     boxSizing: string;
     borderWidth: string;
     borderRadius: string;
+    display: string;
+    alignItems: string;
+    justifyContent: string;
     glyphFontSize: string;
     glyphLineHeight: string;
 }
@@ -355,6 +358,9 @@ async function measureExpander(): Promise<ExpanderBox> {
                 boxSizing: computed.boxSizing,
                 borderWidth: computed.borderWidth,
                 borderRadius: computed.borderRadius,
+                display: computed.display,
+                alignItems: computed.alignItems,
+                justifyContent: computed.justifyContent,
                 glyphFontSize: glyph.fontSize,
                 glyphLineHeight: glyph.lineHeight,
             };
@@ -379,13 +385,17 @@ test('ui - the char expander is a 13px circle with no border', async () => {
     assert.strictEqual(box.borderWidth, '0px', 'the char variant must not draw a border');
 });
 
-test('ui - the expander glyph is 18px and keeps its default line box', async () => {
+test('ui - the expander centres its glyph with flex, not with a margin', async () => {
     const box = await measureExpander();
 
     // 18px in a 13px box on purpose: the overhang is clipped on both sides.
     assert.strictEqual(box.glyphFontSize, '18px');
-    // `normal`, not a number: the -4.5px margin-top that centres the glyph is
-    // tuned against the default line box. Setting an explicit line-height moves
-    // the glyph vertically without any pixel assertion noticing.
-    assert.strictEqual(box.glyphLineHeight, 'normal');
+
+    // Flex centring, so the ink is centred whatever font the machine
+    // substitutes. The previous approach was text-align plus a hand-tuned
+    // margin-top, which compensates for one font's ascent and side bearings and
+    // drifts by about a pixel on any other.
+    assert.strictEqual(box.display, 'flex');
+    assert.strictEqual(box.alignItems, 'center');
+    assert.strictEqual(box.justifyContent, 'center');
 });
