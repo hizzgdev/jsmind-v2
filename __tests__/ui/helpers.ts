@@ -67,25 +67,55 @@ function newestMtime(dir: string): number {
 }
 
 /**
- * Ensures the browser bundle is present and not older than the sources.
+ * Requires the browser bundle to exist and to be newer than the sources.
  *
  * @remarks
- * Comparing timestamps matters: a stale bundle would let UI tests pass against
- * code that no longer exists, which is worse than having no test at all.
+ * This deliberately does not build. Building from inside a test means a suite
+ * that stalls on a build failure, blocks its worker, and hides the real error
+ * behind a timeout — which is exactly what happened on CI when this ran in a
+ * coverage-instrumented parallel worker.
+ *
+ * On CI it refuses to build (see below). Locally it does, so `npm run ci` keeps
+ * working unchanged. Either way a stale bundle is never tolerated — it would let
+ * these tests pass against code that no longer exists.
  */
 function ensureBundle(): void {
-    const needsBuild =
-        !existsSync(BUNDLE) || newestMtime(join(REPO_ROOT, 'src')) > statSync(BUNDLE).mtimeMs;
-    if (!needsBuild) {
+    const stale = () => {
+        if (!existsSync(BUNDLE)) {
+            return 'missing';
+        }
+        return newestMtime(join(REPO_ROOT, 'src')) > statSync(BUNDLE).mtimeMs ? 'stale' : null;
+    };
+
+    const problem = stale();
+    if (!problem) {
         return;
     }
+
+    // On CI the bundle must already exist: ci.yml builds before running tests,
+    // because a build spawned from inside a coverage-instrumented parallel
+    // worker blocks that worker and turns a build failure into an opaque
+    // timeout. Locally, building here keeps `npm run ci` working as-is — its
+    // order is format, type-check, test, build, and that script is not ours to
+    // reorder.
+    if (process.env.CI) {
+        throw new Error(
+            `${BUNDLE} is ${problem} — ci.yml must run \`npm run build\` before the tests. ` +
+                'UI tests exercise the UMD bundle a browser loads, not the sources.'
+        );
+    }
+
     const result = spawnSync('npm', ['run', 'build'], {
         cwd: REPO_ROOT,
         encoding: 'utf8',
         stdio: 'pipe',
+        timeout: 180_000,
     });
-    if (result.status !== 0 || !existsSync(BUNDLE)) {
-        throw new Error(`could not build the bundle:\n${result.stdout}\n${result.stderr}`);
+    if (result.status !== 0 || stale()) {
+        throw new Error(
+            `could not build the bundle (status ${result.status}):\n` +
+                `${result.stdout ?? ''}\n${result.stderr ?? ''}`
+        );
     }
 }
 
