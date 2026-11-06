@@ -1,0 +1,250 @@
+{
+  "format": "jsmind_v2",
+  "meta": {
+    "author": "zzgbot",
+    "name": "jsMind v2 capability map",
+    "version": "1.0"
+  },
+  "root": "root",
+  "nodes": {
+    "root": {
+      "id": "root",
+      "content": {
+        "type": "text",
+        "value": "jsMind v2"
+      },
+      "parent": null,
+      "children": [
+        "jm-mw4ottqm",
+        "jm-mw4ottu9",
+        "jm-mw4ottx5",
+        "jm-mw4otu01"
+      ],
+      "folded": false,
+      "side": 0,
+      "data": {}
+    },
+    "jm-mw4ottqm": {
+      "id": "jm-mw4ottqm",
+      "content": {
+        "type": "text",
+        "value": "Data Layer"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mw4otu6g",
+        "jm-mw4otu9d",
+        "jm-mw4otucf"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mw4ottu9": {
+      "id": "jm-mw4ottu9",
+      "content": {
+        "type": "text",
+        "value": "CLI"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mw4otufc",
+        "jm-mw4otuie",
+        "jm-mw4otulg",
+        "jm-mw4otuoi"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4ottx5": {
+      "id": "jm-mw4ottx5",
+      "content": {
+        "type": "text",
+        "value": "Renderer"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mw4oturg",
+        "jm-mw4otuuq",
+        "jm-mw4otuxo"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otu01": {
+      "id": "jm-mw4otu01",
+      "content": {
+        "type": "text",
+        "value": "Tests"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mw4otv0n",
+        "jm-mw4otv3n",
+        "jm-mw4otv6k"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mw4otu6g": {
+      "id": "jm-mw4otu6g",
+      "content": {
+        "type": "text",
+        "value": "Schema and style"
+      },
+      "parent": "jm-mw4ottqm",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otu9d": {
+      "id": "jm-mw4otu9d",
+      "content": {
+        "type": "text",
+        "value": "Validation: 21 codes"
+      },
+      "parent": "jm-mw4ottqm",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otucf": {
+      "id": "jm-mw4otucf",
+      "content": {
+        "type": "text",
+        "value": "v1 compatibility"
+      },
+      "parent": "jm-mw4ottqm",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otufc": {
+      "id": "jm-mw4otufc",
+      "content": {
+        "type": "text",
+        "value": "create"
+      },
+      "parent": "jm-mw4ottu9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otuie": {
+      "id": "jm-mw4otuie",
+      "content": {
+        "type": "text",
+        "value": "context"
+      },
+      "parent": "jm-mw4ottu9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otulg": {
+      "id": "jm-mw4otulg",
+      "content": {
+        "type": "text",
+        "value": "mind / node"
+      },
+      "parent": "jm-mw4ottu9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otuoi": {
+      "id": "jm-mw4otuoi",
+      "content": {
+        "type": "text",
+        "value": "validate"
+      },
+      "parent": "jm-mw4ottu9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4oturg": {
+      "id": "jm-mw4oturg",
+      "content": {
+        "type": "text",
+        "value": "Layout engine"
+      },
+      "parent": "jm-mw4ottx5",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otuuq": {
+      "id": "jm-mw4otuuq",
+      "content": {
+        "type": "text",
+        "value": "Nodes and edges"
+      },
+      "parent": "jm-mw4ottx5",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otuxo": {
+      "id": "jm-mw4otuxo",
+      "content": {
+        "type": "text",
+        "value": "Theme system"
+      },
+      "parent": "jm-mw4ottx5",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otv0n": {
+      "id": "jm-mw4otv0n",
+      "content": {
+        "type": "text",
+        "value": "Unit tests"
+      },
+      "parent": "jm-mw4otu01",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otv3n": {
+      "id": "jm-mw4otv3n",
+      "content": {
+        "type": "text",
+        "value": "E2E both ways"
+      },
+      "parent": "jm-mw4otu01",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mw4otv6k": {
+      "id": "jm-mw4otv6k",
+      "content": {
+        "type": "text",
+        "value": "UI render tests"
+      },
+      "parent": "jm-mw4otu01",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    }
+  },
+  "edges": {}
+}

@@ -46,8 +46,22 @@ jobs:
       # test-lite / test on purpose: they are the manual and local paths, where
       # the full coverage report is slow and noisy. Thresholds live in
       # package.json (scripts.test:coverage).
+      #
+      # This runs the unit and data-layer suites only. The UI tests are a
+      # separate command further down, because they need the built bundle.
       - name: Tests with coverage
         run: npm run test:coverage
 
       - name: Build
         run: npm run build
+
+      # Last, and separate, on purpose: these drive a real browser against
+      # dist/jsmind.js rather than the TypeScript sources, so they need the build
+      # above. Kept out of test / test:coverage so that suite stays fast and
+      # needs no browser, and so the manual packages (`npm run ci`) keep their
+      # existing order.
+      - name: UI tests
+        # A stalled browser start used to consume the whole job timeout; fail
+        # this step on its own budget instead so the cause is obvious.
+        timeout-minutes: 3
+        run: npm run test:ui

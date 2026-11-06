@@ -23,15 +23,16 @@
     "scripts": {
         "server": "http-server",
         "build": "rollup -c .config/rollup.config.js",
-        "test": "node --test",
-        "test-lite": "node --test --test-reporter=dot",
+        "test": "node --test \"__tests__/!(ui)/**/*.test.ts\"",
+        "test-lite": "node --test --test-reporter=dot \"__tests__/!(ui)/**/*.test.ts\"",
         "format": "eslint --fix --config .config/eslint.config.js",
         "format-check": "eslint --config .config/eslint.config.js",
         "type-check": "tsc --noEmit -p tsconfig.json",
         "compile": "tsc --help",
         "ci": "npm run format-check && npm run type-check && npm run test-lite && npm run build",
         "ci2": "npm run format-check && npm run type-check && npm run test-lite",
-        "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=85 --test-coverage-exclude='tmp/**' --test-coverage-exclude='dist/**'"
+        "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=85 --test-coverage-exclude='tmp/**' --test-coverage-exclude='dist/**' \"__tests__/!(ui)/**/*.test.ts\"",
+        "test:ui": "node --test \"__tests__/ui/**/*.test.ts\""
     },
     "repository": {
         "type": "git",
