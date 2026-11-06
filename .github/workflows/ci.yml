@@ -60,6 +60,10 @@ jobs:
       - name: Tests with coverage
         run: npm run test:coverage
 
+      # The ui job builds again on its own rather than depending on this one and
+      # downloading dist/ as an artifact. That round trip costs more than the
+      # roughly three seconds a build takes — see the note there before adding
+      # a `needs:` between the jobs.
       - name: Build
         run: npm run build
 
@@ -180,13 +184,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          # One variable, two uses: the full sha names the file, the first seven
+          # characters go in the prose.
           FULL_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          short="${COMMIT_SHA:0:7}"
+          short="${FULL_SHA:0:7}"
 
           # Invisible marker so a re-run can find and replace this comment.
           # Without it every push would leave its own screenshot behind and the
