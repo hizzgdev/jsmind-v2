@@ -151,20 +151,37 @@ async function main(): Promise<void> {
             '--disable-gpu',
             '--disable-dev-shm-usage',
             '--hide-scrollbars',
-            '--force-device-scale-factor=2', // Retina-quality output for review
-            `--window-size=${width},${height}`,
+            '--force-device-scale-factor=1',
             'about:blank',
         ],
-        { stdio: 'ignore' }
+        // Piped, not ignored: when the browser refuses to start, its stderr is
+        // the only thing that says why. High-resolution output comes from the
+        // capture clip's scale, not from the device pixel ratio.
+        { stdio: ['ignore', 'ignore', 'pipe'] }
     );
 
     let socket: WebSocket | null = null;
     try {
+        let stderr = '';
+        chrome.stderr?.on('data', (chunk: Buffer) => {
+            stderr += chunk.toString();
+        });
+
         let exitCode: number | null = null;
         chrome.on('exit', (code: number | null) => {
             exitCode = code;
         });
-        const version = await waitForDevTools(port, () => exitCode);
+        let version: Record<string, string>;
+        try {
+            version = await waitForDevTools(port, () => exitCode);
+        } catch (error) {
+            if (stderr.trim()) {
+                console.error('browser stderr:\n' + stderr.trim().split('\n')
+                    .slice(-15)
+                    .join('\n'));
+            }
+            throw error;
+        }
         socket = new WebSocket(version.webSocketDebuggerUrl);
         await new Promise<void>((res, rej) => {
             socket!.onopen = () => res();
