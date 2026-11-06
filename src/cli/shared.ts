@@ -19,29 +19,51 @@ import { formatIssues } from './format.ts';
 import { dataError, usageError } from './exit.ts';
 
 /**
- * Human-readable side names accepted on the command line.
+ * Synonyms accepted for each side, and the value they normalise to.
  *
  * @remarks
- * The JSON stores numbers; the CLI takes words. `--side left` reads better than
- * `--side -1`, and the conversion happens in exactly one place.
+ * The model deliberately names its sides A and B rather than left and right, so
+ * the values stay usable if a vertical layout ever arrives. The command line
+ * cannot be that abstract — nobody types `--side b` — so the words live here, in
+ * one table, and every accepted spelling normalises to the same numeric value.
+ *
+ * When a vertical layout lands, `up` and `down` are added to this table pointing
+ * at the existing values. The words change; the data does not.
+ *
+ * Current mapping, per the JmNodeSide comments in the model:
+ *
+ * | word   | value | model name |
+ * |--------|-------|------------|
+ * | left   | -1    | SideB      |
+ * | center | 0     | Center     |
+ * | right  | 1     | SideA      |
  */
-const SIDE_NAMES: Record<string, JmNodeSide> = {
+const SIDE_SYNONYMS: Record<string, JmNodeSide> = {
     left: JmNodeSide.SideB,
     center: JmNodeSide.Center,
     right: JmNodeSide.SideA,
 };
 
 /**
+ * Every spelling the `--side` option accepts.
+ *
+ * @remarks
+ * Derived from the table rather than restated, so an error message cannot drift
+ * away from what the parser actually accepts.
+ */
+const SIDE_WORDS = Object.keys(SIDE_SYNONYMS).join(', ');
+
+/**
  * Converts a `--side` value to the numeric enum.
  *
  * @param raw - Value from the command line.
- * @returns The numeric side.
+ * @returns The normalised side.
  * @throws {@link CliError} With `Usage` for an unknown name.
  */
 export function parseSide(raw: string): JmNodeSide {
-    const value = SIDE_NAMES[raw];
+    const value = SIDE_SYNONYMS[raw];
     if (value === undefined) {
-        throw usageError(`--side must be left, center or right, got "${raw}"`);
+        throw usageError(`--side must be one of ${SIDE_WORDS}, got "${raw}"`);
     }
     return value;
 }
