@@ -63,6 +63,17 @@ jobs:
           path: preview.png
           retention-days: 30
 
+      - name: Diagnose token permissions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "repository: ${{ github.repository }}"
+          gh api "repos/${{ github.repository }}" --jq '.permissions' || true
+          echo "--- token scopes ---"
+          curl -sS -I -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}" \
+            | grep -i "x-oauth-scopes\|x-accepted" || true
+
       - name: Post it on the pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
