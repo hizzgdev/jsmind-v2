@@ -147,33 +147,30 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The filename carries the commit, so an older pull request keeps
-          # showing the image that matches its own code. A single shared
-          # `preview.png` would be overwritten by every later run and quietly
-          # rewrite history in every earlier comment.
+          # The filename carries the commit, so a comment and the code it
+          # describes stay together. A single shared `preview.png` would be
+          # overwritten by every later run and quietly rewrite history in every
+          # earlier comment.
           file="preview-${SHA}.png"
-          echo "file=$file" >> "$GITHUB_OUTPUT"
 
-          rm -rf /tmp/preview-branch
-          if ! git clone -q --depth 1 --branch render-preview \
-                 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
-                 /tmp/preview-branch 2>/dev/null; then
-            mkdir -p /tmp/preview-branch
-            git -C /tmp/preview-branch init -q
-          fi
-
+          # Force-pushed: the branch holds exactly one commit and one file, so
+          # it never accumulates. The cost is that an older preview eventually
+          # stops resolving once the superseded commit is garbage-collected —
+          # an old pull request shows a broken image rather than, worse, a
+          # picture of somebody else's code. A preview is worth a glance at
+          # review time and not much after that.
+          #
+          # Built in a scratch directory so the checked-out tree is untouched.
+          rm -rf /tmp/preview-branch && mkdir -p /tmp/preview-branch
+          cp preview.png "/tmp/preview-branch/$file"
           cd /tmp/preview-branch
-          if [ -f "$file" ]; then
-            echo "already published at this commit, nothing to do"
-            exit 0
-          fi
 
-          cp preview.png "$file"
+          git init -q
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$file"
           git commit -q -m "preview: ${SHA:0:7}"
-          git push -q \
+          git push -q -f \
             "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
             HEAD:render-preview
           echo "published ${SHA:0:7} as $file"
