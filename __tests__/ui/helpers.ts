@@ -22,6 +22,42 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 /** Where the UMD bundle has to live for a browser to load it. */
 const BUNDLE = join(REPO_ROOT, 'dist/jsmind.js');
 
+/** Launch attempts before giving up, each on a fresh port. */
+const LAUNCH_ATTEMPTS = 3;
+
+/** DevTools poll attempts, 200ms apart, so about 30 seconds. */
+const WAIT_ATTEMPTS = 150;
+
+/**
+ * Rejects when a promise takes too long.
+ *
+ * @remarks
+ * Every wait in this file needs a ceiling. Chromium on a CI runner sometimes
+ * neither opens a port nor exits, and an unbounded `await` there does not fail —
+ * it hangs until the job's own timeout kills it ten minutes later, which reads
+ * as "the suite is broken" rather than "one browser start stalled".
+ *
+ * @param promise - Work to bound.
+ * @param ms - Budget in milliseconds.
+ * @param label - What was being attempted, for the error message.
+ * @returns The promise's value.
+ */
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+            }),
+        ]);
+    } finally {
+        if (timer) {
+            clearTimeout(timer);
+        }
+    }
+}
+
 /**
  * Locates a Chromium binary.
  *
@@ -155,6 +191,12 @@ export class BrowserHarness {
     /**
      * Starts Chromium and opens a blank page.
      *
+     * @remarks
+     * Retries with a fresh port and profile each attempt. One CI run sat for ten
+     * minutes because a browser start neither opened its port nor exited, and
+     * nothing here imposed a deadline — the job timeout was the first thing to
+     * notice.
+     *
      * @returns A ready harness.
      */
     static async launch(): Promise<BrowserHarness> {
@@ -169,6 +211,25 @@ export class BrowserHarness {
             );
         }
 
+        let lastError: Error | null = null;
+        for (let attempt = 1; attempt <= LAUNCH_ATTEMPTS; attempt++) {
+            try {
+                return await BrowserHarness.launchOnce(binary);
+            } catch (error) {
+                lastError = error as Error;
+                console.error(`ui harness launch ${attempt}/${LAUNCH_ATTEMPTS}: ${lastError.message}`);
+            }
+        }
+        throw lastError ?? new Error('could not start a browser');
+    }
+
+    /**
+     * One launch attempt.
+     *
+     * @param binary - Chromium path.
+     * @returns A ready harness.
+     */
+    private static async launchOnce(binary: string): Promise<BrowserHarness> {
         const port = 9400 + Math.floor(Math.random() * 400);
         const profileDir = mkdtempSync(join(tmpdir(), 'jsmind-ui-'));
         const chrome = spawn(
@@ -187,35 +248,58 @@ export class BrowserHarness {
             { stdio: 'ignore' }
         );
 
-        const version = await waitForDevTools(port);
-        const socket = new WebSocket(version.webSocketDebuggerUrl);
-        await new Promise<void>((resolve, reject) => {
-            socket.onopen = () => resolve();
-            socket.onerror = () => reject(new Error('could not open the DevTools socket'));
+        let exitCode: number | null = null;
+        chrome.on('exit', (code: number | null) => {
+            exitCode = code;
         });
 
-        // The session id only exists after attaching, so the harness is built
-        // without it and filled in before any session-scoped call is made.
-        const harness = new BrowserHarness(chrome, socket, profileDir);
-        socket.onmessage = (event: MessageEvent) => {
-            const message = JSON.parse(String(event.data)) as { id?: number };
-            if (message.id !== undefined && harness.pending.has(message.id)) {
-                const resolve = harness.pending.get(message.id)!;
-                harness.pending.delete(message.id);
-                resolve(message);
+        let socket: WebSocket | null = null;
+        try {
+            const version = await waitForDevTools(port, () => exitCode);
+            socket = new WebSocket(version.webSocketDebuggerUrl);
+            const live = socket;
+            await withTimeout(
+                new Promise<void>((resolve, reject) => {
+                    live.onopen = () => resolve();
+                    live.onerror = () => reject(new Error('could not open the DevTools socket'));
+                }),
+                10_000,
+                'DevTools socket open'
+            );
+
+            // The session id only exists after attaching, so the harness is built
+            // without it and filled in before any session-scoped call is made.
+            const harness = new BrowserHarness(chrome, live, profileDir);
+            live.onmessage = (event: MessageEvent) => {
+                const message = JSON.parse(String(event.data)) as { id?: number };
+                if (message.id !== undefined && harness.pending.has(message.id)) {
+                    const resolve = harness.pending.get(message.id)!;
+                    harness.pending.delete(message.id);
+                    resolve(message);
+                }
+            };
+
+            const created = await harness.send('Target.createTarget', { url: 'about:blank' });
+            const attached = await harness.send('Target.attachToTarget', {
+                targetId: created.result.targetId as string,
+                flatten: true,
+            });
+            harness.sessionId = attached.result.sessionId as string;
+
+            await harness.send('Page.enable');
+            await harness.send('Runtime.enable');
+            return harness;
+        } catch (error) {
+            try {
+                socket?.close();
+            } catch {
+                // Ignore.
             }
-        };
-
-        const created = await harness.send('Target.createTarget', { url: 'about:blank' });
-        const attached = await harness.send('Target.attachToTarget', {
-            targetId: created.result.targetId as string,
-            flatten: true,
-        });
-        harness.sessionId = attached.result.sessionId as string;
-
-        await harness.send('Page.enable');
-        await harness.send('Runtime.enable');
-        return harness;
+            chrome.kill('SIGKILL');
+            await new Promise(resolve => setTimeout(resolve, 200));
+            rmSync(profileDir, { recursive: true, force: true });
+            throw error;
+        }
     }
 
     /**
@@ -229,12 +313,23 @@ export class BrowserHarness {
         result: Record<string, unknown>;
     }> {
         const id = ++this.nextId;
-        const response = await new Promise<{ result: Record<string, unknown> }>(resolve => {
-            this.pending.set(id, resolve as (value: unknown) => void);
-            this.socket.send(
-                JSON.stringify({ id, method, params, ...(this.sessionId ? { sessionId: this.sessionId } : {}) })
-            );
-        });
+        // Bounded for the same reason the launch is: a DevTools command that is
+        // never answered must fail as a test error, not hang the worker.
+        const response = await withTimeout(
+            new Promise<{ result: Record<string, unknown> }>(resolve => {
+                this.pending.set(id, resolve as (value: unknown) => void);
+                this.socket.send(
+                    JSON.stringify({
+                        id,
+                        method,
+                        params,
+                        ...(this.sessionId ? { sessionId: this.sessionId } : {}),
+                    })
+                );
+            }),
+            30_000,
+            `DevTools ${method}`
+        );
         return response;
     }
 
@@ -322,8 +417,15 @@ export class BrowserHarness {
  * @param port - Debugging port.
  * @returns The `/json/version` payload.
  */
-async function waitForDevTools(port: number): Promise<Record<string, string>> {
-    for (let attempt = 0; attempt < 80; attempt++) {
+async function waitForDevTools(
+    port: number,
+    exited: () => number | null
+): Promise<Record<string, string>> {
+    for (let attempt = 0; attempt < WAIT_ATTEMPTS; attempt++) {
+        const code = exited();
+        if (code !== null) {
+            throw new Error(`browser exited with code ${code} before opening DevTools`);
+        }
         try {
             const response = await fetch(`http://127.0.0.1:${port}/json/version`);
             if (response.ok) {

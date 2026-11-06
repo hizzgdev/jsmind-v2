@@ -61,4 +61,7 @@ jobs:
       # needs no browser, and so the manual packages (`npm run ci`) keep their
       # existing order.
       - name: UI tests
+        # A stalled browser start used to consume the whole job timeout; fail
+        # this step on its own budget instead so the cause is obvious.
+        timeout-minutes: 3
         run: npm run test:ui
