@@ -16,8 +16,9 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -88,8 +89,15 @@ function findBrowser(): string | null {
  * @param port - Debugging port.
  * @returns The `/json/version` payload.
  */
-async function waitForDevTools(port: number): Promise<Record<string, string>> {
+async function waitForDevTools(
+    port: number,
+    exited: () => number | null
+): Promise<Record<string, string>> {
     for (let attempt = 0; attempt < 80; attempt++) {
+        const code = exited();
+        if (code !== null) {
+            throw new Error(`browser exited with code ${code} before opening DevTools`);
+        }
         try {
             const response = await fetch(`http://127.0.0.1:${port}/json/version`);
             if (response.ok) {
@@ -117,11 +125,6 @@ async function main(): Promise<void> {
         console.error(`missing ${BUNDLE} — run \`npm run build\` first`);
         process.exit(3);
     }
-    if (statSync(BUNDLE).mtimeMs < statSync(input).mtimeMs) {
-        // Not fatal: the data file changing is normal. Only the bundle going
-        // stale against src/ matters, and that is the UI tests' job.
-    }
-
     const binary = findBrowser();
     if (!binary) {
         console.error('no Chromium found — set CHROME_PATH');
@@ -133,11 +136,17 @@ async function main(): Promise<void> {
     const bundle = readFileSync(BUNDLE, 'utf8');
 
     const port = 9600 + Math.floor(Math.random() * 300);
+    // A private profile directory is not optional. Without it the browser picks
+    // up a shared default profile, which on CI a previous or concurrent process
+    // may hold a lock on — the symptom is Chromium exiting immediately and the
+    // DevTools port never opening, which reads as "browser did not start".
+    const profileDir = mkdtempSync(join(tmpdir(), 'jsmind-preview-'));
     const chrome = spawn(
         binary,
         [
             '--headless=new',
             `--remote-debugging-port=${port}`,
+            `--user-data-dir=${profileDir}`,
             '--no-sandbox',
             '--disable-gpu',
             '--disable-dev-shm-usage',
@@ -151,7 +160,11 @@ async function main(): Promise<void> {
 
     let socket: WebSocket | null = null;
     try {
-        const version = await waitForDevTools(port);
+        let exitCode: number | null = null;
+        chrome.on('exit', (code: number | null) => {
+            exitCode = code;
+        });
+        const version = await waitForDevTools(port, () => exitCode);
         socket = new WebSocket(version.webSocketDebuggerUrl);
         await new Promise<void>((res, rej) => {
             socket!.onopen = () => res();
@@ -295,6 +308,8 @@ async function main(): Promise<void> {
             // Already closed.
         }
         chrome.kill('SIGKILL');
+        await new Promise(resolve => setTimeout(resolve, 150));
+        rmSync(profileDir, { recursive: true, force: true });
     }
 }
 
