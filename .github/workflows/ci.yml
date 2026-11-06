@@ -15,21 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Everything that does not need a browser.
+  # ---------------------------------------------------------------------------
   checks:
-    name: Format, types, tests, build, preview
+    name: Format, types, tests, build
     runs-on: ubuntu-latest
-    # Raised from 10: this job now also renders a preview, and the UI suite
-    # alone can take a browser start or two on a slow runner.
-    timeout-minutes: 15
+    timeout-minutes: 10
 
-    # The preview step needs both: pull-requests to comment, contents to upload
-    # the image into the repository's asset store. Repositories whose Actions
-    # settings leave "Workflow permissions" on the read-only default withhold
-    # contents, and nothing in this file can raise it — the preview then falls
-    # back to an artifact link instead of failing.
+    # Read-only on purpose: nothing here writes to the repository, so nothing
+    # here should be able to.
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
 
     steps:
       # v7 runs on node24; v4 ran on node20, which GitHub deprecated.
@@ -53,39 +50,75 @@ jobs:
       - name: Type check
         run: npm run type-check
 
-      # Coverage runs here only. scripts.ci / ci2 and the pre-push hook stay on
-      # test-lite / test on purpose: they are the manual and local paths, where
-      # the full coverage report is slow and noisy. Thresholds live in
-      # package.json (scripts.test:coverage).
+      # Unit and data-layer suites only. The UI tests live in the job below,
+      # because they drive a real browser against the built bundle.
       #
-      # This runs the unit and data-layer suites only. The UI tests are a
-      # separate command further down, because they need the built bundle.
+      # Coverage runs here and nowhere else. scripts.ci / ci2 and the pre-push
+      # hook stay on test-lite / test on purpose: they are the manual and local
+      # paths, where the full coverage report is slow and noisy. Thresholds live
+      # in package.json (scripts.test:coverage).
       - name: Tests with coverage
         run: npm run test:coverage
 
       - name: Build
         run: npm run build
 
-      # Separate, on purpose: these drive a real browser against dist/jsmind.js
-      # rather than the TypeScript sources, so they need the build above. Kept
-      # out of test / test:coverage so that suite stays fast and needs no
-      # browser, and so the manual packages (`npm run ci`) keep their order.
+  # ---------------------------------------------------------------------------
+  # Everything that needs a browser, in the order it needs them:
+  # build -> UI tests -> render.
+  # ---------------------------------------------------------------------------
+  ui:
+    name: Build, UI tests, render preview
+    runs-on: ubuntu-latest
+    # Generous: the browser starts twice here (UI suite, then the preview
+    # render), and a stalled start used to eat the whole budget silently.
+    timeout-minutes: 15
+
+    # The preview publishes an image to a branch and comments on the PR. Both
+    # are writes; the checks job above deliberately does not get them.
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Separate job, so it needs its own build. Passing dist/ between jobs
+      # would mean an upload and a download - slower than the ~3 seconds this
+      # takes.
+      - name: Build
+        run: npm run build
+
+      # These drive a real browser against dist/jsmind.js rather than the
+      # TypeScript sources, which is why they need the build above. Kept out of
+      # test / test:coverage so that suite stays fast and needs no browser, and
+      # so the manual packages (`npm run ci`) keep their order.
       - name: UI tests
         # A stalled browser start used to consume the whole job timeout; fail
         # this step on its own budget instead so the cause is obvious.
         timeout-minutes: 3
         run: npm run test:ui
 
-      # ---------------------------------------------------------------------
+      # -----------------------------------------------------------------------
       # Render preview
       #
       # Not a nicety. The tests prove the geometry is computed correctly and
-      # cannot show whether the result looks like anything — that takes an
-      # image someone can open. So it belongs in the same pipeline as the
-      # assertions, and a failure here is a failure like any other.
+      # cannot show whether the result looks like anything - that takes an
+      # image someone can open. So it runs after the assertions, and a failure
+      # here is a failure like any other.
       #
       # Pull requests only: a push to master has no comment to post into.
-      # ---------------------------------------------------------------------
+      # -----------------------------------------------------------------------
 
       - name: Render the example map
         if: github.event_name == 'pull_request'
@@ -99,12 +132,13 @@ jobs:
       # arrive as `application/octet-stream` with `Content-Disposition:
       # attachment`, so GitHub treats them as a file to fetch rather than a
       # picture to draw. A file on a branch is served by
-      # raw.githubusercontent.com as `image/png` — the one form that works, and
+      # raw.githubusercontent.com as `image/png` - the one form that works, and
       # what reg-actions and awesome-copilot both document.
       #
-      # Force-pushed so the branch holds exactly one file and no history. Done in
-      # a scratch directory so the checked-out tree is never disturbed.
+      # Force-pushed so the branch always holds exactly one commit and one file;
+      # done in a scratch directory so the checked-out tree is never disturbed.
       - name: Publish the image to the preview branch
+        id: publish
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -112,9 +146,23 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+
+          # Rendering is deterministic, so an unchanged map produces a
+          # byte-identical PNG. Comparing hashes first means a documentation-only
+          # push leaves no dangling blob behind on the server.
+          new=$(git hash-object preview.png)
+          git fetch -q --depth 1 origin render-preview || true
+          old=$(git rev-parse origin/render-preview:preview.png 2>/dev/null || echo "")
+
+          if [ "$new" = "$old" ]; then
+            echo "preview unchanged ($new), nothing to publish"
+            exit 0
+          fi
+
           rm -rf /tmp/preview-branch && mkdir -p /tmp/preview-branch
           cp preview.png /tmp/preview-branch/preview.png
           cd /tmp/preview-branch
+
           git init -q
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -124,21 +172,6 @@ jobs:
             "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
             HEAD:render-preview
           echo "published ${SHA:0:7} to the render-preview branch"
-
-      - name: Upload the preview
-        id: preview
-        if: github.event_name == 'pull_request'
-        # v7 with `archive: false`, not v5. Uploading unzipped means the browser
-        # opens the PNG directly instead of handing over a zip — which is the
-        # whole point of the link in the comment below. Older versions and the
-        # default `archive: true` still zip, by design, for backwards
-        # compatibility.
-        uses: actions/upload-artifact@v7
-        with:
-          name: render-preview
-          path: preview.png
-          archive: false
-          retention-days: 30
 
       - name: Post it on the pull request
         if: github.event_name == 'pull_request'
@@ -165,7 +198,7 @@ jobs:
 
           ![jsMind render preview](https://raw.githubusercontent.com/$REPO/render-preview/preview.png?v=$short)
 
-          \`examples/v2-features.json\` rendered at \`$short\` — 18 nodes, left and right balanced.
+          \`examples/v2-features.json\` rendered at \`$short\` - 18 nodes, left and right balanced.
 
           This image is not an assertion. The tests prove the geometry is computed
           correctly; they cannot show whether the result looks like anything a person
