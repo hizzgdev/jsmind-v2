@@ -130,50 +130,81 @@ jobs:
           node --experimental-strip-types --no-warnings scripts/render-preview.ts \
             examples/v2-features.json tmp/preview.png
 
-      # The image goes up as a comment attachment, not as a file on a branch.
+      # The image goes up as a comment attachment, in two steps with different
+      # tokens.
       #
-      # `gh --attach` (gh >= 2.99, September 2026) hands the file to GitHub's own
-      # attachment storage and rewrites the markdown reference to the URL it
-      # returns: https://github.com/user-attachments/assets/<uuid>. That URL is
-      # not tied to a commit, so it survives rebases, force-pushes and the
-      # transfer of a branch between repositories - the failure mode that made
-      # the old render-preview branch so short-lived, where every push renamed
-      # the file and orphaned the previous comment's image.
+      # Step one uploads to https://uploads.github.com/user-attachments/assets,
+      # the endpoint gh's own `--attach` posts to, and gets back
+      # https://github.com/user-attachments/assets/<uuid>. That URL names a blob,
+      # not a commit, so rebases and force-pushes leave it alone - unlike the
+      # render-preview branch it replaces, where each push renamed the file and
+      # orphaned every earlier comment's image.
       #
-      # It needs a user token. GITHUB_TOKEN is an installation token and the
-      # upload endpoint rejects it with "attaching files requires write access to
-      # the repository" - which is about the kind of credential, not about the
-      # permissions block above. Hence PR_PREVIEW_TOKEN.
+      # Step two posts the comment with GITHUB_TOKEN, so it is attributed to
+      # github-actions[bot] like every other CI comment on the pull request. Using
+      # `--attach` would have done both in one command but under a single
+      # credential, and there is no way to say "upload as the maintainer, post as
+      # the bot" to a command that only takes one token.
       #
-      # Absent (a pull request from a fork never receives repository secrets),
-      # the step warns and stops rather than failing the build: the point of this
-      # job is the tests, and the picture is a courtesy.
-      - name: Post the preview as an attachment
+      # Hence two secrets doing different jobs: PR_PREVIEW_TOKEN owns the upload,
+      # GITHUB_TOKEN owns the comment.
+      #
+      # Forks never receive repository secrets, so the upload step warns and
+      # stops rather than failing the build: the point of this job is the tests,
+      # and the picture is a courtesy.
+      - name: Upload the preview
+        id: upload
         if: github.event_name == 'pull_request'
         env:
-          GH_TOKEN: ${{ secrets.PR_PREVIEW_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          # One variable, two uses: the full sha names the file, the first seven
-          # characters go in the prose.
-          FULL_SHA: ${{ github.event.pull_request.head.sha }}
-          RUN_ID: ${{ github.run_id }}
+          # A maintainer's token, not GITHUB_TOKEN. The upload endpoint rejects
+          # installation tokens with "attaching files requires write access to
+          # the repository" - which is about the kind of credential, not about
+          # the permissions block above.
+          UPLOAD_TOKEN: ${{ secrets.PR_PREVIEW_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
-          if [ -z "${GH_TOKEN:-}" ]; then
+          if [ -z "${UPLOAD_TOKEN:-}" ]; then
             echo "::warning::PR_PREVIEW_TOKEN is not set; skipping the preview comment."
             echo "::warning::Set it to a token with write access to $REPO, or forks never get a preview."
             exit 0
           fi
 
-          # --attach arrived in 2.99. On an older gh the flag is simply absent and
-          # the upload silently does not happen, so say so loudly instead.
-          if ! gh pr comment --help | grep -q -- '--attach'; then
-            echo "::error::This gh ($(gh --version | head -1 | awk '{print $3}')) does not support --attach; need >= 2.99."
+          repo_id=$(gh api "repos/$REPO" --jq .id)
+
+          # --data-binary, not --data: the latter mangles the payload. The query
+          # string is what the endpoint reads for the content type, so it has to
+          # survive URL encoding unchanged.
+          response=$(curl -sS -X POST \
+            "https://uploads.github.com/user-attachments/assets?content_type=image%2Fpng&name=preview.png&repository_id=$repo_id" \
+            -H "Authorization: Bearer $UPLOAD_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @tmp/preview.png)
+
+          url=$(printf '%s' "$response" | jq -r '.url // empty')
+          if [ -z "$url" ]; then
+            echo "::error::Upload failed: $response"
             exit 1
           fi
 
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "uploaded $(du -h tmp/preview.png | cut -f1) to $url"
+
+      # Posts the comment, attributed to github-actions[bot].
+      - name: Post it on the pull request
+        if: github.event_name == 'pull_request' && steps.upload.outputs.url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_URL: ${{ steps.upload.outputs.url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # One variable, two uses: the full sha names the commit in the prose,
+          # the first seven characters keep it readable.
+          FULL_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
           short="${FULL_SHA:0:7}"
 
           # Invisible marker so a re-run can find and replace this comment.
@@ -191,17 +222,13 @@ jobs:
             gh api -X DELETE "repos/$REPO/issues/comments/$id" || true
           done
 
-          # Unquoted heredoc delimiter so $short interpolates; backticks are
-          # escaped so the shell does not run them as commands.
-          #
-          # The image is referenced relatively. gh matches that path against
-          # --attach, uploads the file and rewrites the reference to the URL it
-          # got back, so the finished comment never contains a local path.
+          # Unquoted heredoc delimiter so the variables interpolate; backticks
+          # are escaped so the shell does not run them as commands.
           cat > tmp/comment.md <<BODY
           $MARKER
           ### Render preview
 
-          ![jsMind render preview](./preview.png)
+          ![jsMind render preview]($PREVIEW_URL)
 
           Rendered from the latest code on this branch, at \`$short\`.
 
@@ -212,16 +239,10 @@ jobs:
 
           [Workflow run](https://github.com/$REPO/actions/runs/$RUN_ID)
           <sub>Generated by \`scripts/render-preview.ts\` from \`examples/v2-features.json\`,
-          pinned to this commit. Uploaded as an attachment, so it stays viewable for as
-          long as this comment exists.</sub>
+          pinned to this commit. Uploaded as a comment attachment, so it stays viewable
+          for as long as this comment exists.</sub>
           BODY
 
-          # Two different bases, easy to get wrong. The `./preview.png` written
-          # into the body resolves against the body file's directory (tmp/),
-          # while --attach resolves against the working directory - so the flag
-          # names tmp/preview.png even though the markdown says ./preview.png.
-          # Both land on the same file, which is what lets gh pair them up.
           gh pr comment "$PR_NUMBER" \
             --repo "$REPO" \
-            --body-file tmp/comment.md \
-            --attach tmp/preview.png
+            --body-file tmp/comment.md
