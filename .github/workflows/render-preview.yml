@@ -22,9 +22,11 @@ jobs:
     timeout-minutes: 10
 
     permissions:
-      contents: read
-      # Needed to write the comment. Without this the token is read-only and
-      # `gh pr comment` fails with a permissions error.
+      # Not `read`. `gh pr comment --attach` uploads the image to GitHub's asset
+      # store, and GitHub counts that as a repository write — with contents:read
+      # it fails with "attaching files requires write access to the repository"
+      # even though pull-requests:write is granted.
+      contents: write
       pull-requests: write
 
     steps:
