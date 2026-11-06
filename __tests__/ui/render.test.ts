@@ -23,14 +23,8 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { BrowserHarness } from './helpers.ts';
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const STYLESHEET = join(HERE, '../../styles/jsmind.css');
 
 /** Fixed viewport: a geometry test needs the container size to be a constant. */
 const CONTAINER_WIDTH = 800;
@@ -56,10 +50,11 @@ let browser: BrowserHarness;
  * @returns The rendered nodes, in document order.
  */
 async function renderFixture(): Promise<RenderedNode[]> {
-    const css = readFileSync(STYLESHEET, 'utf8');
+    // No stylesheet to load: the view installs its own rules inside the shadow
+    // root it creates. That is the point of the shadow boundary — a caller
+    // cannot forget to include the CSS, and a caller's CSS cannot leak in.
     await browser.setContent(
-        `<style>${css}</style>` +
-            `<div id="container" style="width:${CONTAINER_WIDTH}px;height:${CONTAINER_HEIGHT}px"></div>`
+        `<div id="container" style="width:${CONTAINER_WIDTH}px;height:${CONTAINER_HEIGHT}px"></div>`
     );
     await browser.evaluate(browser.bundleSource());
 
@@ -75,7 +70,8 @@ async function renderFixture(): Promise<RenderedNode[]> {
             mind.addChildNode('Charlie', mind.root.id);
             await jm.open(mind);
 
-            return [...container.querySelectorAll('.jsmind-node')].map(el => {
+            // Rendered nodes live in the shadow root the view created.
+              return [...container.shadowRoot.querySelectorAll('.jsmind-node')].map(el => {
                 const r = el.getBoundingClientRect();
                 return {
                     text: el.textContent.trim(),
