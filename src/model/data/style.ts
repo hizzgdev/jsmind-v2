@@ -34,6 +34,16 @@ export const JmTone = {
     Danger: 'danger',
     /** Informational or neutral-accent tone. */
     Info: 'info',
+    /**
+     * Accent tone for an element that stands out without carrying a judgement.
+     *
+     * @remarks
+     * `primary` already means "this is the important one", which is a claim
+     * about the content. `accent` is the option for "make this one visually
+     * distinct" with no claim attached — the purple that v1 exposed as
+     * `theme-wisteria` and that none of the semantic tones could absorb.
+     */
+    Accent: 'accent',
 } as const;
 
 export type JmTone = typeof JmTone[keyof typeof JmTone];
@@ -144,7 +154,82 @@ export interface JmTonePalette {
 }
 
 /**
- * Geometry shared by every node of a mind map.
+ * One drop shadow, in CSS terms.
+ *
+ * @remarks
+ * Spelled out as four numbers and a color rather than kept as a CSS string
+ * like `"1px 1px 1px #666"` so it can be merged field by field — an override
+ * that changes only the blur should not have to restate the offsets — and so
+ * an agent writing the JSON never has to get CSS shorthand syntax right.
+ *
+ * @public
+ */
+export interface JmThemeShadowLayer {
+    /** Horizontal offset in pixels. */
+    offsetX: number;
+    /** Vertical offset in pixels. */
+    offsetY: number;
+    /** Blur radius in pixels. */
+    blur: number;
+    /** Shadow color, e.g. `#666666`. */
+    color: string;
+}
+
+/**
+ * Drop shadows for the three visual states a node can be in.
+ *
+ * @remarks
+ * States live in the theme rather than in CSS because they change the node's
+ * appearance, and "how does this node look" belongs with the rest of the
+ * appearance. `normal` is the resting state; `hover` and `selected` are what
+ * the pointer and the selection do to it.
+ *
+ * @public
+ */
+export interface JmThemeShadow {
+    /** Shadow when the node is idle. */
+    normal: JmThemeShadowLayer;
+    /** Shadow while the pointer is over the node. */
+    hover: JmThemeShadowLayer;
+    /** Shadow when the node is selected. */
+    selected: JmThemeShadowLayer;
+}
+
+/**
+ * A partial replacement for {@link JmThemeShadow}.
+ *
+ * @remarks
+ * Every level is optional so a style can restyle one state, or one field of one
+ * state (`hover.blur`), without restating the rest. The merged result is always
+ * complete.
+ *
+ * @public
+ */
+export interface JmThemeShadowOverride {
+    /** Override for the idle shadow. */
+    normal?: Partial<JmThemeShadowLayer>;
+    /** Override for the hover shadow. */
+    hover?: Partial<JmThemeShadowLayer>;
+    /** Override for the selected shadow. */
+    selected?: Partial<JmThemeShadowLayer>;
+}
+
+/**
+ * Partial overrides for {@link JmThemeNode}.
+ *
+ * @remarks
+ * Identical to `Partial<JmThemeNode>` except for `shadow`, which allows
+ * overriding a single state rather than all three.
+ *
+ * @public
+ */
+export type JmThemeNodeOverride = Omit<Partial<JmThemeNode>, 'shadow'> & {
+    /** Override for the node shadows. */
+    shadow?: JmThemeShadowOverride;
+};
+
+/**
+ * Geometry and typography shared by every node.
  *
  * @public
  */
@@ -155,10 +240,38 @@ export interface JmThemeNode {
     padding: number;
     /** Base font size in pixels. */
     fontSize: number;
+    /**
+     * Root node font size in pixels.
+     *
+     * @remarks
+     * Separate from `fontSize` because the root is the one node that reads as a
+     * title: v1 rendered it at 24px against a 16px body. Folding it into
+     * `fontSize` would have forced every theme to pick one and lose the
+     * hierarchy.
+     */
+    rootFontSize: number;
     /** Font family. */
     fontFamily: string;
+    /**
+     * Line height as a multiple of the font size.
+     *
+     * @remarks
+     * Unitless multiplier, matching the CSS `line-height: 1.125` form, so it
+     * scales with `fontSize` instead of needing a matching pixel value per size.
+     */
+    lineHeight: number;
     /** Default border width in pixels. */
     borderWidth: number;
+    /**
+     * Maximum node width in pixels before text wraps.
+     *
+     * @remarks
+     * Wrapping is a layout input, not a detail: it decides how tall a node is,
+     * which decides where its children go.
+     */
+    maxWidth: number;
+    /** Drop shadows for the idle, hover and selected states. */
+    shadow: JmThemeShadow;
 }
 
 /**
@@ -179,8 +292,23 @@ export interface JmThemeLine {
  * @public
  */
 export interface JmThemeExpander {
-    /** Expander size in pixels. */
+    /** Expander width and height in pixels. */
     size: number;
+    /**
+     * Corner radius in pixels.
+     *
+     * @remarks
+     * `size / 2` gives a circle, which is what the stylesheet did with
+     * `border-radius: 50%`. A number keeps it in the same units as every other
+     * length here; percentage radii only make sense when the box can grow.
+     */
+    radius: number;
+    /** Font size of the character or count drawn inside, in pixels. */
+    fontSize: number;
+    /** Line height of that content, in pixels. */
+    lineHeight: number;
+    /** Border width in pixels. */
+    borderWidth: number;
 }
 
 /**
@@ -239,7 +367,7 @@ export interface JmStyle {
     /** Per-tone color overrides. */
     tones?: Partial<Record<JmTone, Partial<JmTonePalette>>>;
     /** Node geometry overrides. */
-    node?: Partial<JmThemeNode>;
+    node?: JmThemeNodeOverride;
     /** Line geometry overrides. */
     line?: Partial<JmThemeLine>;
     /** Expander geometry overrides. */
@@ -257,27 +385,48 @@ export interface JmStyle {
  */
 export const JSMIND_THEME_DEFAULT: JmTheme = {
     background: '#ffffff',
+    // Filled solids with white text, taken from v1 — a node carrying a tone
+    // that only tints its background barely reads as "this one is different"
+    // from across the canvas. The v1 palette names that map onto these tones
+    // (belizehole, nephrite, pumpkin, pomegranate) are the same hue a few
+    // degrees away, so they fold in rather than getting their own entry.
     tones: {
         default: { fillColor: '#ffffff', textColor: '#333333', borderColor: '#cccccc', lineColor: '#b0b0b0' },
-        primary: { fillColor: '#e8f3ff', textColor: '#1a5fb4', borderColor: '#7ab0f0', lineColor: '#5a9ae8' },
-        success: { fillColor: '#e9f7ef', textColor: '#1e7b4d', borderColor: '#6cc79a', lineColor: '#4fb681' },
-        warning: { fillColor: '#fff8e6', textColor: '#8a6100', borderColor: '#e8c46a', lineColor: '#d4a944' },
-        danger:  { fillColor: '#fdecec', textColor: '#b3261e', borderColor: '#e88a84', lineColor: '#d97069' },
-        info:    { fillColor: '#eef4fb', textColor: '#2a6296', borderColor: '#8bb8dd', lineColor: '#6fa5d2' },
+        primary: { fillColor: '#428bca', textColor: '#ffffff', borderColor: '#357ebd', lineColor: '#689ece' },
+        success: { fillColor: '#5cb85c', textColor: '#ffffff', borderColor: '#4cae4c', lineColor: '#79c279' },
+        warning: { fillColor: '#f0ad4e', textColor: '#ffffff', borderColor: '#eea236', lineColor: '#f2b968' },
+        danger:  { fillColor: '#d9534f', textColor: '#ffffff', borderColor: '#d43f3a', lineColor: '#df6f6b' },
+        info:    { fillColor: '#5dc0de', textColor: '#ffffff', borderColor: '#46b8da', lineColor: '#74cae3' },
+        accent:  { fillColor: '#9b59b6', textColor: '#ffffff', borderColor: '#8e44ad', lineColor: '#aa73c2' },
     },
     node: {
-        radius: 4,
-        padding: 8,
-        fontSize: 14,
-        fontFamily: 'sans-serif',
-        borderWidth: 1,
+        radius: 5,
+        padding: 10,
+        fontSize: 16,
+        rootFontSize: 24,
+        fontFamily: 'Verdana, Arial, Helvetica, sans-serif',
+        lineHeight: 1.125,
+        // Zero, because the stylesheet drew no border: the depth came from the
+        // shadow below. Tone palettes still carry a borderColor for themes that
+        // do want one.
+        borderWidth: 0,
+        maxWidth: 400,
+        shadow: {
+            normal:   { offsetX: 1, offsetY: 1, blur: 1, color: '#666666' },
+            hover:    { offsetX: 2, offsetY: 2, blur: 8, color: '#000000' },
+            selected: { offsetX: 2, offsetY: 2, blur: 8, color: '#000000' },
+        },
     },
     line: {
         width: 2,
         pattern: JmLinePattern.Solid,
     },
     expander: {
-        size: 12,
+        size: 13,
+        radius: 6.5,
+        fontSize: 8,
+        lineHeight: 11,
+        borderWidth: 1,
     },
 };
 
@@ -329,7 +478,21 @@ export function mergeJmTheme(base: JmTheme, override: JmStyle): JmTheme {
     // mergeObjects replaces a missing default wholesale, which would drop
     // every field the override did not mention.
     if (override.node) {
-        result.node = mergeObjects({ ...base.node }, override.node);
+        // `shadow` is decomposed first: it nests further than the rest
+        // (state -> layer), and `mergeObjects` cannot express that in one call.
+        const { shadow: shadowOverride, ...nodeRest } = override.node;
+        const merged = mergeObjects(
+            { ...base.node } as Partial<JmThemeNode>,
+            nodeRest as Partial<JmThemeNode>
+        );
+        // A shallow merge would let an override that only restyles `hover`
+        // replace the whole shadow block, dropping `normal` and `selected` and
+        // leaving the node with no resting shadow at all.
+        const baseShadow = base.node?.shadow;
+        if (baseShadow && shadowOverride) {
+            merged.shadow = mergeShadow(baseShadow, shadowOverride);
+        }
+        result.node = merged;
     }
     if (override.line) {
         result.line = mergeObjects({ ...base.line }, override.line);
@@ -344,6 +507,33 @@ export function mergeJmTheme(base: JmTheme, override: JmStyle): JmTheme {
     // would render black on black.
     if (override.tones) {
         result.tones = mergeTonePalettes(base.tones, override.tones);
+    }
+
+    return result;
+}
+
+/**
+ * Merges shadow overrides into a complete shadow.
+ *
+ * @remarks
+ * Two levels deep: state, then layer. Each state the override does not mention
+ * is passed through, and each layer is merged field by field so `hover.blur`
+ * alone is a legal override.
+ *
+ * @param base - The complete shadow to merge onto.
+ * @param override - The partial shadow to apply.
+ * @returns A new complete shadow; neither input is mutated.
+ *
+ * @private
+ */
+function mergeShadow(base: JmThemeShadow, override: JmThemeShadowOverride): JmThemeShadow {
+    const result: JmThemeShadow = { ...base };
+
+    for (const state of ['normal', 'hover', 'selected'] as const) {
+        const layer = override[state];
+        if (layer) {
+            result[state] = mergeObjects({ ...base[state] }, layer);
+        }
     }
 
     return result;
