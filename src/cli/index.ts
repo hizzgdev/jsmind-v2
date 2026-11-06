@@ -26,12 +26,12 @@ import { runCreate, createHelp } from './commands/create.ts';
 
 const PROGRAM = 'jsmind';
 
-const HELP = `${PROGRAM} v2 — mind map data commands
+export const HELP = `${PROGRAM} v2 — mind map data commands
 
 Usage: ${PROGRAM} <command> [options]
 
 Cross-boundary commands:
-  create <file> --text <text>     Start a new mind map
+  create <file> --title <title>   Start a new mind map
   validate <file>                 Check a file against the format spec
   context <file> [options]        Discovery: show the tree and its ids
 
