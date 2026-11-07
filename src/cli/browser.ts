@@ -9,6 +9,14 @@
  * playwright. Node's built-in WebSocket and fetch are enough.
  *
  * @packageDocumentation
+ *
+ * Excluded from the unit coverage figure (see `test:coverage` in package.json).
+ * This file is a driver: spawn a process, speak a protocol over a socket, wait
+ * for replies. Testing it without a browser would mean mocking `spawn`, the
+ * DevTools socket and the file system - which asserts that the mocks were
+ * called, not that a browser produces an image. The UI suite runs the real
+ * thing against the built bundle; that bundle is why the coverage tool cannot
+ * attribute the lines back here.
  */
 
 import { spawn, spawnSync } from 'node:child_process';

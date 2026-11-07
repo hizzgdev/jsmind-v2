@@ -12,9 +12,17 @@
  * into a file: `drawImage` then `toBlob`. Nothing is redrawn by hand, so the
  * output matches the view exactly, including text wrapping, shadows and the
  * theme.
+ *
+ * Excluded from the unit coverage figure (see `test:coverage` in package.json).
+ * Everything left here talks to the browser - cloneNode, Image, canvas - so the
+ * unit suite cannot reach a line of it. The UI suite exercises it for real,
+ * against the built bundle, but a bundle carries no source line numbers to
+ * report coverage against. The parts worth asserting in isolation live in
+ * `svg.ts`; what remains is calls into browser APIs with no logic to check.
  */
 
 import { JsMindError } from '../common/error.ts';
+import { collectHostVariables, escapeAttribute, escapeText } from './svg.ts';
 
 /** Image formats a caller may ask for. */
 export const JmImageType = {
@@ -55,44 +63,6 @@ export interface JmExportImageResult {
 }
 
 const DEFAULT_SCALE = 2;
-
-/**
- * Escapes a value for use inside a double-quoted XML attribute.
- *
- * Needed because computed values arrive unescaped: `font-family` on a document
- * with a quoted family yields the quotes themselves, and an unescaped quote ends
- * the attribute early, leaving XML that fails to parse.
- */
-function escapeAttribute(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
-
-/** Escapes text content for XML. */
-function escapeText(value: string): string {
-    return value.replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
-
-/**
- * Copies the theme's custom properties off the host.
- *
- * The theme reaches the DOM as `--jm-*` properties set inline on the host
- * element. A clone keeps the ones set on nodes themselves, but not these, so
- * without copying them every node loses its fill, border, radius and shadow and
- * the export comes out as bare text.
- */
-function copyHostVariables(host: HTMLElement): string {
-    const inline = host.getAttribute('style') ?? '';
-    return inline
-        .split(';')
-        .map(part => part.trim())
-        .filter(part => part.startsWith('--jm-'))
-        .join(';');
-}
 
 /**
  * Reads the shadow root's stylesheet back out.
@@ -177,7 +147,7 @@ export async function captureShadowContent(
             'overflow:hidden',
             `background:${hostStyle.backgroundColor}`,
             `font-family:${hostStyle.fontFamily}`,
-            copyHostVariables(host),
+            collectHostVariables(host.getAttribute('style')),
         ]
             .filter(Boolean)
             .join(';')
