@@ -526,6 +526,7 @@ No node matches "粗暴". Closest:
 | 每个 `node.children` 的元素都存在于 `nodes` | `E_NODE_CHILD_MISSING` |
 | 每个 `edge.sourceNodeId` / `targetNodeId` 都存在 | `E_EDGE_NODE_MISSING` |
 | **恰好一个节点的 `parent === null`**，且它等于 `root` | `E_MULTIPLE_ROOTS` / `E_ROOT_PARENT_SET` |
+| 非根节点的 `side` 不得为 `0`（中心只属于根） | `E_NON_ROOT_SIDE_CENTER` |
 
 ### 9.3 一致性（双向引用）
 
@@ -550,10 +551,15 @@ No node matches "粗暴". Closest:
 | `content.type` 为 `"text"` | `E_CONTENT_TYPE` |
 | `edge.type` ∈ `JmEdgeType` 已知值（当前只有 `"link"`） | `E_EDGE_TYPE` |
 | `side` ∈ `{-1, 0, 1}`（JSON 里是数字，见 4.2） | `E_SIDE` |
+| `side === 0` 的节点必须是根（见下） | `E_NON_ROOT_SIDE_CENTER` |
 | `style.tone` ∈ 已知 tone 值（见附录） | `E_TONE` |
 | `style.borderStyle` / `incoming.pattern` ∈ `{solid,dashed,dotted}` | `E_LINE_STYLE` |
 | `style.fontSize` / `borderWidth` 为正数 | `E_STYLE_RANGE` |
 | `style.theme` 若是字符串，必须在内置预设表中 | `E_THEME_UNKNOWN` |
+
+**`side: 0` 不是「中间」，是「没有方向」。** 它只有根节点能表达，因为布局要靠它确定「从哪一点向两边铺开」。子节点带 `0` 时布局找不到落点，结果是**不画** —— 数据本身没问题、校验也通过，只有图里少了一个节点，事后很难查。
+
+`E_SIDE` 管的是「值不合法」（比如 `5`），`E_NON_ROOT_SIDE_CENTER` 管的是「值合法但这个节点不该用」。两者分开，是因为修法不同：前者改数字，后者要么补方向、要么把节点挂对父节点。
 
 ### 9.6 错误输出格式
 

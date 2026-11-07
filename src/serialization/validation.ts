@@ -50,6 +50,8 @@ export const JmValidationCode = {
     MultipleRoots: 'E_MULTIPLE_ROOTS',
     /** The root node has a non-null `parent`. */
     RootParentSet: 'E_ROOT_PARENT_SET',
+    /** A non-root node uses `side: 0`, which belongs to the root alone. */
+    NonRootSideCenter: 'E_NON_ROOT_SIDE_CENTER',
     /** `parent.children` and `child.parent` disagree. */
     ParentChildMismatch: 'E_PARENT_CHILD_MISMATCH',
     /** Following `parent` links returns to where it started. */
@@ -354,6 +356,17 @@ export function validateMindData(data: unknown): JmValidationResult {
                 code: JmValidationCode.Side,
                 path: `${at}/side`,
                 message: `"side" must be -1, 0 or 1, got ${JSON.stringify(side)}.`,
+            });
+        } else if (side === JmNodeSide.Center && parent !== null) {
+            // Centre is not a position, it is the absence of one: it tells the
+            // layout to place the node relative to the root, which only the root
+            // itself can do. A child carrying it is laid out nowhere and does
+            // not paint at all - the data validates, the node silently vanishes
+            // from the picture, and nothing downstream says why.
+            errors.push({
+                code: JmValidationCode.NonRootSideCenter,
+                path: `${at}/side`,
+                message: 'Only the root may use side 0 (centre); a child must be -1 (left) or 1 (right).',
             });
         }
 
