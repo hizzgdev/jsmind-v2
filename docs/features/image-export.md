@@ -72,10 +72,10 @@ jsmind export <file> <out.png> [options]
 | `--json` | — | 机器可读输出 |
 
 ```bash
-$ jsmind export examples/v2-features.json preview.png
+$ jsmind export example/v2-features.json preview.png
 preview.png: 2400x1600 (174.9 KB)
 
-$ jsmind export examples/v2-features.json small.png --width 400 --height 300
+$ jsmind export example/v2-features.json small.png --width 400 --height 300
 small.png: 2095x1032 (145.0 KB)      # 视口装不下，图反而更大，没被裁
 ```
 

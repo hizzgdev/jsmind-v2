@@ -25,7 +25,7 @@ jsmind-v2/
 ├── __tests__/      # 测试（node --test）
 ├── docs/           # 文档：architecture / features / development
 ├── scripts/        # 工具脚本（含 git-hooks）
-├── example/        # 示例
+├── example/        # 示例页面（demo / playground）+ CI 渲染用的数据
 └── tmp/            # 临时目录 —— 已 gitignore，不进版本控制
 ```
 
