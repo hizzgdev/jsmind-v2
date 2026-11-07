@@ -17,6 +17,15 @@ import { CliExit, CliError } from '../exit.ts';
 import { openBrowser, isPageError } from '../browser.ts';
 import { JmImageType } from '../../view/export.ts';
 
+/** Viewport the map is laid out in when the caller does not say. */
+export const DEFAULT_WIDTH = 1200;
+
+/** Viewport height, same default reasoning. */
+export const DEFAULT_HEIGHT = 800;
+
+/** Rendered at 2x by default: crisp on a dense screen, still cheap. */
+export const DEFAULT_SCALE = 2;
+
 /** Arguments accepted by {@link runExport}. */
 export interface ExportOptions {
     /** Path to the mind map JSON. */
@@ -76,7 +85,16 @@ export async function runExport(options: ExportOptions): Promise<number> {
                 const mind = jsMind.Serializer.create('json')
                     .deserialize(JSON.parse(${JSON.stringify(JSON.stringify(data))}));
                 await jm.open(mind);
-                // Two frames: one for the layout to settle, one for the paint.
+
+                // Fonts before frames: layout measured against a fallback face
+                // stays measured against it, so a map that ends up in a web font
+                // would be exported with the wrong metrics - and the picture
+                // would look plausible, just not like the screen. document.fonts.ready
+                // resolves once they are loaded and applied; the two frames
+                // after it let the relayout that the swap triggered finish.
+                if (document.fonts) {
+                    await document.fonts.ready;
+                }
                 await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
                 const result = await jm.exportImage({

@@ -129,7 +129,7 @@ jobs:
         run: |
           # Fail here with a clear message rather than inside the export,
           # where a missing browser reads like a rendering bug.
-          google-chrome --version || chromium --version
+          google-chrome --version || chromium-browser --version
 
       - name: Render the example map
         if: github.event_name == 'pull_request'

@@ -161,6 +161,59 @@ export function intOption(raw: unknown, fallback: number, name: string): number 
 }
 
 /**
+ * Reads a positive number option, falling back when it is absent.
+ *
+ * Unlike {@link intOption} this accepts fractions, which is what a rendering
+ * scale needs: 1.5 is a legitimate value, 0 is not - it would produce an
+ * image with no pixels in it.
+ *
+ * @param raw - Raw option value.
+ * @param fallback - Used when the option is absent.
+ * @param name - Option name for the error message.
+ * @returns The number.
+ * @throws {@link CliError} With `Usage` when present but not a positive number.
+ */
+export function numberOption(raw: unknown, fallback: number, name: string): number {
+    if (raw === undefined) {
+        return fallback;
+    }
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value <= 0) {
+        throw usageError(`--${name} must be a positive number, got "${String(raw)}"`);
+    }
+    return value;
+}
+
+/**
+ * Reads an option restricted to a fixed set of values.
+ *
+ * The allowed list goes in the message, because "not one of image/gif" alone
+ * leaves the caller guessing what would have worked.
+ *
+ * @param raw - Raw option value.
+ * @param fallback - Used when the option is absent.
+ * @param allowed - Accepted values.
+ * @param name - Option name for the error message.
+ * @returns The chosen value.
+ * @throws {@link CliError} With `Usage` when present but not in `allowed`.
+ */
+export function enumOption<T extends string>(
+    raw: unknown,
+    fallback: T,
+    allowed: readonly T[],
+    name: string
+): T {
+    if (raw === undefined) {
+        return fallback;
+    }
+    const value = String(raw) as T;
+    if (!allowed.includes(value)) {
+        throw usageError(`--${name} must be one of ${allowed.join(', ')}, got "${value}"`);
+    }
+    return value;
+}
+
+/**
  * Converts one raw option value to a non-negative integer.
  *
  * @param raw - Raw value.

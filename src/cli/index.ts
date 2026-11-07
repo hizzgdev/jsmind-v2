@@ -17,8 +17,21 @@
 
 import { parseArgs } from 'node:util';
 import { CliError, CliExit, usageError } from './exit.ts';
-import { intOption, requireOption, type WriteOptions } from './io.ts';
-import { runExport, EXPORT_TYPES } from './commands/export.ts';
+import {
+    enumOption,
+    intOption,
+    numberOption,
+    requireOption,
+    type WriteOptions,
+} from './io.ts';
+import {
+    runExport,
+    EXPORT_TYPES,
+    DEFAULT_WIDTH,
+    DEFAULT_HEIGHT,
+    DEFAULT_SCALE,
+} from './commands/export.ts';
+import { JmImageType } from '../view/export.ts';
 import { runValidate, validateHelp, assertValidateArgs } from './commands/validate.ts';
 import { runMind, mindHelp } from './commands/mind.ts';
 import { runNode, nodeHelp } from './commands/node.ts';
@@ -176,10 +189,10 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
             return runExport({
                 file,
                 output,
-                width: numberOption(parsed.values, 'width', 1200),
-                height: numberOption(parsed.values, 'height', 800),
-                scale: numberOption(parsed.values, 'scale', 2),
-                type: stringOption(parsed.values, 'type', 'image/png', EXPORT_TYPES),
+                width: numberOption(parsed.values.width, DEFAULT_WIDTH, 'width'),
+                height: numberOption(parsed.values.height, DEFAULT_HEIGHT, 'height'),
+                scale: numberOption(parsed.values.scale, DEFAULT_SCALE, 'scale'),
+                type: enumOption(parsed.values.type, JmImageType.Png, EXPORT_TYPES, 'type'),
                 asJson,
             });
         }
@@ -264,52 +277,6 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
  *
  * @param argv - Arguments after the executable and script path.
  */
-/**
- * Reads a numeric option, or dies with a usage error.
- *
- * @param values - Parsed options.
- * @param name - Option name without the leading dashes.
- * @param fallback - Value to use when the option is absent.
- * @returns The parsed number.
- */
-function numberOption(values: Record<string, unknown>, name: string, fallback: number): number {
-    const raw = values[name];
-    if (raw === undefined) {
-        return fallback;
-    }
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-        throw usageError(`--${name} must be a positive number, got ${JSON.stringify(raw)}`);
-    }
-    return parsed;
-}
-
-/**
- * Reads a string option, restricted to a set of allowed values.
- *
- * @param values - Parsed options.
- * @param name - Option name without the leading dashes.
- * @param fallback - Value to use when the option is absent.
- * @param allowed - Accepted values.
- * @returns The chosen value.
- */
-function stringOption(
-    values: Record<string, unknown>,
-    name: string,
-    fallback: string,
-    allowed: readonly string[]
-): string {
-    const raw = values[name];
-    if (raw === undefined) {
-        return fallback;
-    }
-    const chosen = String(raw);
-    if (!allowed.includes(chosen)) {
-        throw usageError(`--${name} must be one of ${allowed.join(', ')}, got ${JSON.stringify(chosen)}`);
-    }
-    return chosen;
-}
-
 async function main(argv: string[]): Promise<void> {
     try {
         process.exitCode = await dispatch(parse(argv));
