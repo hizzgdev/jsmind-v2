@@ -8,7 +8,7 @@ import { JmMindChangeCoordinator } from './mind-change-coordinator.ts';
 import { JmNodeSide } from '../model/data/node.ts';
 import type { JmExportImageOptions, JmExportImageResult } from '../view/export.ts';
 
-import type { JmViewHandle } from '../view/handle.ts';
+import { JmCommander } from './commander.ts';
 import { JmMindSerializerFactory } from '../serialization/serializer-factory.ts';
 
 /**
@@ -55,20 +55,20 @@ class JsMind {
      * @param options - Configuration options for the jsMind instance.
      */
     /**
-     * What this instance may ask of the view. Typed as the narrow handle rather
-     * than as the view itself: the application layer knows which capabilities it
-     * uses, not what class provides them.
+     * Issues commands that affect what is displayed. The counterpart to the
+     * coordinator: that one reacts to the mind changing, this one carries what
+     * the caller asked for.
      */
-    private readonly view: JmViewHandle;
+    private readonly commander: JmCommander;
 
     private constructor(
         options: JsMindOptions,
         mindChangeCoordinator: JmMindChangeCoordinator,
-        view: JmViewHandle
+        commander: JmCommander
     ) {
         this.options = options;
         this.coordinator = mindChangeCoordinator;
-        this.view = view;
+        this.commander = commander;
     }
 
     static async create(container: string | HTMLElement, options?: JsMindOptions): Promise<JsMind> {
@@ -76,7 +76,8 @@ class JsMind {
         const arranger = new MindmapArranger(mergedOptions.layout);
         const view = await JmView.create(container, arranger, mergedOptions.view);
         const mindChangeCoordinator = new JmMindChangeCoordinator(arranger, view);
-        return new JsMind(mergedOptions, mindChangeCoordinator, view);
+        const commander = new JmCommander(view);
+        return new JsMind(mergedOptions, mindChangeCoordinator, commander);
     }
 
     /**
@@ -140,7 +141,7 @@ class JsMind {
         if (!this.mind) {
             throw new JsMindError('No mind map is currently open');
         }
-        return await this.view.capture(options);
+        return await this.commander.exportImage(options);
     }
 }
 
