@@ -4,7 +4,7 @@ import type { ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
 import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
-import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve } from '../model/data/style.ts';
+import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
@@ -35,8 +35,12 @@ export class JmView {
      * The theme resolved from the mind map's style, kept so that per-node
      * decisions at render time (tone lookup, line fallbacks) do not have to
      * re-resolve it for every node.
+     *
+     * Starts at the built-in default rather than null: a node can be rendered
+     * before `applyTheme` runs, and a null theme would force every lookup to
+     * carry an optional chain and a hardcoded colour of its own.
      */
-    private theme: JmTheme | null = null;
+    private theme: JmTheme = JSMIND_THEME_DEFAULT;
 
     private readonly viewSize: JmSize = new JmSize(1, 1);
 
@@ -185,16 +189,19 @@ export class JmView {
         const theme = this.theme;
         const incoming = node.style?.incoming;
         const tone = node.style?.tone ?? JmTone.Default;
-        const palette = theme?.tones?.[tone] ?? theme?.tones?.[JmTone.Default];
+        // The default palette is the last resort for an unknown or unstyled
+        // tone, and it comes from the same constant the theme was built from, so
+        // an untoned node never falls through to a colour of its own.
+        const palette = theme.tones?.[tone] ?? JSMIND_THEME_DEFAULT.tones?.[JmTone.Default];
 
+        // Every fallback reads the theme. The final literal is unreachable while
+        // JSMIND_THEME_DEFAULT defines a default tone - it exists so the type is
+        // `string`, not as a second source of truth that could drift.
         return {
-            // The default tone's line colour is always defined by the theme, so
-            // this chain cannot end in `undefined` for a resolved theme; the
-            // literal is only reachable if a caller renders before applyTheme.
             color: incoming?.color ?? palette?.lineColor ?? '#b0b0b0',
-            width: incoming?.width ?? theme?.line?.width ?? 2,
-            pattern: incoming?.pattern ?? theme?.line?.pattern ?? JmLinePattern.Solid,
-            curve: incoming?.curve ?? theme?.line?.curve ?? JmLineCurve.Bezier,
+            width: incoming?.width ?? theme.line?.width ?? 2,
+            pattern: incoming?.pattern ?? theme.line?.pattern ?? JmLinePattern.Solid,
+            curve: incoming?.curve ?? theme.line?.curve ?? JmLineCurve.Bezier,
         };
     }
 

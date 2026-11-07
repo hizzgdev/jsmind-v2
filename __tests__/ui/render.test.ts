@@ -406,6 +406,7 @@ interface RenderedLine {
     stroke: string | null;
     width: string | null;
     dash: string | null;
+    linecap: string | null;
 }
 
 /**
@@ -449,6 +450,7 @@ async function renderLines(
                     stroke: el.getAttribute('stroke'),
                     width: el.getAttribute('stroke-width'),
                     dash: el.getAttribute('stroke-dasharray'),
+                    linecap: el.getAttribute('stroke-linecap'),
                 }));
         })()
     `,
@@ -474,6 +476,9 @@ test('ui - a line is a bezier that leaves both of its ends horizontally', async 
     assert.strictEqual(c2x, midX, 'second control point sits on the midpoint x');
     assert.strictEqual(c1y, y1, 'first control point keeps the source y, so the line leaves flat');
     assert.strictEqual(c2y, y2, 'second control point keeps the target y, so the line arrives flat');
+
+    // v1 set `ctx.lineCap = 'round'` on canvas; the SVG path has to say so.
+    assert.strictEqual(line.linecap, 'round', 'caps match v1, and dotted depends on them');
 });
 
 test('ui - a line takes its colour from the tone of the node it leads to', async () => {
@@ -494,15 +499,31 @@ test('ui - the theme sets the line width, and two is the default', async () => {
     assert.strictEqual(thin.width, '1', 'a mind-level override reaches the stroke');
 });
 
-test('ui - a dashed incoming line carries a stroke-dasharray', async () => {
+test('ui - a solid line sets no dash array and a dashed one sets a real gap', async () => {
     const [solid] = await renderLines();
     const [dashed] = await renderLines({ incoming: { pattern: 'dashed' } });
 
     // Absence of the attribute is what makes a line solid.
     assert.strictEqual(solid.dash, null, 'a solid line sets no dash array');
+
     assert.ok(dashed.dash, 'a dashed line sets one');
     const [on, off] = dashed.dash!.split(' ').map(Number);
     assert.ok(on > 0 && off > 0, `dash array should be two positive lengths, got ${dashed.dash}`);
+});
+
+test('ui - a dotted line is drawn as round dots, not as short dashes', async () => {
+    const [dotted] = await renderLines({ incoming: { pattern: 'dotted' } });
+
+    // A zero-length dash is the only way to get a circle out of a dash array:
+    // the round cap extends half the stroke width past each end of the dash, so
+    // the visible mark is a dot of diameter `stroke-width`. A non-zero on-length
+    // would paint a short rectangle instead, which is what `dotted` must not be.
+    const [on, off] = dotted.dash!.split(' ').map(Number);
+    assert.strictEqual(on, 0, `a dot has zero length along the path, got ${dotted.dash}`);
+    assert.ok(off > 0, 'dots still need a gap between them');
+
+    // Without round caps a zero-length dash vanishes entirely.
+    assert.strictEqual(dotted.linecap, 'round', 'the cap is what draws the dot');
 });
 
 test('ui - a straight incoming curve produces a line command, not a bezier', async () => {

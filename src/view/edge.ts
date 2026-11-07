@@ -60,6 +60,10 @@ export class JmEdgeView {
         // element.
         line.setAttribute('stroke', style.color);
         line.setAttribute('stroke-width', String(style.width));
+        // Round caps, matching what v1 did on canvas (`ctx.lineCap = 'round'`).
+        // Required for the dotted pattern to be made of dots at all: with the
+        // default `butt` cap a zero-length dash paints nothing.
+        line.setAttribute('stroke-linecap', 'round');
         const dash = this._dashPattern(style);
         if(dash) {
             line.setAttribute('stroke-dasharray', dash);
@@ -111,7 +115,11 @@ export class JmEdgeView {
             case JmLinePattern.Dashed:
                 return `${style.width * 4} ${style.width * 3}`;
             case JmLinePattern.Dotted:
-                return `${style.width} ${style.width * 2}`;
+                // Zero-length dash plus a round cap is the only way to get a
+                // circle: the cap extends half the stroke width past each end of
+                // the dash, so `0` renders a dot of diameter `stroke-width`.
+                // A non-zero dash would paint a short rectangle instead.
+                return `0 ${style.width * 2}`;
             case JmLinePattern.Solid:
             default:
                 return null;
