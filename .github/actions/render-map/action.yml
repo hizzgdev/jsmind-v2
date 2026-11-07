@@ -1,0 +1,47 @@
+name: Render map
+description: >-
+  Render a mind map file to a PNG, through the public export path.
+
+  Needs a browser and nothing else - no token, no pull request, no repository
+  context. Uploading the result and commenting on a pull request happen in the
+  workflow that calls this, because they need credentials this action has no
+  business holding.
+
+inputs:
+  data-file:
+    description: Mind map JSON to render.
+    required: false
+    default: examples/v2-features.json
+  output:
+    description: Path to write the image to.
+    required: false
+    default: tmp/preview.png
+  width:
+    description: Viewport width to lay the map out in, in CSS pixels.
+    required: false
+    default: '800'
+  height:
+    description: Viewport height to lay the map out in, in CSS pixels.
+    required: false
+    default: '600'
+
+runs:
+  using: composite
+  steps:
+    - name: Check the browser is present
+      shell: bash
+      run: |
+        # Fail here with a clear message rather than inside the export, where a
+        # missing browser reads like a rendering bug. chromium-browser is the
+        # name Ubuntu ships; google-chrome is what the hosted runners carry.
+        google-chrome --version || chromium-browser --version
+
+    - name: Render
+      shell: bash
+      run: |
+        # Through the public export path, not a private script: whatever the API
+        # produces is what gets reviewed, so a regression here is the same one a
+        # caller would hit.
+        node dist/cli.js export "${{ inputs.data-file }}" "${{ inputs.output }}" \
+          --width "${{ inputs.width }}" \
+          --height "${{ inputs.height }}"
