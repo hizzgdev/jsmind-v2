@@ -17,6 +17,10 @@ concurrency:
 jobs:
   # ---------------------------------------------------------------------------
   # Everything that does not need a browser.
+  #
+  # Red here means the code is wrong: format, types, unit tests or the build.
+  # Browsers are deliberately kept out so that stays true - a CI failure in this
+  # job is never "the runner had a bad day".
   # ---------------------------------------------------------------------------
   checks:
     name: Format, types, tests, build
@@ -68,21 +72,18 @@ jobs:
         run: npm run build
 
   # ---------------------------------------------------------------------------
-  # Everything that needs a browser, in the order it needs them:
-  # build -> UI tests -> render.
+  # Needs a browser. Runs on every commit, PR or not - these are assertions, and
+  # an assertion that only runs sometimes is a coin flip.
   # ---------------------------------------------------------------------------
   ui:
-    name: Build, UI tests, render preview
+    name: UI tests
     runs-on: ubuntu-latest
-    # Generous: the browser starts twice here (UI suite, then the preview
-    # render), and a stalled start used to eat the whole budget silently.
-    timeout-minutes: 15
+    # Generous: a stalled browser start used to eat the whole budget silently.
+    timeout-minutes: 10
 
-    # The preview publishes an image to a branch and comments on the PR. Both
-    # are writes; the checks job above deliberately does not get them.
+    # Read-only: the tests assert, they do not publish.
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
 
     steps:
       - name: Checkout
@@ -113,54 +114,85 @@ jobs:
         timeout-minutes: 3
         run: npm run test:ui
 
-      # -----------------------------------------------------------------------
-      # Render preview
-      #
-      # Not a nicety. The tests prove the geometry is computed correctly and
-      # cannot show whether the result looks like anything - that takes an
-      # image someone can open. So it runs after the assertions, and a failure
-      # here is a failure like any other.
-      #
-      # Pull requests only: a push to master has no comment to post into.
-      # -----------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Render preview
+  #
+  # Pull requests only, and the condition lives on the job rather than on each
+  # step: a push to master has no comment to post into, so there is nothing here
+  # to skip individually - the whole job is meaningless without a PR.
+  #
+  # Not a nicety. The tests prove the geometry is computed correctly and cannot
+  # show whether the result looks like anything - that takes an image someone can
+  # open.
+  #
+  # Separate from the UI tests even though both need a browser: those are
+  # assertions that must run on every commit, this produces an artifact and
+  # spends a token. Sharing an environment is not sharing a purpose.
+  # ---------------------------------------------------------------------------
+  preview:
+    name: Render preview
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
-      - name: Render the example map
-        if: github.event_name == 'pull_request'
-        run: |
-          node --experimental-strip-types --no-warnings scripts/render-preview.ts \
-            examples/v2-features.json tmp/preview.png
+    # Both steps publish: one uploads an image, one comments. Writes are
+    # confined to this job.
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      # v7 runs on node24; v4 ran on node20, which GitHub deprecated.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Its own build: passing dist/ between jobs would mean an upload and a
+      # download, slower than the ~3 seconds this takes.
+      - name: Build
+        run: npm run build
+
+      - name: Render
+        uses: ./.github/actions/render-map
+        with:
+          data-file: examples/v2-features.json
+          output: tmp/preview.png
 
       # The image goes up as a comment attachment, in two steps with different
       # tokens.
       #
       # Step one uploads to https://uploads.github.com/user-attachments/assets,
-      # the endpoint gh's own `--attach` posts to, and gets back
+      # the endpoint gh's own --attach posts to, and gets back
       # https://github.com/user-attachments/assets/<uuid>. That URL names a blob,
       # not a commit, so rebases and force-pushes leave it alone - unlike the
       # render-preview branch it replaces, where each push renamed the file and
       # orphaned every earlier comment's image.
       #
-      # Step two posts the comment with GITHUB_TOKEN, so it is attributed to
-      # github-actions[bot] like every other CI comment on the pull request. Using
-      # `--attach` would have done both in one command but under a single
-      # credential, and there is no way to say "upload as the maintainer, post as
-      # the bot" to a command that only takes one token.
+      # Step two posts the comment with github.token, so it is attributed to
+      # github-actions[bot] like every other CI comment. Using --attach would have
+      # done both in one command but under a single credential, and there is no
+      # way to say "upload as the maintainer, post as the bot" to a command that
+      # only takes one token.
       #
-      # Hence two secrets doing different jobs: PR_PREVIEW_TOKEN owns the upload,
-      # GITHUB_TOKEN owns the comment.
-      #
-      # Forks never receive repository secrets, so the upload step warns and
-      # stops rather than failing the build: the point of this job is the tests,
-      # and the picture is a courtesy.
+      # Forks never receive repository secrets, so the upload warns and stops
+      # rather than failing: the point of CI here is the tests, and the picture
+      # is a courtesy.
       - name: Upload the preview
         id: upload
-        if: github.event_name == 'pull_request'
         env:
           # Two credentials in one step, doing different jobs.
           #
-          # GH_TOKEN is the bot's, and only reads the numeric repository id;
-          # it makes no writes. gh refuses to run in Actions without it even
-          # for a plain `gh api` read, which is how this step first failed.
+          # GH_TOKEN is the bot's, and only reads the numeric repository id; it
+          # makes no writes. gh refuses to run in Actions without it even for a
+          # plain `gh api` read.
           #
           # UPLOAD_TOKEN is a maintainer's, and only performs the upload. The
           # endpoint rejects installation tokens with "attaching files requires
@@ -198,12 +230,11 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "uploaded $(du -h tmp/preview.png | cut -f1) to $url"
 
-      # Posts the comment, attributed to github-actions[bot].
       - name: Post it on the pull request
-        if: github.event_name == 'pull_request' && steps.upload.outputs.url != ''
+        if: steps.upload.outputs.url != ''
         env:
-          # github.token rather than secrets.GITHUB_TOKEN: same credential,
-          # but present in every context and impossible to shadow with a secret.
+          # github.token rather than secrets.GITHUB_TOKEN: same credential, but
+          # present in every context and impossible to shadow with a secret.
           GH_TOKEN: ${{ github.token }}
           PREVIEW_URL: ${{ steps.upload.outputs.url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -236,8 +267,8 @@ jobs:
           #
           # Every paragraph below is one long line on purpose. GitHub renders
           # comments with breaks:true, so a single newline becomes a <br> -
-          # wrapping a sentence to fit the source column posts it as a stack
-          # of short lines instead of the paragraph it reads as here.
+          # wrapping a sentence to fit the source column posts it as a stack of
+          # short lines instead of the paragraph it reads as here.
           cat > tmp/comment.md <<BODY
           $MARKER
           ### Render preview
@@ -249,7 +280,7 @@ jobs:
           **Worth a look for anything odd** - overlapping nodes, missing edges, text spilling outside its box, a lopsided layout. The tests check that the geometry is computed correctly; whether it actually *looks* right is the one thing they cannot tell you, and the one thing this image is for.
 
           [Workflow run](https://github.com/$REPO/actions/runs/$RUN_ID)
-          <sub>Generated by \`scripts/render-preview.ts\` from \`examples/v2-features.json\`, pinned to this commit. Uploaded as a comment attachment, so it stays viewable for as long as this comment exists.</sub>
+          <sub>Generated by \`jsmind export\` from \`examples/v2-features.json\`, pinned to this commit. Uploaded as a comment attachment, so it stays viewable for as long as this comment exists.</sub>
           BODY
 
           gh pr comment "$PR_NUMBER" \

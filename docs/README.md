@@ -44,6 +44,7 @@ Contains detailed documentation for specific features.
 - **node-content.md** - Design and usage guide for the node content system
 - **node-move.md** - Implementation details for node move functionality
 - **serialization.md** - Architecture and usage guide for the serialization system
+- **image-export.md** - Rendering a map to PNG/JPEG/WebP, via the API and the CLI (written in Chinese)
 
 ### Development (development/)
 

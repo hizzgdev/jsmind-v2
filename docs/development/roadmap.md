@@ -250,12 +250,14 @@ node.style.fontSize = 18
 
 #### S9 `feat(view): export to PNG, JSON and HTML`
 
-- 导出面板（三项）
-- PNG：SVG 序列化 → **data URL**（不能用 blob）→ canvas → PNG
+- **PNG 已完成**：`jsMind.exportImage()` + `jsmind export`，见 `docs/features/image-export.md`
+  - SVG 序列化 → **data URL**（blob 会污染 canvas）→ canvas → PNG，与本节原计划一致
+  - 尺寸取内容尺寸：小于视口保留空白，大于视口撑开不裁
+  - 出图需要 Chromium，CLI 侧封装在 `src/cli/browser.ts`
+- 尚未开始：导出面板 UI、HTML 快照、JSON 入口（JSON 已有 `serialize()`，缺的是面板）
 - HTML：**模板快照法**（渲染器动手前抓 `document.documentElement.outerHTML`）
-- JSON：直接序列化
 
-**测试**：导出的 PNG 像素扫描验证内容完整；导出的 HTML 能再次打开并再次导出
+**测试**：PNG 走 UI 测试，校验容器魔数（真的是 PNG）、尺寸等于内容尺寸 × scale、小视口不裁、格式切换生效；HTML 能再次打开并再次导出（待做）
 
 ---
 
