@@ -8,14 +8,7 @@ import { JmMindChangeCoordinator } from './mind-change-coordinator.ts';
 import { JmNodeSide } from '../model/data/node.ts';
 import type { JmExportImageOptions, JmExportImageResult } from '../view/export.ts';
 
-/**
- * Produces an image from whatever is currently rendered.
- *
- * A plain function on purpose: the application layer is handed this at
- * construction time, which keeps it from holding a view - or from knowing that
- * a view is what implemented it.
- */
-type JmImageRenderer = (options?: JmExportImageOptions) => Promise<JmExportImageResult>;
+import type { JmViewHandle } from '../view/handle.ts';
 import { JmMindSerializerFactory } from '../serialization/serializer-factory.ts';
 
 /**
@@ -62,20 +55,20 @@ class JsMind {
      * @param options - Configuration options for the jsMind instance.
      */
     /**
-     * Renders the rendered content to an image. Injected rather than reached
-     * for, so this class never learns what a view is: it knows it was handed
-     * something that can produce a picture, nothing more.
+     * What this instance may ask of the view. Typed as the narrow handle rather
+     * than as the view itself: the application layer knows which capabilities it
+     * uses, not what class provides them.
      */
-    private readonly renderImage: JmImageRenderer;
+    private readonly view: JmViewHandle;
 
     private constructor(
         options: JsMindOptions,
         mindChangeCoordinator: JmMindChangeCoordinator,
-        renderImage: JmImageRenderer
+        view: JmViewHandle
     ) {
         this.options = options;
         this.coordinator = mindChangeCoordinator;
-        this.renderImage = renderImage;
+        this.view = view;
     }
 
     static async create(container: string | HTMLElement, options?: JsMindOptions): Promise<JsMind> {
@@ -83,7 +76,7 @@ class JsMind {
         const arranger = new MindmapArranger(mergedOptions.layout);
         const view = await JmView.create(container, arranger, mergedOptions.view);
         const mindChangeCoordinator = new JmMindChangeCoordinator(arranger, view);
-        return new JsMind(mergedOptions, mindChangeCoordinator, (options) => view.capture(options));
+        return new JsMind(mergedOptions, mindChangeCoordinator, view);
     }
 
     /**
@@ -147,7 +140,7 @@ class JsMind {
         if (!this.mind) {
             throw new JsMindError('No mind map is currently open');
         }
-        return await this.renderImage(options);
+        return await this.view.capture(options);
     }
 }
 

@@ -233,4 +233,3 @@ export class JmView {
         this.viewOffset.y = this.viewSize.height / 2 - centerOffset.y;
     }
 }
-
