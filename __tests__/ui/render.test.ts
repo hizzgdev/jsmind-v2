@@ -534,3 +534,119 @@ test('ui - a straight incoming curve produces a line command, not a bezier', asy
     assert.ok(straight.d.includes(' L '), `expected a straight segment, got ${straight.d}`);
     assert.ok(!straight.d.includes(' C '), 'a straight line carries no control points');
 });
+
+/** One exported image as reported from the page. */
+interface ExportedImage {
+    type: string;
+    bytes: number;
+    width: number;
+    height: number;
+    cssWidth: number;
+    cssHeight: number;
+    /** First bytes of the file, hex, for checking the container magic. */
+    magic: string;
+}
+
+/**
+ * Opens a map in a viewport of the given size and exports it.
+ *
+ * @param viewport - CSS size the map is laid out in.
+ * @param options - Options passed through to `exportImage`.
+ * @param children - How many children to give the root.
+ * @returns What the page reported.
+ */
+async function exportMap(
+    viewport: { width: number; height: number },
+    options: Record<string, unknown>,
+    children = 3
+): Promise<ExportedImage> {
+    await browser.setContent(
+        `<div id="container" style="width:${viewport.width}px;height:${viewport.height}px"></div>`
+    );
+    await browser.evaluate(browser.bundleSource());
+
+    const result = await browser.evaluate<ExportedImage>(
+        `
+        (async () => {
+            const container = document.getElementById('container');
+            const jm = await jsMind.create(container);
+            const mind = new jsMind.Mind({ name: 'export-test' });
+            mind.root.content = new (mind.root.content.constructor)('text', 'Root');
+            for (let i = 0; i < ${children}; i++) {
+                mind.addChildNode('Child ' + i, mind.root.id);
+            }
+            await jm.open(mind);
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+            const result = await jm.exportImage(${JSON.stringify(options)});
+
+            // Only the first bytes matter: enough to see the container magic
+            // without shipping the whole file back as a string.
+            const head = new Uint8Array(await result.blob.slice(0, 8).arrayBuffer());
+            const magic = [...head].map(b => b.toString(16).padStart(2, '0')).join(' ');
+
+            return {
+                type: result.blob.type,
+                bytes: result.blob.size,
+                width: result.width,
+                height: result.height,
+                cssWidth: result.cssWidth,
+                cssHeight: result.cssHeight,
+                magic,
+            };
+        })()
+    `,
+        true
+    );
+    return result as ExportedImage;
+}
+
+test('ui - exportImage returns a PNG whose bytes really are a PNG', async () => {
+    const image = await exportMap({ width: 800, height: 600 }, {});
+
+    assert.strictEqual(image.type, 'image/png');
+    assert.ok(image.bytes > 0, 'the blob has content');
+    // The 8-byte PNG signature. A canvas that silently produced a different
+    // format, or an empty blob, would fail here.
+    assert.strictEqual(image.magic, '89 50 4e 47 0d 0a 1a 0a', 'PNG signature');
+});
+
+test('ui - exportImage sizes the image from the content, at the requested scale', async () => {
+    const one = await exportMap({ width: 800, height: 600 }, { scale: 1 });
+    const two = await exportMap({ width: 800, height: 600 }, { scale: 2 });
+
+    // Scale multiplies the pixels but not the layout: the CSS size is the same
+    // picture measured in layout units.
+    assert.strictEqual(one.cssWidth, two.cssWidth, 'layout size does not change with scale');
+    assert.strictEqual(one.width, Math.round(one.cssWidth), 'scale 1 maps one pixel per CSS pixel');
+    assert.strictEqual(two.width, Math.round(two.cssWidth * 2), 'scale 2 doubles it');
+    assert.strictEqual(two.height, Math.round(two.cssHeight * 2));
+});
+
+test('ui - exportImage keeps the whitespace when the map is smaller than the viewport', async () => {
+    const image = await exportMap({ width: 1400, height: 900 }, { scale: 1 });
+
+    // Three children never fill a 1400x900 box, so the export is the box: the
+    // empty margin around the map is part of the picture.
+    assert.strictEqual(image.cssWidth, 1400, 'the viewport width is kept');
+    assert.strictEqual(image.cssHeight, 900, 'the viewport height is kept');
+});
+
+test('ui - exportImage grows past the viewport instead of cropping the map', async () => {
+    const image = await exportMap({ width: 320, height: 240 }, { scale: 1 }, 6);
+
+    // Six children cannot fit in 320x240. The view sizes itself to the map, so
+    // the export has to follow it out rather than cutting at the viewport.
+    assert.ok(
+        image.cssWidth > 320 || image.cssHeight > 240,
+        `expected the export to exceed the viewport, got ${image.cssWidth}x${image.cssHeight}`
+    );
+});
+
+test('ui - exportImage honours the requested format', async () => {
+    const jpeg = await exportMap({ width: 800, height: 600 }, { scale: 1, type: 'image/jpeg' });
+
+    assert.strictEqual(jpeg.type, 'image/jpeg');
+    // JPEG starts with the SOI marker, FF D8.
+    assert.strictEqual(jpeg.magic.slice(0, 5), 'ff d8', 'JPEG signature');
+});

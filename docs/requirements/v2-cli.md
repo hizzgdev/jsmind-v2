@@ -249,15 +249,19 @@ Fixed 3 integrity problems:
 Wrote mind.json
 ```
 
-### 5.3 `render`
+### 5.3 `export`
 
 ```bash
-jsmind render <file> [--output <path>] [--width N] [--json]
+jsmind export <file> <out.png> [--width N] [--height N] [--scale N] [--type F] [--json]
 ```
 
-**S7 只输出调试信息**（布局尺寸、节点数等），真正出图在 S8/S9 之后（需要无头浏览器）。
+**出图需要浏览器，所以它不再是纯数据命令。** 早期设计里这个位置留给 `render`，只打印布局调试信息；真要出图就得有渲染引擎，改名成 `export` 以对齐它的实际职责，也和 JS API 的 `exportImage()` 一致。
 
-**渲染细节见 `v2-requirements.md` 4.6、4.7 节。**
+**图片尺寸就是内容尺寸**：内容比视口小就保留空白，比视口大就撑开，不按视口裁剪。
+
+**需要 Chromium**，找不到会明确报错而不是导出空白图。
+
+**实现细节见 `docs/features/image-export.md`。**
 
 ### 5.4 `convert`
 

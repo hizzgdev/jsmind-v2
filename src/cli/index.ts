@@ -18,6 +18,7 @@
 import { parseArgs } from 'node:util';
 import { CliError, CliExit, usageError } from './exit.ts';
 import { intOption, requireOption, type WriteOptions } from './io.ts';
+import { runExport, EXPORT_TYPES } from './commands/export.ts';
 import { runValidate, validateHelp, assertValidateArgs } from './commands/validate.ts';
 import { runMind, mindHelp } from './commands/mind.ts';
 import { runNode, nodeHelp } from './commands/node.ts';
@@ -33,6 +34,7 @@ Usage: ${PROGRAM} <command> [options]
 Cross-boundary commands:
   create <file> --title <title>   Start a new mind map
   validate <file>                 Check a file against the format spec
+  export <file> <out.png>         Render to an image  (needs a browser)
   context <file> [options]        Discovery: show the tree and its ids
 
 Structure and edges:
@@ -115,6 +117,10 @@ function parse(argv: string[]): ParsedArgs {
                 'name': { type: 'string' },
                 'author': { type: 'string' },
                 'force': { type: 'boolean', default: false },
+                // export
+                'width': { type: 'string' },
+                'height': { type: 'string' },
+                'scale': { type: 'string' },
             },
         });
         return { values: values as Record<string, unknown>, positionals };
@@ -149,7 +155,7 @@ function writeOptions(values: Record<string, unknown>): WriteOptions {
  * @returns Exit code.
  * @throws {@link CliError} When the command fails.
  */
-function dispatch(parsed: ParsedArgs): number {
+function dispatch(parsed: ParsedArgs): number | Promise<number> {
     const [command, ...rest] = parsed.positionals;
     const asJson = parsed.values.json === true;
 
@@ -159,6 +165,24 @@ function dispatch(parsed: ParsedArgs): number {
     }
 
     switch (command) {
+        case 'export': {
+            const [file, output, ...extra] = rest;
+            if (file === undefined || output === undefined) {
+                throw usageError('export requires an input file and an output image path');
+            }
+            if (extra.length > 0) {
+                throw usageError(`Unexpected arguments: ${extra.join(' ')}`);
+            }
+            return runExport({
+                file,
+                output,
+                width: numberOption(parsed.values, 'width', 1200),
+                height: numberOption(parsed.values, 'height', 800),
+                scale: numberOption(parsed.values, 'scale', 2),
+                type: stringOption(parsed.values, 'type', 'image/png', EXPORT_TYPES),
+                asJson,
+            });
+        }
         case 'validate': {
             assertValidateArgs(rest);
             return runValidate(rest[0], asJson);
@@ -240,9 +264,55 @@ function dispatch(parsed: ParsedArgs): number {
  *
  * @param argv - Arguments after the executable and script path.
  */
-function main(argv: string[]): void {
+/**
+ * Reads a numeric option, or dies with a usage error.
+ *
+ * @param values - Parsed options.
+ * @param name - Option name without the leading dashes.
+ * @param fallback - Value to use when the option is absent.
+ * @returns The parsed number.
+ */
+function numberOption(values: Record<string, unknown>, name: string, fallback: number): number {
+    const raw = values[name];
+    if (raw === undefined) {
+        return fallback;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        throw usageError(`--${name} must be a positive number, got ${JSON.stringify(raw)}`);
+    }
+    return parsed;
+}
+
+/**
+ * Reads a string option, restricted to a set of allowed values.
+ *
+ * @param values - Parsed options.
+ * @param name - Option name without the leading dashes.
+ * @param fallback - Value to use when the option is absent.
+ * @param allowed - Accepted values.
+ * @returns The chosen value.
+ */
+function stringOption(
+    values: Record<string, unknown>,
+    name: string,
+    fallback: string,
+    allowed: readonly string[]
+): string {
+    const raw = values[name];
+    if (raw === undefined) {
+        return fallback;
+    }
+    const chosen = String(raw);
+    if (!allowed.includes(chosen)) {
+        throw usageError(`--${name} must be one of ${allowed.join(', ')}, got ${JSON.stringify(chosen)}`);
+    }
+    return chosen;
+}
+
+async function main(argv: string[]): Promise<void> {
     try {
-        process.exitCode = dispatch(parse(argv));
+        process.exitCode = await dispatch(parse(argv));
     } catch (err) {
         if (err instanceof CliError) {
             process.stderr.write(`${err.message}\n`);
@@ -257,4 +327,4 @@ function main(argv: string[]): void {
     }
 }
 
-main(process.argv.slice(2));
+void main(process.argv.slice(2));

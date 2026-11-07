@@ -1,10 +1,12 @@
 
 import { JmMind } from '../model/mind.ts';
+import { JsMindError } from '../common/error.ts';
 import { mergeJsMindOptions, type JsMindOptions } from '../common/option.ts';
 import { JmView } from '../view/index.ts';
 import { MindmapArranger } from '../arranger/mindmap.ts';
 import { JmMindChangeCoordinator } from './mind-change-coordinator.ts';
 import { JmNodeSide } from '../model/data/node.ts';
+import type { JmExportImageOptions, JmExportImageResult } from '../view/export.ts';
 import { JmMindSerializerFactory } from '../serialization/serializer-factory.ts';
 
 /**
@@ -45,14 +47,22 @@ class JsMind {
     /** The state coordinator instance for managing the state of the mind map. */
     private readonly coordinator: JmMindChangeCoordinator;
 
+    /** The view, kept so that export can reach the rendered content. */
+    private readonly view: JmView;
+
     /**
      * Creates a new jsMind instance.
      *
      * @param options - Configuration options for the jsMind instance.
      */
-    private constructor(options: JsMindOptions, mindChangeCoordinator: JmMindChangeCoordinator) {
+    private constructor(
+        options: JsMindOptions,
+        mindChangeCoordinator: JmMindChangeCoordinator,
+        view: JmView
+    ) {
         this.options = options;
         this.coordinator = mindChangeCoordinator;
+        this.view = view;
     }
 
     static async create(container: string | HTMLElement, options?: JsMindOptions): Promise<JsMind> {
@@ -60,7 +70,7 @@ class JsMind {
         const arranger = new MindmapArranger(mergedOptions.layout);
         const view = await JmView.create(container, arranger, mergedOptions.view);
         const mindChangeCoordinator = new JmMindChangeCoordinator(arranger, view);
-        return new JsMind(mergedOptions, mindChangeCoordinator);
+        return new JsMind(mergedOptions, mindChangeCoordinator, view);
     }
 
     /**
@@ -106,6 +116,25 @@ class JsMind {
         const serializer = JmMindSerializerFactory.create('json');
         const data = serializer.serialize(this.mind);
         return JSON.stringify(data);
+    }
+
+    /**
+     * Renders the open mind map to an image.
+     *
+     * The size is the rendered content's own size: whitespace inside the
+     * container is part of the picture, and a map larger than its container is
+     * not cropped.
+     *
+     * @param options - Scale, format and quality. Defaults to PNG at 2x.
+     * @returns The encoded image, as a Blob, plus its pixel dimensions.
+     * @throws {@link JsMindError} If no mind map is open, or if the browser
+     * cannot encode the result.
+     */
+    async exportImage(options?: JmExportImageOptions): Promise<JmExportImageResult> {
+        if (!this.mind) {
+            throw new JsMindError('No mind map is currently open');
+        }
+        return await this.view.capture(options);
     }
 }
 

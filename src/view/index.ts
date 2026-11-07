@@ -5,6 +5,7 @@ import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
 import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
+import { captureShadowContent, type JmExportImageOptions, type JmExportImageResult } from './export.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
@@ -203,6 +204,20 @@ export class JmView {
             pattern: incoming?.pattern ?? theme.line?.pattern ?? JmLinePattern.Solid,
             curve: incoming?.curve ?? theme.line?.curve ?? JmLineCurve.Bezier,
         };
+    }
+
+    /**
+     * Renders the current content to an image.
+     *
+     * Kept on the view rather than reached into from outside: the host element
+     * and the shadow root are both private, and they are exactly what the
+     * capture needs.
+     *
+     * @param options - Scale, format and quality.
+     * @returns The encoded image plus its dimensions.
+     */
+    async capture(options?: JmExportImageOptions): Promise<JmExportImageResult> {
+        return await captureShadowContent(this.container, this.shadowRoot, this.viewSize, options);
     }
 
     private _updateViewSize(mind: JmMind): void {
