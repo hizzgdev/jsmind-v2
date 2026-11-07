@@ -18,6 +18,11 @@
  * the renderer, and the interactive path would stop being the path an agent
  * takes when it edits the same file.
  *
+ * Also not here: coordinate arithmetic. Mapping a pointer position to a node or
+ * to a map position depends on the view's own offsets, and the view is what
+ * handles pointers; exposing those helpers would expose the internals without
+ * the callers needing them.
+ *
  * @packageDocumentation
  */
 
@@ -66,10 +71,18 @@ export interface JmViewHandle {
     // centerOn(nodeId: string): void;
     // getViewport(): JmViewport;
     //
-    // Screen coordinates are the other half of interactivity: dragging a node
-    // needs to turn a pointer position into a map position, and a click needs
-    // to turn it into a node id. Neither changes the map, so both belong here.
+    // Interaction will arrive as semantic events, not as coordinate helpers.
+    // Turning a pointer position into a node id, or into a map position, needs
+    // the view's own offsets and scroll state - publishing that machinery would
+    // publish the view's internals under a different name, and it is the view
+    // that owns pointer handling anyway. What crosses the boundary is the
+    // meaning of the gesture, not the arithmetic behind it:
     //
-    // screenToMind(clientX: number, clientY: number): { x: number; y: number };
-    // hitTest(clientX: number, clientY: number): string | null;
+    // onNodeClick(handler: (nodeId: string) => void): () => void;
+    // onNodeDragEnd(handler: (nodeId: string, destination: JmNodeDestination) => void): () => void;
+    //
+    // `onNodeDragEnd` deliberately hands back a destination rather than applying
+    // it: the view reports what the user did, and the mutation still goes
+    // through `mind.moveNode` like every other change. That is what keeps the
+    // pointer path and the editing-a-file path the same path.
 }
