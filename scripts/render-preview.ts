@@ -333,33 +333,12 @@ async function main(): Promise<void> {
 
                     // Nodes render inside the shadow root the view created, so
                     // they are invisible to a plain descendant query on the host.
-                    const hidden = el => {
-                        const s = getComputedStyle(el);
-                        return s.visibility === 'hidden' || s.display === 'none';
-                    };
-                    // Two exclusions from the crop, both learned the hard way:
-                    //
-                    // Hidden nodes keep their box at the origin. Collapsing a
-                    // branch sets visibility to hidden and leaves the element
-                    // where it was last placed, which for a never-placed node is
-                    // (0, 0). Counting those pulls minX/minY to the corner and
-                    // the picture ends up with a huge margin on the left and the
-                    // top and a normal one on the other two sides.
-                    //
-                    // Expanders sit outside their node - 13px out along the axis
-                    // the children grow on - so a box built from nodes alone
-                    // clips them in half.
-                    const boxes = [
-                        ...(stage.shadowRoot ? stage.shadowRoot.querySelectorAll('.jsmind-node') : []),
-                        ...(stage.shadowRoot ? stage.shadowRoot.querySelectorAll('.jsmind-node-expander') : []),
-                    ].filter(el => !hidden(el));
-
                     const nodes = stage.shadowRoot ? stage.shadowRoot.querySelectorAll('.jsmind-node') : [];
-                    if (boxes.length === 0) {
+                    if (nodes.length === 0) {
                         return JSON.stringify({ nodes: 0, bounds: null });
                     }
                     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                    for (const el of boxes) {
+                    for (const el of nodes) {
                         const r = el.getBoundingClientRect();
                         minX = Math.min(minX, r.left);
                         minY = Math.min(minY, r.top);
@@ -400,15 +379,10 @@ async function main(): Promise<void> {
         await new Promise(res => setTimeout(res, 300));
 
         const PAD = 40;
-        // Not clamped to the viewport origin. `Math.max(0, x - PAD)` on its own
-        // clamps the start but leaves the width padded on both sides, so a map
-        // that begins at x < PAD loses its left margin while keeping the right
-        // one - the crop slides off-centre. Content above or left of the origin
-        // is still captured as long as the box follows it.
         const clip = info.bounds
             ? {
-                x: info.bounds.x - PAD,
-                y: info.bounds.y - PAD,
+                x: Math.max(0, info.bounds.x - PAD),
+                y: Math.max(0, info.bounds.y - PAD),
                 width: info.bounds.width + PAD * 2,
                 height: info.bounds.height + PAD * 2,
                 scale: 2,
