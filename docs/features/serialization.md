@@ -1,238 +1,88 @@
-# JsMind Serialization System
+# 序列化系统
 
-The JsMind serialization system provides a flexible and extensible way to serialize and deserialize mind maps in different formats.
+jsMind v2 的序列化层把内存里的 `JmMind` 对象转成文件格式，以及反向读回。三个核心文件：
 
-## Overview
+| 文件 | 职责 |
+|---|---|
+| `src/serialization/serializer.ts` | `JmMindSerializer` 接口——`serialize` / `deserialize` / `validate` / `getFormatName` |
+| `src/serialization/json.ts` | v2 格式的完整实现：`JmMindJsonSerializer`，对应 `format: "jsmind_v2"` |
+| `src/serialization/freemind.ts` | FreeMind XML 格式兼容 |
+| `src/serialization/serializer-factory.ts` | `JmMindSerializerFactory.create('json' | 'freemind')` |
+| `src/serialization/validation.ts` | `validateMindData()`——37 个错误码的结构校验，读写分离（不依赖序列化器） |
 
-The serialization system uses **external serializers** that can be used independently of the core `JmMind` class. This approach provides maximum flexibility and separation of concerns.
+---
 
-## Current Architecture
+## 1. 接口
 
-The serialization system consists of:
-
-- **`JmMindSerializer`** - Base interface for all serializers
-- **Format-specific serializers** - Implementations for different formats (JSON, FreeMind, etc.)
-- **External usage** - Serializers are used directly, not integrated into `JmMind`
-
-## Design Decisions and Evolution
-
-### Current Design Philosophy
-
-The serialization system was refactored to follow these principles:
-
-1. **Separation of Concerns**: Serialization is completely separate from core mind map functionality
-2. **External Usage**: Serializers are used directly, not through a manager or integrated into `JmMind`
-3. **Simplicity**: No complex manager pattern or singleton dependencies
-4. **Flexibility**: Each serializer can be used independently with any mind map instance
-
-### Key Design Decisions
-
-#### 1. External Serializers vs. Integrated Serialization
-**Decision**: Use external serializers that are used directly, not integrated into the `JmMind` class.
-
-**Rationale**:
-- **Separation of Concerns**: Serialization logic is completely separate from core functionality
-- **Simplicity**: No complex manager pattern or singleton dependencies
-- **Flexibility**: Serializers can be used with any mind map instance
-- **Testability**: Serializers can be tested independently
-- **Reusability**: Serializers can be used in different contexts
-
-**Previous Approach**: Manager pattern was removed due to complexity and circular dependency issues.
-
-#### 2. Interface-Based Design
-**Decision**: Define a `JmMindSerializer` interface that all serializers must implement.
-
-**Rationale**:
-- **Contract Enforcement**: Ensures all serializers follow the same contract
-- **Type Safety**: Provides compile-time checking and better IDE support
-- **Consistency**: All serializers have the same method signatures
-- **Documentation**: Interface serves as living documentation of serializer requirements
-- **Testing**: Easier to create mock serializers for testing
-
-#### 3. Direct Usage Pattern
-**Decision**: Serializers are instantiated and used directly.
-
-**Rationale**:
-- **Simplicity**: No complex registration or management needed
-- **Performance**: No overhead from manager pattern
-- **Flexibility**: Easy to customize or extend serializers
-- **Clarity**: Clear and straightforward usage pattern
-
-## Available Serializers
-
-### JSON Serializer
-
-The JSON serializer (`JmMindJsonSerializer`) is the primary serializer for JsMind mind maps.
-
-**Features**:
-- Serializes mind maps to JSON format
-- Supports all mind map features (nodes, edges, metadata)
-- Handles parent-child relationships and additional edges
-- Validates data before serialization/deserialization
-
-**Usage**:
-```javascript
-import { JmMindJsonSerializer } from './src/serialization/jsmind.json.serializer.js';
-import { JmMind } from './src/jsmind.mind.js';
-
-const mind = new JmMind();
-const serializer = new JmMindJsonSerializer();
-
-// Serialize
-const jsonData = serializer.serialize(mind);
-
-// Deserialize
-const restoredMind = serializer.deserialize(jsonData);
-```
-
-### FreeMind Serializer
-
-The FreeMind serializer (`JmMindFreeMindSerializer`) provides compatibility with FreeMind format.
-
-**Features**:
-- Serializes mind maps to FreeMind XML format
-- Maintains compatibility with FreeMind software
-- Handles FreeMind-specific attributes and structure
-
-**Usage**:
-```javascript
-import { JmMindFreeMindSerializer } from './src/serialization/jsmind.freemind.serializer.js';
-
-const serializer = new JmMindFreeMindSerializer();
-const freemindData = serializer.serialize(mind);
-```
-
-## Serializer Interface
-
-All serializers implement the `JmMindSerializer` interface:
-
-```javascript
-export class JmMindSerializer {
-    /**
-     * Get the format name
-     * @returns {string} The format name
-     */
-    getFormatName() {
-        throw new Error('Method must be implemented');
-    }
-
-    /**
-     * Serialize a mind map
-     * @param {JmMind} mind - The mind map to serialize
-     * @returns {any} The serialized data
-     */
-    serialize(mind) {
-        throw new Error('Method must be implemented');
-    }
-
-    /**
-     * Deserialize data to a mind map
-     * @param {any} data - The data to deserialize
-     * @returns {JmMind} The deserialized mind map
-     */
-    deserialize(data) {
-        throw new Error('Method must be implemented');
-    }
-
-    /**
-     * Validate if data can be deserialized
-     * @param {any} data - The data to validate
-     * @returns {boolean} True if valid, false otherwise
-     */
-    validate(data) {
-        throw new Error('Method must be implemented');
-    }
+```ts
+interface JmMindSerializer {
+    serialize(mind: JmMind): unknown;
+    deserialize(data: unknown): JmMind;
+    validate(data: unknown): boolean;
+    getFormatName(): string;
 }
 ```
 
-## Data Format
+用 `JmMindSerializerFactory.create('json')` 获取实例，不直接 `new`。
 
-### JSON Format
+---
 
-The JSON serializer produces data in the following format:
+## 2. JSON 序列化
 
-```json
-{
-  "meta": {
-    "name": "My Mind Map",
-    "version": "1.0",
-    "author": "user@example.com"
-  },
-  "root": {
-    "id": "root",
-    "content": {
-      "type": "text",
-      "value": "My Mind Map"
-    },
-    "parent": null,
-    "children": []
-  },
-  "nodes": {
-    "node1": {
-      "id": "node1",
-      "content": {
-        "type": "text",
-        "value": "Child Node"
-      },
-      "parent": "root",
-      "children": []
-    }
-  },
-  "edges": {
-    "edge1": {
-      "id": "edge1",
-      "sourceNodeId": "node1",
-      "targetNodeId": "node2",
-      "type": "link",
-      "label": "Link Label"
-    }
-  }
-}
-```
+### 磁盘格式
 
-## Error Handling
+`format: "jsmind_v2"`。**扁平表**：`nodes` 是 `Record<string, SerializedNode>`，父子关系通过 id 引用（`parent` / `children`）表达，`edges` 只存树之外的额外关系。
 
-Serializers provide comprehensive error handling:
+完整 schema 见 [`docs/requirements/v2-data-format.md`](../requirements/v2-data-format.md)。
 
-- **Validation Errors**: Invalid data is rejected with clear error messages
-- **Format Errors**: Unsupported formats are handled gracefully
-- **Type Errors**: Type mismatches are caught and reported
-- **Missing Data**: Required fields are validated before processing
+### serialize
 
-## Performance Considerations
-
-The external serializer approach provides several performance benefits:
-
-- **No Overhead**: No manager pattern or singleton overhead
-- **Direct Access**: Serializers are used directly without indirection
-- **Memory Efficiency**: No global state or registration overhead
-- **Lazy Loading**: Serializers are only instantiated when needed
-
-## Future Extensibility
-
-The external serializer pattern makes it easy to add new formats:
-
-1. **Create New Serializer**: Implement the `JmMindSerializer` interface
-2. **Add Format Support**: Handle the specific format requirements
-3. **Use Directly**: Instantiate and use the new serializer
-
-No changes to core classes or manager registration are needed.
-
-## Migration from Manager Pattern
-
-If you were using the previous manager pattern, update your code as follows:
-
-**Before (Manager Pattern)**:
-```javascript
-const mind = new JmMind();
-const data = mind.serialize('json');
-```
-
-**After (External Serializers)**:
-```javascript
-const mind = new JmMind();
+```ts
 const serializer = new JmMindJsonSerializer();
-const data = serializer.serialize(mind);
+const doc = serializer.serialize(mind);
+// → { format: "jsmind_v2", meta: {...}, root: "root", nodes: {...}, edges: {...} }
 ```
 
-This change provides better separation of concerns and eliminates circular dependency issues.
+走 `JmMind._nodes` / `JmMind._edges` 逐个序列化。`parent` / `children` 存的是 id 引用，不是对象。节点样式 `node.style` 存在就写，不存在就省略——**不写默认值**，让接收方（主题）来填。
+
+### deserialize
+
+```ts
+const json = JSON.parse(fs.readFileSync('map.json', 'utf8'));
+const mind = serializer.deserialize(json);
+```
+
+内部调 `validateMindData()`，校验不通过抛 `JsMindError`（带 `errors` 数组），不会静默产出一个半残的 mind。**校验失败不修改任何状态**——抛异常之前什么都没发生。
+
+### validate
+
+```ts
+serializer.validate(data)  // → true | false
+serializer.check(data)     // → { valid: boolean, errors: JmValidationIssue[] }
+```
+
+`check` 比 `validate` 多返回错误列表。每个错误带 `code`（稳定标识，如 `E_FORMAT`）、`path`（文档内位置）、`message`（给人看的文案）。
+
+---
+
+## 3. FreeMind 序列化
+
+`JmMindFreeMindSerializer` 兼容 FreeMind XML 格式。与 JSON 序列化器共用同一个 `JmMindSerializer` 接口。通过 factory 获取：`JmMindSerializerFactory.create('freemind')`。
+
+---
+
+## 4. 校验层
+
+`validateMindData(data: unknown)` 独立于序列化器——它不依赖 `JmMind`，只吃解析后的 JSON 对象。这意味着：
+
+- CLI 的 `jsmind validate` 不需要初始化 mind 就能跑
+- 序列化器和 CLI 共用同一套校验逻辑
+- 校验失败不是抛异常，是回 `{ valid: false, errors: [...] }`
+
+37 个错误码分四类：结构完整性（`E_FORMAT`/`E_META`/`E_NODES_MISSING`等）、引用完整性（`E_NODE_PARENT_MISSING`/`E_ROOT_MISSING`等）、一致性（`E_PARENT_CHILD_MISMATCH`）、取值合法性（`E_SIDE`/`E_TONE`/`E_CONTENT_TYPE`等）。完整列表见 [`v2-data-format.md` 第 9 节](../requirements/v2-data-format.md#9-完整性校验)。
+
+---
+
+## 5. autofix
+
+`validate` 默认只报告。加 `--autofix` 才写入，**且绝不静默**——必须输出改动清单。修复原则：宁可位置不对也不丢数据（孤儿节点挂 root）、不重建 `children` 顺序、不修改 `content`。详细规则见 [`v2-data-format.md` 第 10 节](../requirements/v2-data-format.md#10-autofix)。

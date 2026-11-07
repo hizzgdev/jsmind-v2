@@ -1,457 +1,102 @@
-# Hybrid Edge System
+# 混合边系统
 
-## Overview
+jsMind v2 用两种不同的机制表达节点之间的关系：**树用直接字段，额外关系用边**。
 
-The hybrid edge system in JsMind v2 provides an optimal balance between performance and extensibility for managing relationships in mind maps. This system combines the efficiency of direct field access for core tree operations with the flexibility of a global edge store for additional relationships. The design addresses the complexity and performance concerns of a fully edge-based system while maintaining extensibility for future relationship types.
+---
 
-## Design Decisions and Evolution
+## 1. 设计
 
-### Initial Requirements and Analysis
+| 关系类型 | 存储方式 | 容器 |
+|----------|----------|------|
+| 父子关系 | `JmNode.parent` / `JmNode.children`（直接引用） | `JmNode` 自身 |
+| 额外关系（连线、引用等） | `JmEdge` 对象 | `JmMind._edges`（全局字典） |
 
-The hybrid edge system was designed based on several key requirements and analysis of the previous edge system implementation:
+**`edges` 只表达树之外的额外关系。** 父子关系永远不写进 `edges`。
 
-1. **Performance Optimization**: Tree operations (add/remove/move nodes) are the most common operations in mind mapping and must be extremely fast.
+---
 
-2. **Complexity Reduction**: The previous bidirectional edge system introduced significant complexity in maintaining consistency between parent and child edges.
+## 2. 为什么不是全边模型
 
-3. **Extensibility**: The system must support future relationship types (links, references, annotations) without affecting core tree performance.
+如果把父子关系也展开成 edge 对象，每条父子连线都是独立记录，有四个问题：
 
-4. **Memory Efficiency**: Minimize memory overhead per node while maintaining fast access to relationships.
+1. **兄弟顺序丢失。** 树用 `children: ["a","b","c"]`，数组索引即显示顺序。边列表没有顺序概念，要另加 `order` 字段。
+2. **Agent 生成难度。** 模型要同时维护 id 账本、保证无孤儿无环、保证每个节点恰好一个父。嵌套结构天然满足这些约束。
+3. **体积。** 父 + 3 子：树约 20 字节（`"children":["a","b","c"]`），边约 200 字节（三个对象各自带 id/source/target/type），差 5–10 倍。对自包含 HTML 文件的影响尤其大。
+4. **每次操作都要重新验证"它还是一棵树"。** 树模型里这些约束由数据结构本身保证。
 
-5. **API Simplicity**: Provide a clean, intuitive API that abstracts the underlying complexity from users.
+**推论：树是领域约束，不是图的特例。** 只有多父节点（DAG）成为需求时，树模型才不够用——但那已经是知识图谱而不是思维导图了。
 
-### Key Design Decisions Made
+---
 
-#### 1. Hybrid Architecture vs. Pure Edge System
-**Decision**: Use a hybrid approach with direct fields for tree relationships and global edge store for additional relationships.
+## 3. 节点结构
 
-**Rationale**:
-- **Performance**: Tree operations are O(1) using direct field access instead of O(n) edge traversal
-- **Simplicity**: No bidirectional edge management needed for parent-child relationships
-- **Separation of Concerns**: Tree structure and additional relationships are handled separately
-- **Memory Efficiency**: Minimal overhead per node, edges only stored when needed
-- **Maintainability**: Simpler code with fewer edge cases to handle
+`JmNode` 通过直接字段维护树关系，不存储任何 edge 对象：
 
-**Alternative Considered**: Pure edge system was rejected due to performance overhead and complexity of bidirectional management.
-
-**Additional considerations (2026-11)** — three more arguments for the hybrid model, not covered above:
-
-1. **Sibling ordering.** Mind map siblings have a defined top-to-bottom order. In the tree model, `children: ["a", "b", "c"]` carries that order for free — array index *is* display order. A pure edge model has no notion of order in the edge list; expressing it requires an `order` field on each edge, which pushes ordering logic out of the data structure and into traversal code.
-
-2. **LLM generation cost.** For an AI agent authoring a mind map, nested structure is self-describing — `{ "topic": "A", "children": [...] }` cannot be mis-nested. A pure edge model requires the model to allocate node ids, emit edges referencing them, and guarantee no orphans, no cycles, and exactly one parent per node — i.e. it must maintain an id ledger. That is a materially larger surface for generation errors.
-
-3. **Payload size.** For a parent with 3 children, the tree form needs roughly 20 bytes (`"children":["a","b","c"]`), while the edge form needs roughly 200 bytes (three objects, each carrying `id`, `source`, `target`, `type`). A 5–10× difference — which matters for the self-contained HTML files this project ships.
-
-**Corollary — the tree is a domain constraint, not a special case of a graph.** The mind-map invariants (exactly one parent per node, ordered siblings, no cycles) are guaranteed *by the data structure itself* in the tree model. A pure edge model can only enforce them through runtime validation — meaning every operation has to re-prove "it is still a tree".
-
-**Where this reverses:** only if multi-parent nodes become a requirement (a DAG, e.g. one item belonging to two categories). At that point the tree model is insufficient and a general graph is required — but that is a knowledge graph, not a mind map.
-
-#### 2. Direct Fields vs. Edge-Based Tree Structure
-**Decision**: Use direct `parent` and `children` fields in `JmNode` for tree relationships.
-
-**Rationale**:
-- **Performance**: O(1) access and modification for tree operations
-- **Simplicity**: No edge traversal needed for common operations
-- **Intuitive**: Direct field access matches mental model of tree structure
-- **Efficiency**: No additional objects or references to manage
-- **Consistency**: Standard tree data structure pattern
-
-**Alternative Considered**: Edge-based tree structure was rejected due to performance overhead and complexity.
-
-#### 3. Global Edge Store vs. Node-Centric Edge Storage
-**Decision**: Store additional edges in a global `_edges` object in `JmMind` rather than in individual nodes.
-
-**Rationale**:
-- **Efficient Cleanup**: Node removal only requires scanning the global store, not all nodes
-- **No Node Pollution**: Nodes remain focused on their core tree structure
-- **Centralized Management**: All additional relationships in one place
-- **Query Performance**: Can efficiently find all edges of a specific type
-- **Memory Efficiency**: No edge storage overhead for nodes without additional relationships
-
-**Alternative Considered**: Node-centric edge storage was rejected due to cleanup complexity and memory overhead.
-
-#### 4. String Enums vs. Numeric Enums
-**Decision**: Use string values for `JmEdgeType` enum (e.g., `'link'` instead of `1`).
-
-**Rationale**:
-- **Readability**: String values are self-documenting and easier to understand
-- **JSON Compatibility**: Strings serialize naturally to JSON without conversion
-- **Debugging**: Easier to debug with meaningful string values
-- **Extensibility**: Adding new types doesn't require careful numbering
-- **Maintenance**: No need to manage numeric constants
-
-**Alternative Considered**: Numeric enums were rejected due to poor readability and JSON serialization issues.
-
-#### 5. Simplified JmEdge Structure
-**Decision**: Remove `sourceNodeId` and `type` from `JmEdge` constructor, add optional `label` parameter.
-
-**Rationale**:
-- **Simplicity**: Fewer required parameters make the API easier to use
-- **Flexibility**: Optional label allows for rich edge metadata
-- **Consistency**: Matches the pattern of other simplified classes
-- **Future-Proofing**: Label field can store additional edge information
-- **Clean API**: Constructor focuses on essential edge properties
-
-**Alternative Considered**: Complex edge structure was rejected in favor of simplicity and usability.
-
-## Architecture
-
-### Core Components
-
-The hybrid edge system consists of three main components:
-
-1. **JmNode**: Contains direct `parent` and `children` fields for tree relationships
-2. **JmMind**: Manages global `_edges` store for additional relationships
-3. **JmEdge**: Represents additional relationships with simplified structure
-
-### JmNode Structure
-
-```javascript
+```ts
 class JmNode {
-  constructor(id, content) {
-    this.id = id;
-    this.content = content;
-    
-    // Direct fields for core tree structure
-    this.parent = null;        // Reference to parent node
-    this.children = [];        // Array of child nodes
-    
-    // Other properties...
-    this.folded = false;
-    this.direction = null;
-    this.data = {};
-  }
+    parent: JmNode | null;
+    children: JmNode[];
 }
 ```
 
-**Key Features:**
-- **No `edges` property**: Nodes do not store any edge information locally
-- **Direct parent/children**: Fast access and modification for tree operations
-- **Simplified state**: Each node only knows about its immediate tree relationships
+- 添加子节点：O(1) —— `children.push(node)` + `node.parent = parent`
+- 删除节点：O(k)，k = 子节点数 —— 递归删子树 + 从父节点 `children` 中 splice
+- 移动节点：O(1) —— 从旧父移除 + 加入新父
 
-### JmMind Structure
+---
 
-```javascript
-class JmMind {
-  constructor(mindOptions) {
-    // Existing properties...
-    
-    // Global store for additional relationships
-    this._edges = {}; // edgeId -> JmEdge
-  }
-}
-```
+## 4. 边结构
 
-**Key Features:**
-- **Global edge store**: Only stores non-tree relationships (links, references, etc.)
-- **No redundancy**: Tree relationships are not duplicated in the edge store
-- **Centralized management**: All additional edge operations go through the global store
-
-### JmEdge Structure
-
-```javascript
+```ts
 class JmEdge {
-  constructor(id, sourceNodeId, targetNodeId, type, label = null) {
-    this.id = id;
-    this.sourceNodeId = sourceNodeId;
-    this.targetNodeId = targetNodeId;
-    this.type = type;           // 'link', 'reference', etc.
-    this.label = label;
-  }
+    id: string;
+    sourceNodeId: string;
+    targetNodeId: string;
+    type: JmEdgeType;          // 当前只有 'link'
+    label: string | null;
+    style?: JmLineStyle;       // 与 JmNodeStyle.incoming 共用同一类型
 }
 ```
 
-**Key Features:**
-- **Simplified structure**: Contains only essential relationship information
-- **Type-based**: Uses string types for additional relationships
-- **No tree types**: Parent-child relationships are not represented as edges
+`JmEdgeType.Link = 'link'` 是当前唯一的边类型。`style` 与节点入线共用 `JmLineStyle`，避免两套字段名不同的体系。
 
-## Edge Types
+---
 
-### Core Tree Relationships
-- **Parent-Child**: Managed through direct `parent` and `children` fields
-- **Performance**: O(1) access and modification
-- **Operations**: Add, remove, move nodes using direct field manipulation
+## 5. 边操作
 
-### Additional Relationships
-- **Link**: Custom connections between nodes (e.g., cross-references)
-- **Future Types**: References, annotations, dependencies can be easily added
+```ts
+// 添加
+const edge = mind.addEdge(node1.id, node2.id, JmEdgeType.Link, { label: '依赖于' });
 
-## API Reference
+// 查询某个节点相关的所有边
+const edges = mind.getEdges(nodeId);
 
-### Tree Operations
+// 按类型过滤
+const links = mind.getEdges(nodeId, JmEdgeType.Link);
 
-Tree operations use direct field manipulation for maximum performance:
-
-#### Adding a Child Node
-```javascript
-addNode(content, destOptions, nodeOptions = {}) {
-  const parent = this._getNodeById(destOptions.parentId);
-  const child = this._newNode(nodeId, content);
-  
-  // Direct field manipulation - O(1) operation
-  child.parent = parent;
-  this._addNodeToParent(child, parent, destOptions.position);
-  
-  // Emit events, update positions, etc.
-  this.observerManager.notifyObservers(new JmMindEvent(
-    JmMindEventType.NodeAdded, { 'node': child }
-  ));
-}
+// 删除
+mind.removeEdge(edge.id);
 ```
 
-#### Removing a Node
-```javascript
-removeNode(nodeId) {
-  const node = this._getNodeById(nodeId);
-  
-  // Handle tree structure - O(1) operation
-  if (node.parent) {
-    const parent = node.parent;
-    const index = parent.children.indexOf(node);
-    parent.children.splice(index, 1);
-  }
-  
-  // Remove all children recursively
-  node.children.forEach(child => this.removeNode(child.id));
-  
-  // Clean up additional edges - O(m) where m is number of edges
-  const edgeIds = Object.values(this._edges)
-    .filter(edge => nodeIds.includes(edge.sourceNodeId) || nodeIds.includes(edge.targetNodeId))
-    .map(edge => edge.id);
-  edgeIds.forEach(id => delete this._edges[id]);
-  
-  // Remove node from mind map
-  delete this._nodes[nodeId];
-}
-```
+删除节点时**自动清理**所有引用该节点的边——扫描 `_edges` 全局字典，移除 `sourceNodeId` 或 `targetNodeId` 匹配的条目。
 
-#### Moving a Node
-```javascript
-moveNode(nodeId, destOptions = {}) {
-  const node = this._getNodeById(nodeId);
-  const targetParent = this._getNodeById(destOptions.parentId);
-  
-  // Remove from current parent - O(1) operation
-  if (node.parent) {
-    const currentParent = node.parent;
-    const index = currentParent.children.indexOf(node);
-    currentParent.children.splice(index, 1);
-  }
-  
-  // Add to new parent - O(1) operation
-  node.parent = targetParent;
-  targetParent.children.push(node);
-  
-  // Handle positioning, events, etc.
-}
-```
+---
 
-### Additional Edge Operations
+## 6. 序列化
 
-Additional edge operations use the global edge store:
-
-#### EdgeCreationOptions
-
-The `addEdge` method accepts an optional `EdgeCreationOptions` parameter:
-
-```typescript
-interface EdgeCreationOptions {
-  edgeId?: string;  // Optional edge ID, will be generated if not provided
-  label?: string;   // Optional label for the edge
-}
-```
-
-#### Adding an Edge
-```javascript
-addEdge(sourceNodeId, targetNodeId, type, options) {
-  // Validate nodes exist
-  this._getNodeById(sourceNodeId);
-  this._getNodeById(targetNodeId);
-
-  const edgeId = (options && options.edgeId) || this._idGenerator.newId();
-  const label = (options && options.label) || null;
-  const edge = new JmEdge(edgeId, sourceNodeId, targetNodeId, type, label);
-  this._edges[edgeId] = edge;
-
-  // Emit event
-  this.observerManager.notifyObservers(new JmMindEvent(
-    JmMindEventType.EdgeAdded, { 'edge': edge }
-  ));
-
-  return edge;
-}
-```
-
-**Usage Examples**:
-
-```javascript
-// Add edge with generated ID and no label
-const edge1 = mind.addEdge(node1.id, node2.id, JmEdgeType.Link);
-
-// Add edge with custom label
-const edge2 = mind.addEdge(node1.id, node2.id, JmEdgeType.Link, { 
-  label: 'Custom Link' 
-});
-
-// Add edge with custom ID and label
-const edge3 = mind.addEdge(node1.id, node2.id, JmEdgeType.Link, { 
-  edgeId: 'custom-edge-1',
-  label: 'Custom Link' 
-});
-```
-
-#### Removing an Edge
-```javascript
-removeEdge(edgeId) {
-  const edge = this._edges[edgeId];
-  if (edge) {
-    delete this._edges[edgeId];
-
-    // Emit event
-    this.observerManager.notifyObservers(new JmMindEvent(
-      JmMindEventType.EdgeRemoved, { 'edge': edge }
-    ));
-
-    return true;
-  }
-  return false;
-}
-```
-
-#### Finding Edges
-```javascript
-getEdges(nodeId, type = null) {
-  const edges = [];
-  Object.values(this._edges).forEach(edge => {
-    if (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) {
-      if (!type || edge.type === type) {
-        edges.push(edge);
-      }
+```json
+{
+  "edges": {
+    "jm-e1": {
+      "id": "jm-e1",
+      "sourceNodeId": "jm-a1",
+      "targetNodeId": "jm-b3",
+      "type": "link",
+      "label": "影响",
+      "style": { "color": "#e91e63", "pattern": "dotted" }
     }
-  });
-  return edges;
+  }
 }
 ```
 
-## Performance Characteristics
-
-### Tree Operations
-- **Add child**: O(1) - Direct field assignment
-- **Remove node**: O(k) where k is the number of children - Direct array manipulation
-- **Move node**: O(1) - Direct field updates
-- **Traverse tree**: O(n) where n is the number of nodes - Standard tree traversal
-
-### Additional Edge Operations
-- **Add edge**: O(1) - Object property assignment
-- **Remove edge**: O(1) - Object property deletion
-- **Find edges for node**: O(m) where m is the total number of additional edges - Linear scan
-- **Cleanup on node removal**: O(m) - Scan all additional edges
-
-### Memory Usage
-- **Per node**: Minimal overhead (only direct parent/children references)
-- **Global edges**: Only stores additional relationships, not tree relationships
-- **Scalability**: Excellent for large mind maps with few additional edges
-
-## Usage Examples
-
-### Basic Tree Operations
-
-```javascript
-// Create a mind map
-const mind = new JmMind(options);
-
-// Add child nodes
-const child1 = mind.addNode(JmNodeContent.createText('Child 1'), { parentId: mind.root.id });
-const child2 = mind.addNode(JmNodeContent.createText('Child 2'), { parentId: mind.root.id });
-
-// Move a node
-mind.moveNode(child1.id, {
-  parentId: child2.id,
-  position: 0,
-  direction: JmNodeDirection.Right
-});
-
-// Remove a node (and all its children)
-mind.removeNode(child2.id);
-```
-
-### Additional Edge Operations
-
-```javascript
-// Create links between nodes
-const link1 = mind.addEdge(child1.id, child2.id, JmEdgeType.Link, 'related to');
-const link2 = mind.addEdge(child2.id, child3.id, JmEdgeType.Link, 'depends on');
-
-// Find all edges for a node
-const nodeEdges = mind.getEdges(child1.id);
-const linkEdges = mind.getEdges(child1.id, JmEdgeType.Link);
-
-// Remove an edge
-mind.removeEdge(link1.id);
-```
-
-### Event Handling
-
-```javascript
-// Listen for edge events
-mind.observerManager.addObserver({
-  onEdgeAdded: (event) => {
-    console.log('Edge added:', event.data.edge);
-  },
-  onEdgeRemoved: (event) => {
-    console.log('Edge removed:', event.data.edge);
-  }
-});
-```
-
-## Future Extensibility
-
-### Adding New Edge Types
-
-New relationship types can be easily added by extending the `JmEdgeType` enum:
-
-```javascript
-export const JmEdgeType = {
-  Link: 'link',
-  Reference: 'reference',    // New type
-  Annotation: 'annotation',  // New type
-  Dependency: 'dependency'   // New type
-};
-```
-
-### Advanced Features
-
-The hybrid system can support:
-- **Edge weights**: For weighted relationships
-- **Edge metadata**: Custom properties on edges
-- **Edge validation**: Type-specific validation rules
-- **Edge queries**: Complex relationship queries across the mind map
-
-## Best Practices
-
-### Tree Operations
-- Always use direct field manipulation for parent-child relationships
-- Ensure bidirectional consistency when modifying tree structure
-- Handle edge cases like root nodes (no parent) and leaf nodes (no children)
-
-### Additional Edge Operations
-- Use the global store for all non-tree relationships
-- Implement proper cleanup when nodes are removed
-- Consider performance implications of edge queries on large mind maps
-
-### Error Handling
-- Validate node existence before edge operations
-- Handle circular reference prevention for additional edges
-- Provide clear error messages for invalid operations
-
-## Conclusion
-
-The hybrid edge system provides an optimal balance between performance and extensibility for JsMind. By using direct fields for core tree operations and a global store for additional relationships, we achieve:
-
-- **Maximum performance** for the most common operations
-- **Clean separation** between tree and non-tree relationships
-- **Future extensibility** without compromising core functionality
-- **Simplified maintenance** compared to a fully edge-based system
-
-This design is particularly well-suited for mind mapping applications where tree operations dominate but occasional additional relationships are valuable for advanced use cases.
+与 `nodes` 一样，`edges` 是 `Record<string, SerializedEdge>`，key 必须等于 `edge.id`。
