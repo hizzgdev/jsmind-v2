@@ -449,6 +449,35 @@ test('validation - E_SIDE when side is out of range', () => {
     assert.deepStrictEqual(codes(validateMindData(doc)), [JmValidationCode.Side]);
 });
 
+test('validation - E_NON_ROOT_SIDE_CENTER when a child sits at side 0', () => {
+    const doc = validDoc();
+    (doc.nodes as Record<string, Record<string, unknown>>).n1.side = 0;
+
+    assert.deepStrictEqual(codes(validateMindData(doc)), [JmValidationCode.NonRootSideCenter]);
+});
+
+test('validation - the root keeps side 0 without complaint', () => {
+    // The root is the only node that legitimately has no side: it is the point
+    // everything is positioned relative to.
+    const doc = validDoc();
+    assert.strictEqual((doc.nodes as Record<string, Record<string, unknown>>).root.side, 0);
+
+    assert.strictEqual(validateMindData(doc).valid, true);
+});
+
+test('validation - a node with no parent may still not use side 0', () => {
+    // A missing parent is already reported; the node is still not the root, so
+    // side 0 is still wrong. Two independent faults, two codes.
+    const doc = validDoc();
+    const nodes = doc.nodes as Record<string, Record<string, unknown>>;
+    nodes.n1.parent = undefined;
+    nodes.n1.side = 0;
+
+    const reported = codes(validateMindData(doc));
+    assert.ok(reported.includes(JmValidationCode.NodeParentMissing), 'parent fault reported');
+    assert.ok(reported.includes(JmValidationCode.NonRootSideCenter), 'side fault reported');
+});
+
 test('validation - E_TONE when a node tone is unknown', () => {
     const doc = validDoc();
     (doc.nodes as Record<string, Record<string, unknown>>).n1.style = { tone: 'puce' };
