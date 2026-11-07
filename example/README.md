@@ -1,26 +1,36 @@
 # jsMind V2 Examples
 
-## Demo
+Two pages and one data file.
 
-`demo.html` - A simple demo showing how to use jsMind V2 API.
+## Pages
 
-### How to run:
+**`demo.html`** — the API in its simplest form: build a map, render it, change something.
 
-1. Build the project:
+**`playground.html`** — every option on one page, with a live code editor. Use this one when you want to see what a field actually does rather than read about it.
+
+### How to run
+
+1. Build the library:
+
    ```bash
    npm run build
    ```
 
-2. Open `demo.html` in a web browser:
+2. Serve the repository root — the pages load `../dist/jsmind.js`, and `file://` will hit CORS:
+
    ```bash
-   # Using a simple HTTP server (recommended)
    npm run server
-   # Then navigate to http://localhost:8080/example/demo.html
    ```
 
-   Or simply open `demo.html` directly in your browser (some features may not work due to CORS restrictions).
+3. Open `http://localhost:8080/example/demo.html` or `.../playground.html`.
 
-### Note
+## `v2-features.json`
 
-This demo currently shows the mind map structure as text, since the view system is not yet implemented. Once the view system is completed, the mind map will be rendered visually.
+A map that exercises the v2 feature set — tones, per-node styles, folded branches, attachments, every edge pattern. Its job is to have something in it that breaks if a feature regresses.
 
+Two places use it:
+
+- **CI** renders it to the preview image on every pull request, so a rendering regression shows up as a visibly wrong picture rather than a passing test.
+- **`docs/features/image-export.md`** uses it in the CLI examples.
+
+Neither page loads it — they build their maps inline so they stay readable as standalone documents. That makes this file a test fixture that happens to sit next to the examples rather than sample data for them. What the two have in common is only that both are things a reader wants to open, and one directory beats a second plural directory holding a single file.

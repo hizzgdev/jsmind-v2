@@ -11,7 +11,7 @@ inputs:
   data-file:
     description: Mind map JSON to render.
     required: false
-    default: examples/v2-features.json
+    default: example/v2-features.json
   output:
     description: Path to write the image to.
     required: false
