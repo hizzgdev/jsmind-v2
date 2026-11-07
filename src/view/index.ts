@@ -4,7 +4,9 @@ import type { ViewOptions } from '../common/option.ts';
 import { JmNodeView } from './node.ts';
 import { JmEdgeView } from './edge.ts';
 import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
-import { resolveJmStyle } from '../model/data/style.ts';
+import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve } from '../model/data/style.ts';
+import type { JmTheme } from '../model/data/style.ts';
+import type { JmResolvedLineStyle } from './edge.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
 import type { JmNode } from '../model/data/node.ts';
 import { JmPoint, JmSize } from '../common/index.ts';
@@ -28,6 +30,13 @@ export class JmView {
     private readonly arranger: Arranger;
 
     private readonly options: ViewOptions;
+
+    /**
+     * The theme resolved from the mind map's style, kept so that per-node
+     * decisions at render time (tone lookup, line fallbacks) do not have to
+     * re-resolve it for every node.
+     */
+    private theme: JmTheme | null = null;
 
     private readonly viewSize: JmSize = new JmSize(1, 1);
 
@@ -92,6 +101,7 @@ export class JmView {
      */
     applyTheme(mind: JmMind): void {
         const theme = resolveJmStyle(mind.style);
+        this.theme = theme;
         applyThemeToHost(this.shadowRoot, theme);
         this.nodeView.setTheme(theme);
     }
@@ -144,11 +154,48 @@ export class JmView {
                     const targetPoint = this.arranger.calculateNodeIncomingPoint(node);
                     const absoluteSourcePoint = sourcePoint.offset(viewOffset);
                     const absoluteTargetPoint = targetPoint.offset(viewOffset);
-                    this.edgeView.drawLine(node, absoluteSourcePoint, absoluteTargetPoint, 'black');
+                    this.edgeView.drawLine(node, absoluteSourcePoint, absoluteTargetPoint, this._resolveLineStyle(node));
                 }else{
                     this.edgeView.eraseLine(node);
                 }
             });
+    }
+
+    /**
+     * Resolves the style of the line that connects a node to its parent.
+     *
+     * @remarks
+     * Three layers, most specific first:
+     *
+     * 1. `node.style.incoming` — this one line.
+     * 2. The node's tone — a subtree reads as one visual grouping, because the
+     *    tone's `lineColor` differs from the fill rather than repeating it.
+     * 3. The theme's `line` block — width, pattern and curve for the map.
+     *
+     * The line belongs to the child, not the parent: a line connects exactly one
+     * child, so the child is the natural owner and can restyle its own
+     * connection without touching its siblings. v1 did the same, reading
+     * `leading-line-color` off the child's `data`.
+     *
+     * `curve` deliberately does not fall back to the tone. A tone is a colour,
+     * and letting it carry geometry would make two nodes of the same tone but
+     * different shapes impossible to express.
+     */
+    private _resolveLineStyle(node: JmNode): JmResolvedLineStyle {
+        const theme = this.theme;
+        const incoming = node.style?.incoming;
+        const tone = node.style?.tone ?? JmTone.Default;
+        const palette = theme?.tones?.[tone] ?? theme?.tones?.[JmTone.Default];
+
+        return {
+            // The default tone's line colour is always defined by the theme, so
+            // this chain cannot end in `undefined` for a resolved theme; the
+            // literal is only reachable if a caller renders before applyTheme.
+            color: incoming?.color ?? palette?.lineColor ?? '#b0b0b0',
+            width: incoming?.width ?? theme?.line?.width ?? 2,
+            pattern: incoming?.pattern ?? theme?.line?.pattern ?? JmLinePattern.Solid,
+            curve: incoming?.curve ?? theme?.line?.curve ?? JmLineCurve.Bezier,
+        };
     }
 
     private _updateViewSize(mind: JmMind): void {

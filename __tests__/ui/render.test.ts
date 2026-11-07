@@ -399,3 +399,117 @@ test('ui - the expander centres its glyph with flex, not with a margin', async (
     assert.strictEqual(box.alignItems, 'center');
     assert.strictEqual(box.justifyContent, 'center');
 });
+
+/** One rendered line as reported from the page. */
+interface RenderedLine {
+    d: string;
+    stroke: string | null;
+    width: string | null;
+    dash: string | null;
+}
+
+/**
+ * Renders a root with one child and reports the line between them.
+ *
+ * @param config - Optional tone, per-node `incoming` override, and mind style.
+ * @returns Every visible line, in document order.
+ */
+async function renderLines(
+    config: { childTone?: string; incoming?: Record<string, unknown>; mindStyle?: Record<string, unknown> } = {}
+): Promise<RenderedLine[]> {
+    const { childTone, incoming, mindStyle } = config;
+    await browser.setContent(
+        `<div id="container" style="width:${CONTAINER_WIDTH}px;height:${CONTAINER_HEIGHT}px"></div>`
+    );
+    await browser.evaluate(browser.bundleSource());
+
+    const lines = await browser.evaluate<RenderedLine[]>(
+        `
+        (async () => {
+            const container = document.getElementById('container');
+            const jm = await jsMind.create(container);
+            const mind = new jsMind.Mind({ name: 'line-test' });
+            ${mindStyle ? `mind.style = ${JSON.stringify(mindStyle)};` : ''}
+            mind.root.content = new (mind.root.content.constructor)('text', 'Root');
+            const child = mind.addChildNode('Child', mind.root.id);
+            ${childTone || incoming ? `child.style = ${
+                JSON.stringify({
+                    ...(childTone ? { tone: childTone } : {}),
+                    ...(incoming ? { incoming } : {}),
+                })
+            };` : ''}
+            await jm.open(mind);
+
+            // Placeholder paths at "M 0 0 L 0 0" are the elements the view
+            // pre-creates and hides; they are not drawn lines.
+            return [...container.shadowRoot.querySelectorAll('path')]
+                .filter(el => el.getAttribute('d') && el.getAttribute('d') !== 'M 0 0 L 0 0')
+                .map(el => ({
+                    d: el.getAttribute('d'),
+                    stroke: el.getAttribute('stroke'),
+                    width: el.getAttribute('stroke-width'),
+                    dash: el.getAttribute('stroke-dasharray'),
+                }));
+        })()
+    `,
+        true
+    );
+    return lines;
+}
+
+test('ui - a line is a bezier that leaves both of its ends horizontally', async () => {
+    const [line] = await renderLines();
+
+    assert.ok(line.d.includes(' C '), `expected a cubic bezier, got ${line.d}`);
+
+    // Both control points sit on the horizontal midpoint. That is what makes
+    // the curve depart the source and arrive at the target along the horizontal
+    // axis; v1 anchored the first control point two thirds of the way out and
+    // the second directly above the source, which skews the bulge.
+    const numbers = line.d.match(/-?[\d.]+/g)!.map(Number);
+    const [x1, y1, c1x, c1y, c2x, c2y, x2, y2] = numbers;
+    const midX = (x1 + x2) / 2;
+
+    assert.strictEqual(c1x, midX, 'first control point sits on the midpoint x');
+    assert.strictEqual(c2x, midX, 'second control point sits on the midpoint x');
+    assert.strictEqual(c1y, y1, 'first control point keeps the source y, so the line leaves flat');
+    assert.strictEqual(c2y, y2, 'second control point keeps the target y, so the line arrives flat');
+});
+
+test('ui - a line takes its colour from the tone of the node it leads to', async () => {
+    const [plain] = await renderLines();
+    const [toned] = await renderLines({ childTone: 'danger' });
+
+    // #b0b0b0 is tones.default.lineColor; #df6f6b is tones.danger.lineColor.
+    // The line belongs to the child, so toning the child recolours it.
+    assert.strictEqual(plain.stroke, '#b0b0b0', 'no tone falls back to the default palette');
+    assert.strictEqual(toned.stroke, '#df6f6b', 'the child tone colours the line leading to it');
+});
+
+test('ui - the theme sets the line width, and two is the default', async () => {
+    const [line] = await renderLines();
+    const [thin] = await renderLines({ mindStyle: { line: { width: 1 } } });
+
+    assert.strictEqual(line.width, '2', 'v1 drew two-pixel lines and so does v2');
+    assert.strictEqual(thin.width, '1', 'a mind-level override reaches the stroke');
+});
+
+test('ui - a dashed incoming line carries a stroke-dasharray', async () => {
+    const [solid] = await renderLines();
+    const [dashed] = await renderLines({ incoming: { pattern: 'dashed' } });
+
+    // Absence of the attribute is what makes a line solid.
+    assert.strictEqual(solid.dash, null, 'a solid line sets no dash array');
+    assert.ok(dashed.dash, 'a dashed line sets one');
+    const [on, off] = dashed.dash!.split(' ').map(Number);
+    assert.ok(on > 0 && off > 0, `dash array should be two positive lengths, got ${dashed.dash}`);
+});
+
+test('ui - a straight incoming curve produces a line command, not a bezier', async () => {
+    const [curved] = await renderLines();
+    const [straight] = await renderLines({ incoming: { curve: 'straight' } });
+
+    assert.ok(curved.d.includes(' C '), 'the default is a curve');
+    assert.ok(straight.d.includes(' L '), `expected a straight segment, got ${straight.d}`);
+    assert.ok(!straight.d.includes(' C '), 'a straight line carries no control points');
+});

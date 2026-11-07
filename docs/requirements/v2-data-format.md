@@ -269,10 +269,19 @@ export const JmLinePattern = {
 
 export type JmLinePattern = typeof JmLinePattern[keyof typeof JmLinePattern];
 
+/** 线的曲线形态。与 pattern 是两个正交的维度。 */
+const JmLineCurve = {
+    Straight: 'straight',
+    Bezier:   'bezier',
+} as const;
+
+export type JmLineCurve = typeof JmLineCurve[keyof typeof JmLineCurve];
+
 interface JmLineStyle {
     color?: string;
     width?: number;
-    pattern?: JmLinePattern;
+    pattern?: JmLinePattern;              // 实线 / 虚线 / 点线
+    curve?: JmLineCurve;                  // 曲线形态
 }
 
 interface JmNodeStyle {
@@ -337,6 +346,7 @@ interface JmStyle {
     line?: Partial<{
         width: number;
         pattern: JmLinePattern;
+        curve: JmLineCurve;
     }>;
     expander?: Partial<{
         size: number;
@@ -375,10 +385,17 @@ interface JmStyle {
 ```
 颜色：  node.style.<显式>          ??  theme.tones[有效 tone].<对应色>
 几何：  node.style.<显式>          ??  theme.node.<默认>
-线色：  node.style.incoming.color  ??  theme.tones[父节点 tone].line  ??  theme.line.<兜底>
+线色：  node.style.incoming.color  ??  theme.tones[子节点 tone].lineColor
+线宽：  node.style.incoming.width  ??  theme.line.width
+线型：  node.style.incoming.pattern ??  theme.line.pattern
+形态：  node.style.incoming.curve   ??  theme.line.curve
 ```
 
-**线的颜色默认取父节点的 tone** —— 「从 warning 节点长出去的分支是橙色」符合直觉，一条分支天然同色。
+**线的颜色取子节点的 tone，不是父节点。** 一条线唯一对应一个子节点，所以子节点拥有它，这一点和「`incoming` 挂在子节点上」是同一个理由。v1 的 `show_lines` 也是从子节点的 `data["leading-line-color"]` 取色。
+
+想让一整条分支同色，做法是给分支上的节点都设同一个 tone，而不是让线去继承父节点 —— 后者会导致父节点一改色，整棵子树的线全部被动变化。
+
+**`curve` 不参与 tone 回退。** tone 是颜色，让它携带几何信息会导致「同 tone 不同形态」无法表达。
 
 ---
 

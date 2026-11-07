@@ -175,8 +175,12 @@ node.style.fontSize = 18
 #### S5 `feat(view): curved edges`
 
 - 直线 → 贝塞尔曲线
-- 线宽 / 虚线 / 颜色
-- 线颜色默认取父节点 tone（"从警告节点长出去的分支是橙色"）
+- 线宽 / 虚线 / 颜色，全部落到 theme
+- 线颜色取**子节点**的 tone
+
+  > 原计划写的是「取父节点 tone」，实现时核对 v1 源码后发现是错的：
+  > v1 的 `show_lines` 取的是子节点的 `data["leading-line-color"]`。
+  > 数据结构也早已如此——`incoming` 挂在子节点上，一条线只对应一个子节点。
 
 **测试**：路径数据断言 + 看图
 
