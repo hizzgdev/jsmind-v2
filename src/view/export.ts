@@ -18,11 +18,11 @@
  * unit suite cannot reach a line of it. The UI suite exercises it for real,
  * against the built bundle, but a bundle carries no source line numbers to
  * report coverage against. The parts worth asserting in isolation live in
- * `svg.ts`; what remains is calls into browser APIs with no logic to check.
+ * `export-svg.ts`; what remains is calls into browser APIs with no logic to check.
  */
 
 import { JsMindError } from '../common/error.ts';
-import { collectHostVariables, escapeAttribute, escapeText } from './svg.ts';
+import { collectHostVariables, escapeAttribute, escapeText } from './export-svg.ts';
 
 /** Image formats a caller may ask for. */
 export const JmImageType = {

@@ -1,7 +1,7 @@
 /**
  * Small string helpers the SVG wrapper needs.
  *
- * Pulled out of `export.ts` so they can be tested. Everything left in that file
+ * Pulled out of `export.ts` so they can be tested - hence the name. Everything left in that file
  * talks to the browser - cloning nodes, decoding images, encoding canvases -
  * and none of it runs under the unit suite. These do, and they are the parts
  * that failed silently when they were wrong:
