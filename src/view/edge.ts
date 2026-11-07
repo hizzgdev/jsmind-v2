@@ -1,6 +1,28 @@
 import type { JmElement } from '../common/dom.ts';
 import type { JmPoint, JmSize } from '../common/index.ts';
 import type { JmNode } from '../model/data/node.ts';
+import { JmLineCurve, JmLinePattern } from '../model/data/style.ts';
+
+/**
+ * A line style with every field resolved.
+ *
+ * @remarks
+ * `drawLine` takes a fully determined style rather than a partial one, so the
+ * question of where each value comes from — node override, tone, theme — is
+ * answered once, by the caller, and not re-derived per line.
+ *
+ * @public
+ */
+export interface JmResolvedLineStyle {
+    /** Stroke color. */
+    color: string;
+    /** Stroke width in pixels. */
+    width: number;
+    /** Dash pattern. */
+    pattern: JmLinePattern;
+    /** Path shape. */
+    curve: JmLineCurve;
+}
 
 /**
  * View operator for edges.
@@ -26,17 +48,30 @@ export class JmEdgeView {
         this.container.style.height = `${viewSize.height}px`;
     }
 
-    drawLine(node: JmNode, sourcePoint: JmPoint, targetPoint: JmPoint, color: string): void {
+    drawLine(node: JmNode, sourcePoint: JmPoint, targetPoint: JmPoint, style: JmResolvedLineStyle): void {
         let line = node._data.view.leadingLine;
         if(!line) {
-            line = this._createLine(color);
+            line = this._createLine();
             node._data.view.leadingLine = line;
         }
-        const x1 = sourcePoint.x;
-        const y1 = sourcePoint.y;
-        const x2 = targetPoint.x;
-        const y2 = targetPoint.y;
-        line.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
+        line.setAttribute('d', this._buildPath(sourcePoint, targetPoint, style.curve));
+        // Written on every draw, not just at creation: the element outlives
+        // redraws, and a node can change tone while its line stays the same
+        // element.
+        line.setAttribute('stroke', style.color);
+        line.setAttribute('stroke-width', String(style.width));
+        // Round caps, matching what v1 did on canvas (`ctx.lineCap = 'round'`).
+        // Required for the dotted pattern to be made of dots at all: with the
+        // default `butt` cap a zero-length dash paints nothing.
+        line.setAttribute('stroke-linecap', 'round');
+        const dash = this._dashPattern(style);
+        if(dash) {
+            line.setAttribute('stroke-dasharray', dash);
+        }else{
+            // Removing the attribute is what makes a line solid. Leaving it set
+            // would keep an element dashed after its style went back to solid.
+            line.removeAttribute('stroke-dasharray');
+        }
         line.style.visibility = 'visible';
     }
 
@@ -48,10 +83,51 @@ export class JmEdgeView {
         }
     }
 
-    private _createLine(color: string): SVGPathElement {
+    /**
+     * Builds the path data for one line.
+     *
+     * @remarks
+     * The bezier puts both control points on the horizontal midpoint, so the
+     * line leaves the source and enters the target along the horizontal axis and
+     * the bend stays symmetric. v1 used `x1 + 2*(x2-x1)/3` for the first control
+     * point and the untouched `x1` for the second, which drags the bulge towards
+     * the source and reads as lopsided once the vertical span is large.
+     */
+    private _buildPath(source: JmPoint, target: JmPoint, curve: JmLineCurve): string {
+        if(curve === JmLineCurve.Straight) {
+            return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
+        }
+        const midX = (source.x + target.x) / 2;
+        return `M ${source.x} ${source.y} C ${midX} ${source.y}, ${midX} ${target.y}, ${target.x} ${target.y}`;
+    }
+
+    /**
+     * Turns a dash pattern into an SVG `stroke-dasharray` value.
+     *
+     * @returns The dash array, or `null` for a solid line.
+     *
+     * @remarks
+     * Dash lengths scale with the stroke width so a thicker line keeps the same
+     * rhythm instead of collapsing into near-solid strokes.
+     */
+    private _dashPattern(style: JmResolvedLineStyle): string | null {
+        switch(style.pattern) {
+            case JmLinePattern.Dashed:
+                return `${style.width * 4} ${style.width * 3}`;
+            case JmLinePattern.Dotted:
+                // Zero-length dash plus a round cap is the only way to get a
+                // circle: the cap extends half the stroke width past each end of
+                // the dash, so `0` renders a dot of diameter `stroke-width`.
+                // A non-zero dash would paint a short rectangle instead.
+                return `0 ${style.width * 2}`;
+            case JmLinePattern.Solid:
+            default:
+                return null;
+        }
+    }
+
+    private _createLine(): SVGPathElement {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        line.setAttribute('stroke', color);
-        line.setAttribute('stroke-width', '1');
         line.setAttribute('fill', 'transparent');
         line.setAttribute('d', 'M 0 0 L 0 0');
         line.style.visibility = 'hidden';
@@ -77,4 +153,3 @@ export class JmEdgeView {
     private _clearEdges(): void {
     }
 }
-

@@ -65,6 +65,34 @@ export const JmLinePattern = {
 export type JmLinePattern = typeof JmLinePattern[keyof typeof JmLinePattern];
 
 /**
+ * How a line travels between its two endpoints.
+ *
+ * @remarks
+ * A different axis from {@link JmLinePattern}: `pattern` says whether the
+ * stroke is dashed, `curve` says what shape it traces. They are separable on
+ * purpose - a straight dashed line and a curved dashed line both need to exist,
+ * and a single `style` string (as in v1's `line_style`) could only ever express
+ * one of the two.
+ *
+ * @public
+ */
+export const JmLineCurve = {
+    /** Straight segment from one endpoint to the other. */
+    Straight: 'straight',
+    /**
+     * Cubic bezier leaving each endpoint horizontally.
+     *
+     * @remarks
+     * The default, and what v1 drew. Edges leaving a node always read better
+     * when they depart along the horizontal axis: siblings sit in a column, so a
+     * straight segment between two of them cuts diagonally across the layout.
+     */
+    Bezier: 'bezier',
+} as const;
+
+export type JmLineCurve = typeof JmLineCurve[keyof typeof JmLineCurve];
+
+/**
  * Visual style of a single line.
  *
  * @remarks
@@ -88,6 +116,8 @@ export interface JmLineStyle {
      * also covers `solid` honestly — `solid` is not a dash.
      */
     pattern?: JmLinePattern;
+    /** How the line travels between its endpoints. Defaults to `bezier`. */
+    curve?: JmLineCurve;
 }
 
 /**
@@ -284,6 +314,8 @@ export interface JmThemeLine {
     width: number;
     /** Default line pattern. Named `pattern` to match `JmLineStyle.pattern`. */
     pattern: JmLinePattern;
+    /** Default curve shape. Named `curve` to match `JmLineStyle.curve`. */
+    curve: JmLineCurve;
 }
 
 /**
@@ -420,6 +452,7 @@ export const JSMIND_THEME_DEFAULT: JmTheme = {
     line: {
         width: 2,
         pattern: JmLinePattern.Solid,
+        curve: JmLineCurve.Bezier,
     },
     expander: {
         size: 13,
