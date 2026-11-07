@@ -8,7 +8,8 @@
  * @packageDocumentation
  */
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 import { validateMindData } from '../../serialization/validation.ts';
 import { readJsonFile } from '../io.ts';
@@ -106,6 +107,10 @@ export async function runExport(options: ExportOptions): Promise<number> {
 
         const result = (await session.evaluate(script)) as PageResult;
         const bytes = Buffer.from(result.base64, 'base64');
+        // The caller may well name a path under a directory that does not exist
+        // yet (`tmp/preview.png` in CI is exactly that); creating it is cheaper
+        // than making every caller write the mkdir themselves.
+        mkdirSync(dirname(options.output), { recursive: true });
         writeFileSync(options.output, bytes, { flag: 'w' });
 
         if (options.asJson) {
