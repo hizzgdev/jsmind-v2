@@ -37,13 +37,23 @@
 | 层 | 现状 | 缺口 |
 |---|---|---|
 | 布局 `arranger/` | ✅ 完整（201 行 + 644 行测试） | 无 |
-| 模型 `model/` | ✅ 完整（`JmNode`: id / content / parent / children / folded / side / data） | **无 `style`** |
-| 序列化 `serialization/json.ts` | ✅ 可用（`nodes` 是 Record，`root` 是 id 字符串） | **无 `format` / `theme` / `style`** |
-| 视图 `view/` | ⚠️ 基础（div 节点 + **SVG 直线** + CSS class） | **无曲线、无主题、无节点级样式** |
-| 选项 `common/option.ts` | ⚠️ `ViewOptions.theme: string` | **只是个字符串，没有主题表** |
-| CLI / 产物 / 导出 / 编辑 / skill / MCP | ❌ 全无 | 全要做 |
+| 模型 `model/` | ✅ 完整，含 `style` / `folded` / `side` / `data`；`onNodeAdded` / `onNodeRemoved` 已接通 | **`onNodeUpdated` / `onNodeMoved` 是空实现** |
+| 序列化 `serialization/` | ✅ `format` / `theme` / `style` 全字段；37 个错误码 | 无 |
+| 视图 `view/` | ✅ Shadow DOM、主题变量、贝塞尔连线、节点级样式、PNG 导出 | **无平移缩放、无交互事件** |
+| 应用 `application/` | ✅ `JsMind` 门面 + `JmCoordination` + `JmCommander` | 无 |
+| CLI | ✅ 13 个子命令，含 `export` | **无 `set-style`** |
+| 产物 / 编辑 / skill / MCP / v1 adapter | ❌ 未开始 | S8 / S10 / S11 / S12 / S13 |
 
-**测试底子**：2832 行 / 17 个文件 / 158 个用例，全绿。
+**测试底子**：300 个单元用例 + 23 个 UI 用例，覆盖率 95.3%。
+
+**应用层的两条通道**（这两条决定了新功能该挂在哪，容易搞反）：
+
+```
+调用方 → JmCommander → JmViewHandle → JmView      （命令：导出、将来 pan/zoom）
+模型变更 → JmCoordination → JmView                （反应：节点增删改、将来拖拽）
+```
+
+**判断标准是「这个操作改不改模型」**：改模型的（折叠、移动、改文字、改样式）必须走第二条，因为数据是真相、视图是投影；不改模型的（平移、缩放、导出）才走第一条。把模型变更塞进 Commander 会产生第二条修改入口，和 AI 走 CLI 的路径分叉。
 
 **arranger 和 view 读的节点字段完全一致，只有 8 个**：
 
@@ -70,12 +80,13 @@ node.isRoot     node.parent    node.side     node.ts
   S6  Shadow DOM 隔离 + 样式内嵌
       ↓
 第 3 层 ─ 产物
-  S7 CLI（validate / render）
+  S7 CLI（validate / export）
   S8 自包含 HTML 生成
   S9 导出 PNG / JSON / HTML
       ↓
 第 4 层 ─ 交互
   S10 编辑
+  S14 查看器：平移 / 缩放 / 居中
       ↓
 第 5 层 ─ Agent 接入
   S11 skill
@@ -150,7 +161,7 @@ node.isRoot     node.parent    node.side     node.ts
 
 ---
 
-#### S4 `feat(view): apply node styles with re-measurement`
+#### S4 `feat(view): apply node styles with re-measurement` —— ⚠️ 部分完成
 
 **最复杂的一个**，因为有一条连锁反应：
 
@@ -169,6 +180,13 @@ node.style.fontSize = 18
 **测试**：改字号后，节点尺寸和布局坐标都要跟着变（不能只断言 CSS 应用了）
 
 **风险**：如果做下来发现还是太大，拆成「先颜色边框」+「再字号粗细（涉及重测）」
+
+
+> **当前缺口**：样式能应用、能测量、能画出来。但**改样式不会触发重新测量** ——
+> `node.style = {...}` 会发出 `onNodeUpdated` 事件，而 coordinator 拿到之后只打了一行
+> debug 日志。所以打开一张带样式的图是对的，运行时改样式则毫无反应。
+>
+> 验收标准「样式变了必须重新测量」里的后半句没达成。修法在 S10 的前置任务里。
 
 ---
 
@@ -200,7 +218,7 @@ node.style.fontSize = 18
 ### 第 3 层：产物
 
 #### S7a `feat(cli): context, validate and mind/node data commands` —— 已完成
-#### S7b `feat(cli): render command` —— 待渲染层就绪
+#### S7b `feat(cli): export command` —— 已完成（原名 render）
 
 **完整设计见 `docs/requirements/v2-cli.md`。**
 
@@ -238,6 +256,22 @@ node.style.fontSize = 18
 
 ---
 
+#### S7c `feat(cli): node set-style` —— 未开始
+
+现有的节点子命令是 `set-text` / `set-folded` / `set-side`，**独缺 `set-style`**。
+
+这不是补一个便利命令那么简单。少了它，agent 想改一个节点的颜色就只有一条路：把整个 JSON 读出来、改内存、整个写回去。而"整个写回去"会绕过 `write → validate → rollback` 那条链的粒度 —— 校验能拦，但一旦失败回滚的是整个文件，不是刚才那一步。
+
+有了 `set-style`，改样式和改文字走的是同一条安全路径。
+
+**前置**：`onNodeUpdated` 必须接通（见 S10 的前置说明）。命令能改数据，但图不会重画。
+
+**参数**：`--node-id <id>`，样式字段复用 `JmNodeStyle`（`fill` / `text` / `border` / `radius` / `font` 等），`--reset` 清除节点级样式回落到主题。
+
+**测试**：设置后序列化结果里出现该字段；`--reset` 之后字段消失而不是置为默认值（两者序列化结果不同）；校验失败时文件逐字节还原。
+
+---
+
 #### S8 `feat(build): self-contained HTML output`
 
 - HTML 模板（数据 `<script type="application/json">` / 容器 / 内联渲染器）
@@ -254,6 +288,7 @@ node.style.fontSize = 18
   - SVG 序列化 → **data URL**（blob 会污染 canvas）→ canvas → PNG，与本节原计划一致
   - 尺寸取内容尺寸：小于视口保留空白，大于视口撑开不裁
   - 出图需要 Chromium，CLI 侧封装在 `src/cli/browser.ts`
+- **已实现但未记录**：`--type jpeg|webp` 与 `quality`（0–1），仅对这两个有损格式生效
 - 尚未开始：导出面板 UI、HTML 快照、JSON 入口（JSON 已有 `serialize()`，缺的是面板）
 - HTML：**模板快照法**（渲染器动手前抓 `document.documentElement.outerHTML`）
 
@@ -269,6 +304,20 @@ node.style.fontSize = 18
 - **必须走同一套数据 API**（与 AI 的修改路径一致）
 
 **注意**：用户手工删除的数据，和将来 v2→v1 转换丢弃的数据是两回事，**别混在一起统计**
+
+**前置**：`onNodeUpdated` 和 `onNodeMoved` 目前是空实现（只有 debug 日志）。折叠、拖拽、改文字都依赖它们把模型变更推回视图。这是 S10 的第一个任务，不是它的收尾。
+
+---
+
+#### S14 `feat(view): pan, zoom and centring`
+
+- 平移、缩放（滚轮 / 手势 / 按钮）、居中到指定节点、读取当前视口
+- **走 Commander 通道**，不走模型：这些操作不改变任何节点，只改变观察方式
+- `JmViewHandle` 的注释里已经预留了形状：`pan` / `zoom` / `centerOn(nodeId)` / `getViewport()`
+
+**为什么单独列，不并进 S10**：S10 是编辑，改的是模型；这里是查看，改的是视口。两者的数据路径不同（一条走 Coordination，一条走 Commander），混在一个 S 里会诱导把 pan/zoom 也做成模型操作。
+
+**测试**：缩放后节点屏幕坐标按比例变化；平移不改变节点逻辑坐标；`centerOn` 之后目标节点落在视口中心（断言坐标，不断言 CSS）。
 
 ---
 
@@ -367,9 +416,33 @@ node.style.fontSize = 18
 
 ## 7. 已知的尾巴
 
+### 7.1 schema 可能还要再收一轮
+
 **adapter 之后可能还有一轮 schema 调整。** 等真做 S13 时，很可能发现"这个字段当初应该那么设计"。所以 S13 做完之后，可能还需要一个**收尾 PR** 处理 schema 收敛，或者引入版本化策略（`format: "jsmind_v2"` 之外，将来要不要 `"jsmind_v2.1"`）。
 
 现在不用决定，知道有这条尾巴就行。
+
+### 7.2 Canvas 面积上限决定导出尺寸的天花板
+
+**这是填在中间的 canvas 带来的硬限制，不是实现缺陷。** PNG 导出必须经过 canvas 转码（DOM 没有直接出像素的接口），而 canvas 有面积上限：超过之后整个 canvas 不可用，绘制命令不生效，`toBlob` 返回 `null`。
+
+本机实测（Chromium）：
+
+| 输出尺寸 | 面积 | 结果 |
+|---|---|---|
+| 16000 × 12000 | 192M px² | 成功 |
+| 20000 × 15000 | 300M px² | `toBlob` 返回 null，抛错，exit 3 |
+
+阈值落在两者之间，与 Chrome 的 268,435,456 px²（16384²）对得上。**别的引擎不同，而且会随硬件变**：MDN 只说"多数情况超过 10000×10000"，iOS 只有 4096×4096。
+
+**现在的行为是失败，不是出残缺图**，这点比预想的好。但有两个问题：
+
+- **报错没有指向性** —— 用户看到的是 `Failed to encode the image as image/png`，看不出真正原因是"图太大"。应该在上限之前先算出输出像素数，超了就直接说"内容 20000×15000 超过浏览器 canvas 上限，请降低 scale 或拆分"。
+- **大图极慢** —— 16000×12000 那一档单次要几十秒，期间没有任何进度反馈。
+
+**真要支持巨型脑图，canvas 这条路走不通**，得换思路：分块渲染再拼接（每块单独 canvas，最后合成），或者输出 SVG（无面积限制，但消费方要能打开 SVG）。这两条都不属于当前的 S9。
+
+现在不做。等出现真实的巨型脑图需求再决定 —— 先用清醒的方式失败，比现在含糊地失败要好。
 
 ---
 
@@ -432,7 +505,68 @@ if (!after.valid) {
 ### 8.5 触发时机
 
 - S4（渲染层的样式与重测）做完
-- S7b（`render`）做完，`node set-style` 补上
+- S7b（`export`）已完成；S7c（`node set-style`）补上
 - 命令面稳定、不再改名之后
 
 到那时 skill 要覆盖的完整闭环是：`context` 找 id → `mind`/`node` 改 → `validate` 查 → `render` 出图。
+
+---
+
+## 9. 待办：自定义节点渲染（低优先级，定位为高级插件）
+
+> **状态：不做，先记下来。** 记的原因不是忘了，是这件事已经分析清楚了，
+> 不写下来下次要从头再想一遍。
+
+### 9.1 需求
+
+节点内容默认按纯文本渲染。希望留一个口子，让使用者接管「往框里画什么」：
+
+- 基于文本做特殊标记解析（`# 标题`、`**强调**`、代码块、图标）
+- 换成图表、进度条、头像之类的东西
+- 用 React / Vue / Svelte 渲染
+
+画完之后再测量尺寸、参与布局，和其他节点一样。
+
+### 9.2 为什么现在不做
+
+**它服务的是视觉定制，不是核心价值。** 这个项目的核心命题是「agent 能可靠地读、改、校验这张图」，对应 S10 / S11 / S12。自定义渲染服务的是「人希望它长得更像自己的东西」，在 S8 / S10 / S11 / S12 面前排不进优先级。
+
+而且它一旦做进来，就得承诺维护一条「任意第三方框架都能接进来」的兼容面，成本和收益不成比例。作为插件单独发更合适。
+
+### 9.3 已经想清楚的部分（动手时别重新踩）
+
+**异步不是问题，地基已经在了。** `createAndMeasure` 本来就是 `Promise<JmSize>`，`measureNodeSizes` 用 `Promise.all` 并行，所以「渲染器返回 Promise」天然被支持，不需要改造测量链。
+
+**接口该是这个形状：**
+
+```ts
+export type JmNodeRenderer = (
+    context: JmNodeRenderContext
+) => JmNodeRenderCleanup | Promise<JmNodeRenderCleanup>;
+
+export type JmNodeRenderCleanup = (() => void) | void;
+
+export interface JmNodeRenderContext {
+    readonly element: HTMLElement;   // 画在这里，已挂载进文档
+    readonly node: Readonly<JmNode>;
+    readonly text: string;
+}
+```
+
+**为什么必须由调用方返回 Promise / 清理函数**：只有调用方知道什么时候算画完。框架一多，靠 `setTimeout` 或轮询 DOM 都是自己骗自己。
+
+**四个会出错的点：**
+
+1. **渲染器调用点必须挪到「临时挂载之后、测量之前」。** 现在 `_createNodeElement` 是先画内容、再由 `measureElement` 临时挂载去测。`getBoundingClientRect()` 对脱离文档的元素返回全 0，所以渲染器在旧位置被调用时，内容再复杂也量不对。
+
+2. **React 的 `render()` 不返回 Promise。** 它是并发调度，返回时 DOM 往往是空的。使用者必须用 `flushSync` 包住，或者自己造一个 Promise 在 `useEffect` 里 resolve。这条要写在文档里，不能指望对方想明白。
+
+3. **尺寸缓存会吞掉重画。** `createAndMeasure` 现在开头是「元素存在就返回 `cachedRect`」，连内容都不重新画。所以文本一改，自定义内容和尺寸全是旧的 —— 见下面的依赖。
+
+4. **清理函数不能省。** 每个节点一个 React root，节点删除时不 unmount 就泄漏。纯 DOM 渲染可以不返回，框架渲染必须返回。
+
+**顺带要决定的一件事**：默认渲染器现在是 `element.innerHTML = node.content.getText()`，文本里带 `<img onerror=...>` 会执行。做这个功能时应该一起换成 `textContent`，但 v1 是 `innerHTML`，改了是不兼容变更，得单独评估。
+
+### 9.4 依赖
+
+**前置是 `onNodeUpdated` 接通。** 不补那个洞，这个功能只能静态看图，改一个字内容就不刷新。所以它的实际起点在 S10 之后，这也是它优先级低的原因之一 —— 挡在前面的本来就是更基础的事。
