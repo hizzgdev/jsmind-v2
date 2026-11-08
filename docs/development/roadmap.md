@@ -8,6 +8,11 @@
 > milestones 按受益者排优先级（Agent → 用户 → 功能丰富）并给出验收标准；
 > 本文按技术层次组织，存的是每一层怎么实现、有哪些已知的坑。
 > 两者的编号对照见 milestones 附录 A。
+>
+> **本文在 2026-11 被压缩过一轮** —— 现状盘点表的具体类名、每个 S 项的实现细节、
+> 以及 §8.3 写后校验的完整代码块，都移到了
+> [`archive/design-decisions/roadmap-before-reorg.md`](../archive/design-decisions/roadmap-before-reorg.md)。
+> 想知道某项当初为什么那样设计，去那里对。
 
 **编号说明**：本文用 **S1 ~ S14** 表示规划步骤，**与 GitHub PR 号无关**。认步骤，不认号码。
 
@@ -224,6 +229,16 @@ PNG 导出必须经过 canvas 转码，canvas 有面积上限。Chromium 实测 
 ### 7.4 自定义节点渲染（低优先级）
 
 留了一个口子让使用者接管「往框里画什么」（特殊标记解析、图表、框架渲染）。接口设计已想清楚：`JmNodeRenderer` 返回 Promise + cleanup 函数。前置是 `onNodeUpdated` 接通，实际起点在 S10 之后。
+
+**动手之前先读 [`archive/design-decisions/custom-node-renderer.md`](../archive/design-decisions/custom-node-renderer.md)。**
+完整分析在那里，包括完整的 `JmNodeRenderContext` 接口定义和四个会踩的坑：
+
+1. 渲染器调用点必须挪到「临时挂载之后、测量之前」—— `getBoundingClientRect()` 对脱离文档的元素返回全 0
+2. React 的 `render()` 不返回 Promise，必须用 `flushSync` 包住
+3. `createAndMeasure` 开头的尺寸缓存会吞掉重画，文本一改内容全是旧的
+4. 节点删除时不 unmount 会导致每个节点泄漏一个 React root
+
+还有一条待定：默认渲染器用 `innerHTML` 有 XSS 面，该换 `textContent`，但 v1 是 `innerHTML`，属于不兼容变更。
 
 ---
 

@@ -74,3 +74,15 @@ mind.moveNode('jm-a1', { parentId: mind.root.id, side: -1 });
 
 // 三种一起
 mind.moveNode('jm-a1', { parentId: 'jm-c3', position: 1, side: -1 });
+
+
+---
+
+## 设计决策
+
+这个模块的设计推演在 [`archive/design-decisions/node-move.md`](../archive/design-decisions/node-move.md)：
+为什么用一个 `moveNode()` 而不是拆成 `changeParent()` / `reposition()` / `changeDirection()`
+三个方法、为什么用 options 对象而不是多参数、为什么事件只在真正变化时才发，
+以及被否决的替代方案和实现时踩过的坑。
+
+改这个方法之前值得读一遍。

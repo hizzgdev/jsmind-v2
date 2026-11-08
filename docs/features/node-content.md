@@ -62,3 +62,14 @@ mind.addNode(
 ```
 
 `type` 和 `value` 原样写进 JSON，反序列化原样读回。
+
+
+---
+
+## 设计决策
+
+这个模块的设计推演在 [`archive/design-decisions/node-content.md`](../archive/design-decisions/node-content.md)：
+为什么用 enum 不用字符串字面量、为什么工厂方法优先于直接构造、从 v1 演进时的取舍，
+以及**要加新内容类型时该动哪几处**（见那篇的「Future Extensibility」）。
+
+改这个模块之前值得读一遍。

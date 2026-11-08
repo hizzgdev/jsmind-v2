@@ -100,3 +100,14 @@ mind.removeEdge(edge.id);
 ```
 
 与 `nodes` 一样，`edges` 是 `Record<string, SerializedEdge>`，key 必须等于 `edge.id`。
+
+
+---
+
+## 设计决策
+
+这套「树关系用直接字段、额外关系用边」的混合设计为什么成立 ——
+以及当时否决掉的纯边模型和纯字段模型各自的问题 ——
+在 [`archive/design-decisions/hybrid-edge-system.md`](../archive/design-decisions/hybrid-edge-system.md)。
+
+改这块之前值得读一遍，否则容易重新提一个单模型方案。
