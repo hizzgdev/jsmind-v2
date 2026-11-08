@@ -1,6 +1,16 @@
 jsMind V2
 ===
 
+[Documentation](https://github.com/hizzgdev/jsmind-v2/tree/master/docs) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html)
+
+<!-- Both links are absolute, and both leave the repository.
+     Docs stay on GitHub rather than being published as a site: they can be
+     searched, blamed and edited there, and rendering them to HTML would mean
+     maintaining a markdown build step for a project whose site is one page.
+     The playground only exists on the published site - it is copied there from
+     example/ with its script path rewritten during deployment - so a relative
+     link would 404 when this README is read on GitHub. -->
+
 Development Environment
 ---
 

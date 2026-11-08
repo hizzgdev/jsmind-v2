@@ -18,8 +18,15 @@ docs/
 │   ├── node-content.md             # 节点内容类型与创建
 │   └── node-move.md                # 节点移动 API
 ├── development/
-│   ├── roadmap.md                  # 开发计划、PR 序列、各层状态、剩余工作
+│   ├── milestones.md               # 先做什么：M1/M2/M3 优先级、任务清单、验收标准
+│   ├── roadmap.md                  # 怎么实现：PR 序列、各层状态、已知的坑
 │   └── render-test-plan.md         # 渲染回归测试清单
+├── archive/                        # 归档：不再维护但仍有参考价值的内容
+│   ├── README.md                   # 归档说明与索引
+│   ├── articles/                   # 早期的技术文章
+│   ├── design-decisions/           # 各模块设计决策的完整推演过程
+│   ├── v1-api-checklist.md         # v1 全部 API 对照清单（178 项）
+│   └── tslib-explanation.md        # tslib 是什么、为什么需要
 └── images/
     └── layout/                     # 布局相关的示意图（ProcessOn 源文件）
         ├── README.md
@@ -46,7 +53,25 @@ docs/
 
 ### development/
 
-开发过程文档。`roadmap.md` 追踪实现进度与剩余工作，`render-test-plan.md` 是渲染测试的策略文档。
+开发过程文档。两份配合看：
+
+- **`milestones.md`** 决定**做什么**。按受益者排优先级（Agent → 用户 → 功能深度），每个里程碑带任务清单和验收标准
+- **`roadmap.md`** 决定**怎么做**。按技术层次组织，存的是每层怎么实现、有哪些已知的坑
+
+先读 milestones 再读 roadmap。`render-test-plan.md` 是渲染测试的策略文档。
+
+### archive/
+
+**不再维护、但仍然有参考价值的内容。**
+
+这里的东西**不是垃圾**，是两种情况的产物：
+
+1. **被更新的文档取代了** —— 新版在别处，旧版的完整推演过程留在这里
+2. **对当前工作没有直接影响** —— 比如早期的技术文章、v1 的 API 清单
+
+**归档不是删除。**决策是怎么做出来的、当时考虑过哪些被否决的方案，这些信息在新文档里通常只剩一句结论 —— 想知道为什么的人来这里。
+
+每份归档文档顶部都注明新版的位置；索引见 [`archive/README.md`](archive/README.md)。
 
 ### images/
 

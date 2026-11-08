@@ -1,0 +1,111 @@
+# Publishes the playground to GitHub Pages.
+#
+# The site is three files: a hand-written landing page, the playground, and the
+# bundle it loads. No markdown is rendered here - the documentation stays on
+# GitHub, where it can be searched, blamed and edited, and putting it on a static
+# site would mean maintaining a markdown-to-HTML step that earns nothing.
+name: Deploy static content to Pages
+
+on:
+  # Only on master: this is what the public sees, not a per-commit preview.
+  push:
+    branches: ["master"]
+
+  # Allows running it from the Actions tab without an empty commit.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. Runs are queued rather than cancelled: cancelling a
+# half-finished deployment of the live site is worse than waiting for it.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # Generous: npm ci on this repository takes a couple of minutes, and a
+    # cancelled install leaves nothing useful behind anyway.
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          # Matches ci.yml. The bundle only has to load in a browser, but a
+          # second Node version across the repository is one more thing to
+          # explain to whoever comes next.
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the library
+        run: npm run build
+
+      # Three files make up the site, and only two of them already exist under
+      # the names they need.
+      #
+      # playground.html is the awkward one: it lives at example/ and its script
+      # tag points at ../dist/jsmind.js. Neither survives publication - example/
+      # is not part of the site and there is no dist/ on it - so the page is
+      # copied to the root with the path rewritten, and the bundle is copied
+      # beside it.
+      #
+      # The source file is left alone. ../dist/jsmind.js is correct for anyone
+      # serving the repository locally with `npm run server`.
+      - name: Assemble the site
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+
+          cp index.html _site/index.html
+          cp dist/jsmind.js _site/jsmind.js
+
+          sed 's|src="\.\./dist/jsmind\.js"|src="jsmind.js"|' \
+            example/playground.html > _site/playground.html
+
+          # Fail here rather than publish a playground that renders nothing. A
+          # sed that matched nothing would leave the page pointing at a path
+          # that does not exist on the site, and nothing downstream would notice.
+          if grep -q '\.\./dist/jsmind\.js' _site/playground.html; then
+            echo "::error::playground.html still points at ../dist/jsmind.js"
+            exit 1
+          fi
+          grep -q 'src="jsmind.js"' _site/playground.html || {
+            echo "::error::playground.html does not load the bundle"
+            exit 1
+          }
+
+          ls -la _site
+
+      # Pages will happily publish an empty artifact, and a blank deploy looks
+      # exactly like a broken one from the outside.
+      - name: Check the site is complete
+        run: |
+          set -euo pipefail
+          for f in index.html playground.html jsmind.js; do
+            test -f "_site/$f" || { echo "::error::missing _site/$f"; exit 1; }
+          done
+          echo "site size: $(du -sh _site | cut -f1)"
+
+      # No actions/configure-pages step: it exists to configure Jekyll and Pages
+      # settings for a build, and these files are already finished HTML.
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./_site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
