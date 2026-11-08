@@ -18,6 +18,7 @@ docs/
 │   ├── node-move.md            # Node move functionality
 │   └── serialization.md        # Serialization system
 └── development/                # Development-related documents
+    ├── milestones.md           # What to build first (M1/M2/M3) and how to verify it
     ├── roadmap.md              # Development plan (PR sequence, test strategy)
     ├── missing-features.md     # Missing features checklist
     └── tslib-explanation.md    # tslib library explanation
@@ -48,7 +49,8 @@ Contains detailed documentation for specific features.
 
 ### Development (development/)
 
-- **roadmap.md** - Development plan: layered PR sequence, per-PR scope, and test strategy (written in Chinese)
+- **milestones.md** - What to build first. Reorders the work by beneficiary (agent → user → feature depth) instead of by layer, with a task checklist and acceptance criteria per milestone (written in Chinese)
+- **roadmap.md** - Development plan: layered PR sequence, per-PR scope, and test strategy (written in Chinese). Read milestones.md first to decide *what*; this one covers *how*
 
 ### Other development docs
 Contains development status, plans, and task-related documents.
