@@ -16,6 +16,89 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Decides what the other jobs are worth running.
+  #
+  # Almost every change here touches documentation - this repository has more
+  # prose than code, and a plan or a decision record is edited far more often
+  # than the renderer. Rendering an image for those runs costs a browser
+  # install, a build and a vision call's worth of context to look at, and
+  # produces a picture identical to the one already on the pull request.
+  #
+  # Deliberately not `paths:` on the trigger: that skips the whole workflow,
+  # and a documentation-only change still needs its formatting checked.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+
+    outputs:
+      # 'true' when something that can change the rendered image moved.
+      render: ${{ steps.paths.outputs.render }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # The diff needs the base commit, which may be many commits back.
+          # Cheap here - the repository is a few megabytes.
+          fetch-depth: 0
+
+      - name: Compare against the base
+        id: paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            range="$PR_BASE...$PR_HEAD"
+          elif [ -n "${PUSH_BEFORE:-}" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            range="$PUSH_BEFORE...$PUSH_AFTER"
+          else
+            # First push to a new branch: no before-commit to diff against.
+            # Assume the worst rather than silently skipping the render.
+            echo "no usable base commit; rendering anyway"
+            echo "render=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! changed=$(git diff --name-only "$range"); then
+            echo "::warning::could not diff $range; rendering anyway"
+            echo "render=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Paths whose contents can change the rendered image. Anything not
+          # listed here - docs/, README, workflows other than this one - cannot.
+          #
+          # example/ is listed whole rather than just the fixture it renders:
+          # moving or renaming the fixture would break the preview, and the run
+          # that breaks it should be the run that shows it.
+          render=false
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              src/*|example/*|package.json|package-lock.json|tsconfig.json)
+                render=true; echo "affects the render: $file" ;;
+              .github/actions/render-map/*|.github/workflows/ci.yml)
+                render=true; echo "affects the render: $file" ;;
+            esac
+          done <<< "$changed"
+
+          echo "render=$render" >> "$GITHUB_OUTPUT"
+          if [ "$render" = "false" ]; then
+            echo "nothing here can change the image; skipping the render"
+          fi
+
+  # ---------------------------------------------------------------------------
   # Everything that does not need a browser.
   #
   # Red here means the code is wrong: format, types, unit tests or the build.
@@ -117,9 +200,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # Render preview
   #
-  # Pull requests only, and the condition lives on the job rather than on each
-  # step: a push to master has no comment to post into, so there is nothing here
-  # to skip individually - the whole job is meaningless without a PR.
+  # Pull requests only, and only those that changed something the renderer
+  # reads. Two conditions rather than one, and both belong on the job: a push
+  # to master has no comment to post into, and a documentation-only pull
+  # request has nothing new to render.
   #
   # Not a nicety. The tests prove the geometry is computed correctly and cannot
   # show whether the result looks like anything - that takes an image someone can
@@ -131,7 +215,10 @@ jobs:
   # ---------------------------------------------------------------------------
   preview:
     name: Render preview
-    if: github.event_name == 'pull_request'
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.render == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
