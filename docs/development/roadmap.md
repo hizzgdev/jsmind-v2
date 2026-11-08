@@ -3,6 +3,11 @@
 > **本文件定义 v2 的实现顺序与每个 PR 的边界。** 需求与决策见 [`docs/requirements/v2-requirements.md`](../requirements/v2-requirements.md)。
 >
 > **状态**：规划中，PR 逐个推进。
+>
+> **先看 [`milestones.md`](milestones.md) 决定做什么，本文决定怎么做。**
+> milestones 按受益者排优先级（Agent → 用户 → 功能丰富）并给出验收标准；
+> 本文按技术层次组织，存的是每一层怎么实现、有哪些已知的坑。
+> 两者的编号对照见 milestones 附录 A。
 
 **编号说明**：本文用 **S1 ~ S13** 表示规划步骤，**与 GitHub PR 号无关**。实际提 PR 时号码会往后顺延（例如 S1 提上去时是 PR #5 还是 #6，取决于期间有没有插别的 PR）。**认步骤，不认号码。**
 
