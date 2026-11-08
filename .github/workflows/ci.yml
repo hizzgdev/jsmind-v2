@@ -38,6 +38,10 @@ jobs:
     outputs:
       # 'true' when something that can change the rendered image moved.
       render: ${{ steps.paths.outputs.render }}
+      # 'true' when every changed file is prose. Nothing compiled here can
+      # behave differently, so the type check, the tests, the build and the UI
+      # tests are all re-proving yesterday's result.
+      docs_only: ${{ steps.paths.outputs.docs_only }}
 
     steps:
       - name: Checkout
@@ -76,26 +80,57 @@ jobs:
             exit 0
           fi
 
-          # Paths whose contents can change the rendered image. Anything not
-          # listed here - docs/, README, workflows other than this one - cannot.
+          # Two independent questions, answered in one pass over the file list.
           #
-          # example/ is listed whole rather than just the fixture it renders:
-          # moving or renaming the fixture would break the preview, and the run
-          # that breaks it should be the run that shows it.
+          # render: can this change the picture? Paths whose contents feed the
+          #   renderer. example/ is listed whole rather than just the fixture it
+          #   renders: moving or renaming the fixture would break the preview,
+          #   and the run that breaks it should be the run that shows it.
+          #
+          # docs_only: is every one of these files prose? Documentation is a
+          #   directory of markdown plus the repository's own READMEs. Nothing
+          #   that gets compiled, type-checked or built reads them, so on a
+          #   documentation-only change those steps re-prove yesterday's result.
+          #
+          # The two answers are not complements: a change to docs/ is prose and
+          # cannot move the picture, a change to .github/workflows/static.yml is
+          # neither prose nor a render input, and a change to src/ is both.
           render=false
+          docs_only=true
           while IFS= read -r file; do
             [ -z "$file" ] && continue
+
             case "$file" in
               src/*|example/*|package.json|package-lock.json|tsconfig.json)
                 render=true; echo "affects the render: $file" ;;
               .github/actions/render-map/*|.github/workflows/ci.yml)
                 render=true; echo "affects the render: $file" ;;
             esac
+
+            case "$file" in
+              docs/*|*.md)
+                : ;;
+              *)
+                docs_only=false; echo "not prose: $file" ;;
+            esac
           done <<< "$changed"
 
+          # No files at all is not "only documentation" - an empty diff means
+          # the comparison itself failed to produce anything, and the checks
+          # should run rather than be skipped on a technicality.
+          if [ -z "$changed" ]; then
+            docs_only=false
+            echo "empty diff; running the checks"
+          fi
+
           echo "render=$render" >> "$GITHUB_OUTPUT"
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+
           if [ "$render" = "false" ]; then
             echo "nothing here can change the image; skipping the render"
+          fi
+          if [ "$docs_only" = "true" ]; then
+            echo "documentation only; running the format check and nothing else"
           fi
 
   # ---------------------------------------------------------------------------
@@ -107,6 +142,7 @@ jobs:
   # ---------------------------------------------------------------------------
   checks:
     name: Format, types, tests, build
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -128,13 +164,22 @@ jobs:
 
       # Deterministic install from the lockfile. This is npm's built-in
       # "npm ci", unrelated to the "ci" script in package.json.
+      #
+      # Runs even for documentation-only changes: prettier is a dependency, so
+      # the format check below cannot work without it.
       - name: Install dependencies
         run: npm ci
 
+      # The one step a documentation-only change actually needs. Markdown has
+      # line width and list formatting rules like any other file, and they are
+      # worth failing on.
       - name: Format check
         run: npm run format-check
 
+      # Everything below compiles or exercises the TypeScript sources. Prose
+      # cannot change the answer, so a documentation-only change stops here.
       - name: Type check
+        if: needs.changes.outputs.docs_only != 'true'
         run: npm run type-check
 
       # Unit and data-layer suites only. The UI tests live in the job below,
@@ -145,6 +190,7 @@ jobs:
       # paths, where the full coverage report is slow and noisy. Thresholds live
       # in package.json (scripts.test:coverage).
       - name: Tests with coverage
+        if: needs.changes.outputs.docs_only != 'true'
         run: npm run test:coverage
 
       # The ui job builds again on its own rather than depending on this one and
@@ -152,14 +198,22 @@ jobs:
       # roughly three seconds a build takes — see the note there before adding
       # a `needs:` between the jobs.
       - name: Build
+        if: needs.changes.outputs.docs_only != 'true'
         run: npm run build
 
   # ---------------------------------------------------------------------------
-  # Needs a browser. Runs on every commit, PR or not - these are assertions, and
-  # an assertion that only runs sometimes is a coin flip.
+  # Needs a browser. Runs on every commit that could change what the browser
+  # sees - which is every commit that touches code, and no commit that touches
+  # prose.
+  #
+  # These load dist/jsmind.js and drive it in a real browser. Documentation is
+  # not compiled into that bundle, so a documentation-only change would re-assert
+  # yesterday's result against the same bytes.
   # ---------------------------------------------------------------------------
   ui:
     name: UI tests
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     # Generous: a stalled browser start used to eat the whole budget silently.
     timeout-minutes: 10
