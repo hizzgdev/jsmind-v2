@@ -1,4 +1,17 @@
-# TypeScript库的JavaScript运行时类型检查指南
+# 归档：TypeScript 库的 JavaScript 运行时类型检查指南
+
+> **这是一篇技术文章，不是项目文档。**
+>
+> 写于 v2 数据层设计期间，讨论「TypeScript 编译成 JS 后，静态类型在纯 JS
+> 调用方那边完全失效」这个问题的成因与几种解法。
+>
+> **对当前项目的意义：** v2 的运行时校验体系（`src/model/validate/`，
+> 37 个错误码）就是这套思路的落地 —— 详见
+> [`requirements/v2-data-format.md`](../../requirements/v2-data-format.md)。
+>
+> 文章本身不再维护，留作背景阅读。
+
+---
 
 ## 引言
 

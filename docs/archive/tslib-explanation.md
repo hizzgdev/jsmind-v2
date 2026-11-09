@@ -1,4 +1,17 @@
-# tslib Explanation
+# 归档：tslib 是什么
+
+> **40 行的通用知识说明。**
+>
+> `tslib` 是 TypeScript 编译器在编译某些语法（装饰器、类继承、
+> 对象展开等）时需要注入的运行时辅助函数集合。
+>
+> **为什么归档：** 这不是这个项目特有的知识，是 TypeScript 的通用概念。
+> 但本仓库的 `tsconfig.json` 开了 `importHelpers`，构建产物依赖它，
+> 所以留一份在这里省得再查。
+>
+> 相关内容见 [`articles/es-to-ts-migration.md`](articles/es-to-ts-migration.md)。
+
+---
 
 ## What is tslib?
 

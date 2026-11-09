@@ -1,4 +1,23 @@
-# jsmind-v2 Missing Features Checklist
+# 归档：v1 API 对照清单
+
+> **这是 v1 全部 API 的逐项清单，共 178 个未实现项，覆盖 14 个系统**
+> （Core / Node / View / Layout / Data / Shortcut / Plugin / util / dom /
+> Event / Data Format / Config / Async / Other）。
+>
+> **为什么归档：** 这份清单的**结论部分已经过期** —— 它写于早期，
+> 其中「theme/styling 未实现」「curved edges 未实现」两条后来都做完了。
+> 放在 `development/` 下会误导人。
+>
+> **但它没过期的部分仍然有用：** 那张 178 项的对照表是 v1 完整 API 面的
+> 系统性记录。做 v1 兼容层（milestones 里 M3 的 v1 adapter）时，
+> 要照着它核对「哪些 API 值得提供、哪些明确不做」。
+>
+> **当前进度看 [`development/milestones.md`](../development/milestones.md)，
+> 不要看这份清单的勾选框。**
+>
+> v1 源码公开可查，所以这些信息不算不可恢复 —— 但重新整理要花时间。
+
+---
 
 > **⚠️ Status note (2026-11): this checklist is partially outdated.**
 >

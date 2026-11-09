@@ -1,4 +1,16 @@
-# Git 多 Push URL 配置与 Pre-Push Hook 最佳实践
+# 归档：Git 多 Push URL 配置与 Pre-Push Hook 最佳实践
+
+> **这是一篇技术文章，不是项目文档。**
+>
+> 讨论同一 remote 配多个 `pushurl`（同时推 GitHub 和 Gitee）时，
+> `pre-push` hook 被多次调用该怎么写才不重复执行检查。
+>
+> **对当前项目的意义：** 本仓库的 `.git/hooks/pre-push` 用的是这套结论。
+> 与项目架构无关，纯工具经验。
+>
+> 文章本身不再维护。
+
+---
 
 ## 前言
 
@@ -288,4 +300,3 @@ A: 是的。执行 `git push origin :{branch_name}` 或 `git push origin --delet
 
 - [Git Hooks 官方文档](https://git-scm.com/docs/githooks)
 - [Git Remote 配置文档](https://git-scm.com/docs/git-remote)
-

@@ -1,4 +1,17 @@
-# 从 ES 到 TS：jsMind 迁移实战与技术要点
+# 归档：从 ES 到 TS，jsMind 迁移实战与技术要点
+
+> **这是一篇技术文章，不是项目文档。**
+>
+> 记录 v1 从原生 JavaScript 迁到 TypeScript 时踩的坑：JSDoc 类型的局限、
+> 编译配置、`tslib` 的引入、构建产物形态。
+>
+> **对当前项目的意义：** v2 的 `tsconfig.json` 里那几条关键选项
+> （`erasableSyntaxOnly`、`importHelpers`）来龙去脉在这里。
+>
+> 文章本身不再维护。`tslib` 单独的解释见
+> [`tslib-explanation.md`](../tslib-explanation.md)。
+
+---
 
 ## 前言
 
