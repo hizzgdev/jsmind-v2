@@ -12,6 +12,7 @@
 import { JmNodeSide } from '../model/data/node.ts';
 import { JmNodeContent } from '../model/data/node-content.ts';
 import type { JmNode } from '../model/data/node.ts';
+import type { JmNodeStyle } from '../model/data/style.ts';
 import type { JmMindJsonSerializer, SerializedMindMap } from '../serialization/json.ts';
 import { JsMindError } from '../common/error.ts';
 import type { JmValidationIssue } from '../serialization/validation.ts';
@@ -80,6 +81,21 @@ export function report(asJson: boolean, prose: string, payload: Record<string, u
 }
 
 /**
+ * Describes a node's style block for output.
+ *
+ * @param style - The node's overrides, if any.
+ * @returns A plain object, or `null` when the node overrides nothing.
+ * @remarks
+ * A style block records only what differs from the theme, and that shape is
+ * carried through unchanged: a field the caller never set is absent here too.
+ * Reporting defaults would make every described node longer for information the
+ * theme already implies, and this output is read on every discovery step.
+ */
+export function describeStyle(style: JmNodeStyle | undefined): Record<string, unknown> | null {
+    return style === undefined ? null : (structuredClone(style) as Record<string, unknown>);
+}
+
+/**
  * Describes a node for output.
  *
  * @remarks
@@ -87,11 +103,16 @@ export function report(asJson: boolean, prose: string, payload: Record<string, u
  * node as-is walks straight back into the tree and blows the stack, so every id
  * crossing this boundary is extracted explicitly.
  *
+ * `style` is included only when the node overrides something. A command can set
+ * it, so a discovery command has to be able to show it - otherwise the only way
+ * to confirm a style change is to render an image and look, which costs a vision
+ * call per check and is unreliable at that.
+ *
  * @param node - Node to describe.
  * @returns Plain object for output.
  */
 export function describeNode(node: JmNode): Record<string, unknown> {
-    return {
+    const described: Record<string, unknown> = {
         id: node.id,
         text: node.content.value,
         parent: node.parent === null ? null : node.parent.id,
@@ -99,6 +120,11 @@ export function describeNode(node: JmNode): Record<string, unknown> {
         folded: node.folded,
         side: node.side,
     };
+    const style = describeStyle(node.style);
+    if (style !== null) {
+        described.style = style;
+    }
+    return described;
 }
 
 /**

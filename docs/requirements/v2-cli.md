@@ -55,7 +55,7 @@ jsmind
     ├── set-text
     ├── set-folded
     ├── set-side
-    └── set-style    （S4 之后）
+    └── set-style
 ```
 
 ### 2.1 为什么分三类
@@ -112,11 +112,55 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 | `content` | `jsmind node set-text <file> --node-id <id> --text <text>` |
 | `folded` | `jsmind node set-folded <file> --node-id <id> [--folded \| --no-folded]` |
 | `side` | `jsmind node set-side <file> --node-id <id> --side left\|right\|center` |
-| `style`（S1 之后） | `jsmind node set-style <file> --node-id <id> [--tone ...] [--font-size ...] ...` |
+| `style` | `jsmind node set-style <file> --node-id <id> [--tone ...] [--font-size ...] ... [--clear ...] [--reset]` |
 
 **`JmNode` 没有 setter 方法**，所以这一组对应的是**字段赋值**（经 `NodeManager.setterTrap`），跟 `mind` 组的方法调用不同。
 
 **`set-side` 在 CLI 层接受 `left` / `right` / `center`，写入磁盘时转成 `JmNodeSide` 的数字**（`-1` / `0` / `1`）。磁盘格式的可读性让给 JSON，命令行的可读性留给人 —— 详见 `v2-data-format.md` 4.2。
+
+### 3.3 `jsmind node set-style` —— 覆盖主题
+
+节点的 `style` 块**只记录与主题不同的部分**。所以「设成什么」和「改回主题」是两类操作，命令也分成两类写法。
+
+**字段的写法：点号分层级，连字符分词。**
+
+```bash
+--font-size             → style.fontSize          （连字符只是把两个词连起来）
+--incoming.color        → style.incoming.color    （点号 = 进一层）
+--incoming.pattern      → style.incoming.pattern
+```
+
+路径不手写，从 flag 名推导。所以「命令行怎么写」和「写进文件哪个字段」只有一处定义，不会漂。
+
+**设置字段**（可任意组合，一次写入）：
+
+| flag | 字段 | 取值 |
+|---|---|---|
+| `--tone` | `tone` | `default` / `primary` / `success` / `warning` / `danger` / `info` / `accent` |
+| `--background` | `background` | 任意 CSS 颜色 |
+| `--color` | `color` | 任意 CSS 颜色 |
+| `--border-color` | `borderColor` | 任意 CSS 颜色 |
+| `--border-width` | `borderWidth` | 正数 |
+| `--border-style` | `borderStyle` | `solid` / `dashed` / `dotted` |
+| `--font-size` | `fontSize` | 正数 |
+| `--font-weight` | `fontWeight` | `normal` / `bold` |
+| `--incoming.color` | `incoming.color` | 任意 CSS 颜色 |
+| `--incoming.width` | `incoming.width` | 正数 |
+| `--incoming.pattern` | `incoming.pattern` | `solid` / `dashed` / `dotted` |
+| `--incoming.curve` | `incoming.curve` | `straight` / `bezier` |
+
+**清除字段**：
+
+```bash
+--clear <字段列表>   # 逗号分隔，写法同上：incoming.color、font-size（也认 fontSize）
+--reset              # 清掉这个节点的全部覆盖
+```
+
+**为什么清除不能靠设值**：`fontSize` 没有「默认值」可设回主题，只能删键。整个 `style` 块本身就是「覆盖的集合」，键不存在 = 没有覆盖。所以 `--clear` 是独立操作，不是某个特殊值。同理 `--clear` 掉最后一个字段后，`style` 块整个从文件里消失，而不是留一个 `{}`。
+
+**`--reset` 不能与字段或 `--clear` 同时出现** —— 它说的是「这个节点不要任何覆盖」，和「设成某个值」互相矛盾，同时给会直接报用法错误而不是猜意图。
+
+**参数校验发生在读文件之前**：非法 tone、非正数、未知的 `--clear` 字段都在打开文件前就报 `Usage`（退出码 2），不会因为文件恰好不存在而变成别的错误。颜色只检查是不是字符串 —— 主题接受任意 CSS 颜色，枚举值才在 CLI 层拦（为了报错时点名是哪个 flag，而不是给一个 JSON 路径）。
 
 ---
 
@@ -208,13 +252,28 @@ jsmind context <file> [选项]
 **输出格式：id 在行首、左对齐成列，文本缩进跟随层级。**
 
 ```
-n1    AI 工程实践
+n1    AI 工程实践 {tone=primary fontSize=22}
 n4      数据
 n5        清洗
-n7        清洗规则（Q3）
+n7        清洗规则（Q3） {tone=warning incoming.pattern=dashed}
 n12     模型
 n18     供应商清洗成本
 ```
+
+**样式覆盖跟在文本后面，只在设过的时候出现。**
+
+`set-style` 能写的字段，`context` 必须能读回来 —— 否则 agent 改完样式只能渲染成图片去看，那是每次一个视觉调用的成本，而且容易看错。没设过覆盖的节点不显示这一段，所以常规查询的输出长度不变。
+
+键用点号写（`incoming.pattern`），和设置时用的 flag 拼写一致，读到的值可以原样拿去改或 `--clear`。
+
+`--json` 时是同样的事实，形状是可解析的对象：
+
+```json
+{ "id": "n7", "level": 1, "text": "清洗规则（Q3）",
+  "style": { "tone": "warning", "incoming": { "pattern": "dashed" } } }
+```
+
+没有覆盖的节点**不带 `style` 键**，而不是带一个 `{}`。
 
 **约束：**
 
@@ -347,7 +406,7 @@ File unchanged.
 | 项 | 当前倾向 |
 |---|---|
 | 命令名用 `add-child` 还是 `addChild` | 倾向 `add-child`（CLI 惯例是 kebab-case，但跟 JS API 的对应关系会变模糊） |
-| `set-style` 的参数怎么展开 | 倾向 `--tone` / `--font-size` / `--border-width` 直接映射字段名，不做缩写 |
+| ~~`set-style` 的参数怎么展开~~ | **已定并实现**：`--tone` / `--font-size` / `--border-width` 直接映射字段名，不做缩写 |
 | `context --focus` 的匹配算法 | 子串 + 简单模糊（编辑距离），具体算法待实现时定 |
 | 是否要 `jsmind mind list` 之类只读命令 | 倾向不加，`context` 已经覆盖 |
 | 退出码 `3` 是否再细分 | 暂不细分，先观察实际需要 |

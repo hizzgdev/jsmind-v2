@@ -16,7 +16,7 @@ import { JmMindJsonSerializer } from '../../serialization/json.ts';
 import type { JmNode } from '../../model/data/node.ts';
 import type { JmMind } from '../../model/mind.ts';
 import { readJsonFile } from '../io.ts';
-import { loadMindOrThrow } from '../shared.ts';
+import { describeStyle, loadMindOrThrow } from '../shared.ts';
 import { CliExit, dataError } from '../exit.ts';
 
 /** Default number of levels shown below the root. */
@@ -173,6 +173,48 @@ function suggest(nodes: JmNode[], focus: string): JmNode[] {
 }
 
 /**
+ * Flattens a nested style block to dotted keys.
+ *
+ * @param style - Style object, possibly nested.
+ * @param prefix - Key prefix accumulated so far.
+ * @returns Stringified values keyed by dotted path.
+ * @remarks
+ * A dotted key is the flag that set it, so a value shown here can be changed or
+ * cleared by writing that same spelling back.
+ */
+function flattenStyle(style: Record<string, unknown>, prefix = ''): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(style)) {
+        const path = prefix === '' ? key : `${prefix}.${key}`;
+        if (value !== null && typeof value === 'object') {
+            Object.assign(out, flattenStyle(value as Record<string, unknown>, path));
+        } else {
+            out[path] = String(value);
+        }
+    }
+    return out;
+}
+
+/**
+ * Summarises a node's style overrides for the text output.
+ *
+ * @param node - Node to summarise.
+ * @returns A ` {tone=danger fontSize=22}` suffix, or an empty string.
+ * @remarks
+ * The JSON output is what a program reads; this is the same fact for a human
+ * scanning the tree. Empty when the node overrides nothing, so the ordinary line
+ * does not grow.
+ */
+function styleSummary(node: JmNode): string {
+    const style = describeStyle(node.style);
+    if (style === null) {
+        return '';
+    }
+    const parts = Object.entries(flattenStyle(style)).map(([key, value]) => `${key}=${value}`);
+    return parts.length === 0 ? '' : ` {${parts.join(' ')}}`;
+}
+
+/**
  * Renders entries as aligned text.
  *
  * @param entries - Nodes with their depth.
@@ -192,7 +234,7 @@ function renderTree(
         }
         const label = clip(flatten(textOf(node)), options.maxText, options.fullText);
         // Three spaces per level, after the id column.
-        return `${id}   ${'  '.repeat(level)}${label}`;
+        return `${id}   ${'  '.repeat(level)}${label}${styleSummary(node)}`;
     });
 }
 
@@ -290,11 +332,25 @@ export function runContext(options: ContextOptions): number {
  */
 function emit(entries: { node: JmNode; level: number }[], options: ContextOptions): void {
     if (options.asJson) {
-        const payload = entries.map(({ node, level }) => ({
-            id: node.id,
-            level,
-            text: options.idsOnly ? undefined : clip(flatten(textOf(node)), options.maxText, options.fullText),
-        }));
+        const payload = entries.map(({ node, level }) => {
+            const entry: Record<string, unknown> = {
+                id: node.id,
+                level,
+                text: options.idsOnly
+                    ? undefined
+                    : clip(flatten(textOf(node)), options.maxText, options.fullText),
+            };
+            // Only when the node overrides something. A style block records the
+            // difference from the theme, so a node that overrode nothing would
+            // contribute the same absent entry every time - length for
+            // information the theme already implies, on an output an agent reads
+            // at every step.
+            const style = describeStyle(node.style);
+            if (style !== null) {
+                entry.style = style;
+            }
+            return entry;
+        });
         process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
         return;
     }

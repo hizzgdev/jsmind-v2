@@ -378,3 +378,134 @@ test('e2e - CLI refuses a document whose tree is inconsistent', () => {
 
     rmSync(dir, { recursive: true, force: true });
 });
+
+
+// ---------------------------------------------------------------------------
+// Style crosses the boundary in both directions
+// ---------------------------------------------------------------------------
+
+test('e2e - a style written by the CLI is read back through the API', () => {
+    // The CLI writes fields it derives from `JmNodeStyle`; the API reads the same
+    // type. If the two ever disagree about a name or a shape, this is where it
+    // shows - a file that validates but comes back with a different node.
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-e2e-style-out-'));
+    const file = join(dir, 'styled.json');
+    try {
+        runCli(['create', file, '--title', 'Style E2E', '--name', 't', '--author', 'a']);
+        const added = runCliJson([
+            'mind', 'add-child', file,
+            '--parent-id', 'root',
+            '--text', 'Styled',
+            '--json',
+        ]);
+        const nodeId = added.id as string;
+        assert.ok(nodeId);
+
+        const styled = runCli([
+            'node', 'set-style', file,
+            '--node-id', nodeId,
+            '--tone', 'danger',
+            '--font-size', '22',
+            '--font-weight', 'bold',
+            '--border-color', '#ff0000',
+            '--border-width', '2',
+            '--border-style', 'dotted',
+            '--incoming.color', '#00ff00',
+            '--incoming.width', '3',
+            '--incoming.pattern', 'dashed',
+            '--incoming.curve', 'bezier',
+        ]);
+        assert.strictEqual(styled.code, 0, styled.stderr);
+
+        // Read it through the API, not through the CLI again - the point is that
+        // the file is loadable as a model, with every field where it belongs.
+        const doc = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+        const mind = new JmMindJsonSerializer().deserialize(doc);
+        const node = mind.findNodeById(nodeId);
+        assert.ok(node, 'node written by the CLI should load through the API');
+        assert.deepStrictEqual(node.style, {
+            tone: 'danger',
+            fontSize: 22,
+            fontWeight: 'bold',
+            borderColor: '#ff0000',
+            borderWidth: 2,
+            borderStyle: 'dotted',
+            incoming: {
+                color: '#00ff00',
+                width: 3,
+                pattern: 'dashed',
+                curve: 'bezier',
+            },
+        });
+
+        // And the document the API writes back is still valid.
+        const roundTrip = validateMindData(new JmMindJsonSerializer().serialize(mind));
+        assert.strictEqual(roundTrip.valid, true, JSON.stringify(roundTrip.errors));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('e2e - a style written through the API is read back by the CLI', () => {
+    // The other direction. A model can set `style` directly, so the CLI's
+    // discovery output has to report whatever the API was able to store -
+    // including fields the CLI itself would spell differently.
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-e2e-style-in-'));
+    const file = join(dir, 'api-styled.json');
+    try {
+        runCli(['create', file, '--title', 'API Style', '--name', 't', '--author', 'a']);
+        const added = runCliJson([
+            'mind', 'add-child', file,
+            '--parent-id', 'root',
+            '--text', 'From API',
+            '--json',
+        ]);
+        const nodeId = added.id as string;
+
+        // Set the style through the model, then write the file the way the API
+        // would - the CLI never touches this value.
+        const doc = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+        const mind = new JmMindJsonSerializer().deserialize(doc);
+        const node = mind.findNodeById(nodeId);
+        assert.ok(node);
+        node.style = {
+            tone: 'accent',
+            fontSize: 18,
+            fontWeight: 'normal',
+            color: '#123456',
+            incoming: { pattern: 'dotted', curve: 'straight' },
+        };
+        const written = new JmMindJsonSerializer().serialize(mind);
+        const check = validateMindData(written);
+        assert.strictEqual(check.valid, true, JSON.stringify(check.errors));
+        writeFileSync(file, JSON.stringify(written, null, 4));
+
+        // Now the CLI has to see it.
+        const outline = runCliJson(['context', file, '--json', '--depth', '3']);
+        const entry = (outline as { id: string; style?: Record<string, unknown> }[]).find(
+            (e) => e.id === nodeId
+        );
+        assert.ok(entry, 'node should appear in the outline');
+        assert.deepStrictEqual(entry.style, {
+            tone: 'accent',
+            fontSize: 18,
+            fontWeight: 'normal',
+            color: '#123456',
+            incoming: { pattern: 'dotted', curve: 'straight' },
+        });
+
+        // And the text output carries the same values, in the spelling that can
+        // be fed straight back into a flag.
+        const text = runCli(['context', file, '--depth', '3']);
+        assert.strictEqual(text.code, 0, text.stderr);
+        assert.match(
+            text.stdout,
+            new RegExp(
+                `${nodeId}.*\\{tone=accent fontSize=18 fontWeight=normal color=#123456 ` +
+                'incoming\\.pattern=dotted incoming\\.curve=straight\\}'
+            )
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});

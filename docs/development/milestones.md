@@ -49,39 +49,40 @@ UI 测试和导出能力都是为它服务的。
 
 ### 任务清单
 
-#### M1.1 · `node set-style` —— 补齐表达能力的最后一块
+#### M1.1 · `node set-style` —— 补齐表达能力的最后一块 ✅
 
-现在 CLI 能改结构、文字、折叠、换边、移动，**唯独不能改样式**。
+CLI 能改结构、文字、折叠、换边、移动，**唯独不能改样式**。
 而 `JmNodeStyle` 里有 `tone` / `fontSize` / `fontWeight`，这些是 agent
 表达「这是风险节点」「这是重点」的唯一手段。
 
-- [ ] CLI 接口设计：`jsmind node set-style <file> <id> [options]`
-- [ ] 支持的字段：`--tone` / `--font-size` / `--font-weight` / `--background` / `--color` / `--border-color` / `--border-width` / `--border-style`
-- [ ] 值的合法性校验（走 schema，不自己写规则）
-- [ ] 清除语义：什么参数表示「恢复主题默认」（可能是 `--tone default` 或 `--reset`）
-- [ ] 单测：合法值、非法值、清除、多字段组合、写后校验回滚
-- [ ] `docs/features/cli.md` 补命令说明
-- [ ] `--dry-run` 和 `--json` 行为与其他 `node` 子命令一致
+- [x] CLI 接口：`jsmind node set-style <file> --node-id <id> [options]`
+- [x] 覆盖 `JmNodeStyle` 全部字段，包括嵌套的 `incoming.*`
+- [x] 字段写法：点号分层级、连字符分词（`--incoming.color`），路径由 flag 名推导
+- [x] 值的合法性校验：枚举从 model 的枚举读，数值为正数，颜色只要求是字符串
+- [x] 清除语义：`--clear <字段列表>` 与 `--reset`
+- [x] 单测：合法值、非法值、清除、嵌套字段、空块回收、dry-run
+- [x] `docs/requirements/v2-cli.md` §3.3
 
-**注意**：roadmap S7c 里曾写「前置是 `onNodeUpdated` 必须接通」——**那句是错的**。
-`onNodeUpdated` 只影响浏览器里的实时重绘；CLI 改文件后重新 export 是完整重建，
-不经过更新路径。这个命令不依赖任何未完成的东西。
+**`set-style` 不依赖 `onNodeUpdated`。** roadmap 早期版本写过「前置是 `onNodeUpdated` 接通」，
+那句是错的：`onNodeUpdated` 只影响浏览器内的实时重绘，而 CLI 改完文件后重新 export
+是完整重建，不走更新路径。
 
-#### M1.2 · `context` 看得见样式 —— 修掉 agent 的盲区
+#### M1.2 · `context` 看得见样式 —— 修掉 agent 的盲区 ✅
 
-现在 `context` 只输出 `id` / `level` / `text`。agent 改了 `tone` 之后，
-**它看不见自己改了什么**，只能出图用视觉确认，而视觉确认是有成本的。
+`context` 原来只输出 `id` / `level` / `text`。agent 改了 `tone` 之后看不见自己改了什么，
+只能出图用视觉确认，而视觉确认有成本。
 
-- [ ] 决定默认行为：是默认显示 `tone`，还是 `--style` 才显示
-- [ ] 显示 `folded` 状态（折叠的子树在 outline 里怎么体现）
-- [ ] `--json` 输出里对应字段的名称和位置
-- [ ] 考虑 `side` 要不要显示（agent 排布左右分支时有用）
-- [ ] 单测
-- [ ] 文档更新
+- [x] 默认输出样式覆盖，**只显示非默认值** —— 没有覆盖的节点不带 `style` 键，
+      常规结构查询的长度不变
+- [x] `--json` 的 `style` 字段，形状与文件里的一致
+- [x] 文本输出的键用点号，与设置时的 flag 拼写一致
+- [x] 单测：有覆盖 / 无覆盖 / 文本输出 / JSON 输出
+- [x] `docs/requirements/v2-cli.md` §5.1
+- [ ] `folded` 与 `side` 的显示
 
-**设计权衡**：`context` 是 agent 每次操作都要跑的「眼睛」，输出越短越省 token。
-样式信息全塞进去会让每行变长。倾向的做法是**只显示非默认值** ——
-没有 `tone` 的节点不加字段，这样常规结构查询的输出不变长。
+**`folded` / `side` 未做的原因：** 它们不是「非默认值」形态 —— `folded: false`
+和 `side` 的当前值也是常规状态，要显示就得每行都带，输出会整体变长。
+需要用别的办法（开关，或放进 `mind find`），单独评估。
 
 #### M1.3 · Skill —— 把能力变成流程
 

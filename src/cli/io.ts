@@ -161,6 +161,30 @@ export function intOption(raw: unknown, fallback: number, name: string): number 
 }
 
 /**
+ * Reads an optional integer option, or `undefined` when absent.
+ *
+ * @param values - Parsed option values.
+ * @param name - Option name without dashes.
+ * @returns The non-negative integer, or `undefined`.
+ * @throws {@link CliError} With `Usage` when present but not a non-negative integer.
+ * @remarks
+ * The optional counterpart of {@link requireIntOption}. Together with
+ * {@link numberOption} that covers the three readers this CLI needs - required,
+ * optional, fractional - and none of them takes a flag deciding what it accepts:
+ * the name says it. A parameter that switched "allow negatives" on would have to
+ * be passed correctly at every call site, and forgetting it would not fail loudly.
+ */
+export function optionalIntOption(
+    values: Record<string, unknown>,
+    name: string
+): number | undefined {
+    if (values[name] === undefined) {
+        return undefined;
+    }
+    return parseIntOption(values[name], name);
+}
+
+/**
  * Reads a positive number option, falling back when it is absent.
  *
  * Unlike {@link intOption} this accepts fractions, which is what a rendering
