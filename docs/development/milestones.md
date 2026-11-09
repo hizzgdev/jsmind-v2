@@ -51,45 +51,38 @@ UI 测试和导出能力都是为它服务的。
 
 #### M1.1 · `node set-style` —— 补齐表达能力的最后一块 ✅
 
-现在 CLI 能改结构、文字、折叠、换边、移动，**唯独不能改样式**。
+CLI 能改结构、文字、折叠、换边、移动，**唯独不能改样式**。
 而 `JmNodeStyle` 里有 `tone` / `fontSize` / `fontWeight`，这些是 agent
 表达「这是风险节点」「这是重点」的唯一手段。
 
-- [x] CLI 接口设计：`jsmind node set-style <file> --node-id <id> [options]`
-- [x] 支持的字段：`--tone` / `--font-size` / `--font-weight` / `--background` / `--color` / `--border-color` / `--border-width` / `--border-style`，外加 `incoming.*` 的四个（`--incoming-color` / `-width` / `-pattern` / `-curve`）
-- [x] 值的合法性校验：枚举值在 CLI 层拦（报错点名 flag），数值与 schema 规则一致（正数），颜色只要求是字符串
-- [x] 清除语义：`--clear <字段列表>`（camelCase 和 kebab-case 都认）+ `--reset`（清空整个 style 块）
-- [x] 单测：20 个用例覆盖合法值、非法值、清除、嵌套字段、空 style 回收、dry-run
-- [x] `docs/requirements/v2-cli.md` 补 §3.3 命令说明
-- [x] `--dry-run` 和 `--json` 行为与其他 `node` 子命令一致
+- [x] CLI 接口：`jsmind node set-style <file> --node-id <id> [options]`
+- [x] 覆盖 `JmNodeStyle` 全部字段，包括嵌套的 `incoming.*`
+- [x] 字段写法：点号分层级、连字符分词（`--incoming.color`），路径由 flag 名推导
+- [x] 值的合法性校验：枚举从 model 的枚举读，数值为正数，颜色只要求是字符串
+- [x] 清除语义：`--clear <字段列表>` 与 `--reset`
+- [x] 单测：合法值、非法值、清除、嵌套字段、空块回收、dry-run
+- [x] `docs/requirements/v2-cli.md` §3.3
 
-**实现时改了一处设计**：参数校验移到了读文件之前。原本校验发生在 `runMutation` 的回调里，意味着一个拼错的 flag 要先读完文件、建好临时副本才报错 —— 文件不存在时更会报成 IO 错误而不是用法错误。现在拆成 `parseStyleArgs`（纯参数）和 `applyStyle`（合入当前 style）两步。
-
-**注意**：roadmap S7c 里曾写「前置是 `onNodeUpdated` 必须接通」——**那句是错的**。
-`onNodeUpdated` 只影响浏览器里的实时重绘；CLI 改文件后重新 export 是完整重建，
-不经过更新路径。这个命令不依赖任何未完成的东西。
+**`set-style` 不依赖 `onNodeUpdated`。** roadmap 早期版本写过「前置是 `onNodeUpdated` 接通」，
+那句是错的：`onNodeUpdated` 只影响浏览器内的实时重绘，而 CLI 改完文件后重新 export
+是完整重建，不走更新路径。
 
 #### M1.2 · `context` 看得见样式 —— 修掉 agent 的盲区 ✅
 
-现在 `context` 只输出 `id` / `level` / `text`。agent 改了 `tone` 之后，
-**它看不见自己改了什么**，只能出图用视觉确认，而视觉确认是有成本的。
+`context` 原来只输出 `id` / `level` / `text`。agent 改了 `tone` 之后看不见自己改了什么，
+只能出图用视觉确认，而视觉确认有成本。
 
-- [x] 决定默认行为：**默认显示，但只显示非默认值** —— 没设过覆盖的节点不带 `style` 键，
-      所以常规结构查询的输出长度一字不变；设过的才多出那一段
-- [ ] 显示 `folded` 状态 —— **本轮没做**。它对 agent 确实有用（知道哪些子树没展开），
-      但它不是「非默认值」形态：`folded: false` 也是默认值，要显示就得每行都带。
-      单独评估，可能用 `--folded-only` 之类的开关，或者放进 `mind find` 的输出
-- [x] `--json` 输出里对应字段的名称和位置：`style` 对象，形状与文件里的一致
-- [ ] 考虑 `side` 要不要显示 —— **本轮没做**，理由同 `folded`
+- [x] 默认输出样式覆盖，**只显示非默认值** —— 没有覆盖的节点不带 `style` 键，
+      常规结构查询的长度不变
+- [x] `--json` 的 `style` 字段，形状与文件里的一致
+- [x] 文本输出的键用点号，与设置时的 flag 拼写一致
 - [x] 单测：有覆盖 / 无覆盖 / 文本输出 / JSON 输出
-- [x] 文档更新：`v2-cli.md` §5.1
+- [x] `docs/requirements/v2-cli.md` §5.1
+- [ ] `folded` 与 `side` 的显示
 
-**文本输出的键用点号**（`incoming.pattern=dashed`），和设置时的 flag 拼写一致 ——
-读到的值可以原样拿去改或 `--clear`，不用翻译。
-
-**顺带修掉一个 bug**：`set-style` 原来在 `runMutation` 之后重读文件来生成报告，
-而 `--dry-run` 时文件根本没写，报告出来的是**旧值** —— 报告了一个没发生的改动。
-改成用 `runMutation` 的返回值（它本来就返回回调产物）。
+**`folded` / `side` 未做的原因：** 它们不是「非默认值」形态 —— `folded: false`
+和 `side` 的当前值也是常规状态，要显示就得每行都带，输出会整体变长。
+需要用别的办法（开关，或放进 `mind find`），单独评估。
 
 #### M1.3 · Skill —— 把能力变成流程
 
