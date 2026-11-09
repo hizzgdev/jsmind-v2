@@ -49,19 +49,21 @@ UI 测试和导出能力都是为它服务的。
 
 ### 任务清单
 
-#### M1.1 · `node set-style` —— 补齐表达能力的最后一块
+#### M1.1 · `node set-style` —— 补齐表达能力的最后一块 ✅
 
 现在 CLI 能改结构、文字、折叠、换边、移动，**唯独不能改样式**。
 而 `JmNodeStyle` 里有 `tone` / `fontSize` / `fontWeight`，这些是 agent
 表达「这是风险节点」「这是重点」的唯一手段。
 
-- [ ] CLI 接口设计：`jsmind node set-style <file> <id> [options]`
-- [ ] 支持的字段：`--tone` / `--font-size` / `--font-weight` / `--background` / `--color` / `--border-color` / `--border-width` / `--border-style`
-- [ ] 值的合法性校验（走 schema，不自己写规则）
-- [ ] 清除语义：什么参数表示「恢复主题默认」（可能是 `--tone default` 或 `--reset`）
-- [ ] 单测：合法值、非法值、清除、多字段组合、写后校验回滚
-- [ ] `docs/features/cli.md` 补命令说明
-- [ ] `--dry-run` 和 `--json` 行为与其他 `node` 子命令一致
+- [x] CLI 接口设计：`jsmind node set-style <file> --node-id <id> [options]`
+- [x] 支持的字段：`--tone` / `--font-size` / `--font-weight` / `--background` / `--color` / `--border-color` / `--border-width` / `--border-style`，外加 `incoming.*` 的四个（`--incoming-color` / `-width` / `-pattern` / `-curve`）
+- [x] 值的合法性校验：枚举值在 CLI 层拦（报错点名 flag），数值与 schema 规则一致（正数），颜色只要求是字符串
+- [x] 清除语义：`--clear <字段列表>`（camelCase 和 kebab-case 都认）+ `--reset`（清空整个 style 块）
+- [x] 单测：20 个用例覆盖合法值、非法值、清除、嵌套字段、空 style 回收、dry-run
+- [x] `docs/requirements/v2-cli.md` 补 §3.3 命令说明
+- [x] `--dry-run` 和 `--json` 行为与其他 `node` 子命令一致
+
+**实现时改了一处设计**：参数校验移到了读文件之前。原本校验发生在 `runMutation` 的回调里，意味着一个拼错的 flag 要先读完文件、建好临时副本才报错 —— 文件不存在时更会报成 IO 错误而不是用法错误。现在拆成 `parseStyleArgs`（纯参数）和 `applyStyle`（合入当前 style）两步。
 
 **注意**：roadmap S7c 里曾写「前置是 `onNodeUpdated` 必须接通」——**那句是错的**。
 `onNodeUpdated` 只影响浏览器里的实时重绘；CLI 改文件后重新 export 是完整重建，

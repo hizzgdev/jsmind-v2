@@ -55,7 +55,7 @@ jsmind
     ├── set-text
     ├── set-folded
     ├── set-side
-    └── set-style    （S4 之后）
+    └── set-style
 ```
 
 ### 2.1 为什么分三类
@@ -112,11 +112,45 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 | `content` | `jsmind node set-text <file> --node-id <id> --text <text>` |
 | `folded` | `jsmind node set-folded <file> --node-id <id> [--folded \| --no-folded]` |
 | `side` | `jsmind node set-side <file> --node-id <id> --side left\|right\|center` |
-| `style`（S1 之后） | `jsmind node set-style <file> --node-id <id> [--tone ...] [--font-size ...] ...` |
+| `style` | `jsmind node set-style <file> --node-id <id> [--tone ...] [--font-size ...] ... [--clear ...] [--reset]` |
 
 **`JmNode` 没有 setter 方法**，所以这一组对应的是**字段赋值**（经 `NodeManager.setterTrap`），跟 `mind` 组的方法调用不同。
 
 **`set-side` 在 CLI 层接受 `left` / `right` / `center`，写入磁盘时转成 `JmNodeSide` 的数字**（`-1` / `0` / `1`）。磁盘格式的可读性让给 JSON，命令行的可读性留给人 —— 详见 `v2-data-format.md` 4.2。
+
+### 3.3 `jsmind node set-style` —— 覆盖主题
+
+节点的 `style` 块**只记录与主题不同的部分**。所以「设成什么」和「改回主题」是两类操作，命令也分成两类写法。
+
+**设置字段**（可任意组合，一次写入）：
+
+| flag | 字段 | 取值 |
+|---|---|---|
+| `--tone` | `tone` | `default` / `primary` / `success` / `warning` / `danger` / `info` |
+| `--background` | `background` | 任意 CSS 颜色 |
+| `--color` | `color` | 任意 CSS 颜色 |
+| `--border-color` | `borderColor` | 任意 CSS 颜色 |
+| `--border-width` | `borderWidth` | 正数 |
+| `--border-style` | `borderStyle` | `solid` / `dashed` / `dotted` |
+| `--font-size` | `fontSize` | 正数 |
+| `--font-weight` | `fontWeight` | `normal` / `bold` |
+| `--incoming-color` | `incoming.color` | 任意 CSS 颜色 |
+| `--incoming-width` | `incoming.width` | 正数 |
+| `--incoming-pattern` | `incoming.pattern` | `solid` / `dashed` / `dotted` |
+| `--incoming-curve` | `incoming.curve` | `straight` / `bezier` |
+
+**清除字段**：
+
+```bash
+--clear <字段列表>   # 逗号分隔，两种写法都认：fontSize 或 font-size
+--reset              # 清掉这个节点的全部覆盖
+```
+
+**为什么清除不能靠设值**：`fontSize` 没有「默认值」可设回主题，只能删键。整个 `style` 块本身就是「覆盖的集合」，键不存在 = 没有覆盖。所以 `--clear` 是独立操作，不是某个特殊值。同理 `--clear` 掉最后一个字段后，`style` 块整个从文件里消失，而不是留一个 `{}`。
+
+**`--reset` 不能与字段或 `--clear` 同时出现** —— 它说的是「这个节点不要任何覆盖」，和「设成某个值」互相矛盾，同时给会直接报用法错误而不是猜意图。
+
+**参数校验发生在读文件之前**：非法 tone、非正数、未知的 `--clear` 字段都在打开文件前就报 `Usage`（退出码 2），不会因为文件恰好不存在而变成别的错误。颜色只检查是不是字符串 —— 主题接受任意 CSS 颜色，枚举值才在 CLI 层拦（为了报错时点名是哪个 flag，而不是给一个 JSON 路径）。
 
 ---
 
@@ -347,7 +381,7 @@ File unchanged.
 | 项 | 当前倾向 |
 |---|---|
 | 命令名用 `add-child` 还是 `addChild` | 倾向 `add-child`（CLI 惯例是 kebab-case，但跟 JS API 的对应关系会变模糊） |
-| `set-style` 的参数怎么展开 | 倾向 `--tone` / `--font-size` / `--border-width` 直接映射字段名，不做缩写 |
+| ~~`set-style` 的参数怎么展开~~ | **已定并实现**：`--tone` / `--font-size` / `--border-width` 直接映射字段名，不做缩写 |
 | `context --focus` 的匹配算法 | 子串 + 简单模糊（编辑距离），具体算法待实现时定 |
 | 是否要 `jsmind mind list` 之类只读命令 | 倾向不加，`context` 已经覆盖 |
 | 退出码 `3` 是否再细分 | 暂不细分，先观察实际需要 |

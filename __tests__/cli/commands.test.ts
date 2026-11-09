@@ -435,3 +435,314 @@ test('cli - --output writes elsewhere and leaves the original alone', () => {
     assert.ok(written.nodes.root.children.length > 2, 'the copy should carry the new child');
     rmSync(dir, { recursive: true, force: true });
 });
+
+// ---------------------------------------------------------------------------
+// node set-style
+//
+// The fixture already carries a spread of overrides: root has fontSize and
+// fontWeight, jm-a1 has a nested incoming block, jm-b1 has border properties.
+// Each case below starts from that copy, so the assertions are about what the
+// command changed rather than what it wrote from nothing.
+// ---------------------------------------------------------------------------
+
+/** Runs one set-style against a fresh copy and returns the node's style after. */
+function styleAfter(nodeId: string, values: Record<string, unknown>): unknown {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        capture(() => {
+            runNode(file, 'set-style', { 'node-id': nodeId, ...values }, WRITE);
+        });
+        const after = JSON.parse(readFileSync(file, 'utf8'));
+        return after.nodes[nodeId].style;
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+test('cli - node set-style sets one field', () => {
+    assert.deepStrictEqual(styleAfter('jm-a2', { tone: 'info' }), {
+        tone: 'info',
+        fontWeight: 'bold',
+    });
+});
+
+test('cli - node set-style applies several fields in one write', () => {
+    assert.deepStrictEqual(styleAfter('jm-b1', { 'tone': 'success', 'font-size': '16' }), {
+        tone: 'success',
+        borderWidth: 2,
+        borderStyle: 'dotted',
+        fontSize: 16,
+    });
+});
+
+test('cli - node set-style creates a style block on a node that had none', () => {
+    // Every node in the shared fixture already carries a style block, so this
+    // case strips one first. Without it, "creates" is untested and only
+    // "merges" is - and those are different code paths through writeAt.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const doc = JSON.parse(readFileSync(file, 'utf8'));
+        assert.ok(doc.nodes['jm-b1'].style !== undefined, 'fixture precondition');
+        delete doc.nodes['jm-b1'].style;
+        writeFileSync(file, JSON.stringify(doc, null, 4));
+
+        capture(() => {
+            runNode(file, 'set-style', { 'node-id': 'jm-b1', 'font-weight': 'bold' }, WRITE);
+        });
+
+        const after = JSON.parse(readFileSync(file, 'utf8'));
+        assert.deepStrictEqual(after.nodes['jm-b1'].style, { fontWeight: 'bold' });
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style writes nested incoming fields without dropping siblings', () => {
+    // jm-a1 starts with incoming { color, width, pattern }. Changing the pattern
+    // must leave the other two alone.
+    assert.deepStrictEqual(styleAfter('jm-a1', { 'incoming-pattern': 'solid' }), {
+        tone: 'success',
+        incoming: { color: '#4fb681', width: 3, pattern: 'solid' },
+    });
+});
+
+test('cli - node set-style creates the incoming block when it does not exist', () => {
+    assert.deepStrictEqual(styleAfter('jm-a2', { 'incoming-curve': 'straight' }), {
+        tone: 'danger',
+        fontWeight: 'bold',
+        incoming: { curve: 'straight' },
+    });
+});
+
+test('cli - node set-style --clear removes only the named fields', () => {
+    assert.deepStrictEqual(styleAfter('root', { clear: 'fontSize' }), {
+        tone: 'primary',
+        fontWeight: 'bold',
+    });
+});
+
+test('cli - node set-style --clear accepts camelCase field names', () => {
+    // The file shows fontSize; the flag is --font-size. --clear takes either.
+    assert.deepStrictEqual(styleAfter('root', { clear: 'fontSize,fontWeight' }), {
+        tone: 'primary',
+    });
+});
+
+test('cli - node set-style --clear accepts kebab-case field names too', () => {
+    assert.deepStrictEqual(styleAfter('root', { clear: 'font-size,font-weight' }), {
+        tone: 'primary',
+    });
+});
+
+test('cli - node set-style --clear drops the style block once it is empty', () => {
+    // An empty object and a missing property resolve the same way, but only the
+    // missing one serialises to nothing.
+    assert.strictEqual(styleAfter('jm-a2', { clear: 'tone,fontWeight' }), undefined);
+});
+
+test('cli - node set-style --clear drops incoming once its last field goes', () => {
+    assert.deepStrictEqual(
+        styleAfter('jm-a1', { clear: 'incomingColor,incomingWidth,incomingPattern' }),
+        { tone: 'success' }
+    );
+});
+
+test('cli - node set-style --reset removes every override', () => {
+    assert.strictEqual(styleAfter('jm-b1', { reset: true }), undefined);
+});
+
+test('cli - node set-style reports the style it left behind as JSON', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runNode(file, 'set-style', { 'node-id': 'jm-a2', 'tone': 'info', 'json': true }, WRITE);
+        });
+        assert.deepStrictEqual(JSON.parse(out), {
+            id: 'jm-a2',
+            style: { tone: 'info', fontWeight: 'bold' },
+        });
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style does not touch the file under --dry-run', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const before = readFileSync(file, 'utf8');
+        capture(() => {
+            runNode(file, 'set-style', { 'node-id': 'jm-a2', 'tone': 'info' }, {
+                dryRun: true,
+                backup: false,
+            });
+        });
+        assert.strictEqual(readFileSync(file, 'utf8'), before);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style rejects an unknown tone as a usage error', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runNode(file, 'set-style', { 'node-id': 'jm-a2', 'tone': 'banana' }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                assert.match(err.message, /--tone must be one of/);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style rejects an unknown font weight', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runNode(file, 'set-style', { 'node-id': 'jm-a2', 'font-weight': 'heavy' }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style rejects a non-positive numeric field', () => {
+    for (const value of ['0', '-3', 'abc']) {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runNode(join(scratch(), 'unused.json'), 'set-style', {
+                        'node-id': 'jm-a2',
+                        'font-size': value,
+                    }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                return true;
+            },
+            `font-size ${value} should be rejected before the file is read`
+        );
+    }
+});
+
+test('cli - node set-style with no field at all is a usage error', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runNode(file, 'set-style', { 'node-id': 'jm-a2' }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                assert.match(err.message, /at least one field/);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style rejects --reset combined with a field', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runNode(file, 'set-style', { 'node-id': 'jm-a2', 'reset': true, 'tone': 'info' }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                assert.match(err.message, /cannot be combined/);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style rejects an unknown --clear field', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runNode(file, 'set-style', { 'node-id': 'jm-a2', 'clear': 'banana' }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                assert.match(err.message, /does not know/);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style on a missing node is an invalid-data error', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runNode(file, 'set-style', { 'node-id': 'nope', 'tone': 'info' }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.InvalidData);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
