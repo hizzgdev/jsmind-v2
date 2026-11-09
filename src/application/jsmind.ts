@@ -49,18 +49,14 @@ class JsMind {
     /** The state coordinator instance for managing the state of the mind map. */
     private readonly coordinator: JmMindChangeCoordinator;
 
+    /** Issues display-affecting commands. */
+    private readonly commander: JmCommander;
+
     /**
      * Creates a new jsMind instance.
      *
      * @param options - Configuration options for the jsMind instance.
      */
-    /**
-     * Issues commands that affect what is displayed. The counterpart to the
-     * coordinator: that one reacts to the mind changing, this one carries what
-     * the caller asked for.
-     */
-    private readonly commander: JmCommander;
-
     private constructor(
         options: JsMindOptions,
         mindChangeCoordinator: JmMindChangeCoordinator,
@@ -101,8 +97,6 @@ class JsMind {
      * like removing observers, clearing caches, etc.
      */
     close(): void {
-        // Empty for now - can be extended in the future
-        // for cleanup operations like removing observers, clearing caches, etc.
         if(this.mind) {
             this.coordinator.onMindMapClosed(this.mind!);
             this.mind = null;

@@ -268,6 +268,11 @@ export function applyThemeToHost(root: ShadowRoot, theme: JmTheme): void {
     }
 }
 
+/** Anything that can carry a custom property — a node element or the host. */
+interface CustomPropertyTarget {
+    style: { setProperty(name: string, value: string): void };
+}
+
 /**
  * Writes a tone palette's three colours onto an element as custom properties.
  *
@@ -288,11 +293,6 @@ export function applyThemeToHost(root: ShadowRoot, theme: JmTheme): void {
  * @param palette - Tone to apply. Undefined leaves the target untouched.
  * @returns Nothing.
  */
-/** Anything that can carry a custom property — a node element or the host. */
-interface CustomPropertyTarget {
-    style: { setProperty(name: string, value: string): void };
-}
-
 export function applyTonePalette(
     target: CustomPropertyTarget,
     palette: Partial<JmTonePalette> | null | undefined
