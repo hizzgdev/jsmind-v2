@@ -13,7 +13,13 @@
 
 import { JmNodeContent } from '../../model/data/node-content.ts';
 import type { JmMind } from '../../model/mind.ts';
-import type { JmNodeStyle } from '../../model/data/style.ts';
+import {
+    JmFontWeight,
+    JmLineCurve,
+    JmLinePattern,
+    JmTone,
+    type JmNodeStyle,
+} from '../../model/data/style.ts';
 import { runMutation } from '../mutate.ts';
 import { enumOption, numberOption, requireOption, type WriteOptions } from '../io.ts';
 import { describeStyle, parseSide, report } from '../shared.ts';
@@ -41,23 +47,18 @@ function parseBoolean(raw: string): boolean {
 }
 
 /**
- * Words accepted for `style.tone`.
+ * Accepted values, read from the model's own enums.
  *
  * @remarks
- * Duplicated from the validator on purpose. The validator would reject a bad
- * value too, but only after the write, wrapped in a rollback message and
- * pointing at a JSON path. Catching it here names the flag the user typed.
+ * Not restated here. A hand-written copy of these lists drifts: the first
+ * version of this file listed six tones while `JmTone` had seven, so `--tone
+ * accent` was rejected as a bad value when it was perfectly legal. Nothing
+ * failed loudly - the missing entry only showed up when someone used it.
  */
-const TONE_WORDS = ['default', 'primary', 'success', 'warning', 'danger', 'info'] as const;
-
-/** Weights accepted for `style.fontWeight`. The schema does not check this one. */
-const FONT_WEIGHT_WORDS = ['normal', 'bold'] as const;
-
-/** Patterns accepted for `style.borderStyle` and `style.incoming.pattern`. */
-const LINE_PATTERN_WORDS = ['solid', 'dashed', 'dotted'] as const;
-
-/** Curves accepted for `style.incoming.curve`. */
-const LINE_CURVE_WORDS = ['straight', 'bezier'] as const;
+const TONE_WORDS = Object.values(JmTone);
+const FONT_WEIGHT_WORDS = Object.values(JmFontWeight);
+const LINE_PATTERN_WORDS = Object.values(JmLinePattern);
+const LINE_CURVE_WORDS = Object.values(JmLineCurve);
 
 /**
  * One style field reachable from the command line.
@@ -76,29 +77,29 @@ interface StyleField {
 
 /** Every style field the command accepts. */
 const STYLE_FIELDS: StyleField[] = [
-    { flag: 'tone', parse: raw => enumOption(raw, 'default', TONE_WORDS, 'tone') },
+    { flag: 'tone', parse: raw => enumOption(raw, JmTone.Default, TONE_WORDS, 'tone') },
     { flag: 'background', parse: raw => String(raw) },
     { flag: 'color', parse: raw => String(raw) },
     { flag: 'border-color', parse: raw => String(raw) },
     { flag: 'border-width', parse: raw => numberOption(raw, 1, 'border-width') },
     {
         flag: 'border-style',
-        parse: raw => enumOption(raw, 'solid', LINE_PATTERN_WORDS, 'border-style'),
+        parse: raw => enumOption(raw, JmLinePattern.Solid, LINE_PATTERN_WORDS, 'border-style'),
     },
     { flag: 'font-size', parse: raw => numberOption(raw, 1, 'font-size') },
     {
         flag: 'font-weight',
-        parse: raw => enumOption(raw, 'normal', FONT_WEIGHT_WORDS, 'font-weight'),
+        parse: raw => enumOption(raw, JmFontWeight.Normal, FONT_WEIGHT_WORDS, 'font-weight'),
     },
     { flag: 'incoming.color', parse: raw => String(raw) },
     { flag: 'incoming.width', parse: raw => numberOption(raw, 1, 'incoming-width') },
     {
         flag: 'incoming.pattern',
-        parse: raw => enumOption(raw, 'solid', LINE_PATTERN_WORDS, 'incoming-pattern'),
+        parse: raw => enumOption(raw, JmLinePattern.Solid, LINE_PATTERN_WORDS, 'incoming.pattern'),
     },
     {
         flag: 'incoming.curve',
-        parse: raw => enumOption(raw, 'bezier', LINE_CURVE_WORDS, 'incoming-curve'),
+        parse: raw => enumOption(raw, JmLineCurve.Bezier, LINE_CURVE_WORDS, 'incoming.curve'),
     },
 ];
 
@@ -348,20 +349,21 @@ Node attributes (JmNode writable fields). Structure goes through \`jsmind mind\`
   set-style    --node-id <id> [style fields]      Override the theme for one node
 
 set-style fields (any combination, applied in one write). A dot marks a level, so
---incoming.color addresses \`style.incoming.color\`:
+--incoming.color addresses \`style.incoming.color\`. Accepted values are read from
+the model's own enums, so this list cannot fall behind them:
 
-  --tone <value>              default | primary | success | warning | danger | info
+  --tone <value>              ${TONE_WORDS.join(' | ')}
   --background <color>
   --color <color>
   --border-color <color>
   --border-width <number>     positive
-  --border-style <value>      solid | dashed | dotted
+  --border-style <value>      ${LINE_PATTERN_WORDS.join(' | ')}
   --font-size <number>        positive
-  --font-weight <value>       normal | bold
+  --font-weight <value>       ${FONT_WEIGHT_WORDS.join(' | ')}
   --incoming.color <color>
   --incoming.width <number>   positive
-  --incoming.pattern <value>  solid | dashed | dotted
-  --incoming.curve <value>    straight | bezier
+  --incoming.pattern <value>  ${LINE_PATTERN_WORDS.join(' | ')}
+  --incoming.curve <value>    ${LINE_CURVE_WORDS.join(' | ')}
 
 Clearing, when the theme's value should come back:
 

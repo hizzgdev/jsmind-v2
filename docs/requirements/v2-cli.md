@@ -136,7 +136,7 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 
 | flag | 字段 | 取值 |
 |---|---|---|
-| `--tone` | `tone` | `default` / `primary` / `success` / `warning` / `danger` / `info` |
+| `--tone` | `tone` | `default` / `primary` / `success` / `warning` / `danger` / `info` / `accent` |
 | `--background` | `background` | 任意 CSS 颜色 |
 | `--color` | `color` | 任意 CSS 颜色 |
 | `--border-color` | `borderColor` | 任意 CSS 颜色 |

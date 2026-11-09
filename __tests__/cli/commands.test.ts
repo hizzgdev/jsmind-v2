@@ -20,6 +20,12 @@ import { runValidate } from '../../src/cli/commands/validate.ts';
 import { runContext } from '../../src/cli/commands/context.ts';
 import { runMind } from '../../src/cli/commands/mind.ts';
 import { runNode } from '../../src/cli/commands/node.ts';
+import {
+    JmFontWeight,
+    JmLineCurve,
+    JmLinePattern,
+    JmTone,
+} from '../../src/model/data/style.ts';
 import { CliError, CliExit } from '../../src/cli/exit.ts';
 import { scratch, capture } from './helpers.ts';
 
@@ -878,6 +884,106 @@ test('cli - node set-style accepts dotted flags for nested fields', () => {
             fontWeight: 'bold',
             incoming: { color: '#123456' },
         });
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+
+// ---------------------------------------------------------------------------
+// The accepted values come from the model, not a copy
+// ---------------------------------------------------------------------------
+
+test('cli - node set-style accepts every tone the model defines', () => {
+    // Regression: the first version restated the tone list by hand and left one
+    // out, so a legal value was rejected as invalid. Walking the enum means a
+    // tone added to the model is covered here without anyone remembering.
+    for (const tone of Object.values(JmTone)) {
+        const dir = scratch();
+        const file = join(dir, 'm.json');
+        copyFileSync(FIXTURE, file);
+        try {
+            capture(() => {
+                runNode(file, 'set-style', { 'node-id': 'jm-a2', 'tone': tone }, WRITE);
+            });
+            const after = JSON.parse(readFileSync(file, 'utf8'));
+            assert.strictEqual(after.nodes['jm-a2'].style.tone, tone, `tone ${tone} should be accepted`);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    }
+});
+
+test('cli - node set-style accepts every font weight the model defines', () => {
+    for (const weight of Object.values(JmFontWeight)) {
+        const dir = scratch();
+        const file = join(dir, 'm.json');
+        copyFileSync(FIXTURE, file);
+        try {
+            capture(() => {
+                runNode(file, 'set-style', { 'node-id': 'jm-a2', 'font-weight': weight }, WRITE);
+            });
+            const after = JSON.parse(readFileSync(file, 'utf8'));
+            assert.strictEqual(after.nodes['jm-a2'].style.fontWeight, weight);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    }
+});
+
+test('cli - node set-style accepts every line pattern and curve the model defines', () => {
+    for (const pattern of Object.values(JmLinePattern)) {
+        const dir = scratch();
+        const file = join(dir, 'm.json');
+        copyFileSync(FIXTURE, file);
+        try {
+            capture(() => {
+                runNode(file, 'set-style', { 'node-id': 'jm-a2', 'incoming.pattern': pattern }, WRITE);
+            });
+            const after = JSON.parse(readFileSync(file, 'utf8'));
+            assert.strictEqual(after.nodes['jm-a2'].style.incoming.pattern, pattern);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    }
+
+    for (const curve of Object.values(JmLineCurve)) {
+        const dir = scratch();
+        const file = join(dir, 'm.json');
+        copyFileSync(FIXTURE, file);
+        try {
+            capture(() => {
+                runNode(file, 'set-style', { 'node-id': 'jm-a2', 'incoming.curve': curve }, WRITE);
+            });
+            const after = JSON.parse(readFileSync(file, 'utf8'));
+            assert.strictEqual(after.nodes['jm-a2'].style.incoming.curve, curve);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    }
+});
+
+test('cli - mind move rejects a negative position', () => {
+    // `position` has no negative meaning: omitting it appends, and the model
+    // clamps anything below zero to zero. Accepting -5 silently would move the
+    // node to the front when the caller expected something else.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runMind(file, 'move', { 'node-id': 'jm-a1', 'parent-id': 'root', 'position': '-5' }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                assert.match(err.message, /non-negative integer/);
+                return true;
+            }
+        );
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

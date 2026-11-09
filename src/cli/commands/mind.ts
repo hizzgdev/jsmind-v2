@@ -16,7 +16,7 @@ import { JmEdgeType } from '../../model/data/edge.ts';
 import type { JmMind } from '../../model/mind.ts';
 import { runMutation } from '../mutate.ts';
 import {
-    optionalSignedIntOption,
+    optionalIntOption,
     optionalOption,
     readJsonFile,
     requireOption,
@@ -101,7 +101,7 @@ export function runMind(
         case 'add-node': {
             const parentId = requireOption(values, 'parent-id');
             const text = requireOption(values, 'text');
-            const position = optionalSignedIntOption(values, 'position');
+            const position = optionalIntOption(values, 'position');
             const sideRaw = optionalOption(values, 'side');
             const created = runMutation(file, options, (mind: JmMind) => {
                 const dest: { parentId: string; position?: number; side?: JmNodeSide } = {
@@ -123,7 +123,7 @@ export function runMind(
         case 'move': {
             const nodeId = requireOption(values, 'node-id');
             const parentId = requireOption(values, 'parent-id');
-            const position = optionalSignedIntOption(values, 'position');
+            const position = optionalIntOption(values, 'position');
             runMutation(file, options, (mind: JmMind) => {
                 const dest: { parentId: string; position?: number } = { parentId };
                 if (position !== undefined) {

@@ -49,6 +49,25 @@ export const JmTone = {
 export type JmTone = typeof JmTone[keyof typeof JmTone];
 
 /**
+ * Font weight.
+ *
+ * @remarks
+ * An enum rather than an inline union so the CLI can enumerate the accepted
+ * values instead of repeating them. `JmLinePattern` and `JmLineCurve` had this
+ * shape already; `fontWeight` was the odd one out.
+ *
+ * @public
+ */
+export const JmFontWeight = {
+    /** Regular weight. */
+    Normal: 'normal',
+    /** Emphasised weight. */
+    Bold: 'bold',
+} as const;
+
+export type JmFontWeight = typeof JmFontWeight[keyof typeof JmFontWeight];
+
+/**
  * Line dash style.
  *
  * @public
@@ -150,7 +169,7 @@ export interface JmNodeStyle {
     /** Font size in pixels. */
     fontSize?: number;
     /** Font weight. */
-    fontWeight?: 'normal' | 'bold';
+    fontWeight?: JmFontWeight;
     /** Style of the line connecting this node to its parent. */
     incoming?: JmLineStyle;
 }

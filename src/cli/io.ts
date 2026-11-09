@@ -161,46 +161,27 @@ export function intOption(raw: unknown, fallback: number, name: string): number 
 }
 
 /**
- * Reads a signed integer option, falling back when it is absent.
- *
- * @param raw - Raw option value.
- * @param fallback - Used when the option is absent.
- * @param name - Option name for the error message.
- * @returns The integer.
- * @throws {@link CliError} With `Usage` when present but not an integer.
- * @remarks
- * Separate from {@link intOption} because the two answer different questions.
- * A count cannot be negative; a position among siblings can (meaning "append"),
- * so the signed variant exists rather than one function with a flag that would
- * have to be passed correctly at every call site.
- */
-export function signedIntOption(raw: unknown, fallback: number, name: string): number {
-    if (raw === undefined) {
-        return fallback;
-    }
-    const value = Number(raw);
-    if (!Number.isInteger(value)) {
-        throw usageError(`--${name} must be an integer, got "${String(raw)}"`);
-    }
-    return value;
-}
-
-/**
  * Reads an optional integer option, or `undefined` when absent.
  *
  * @param values - Parsed option values.
  * @param name - Option name without dashes.
- * @returns The integer, or `undefined`.
- * @throws {@link CliError} With `Usage` when present but not an integer.
+ * @returns The non-negative integer, or `undefined`.
+ * @throws {@link CliError} With `Usage` when present but not a non-negative integer.
+ * @remarks
+ * The optional counterpart of {@link requireIntOption}. Together with
+ * {@link numberOption} that covers the three readers this CLI needs - required,
+ * optional, fractional - and none of them takes a flag deciding what it accepts:
+ * the name says it. A parameter that switched "allow negatives" on would have to
+ * be passed correctly at every call site, and forgetting it would not fail loudly.
  */
-export function optionalSignedIntOption(
+export function optionalIntOption(
     values: Record<string, unknown>,
     name: string
 ): number | undefined {
     if (values[name] === undefined) {
         return undefined;
     }
-    return signedIntOption(values[name], 0, name);
+    return parseIntOption(values[name], name);
 }
 
 /**
