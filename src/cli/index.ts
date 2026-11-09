@@ -119,9 +119,10 @@ function parse(argv: string[]): ParsedArgs {
                 'position': { type: 'string' },
                 'type': { type: 'string' },
                 'label': { type: 'string' },
-                // node style (set-style). Strings, including the numeric ones:
-                // the command parses and range-checks them itself so a bad
-                // value names the flag rather than a JSON path.
+                // node style (set-style). Strings, including the numeric ones: the command
+                // parses and range-checks them itself so a bad value names the flag
+                // rather than a JSON path. Dots mark a level, matching the path each
+                // flag addresses.
                 'tone': { type: 'string' },
                 'background': { type: 'string' },
                 'color': { type: 'string' },
@@ -130,10 +131,10 @@ function parse(argv: string[]): ParsedArgs {
                 'border-style': { type: 'string' },
                 'font-size': { type: 'string' },
                 'font-weight': { type: 'string' },
-                'incoming-color': { type: 'string' },
-                'incoming-width': { type: 'string' },
-                'incoming-pattern': { type: 'string' },
-                'incoming-curve': { type: 'string' },
+                'incoming.color': { type: 'string' },
+                'incoming.width': { type: 'string' },
+                'incoming.pattern': { type: 'string' },
+                'incoming.curve': { type: 'string' },
                 'clear': { type: 'string' },
                 'reset': { type: 'boolean', default: false },
                 // context

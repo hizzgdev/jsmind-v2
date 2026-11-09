@@ -504,14 +504,14 @@ test('cli - node set-style creates a style block on a node that had none', () =>
 test('cli - node set-style writes nested incoming fields without dropping siblings', () => {
     // jm-a1 starts with incoming { color, width, pattern }. Changing the pattern
     // must leave the other two alone.
-    assert.deepStrictEqual(styleAfter('jm-a1', { 'incoming-pattern': 'solid' }), {
+    assert.deepStrictEqual(styleAfter('jm-a1', { 'incoming.pattern': 'solid' }), {
         tone: 'success',
         incoming: { color: '#4fb681', width: 3, pattern: 'solid' },
     });
 });
 
 test('cli - node set-style creates the incoming block when it does not exist', () => {
-    assert.deepStrictEqual(styleAfter('jm-a2', { 'incoming-curve': 'straight' }), {
+    assert.deepStrictEqual(styleAfter('jm-a2', { 'incoming.curve': 'straight' }), {
         tone: 'danger',
         fontWeight: 'bold',
         incoming: { curve: 'straight' },
@@ -546,7 +546,7 @@ test('cli - node set-style --clear drops the style block once it is empty', () =
 
 test('cli - node set-style --clear drops incoming once its last field goes', () => {
     assert.deepStrictEqual(
-        styleAfter('jm-a1', { clear: 'incomingColor,incomingWidth,incomingPattern' }),
+        styleAfter('jm-a1', { clear: 'incoming.color,incoming.width,incoming.pattern' }),
         { tone: 'success' }
     );
 });
@@ -742,6 +742,142 @@ test('cli - node set-style on a missing node is an invalid-data error', () => {
                 return true;
             }
         );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+
+// ---------------------------------------------------------------------------
+// Discovery reads back what the mutation wrote
+// ---------------------------------------------------------------------------
+
+test('cli - context reports the style of a node that overrides the theme', () => {
+    // The gap this closes: set-style could write a field that no discovery
+    // command echoed, so the only way to confirm a style change was to render an
+    // image and look at it.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+            });
+        });
+        const entries = JSON.parse(out);
+        const a1 = entries.find((e: { id: string }) => e.id === 'jm-a1');
+        assert.deepStrictEqual(a1.style, {
+            tone: 'success',
+            incoming: { color: '#4fb681', width: 3, pattern: 'dashed' },
+        });
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context omits style for a node that overrides nothing', () => {
+    // Reporting an empty object would add a key to every entry, growing the
+    // output an agent reads on each discovery step.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const doc = JSON.parse(readFileSync(file, 'utf8'));
+        delete doc.nodes['jm-a1'].style;
+        writeFileSync(file, JSON.stringify(doc, null, 4));
+
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+            });
+        });
+        const a1 = JSON.parse(out).find((e: { id: string }) => e.id === 'jm-a1');
+        assert.ok(!('style' in a1), 'a node without overrides carries no style key');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context shows style in the text output too', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+            });
+        });
+        // jm-a1 has a nested incoming block. Dotted keys match the flags, so the
+        // value can be written back or cleared without translating.
+        assert.match(out, /jm-a1.*\{tone=success incoming\.color=#4fb681 incoming\.width=3 incoming\.pattern=dashed\}/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style --dry-run reports what it would have written', () => {
+    // Regression: the first implementation reread the file to build its report,
+    // which under --dry-run returned the old value - reporting a change that had
+    // not happened. Reporting what the mutation produced is both cheaper and the
+    // only correct answer here.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runNode(
+                file,
+                'set-style',
+                { 'node-id': 'jm-a2', 'tone': 'info', 'json': true },
+                { dryRun: true, backup: false }
+            );
+        });
+
+        const after = JSON.parse(readFileSync(file, 'utf8'));
+        assert.strictEqual(after.nodes['jm-a2'].style.tone, 'danger', 'the file must be untouched');
+
+        // Under --dry-run, runMutation prints the whole document that would have
+        // been written and *then* the command reports. Two JSON documents end to
+        // end, so `out` is not parseable as a whole - every mutating command
+        // behaves this way, not just this one. The report is the last document.
+        const report = out.slice(out.lastIndexOf('\n{') + 1);
+        assert.deepStrictEqual(JSON.parse(report).style, { tone: 'info', fontWeight: 'bold' });
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - node set-style accepts dotted flags for nested fields', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        capture(() => {
+            runNode(file, 'set-style', { 'node-id': 'jm-a2', 'incoming.color': '#123456' }, WRITE);
+        });
+        const after = JSON.parse(readFileSync(file, 'utf8'));
+        assert.deepStrictEqual(after.nodes['jm-a2'].style, {
+            tone: 'danger',
+            fontWeight: 'bold',
+            incoming: { color: '#123456' },
+        });
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

@@ -15,7 +15,13 @@ import { JmNodeContent } from '../../model/data/node-content.ts';
 import { JmEdgeType } from '../../model/data/edge.ts';
 import type { JmMind } from '../../model/mind.ts';
 import { runMutation } from '../mutate.ts';
-import { readJsonFile, requireOption, optionalOption, type WriteOptions } from '../io.ts';
+import {
+    optionalSignedIntOption,
+    optionalOption,
+    readJsonFile,
+    requireOption,
+    type WriteOptions,
+} from '../io.ts';
 import { CliExit, usageError, dataError } from '../exit.ts';
 import { parseSide, report, describeNode, describeEdge, loadMindOrThrow } from '../shared.ts';
 
@@ -31,25 +37,6 @@ const SUBCOMMANDS = [
     'list-edges',
 ] as const;
 
-/**
- * Parses an optional integer option.
- *
- * @param values - Parsed options.
- * @param name - Option name without dashes.
- * @returns The number, or undefined when absent.
- * @throws {@link CliError} With `Usage` when present but not an integer.
- */
-function optionalInt(values: Record<string, unknown>, name: string): number | undefined {
-    const raw = values[name];
-    if (raw === undefined) {
-        return undefined;
-    }
-    const value = Number(raw);
-    if (!Number.isInteger(value)) {
-        throw usageError(`--${name} must be an integer, got "${String(raw)}"`);
-    }
-    return value;
-}
 
 /**
  * Runs a `mind` subcommand.
@@ -114,7 +101,7 @@ export function runMind(
         case 'add-node': {
             const parentId = requireOption(values, 'parent-id');
             const text = requireOption(values, 'text');
-            const position = optionalInt(values, 'position');
+            const position = optionalSignedIntOption(values, 'position');
             const sideRaw = optionalOption(values, 'side');
             const created = runMutation(file, options, (mind: JmMind) => {
                 const dest: { parentId: string; position?: number; side?: JmNodeSide } = {
@@ -136,7 +123,7 @@ export function runMind(
         case 'move': {
             const nodeId = requireOption(values, 'node-id');
             const parentId = requireOption(values, 'parent-id');
-            const position = optionalInt(values, 'position');
+            const position = optionalSignedIntOption(values, 'position');
             runMutation(file, options, (mind: JmMind) => {
                 const dest: { parentId: string; position?: number } = { parentId };
                 if (position !== undefined) {

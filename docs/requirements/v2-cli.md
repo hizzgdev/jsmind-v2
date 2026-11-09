@@ -122,6 +122,16 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 
 节点的 `style` 块**只记录与主题不同的部分**。所以「设成什么」和「改回主题」是两类操作，命令也分成两类写法。
 
+**字段的写法：点号分层级，连字符分词。**
+
+```bash
+--font-size             → style.fontSize          （连字符只是把两个词连起来）
+--incoming.color        → style.incoming.color    （点号 = 进一层）
+--incoming.pattern      → style.incoming.pattern
+```
+
+路径不手写，从 flag 名推导。所以「命令行怎么写」和「写进文件哪个字段」只有一处定义，不会漂。
+
 **设置字段**（可任意组合，一次写入）：
 
 | flag | 字段 | 取值 |
@@ -134,15 +144,15 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 | `--border-style` | `borderStyle` | `solid` / `dashed` / `dotted` |
 | `--font-size` | `fontSize` | 正数 |
 | `--font-weight` | `fontWeight` | `normal` / `bold` |
-| `--incoming-color` | `incoming.color` | 任意 CSS 颜色 |
-| `--incoming-width` | `incoming.width` | 正数 |
-| `--incoming-pattern` | `incoming.pattern` | `solid` / `dashed` / `dotted` |
-| `--incoming-curve` | `incoming.curve` | `straight` / `bezier` |
+| `--incoming.color` | `incoming.color` | 任意 CSS 颜色 |
+| `--incoming.width` | `incoming.width` | 正数 |
+| `--incoming.pattern` | `incoming.pattern` | `solid` / `dashed` / `dotted` |
+| `--incoming.curve` | `incoming.curve` | `straight` / `bezier` |
 
 **清除字段**：
 
 ```bash
---clear <字段列表>   # 逗号分隔，两种写法都认：fontSize 或 font-size
+--clear <字段列表>   # 逗号分隔，写法同上：incoming.color、font-size（也认 fontSize）
 --reset              # 清掉这个节点的全部覆盖
 ```
 
@@ -242,13 +252,28 @@ jsmind context <file> [选项]
 **输出格式：id 在行首、左对齐成列，文本缩进跟随层级。**
 
 ```
-n1    AI 工程实践
+n1    AI 工程实践 {tone=primary fontSize=22}
 n4      数据
 n5        清洗
-n7        清洗规则（Q3）
+n7        清洗规则（Q3） {tone=warning incoming.pattern=dashed}
 n12     模型
 n18     供应商清洗成本
 ```
+
+**样式覆盖跟在文本后面，只在设过的时候出现。**
+
+`set-style` 能写的字段，`context` 必须能读回来 —— 否则 agent 改完样式只能渲染成图片去看，那是每次一个视觉调用的成本，而且容易看错。没设过覆盖的节点不显示这一段，所以常规查询的输出长度不变。
+
+键用点号写（`incoming.pattern`），和设置时用的 flag 拼写一致，读到的值可以原样拿去改或 `--clear`。
+
+`--json` 时是同样的事实，形状是可解析的对象：
+
+```json
+{ "id": "n7", "level": 1, "text": "清洗规则（Q3）",
+  "style": { "tone": "warning", "incoming": { "pattern": "dashed" } } }
+```
+
+没有覆盖的节点**不带 `style` 键**，而不是带一个 `{}`。
 
 **约束：**
 

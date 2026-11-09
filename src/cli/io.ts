@@ -161,6 +161,49 @@ export function intOption(raw: unknown, fallback: number, name: string): number 
 }
 
 /**
+ * Reads a signed integer option, falling back when it is absent.
+ *
+ * @param raw - Raw option value.
+ * @param fallback - Used when the option is absent.
+ * @param name - Option name for the error message.
+ * @returns The integer.
+ * @throws {@link CliError} With `Usage` when present but not an integer.
+ * @remarks
+ * Separate from {@link intOption} because the two answer different questions.
+ * A count cannot be negative; a position among siblings can (meaning "append"),
+ * so the signed variant exists rather than one function with a flag that would
+ * have to be passed correctly at every call site.
+ */
+export function signedIntOption(raw: unknown, fallback: number, name: string): number {
+    if (raw === undefined) {
+        return fallback;
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value)) {
+        throw usageError(`--${name} must be an integer, got "${String(raw)}"`);
+    }
+    return value;
+}
+
+/**
+ * Reads an optional integer option, or `undefined` when absent.
+ *
+ * @param values - Parsed option values.
+ * @param name - Option name without dashes.
+ * @returns The integer, or `undefined`.
+ * @throws {@link CliError} With `Usage` when present but not an integer.
+ */
+export function optionalSignedIntOption(
+    values: Record<string, unknown>,
+    name: string
+): number | undefined {
+    if (values[name] === undefined) {
+        return undefined;
+    }
+    return signedIntOption(values[name], 0, name);
+}
+
+/**
  * Reads a positive number option, falling back when it is absent.
  *
  * Unlike {@link intOption} this accepts fractions, which is what a rendering
