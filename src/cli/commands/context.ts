@@ -16,7 +16,7 @@ import { JmMindJsonSerializer } from '../../serialization/json.ts';
 import type { JmNode } from '../../model/data/node.ts';
 import type { JmMind } from '../../model/mind.ts';
 import { readJsonFile } from '../io.ts';
-import { describeStyle, loadMindOrThrow } from '../shared.ts';
+import { describeStyle, formatSide, loadMindOrThrow } from '../shared.ts';
 import { CliExit, dataError } from '../exit.ts';
 
 /** Default number of levels shown below the root. */
@@ -215,7 +215,7 @@ function styleSummary(node: JmNode): string {
     const parts: string[] = [];
 
     // side is always known.
-    const sideLabel = node.side === -1 ? 'left' : node.side === 1 ? 'right' : 'center';
+    const sideLabel = formatSide(node.side);
     parts.push(`side=${sideLabel}`);
 
     if (node.folded) {
@@ -358,7 +358,7 @@ function emit(entries: { node: JmNode; level: number }[], options: ContextOption
                     ? undefined
                     : clip(flatten(textOf(node)), options.maxText, options.fullText),
             };
-            entry.side = node.side;
+            entry.side = formatSide(node.side);
             if (node.folded) {
                 entry.folded = true;
             }

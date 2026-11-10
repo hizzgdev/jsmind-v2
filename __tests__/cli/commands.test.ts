@@ -838,6 +838,86 @@ test('cli - context shows style in the text output too', () => {
     }
 });
 
+test('cli - context shows folded in the text output', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+            });
+        });
+        // jm-b1 is folded.
+        assert.match(out, /jm-b1.*\{side=right folded .+\}/);
+        // jm-a1 is not folded — the word must not appear.
+        const a1Line = out.split('\n').find(l => l.includes('jm-a1'))!;
+        assert.ok(a1Line, 'jm-a1 is present');
+        assert.ok(!/\bfolded\b/.test(a1Line), 'unfolded node must not show folded');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context JSON includes folded only when true', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+            });
+        });
+        const entries: { id: string; folded?: boolean }[] = JSON.parse(out);
+        const b1 = entries.find(e => e.id === 'jm-b1')!;
+        assert.ok(b1, 'jm-b1 is present');
+        assert.equal(b1.folded, true);
+        const a1 = entries.find(e => e.id === 'jm-a1')!;
+        assert.ok(a1, 'jm-a1 is present');
+        assert.ok(!('folded' in a1), 'unfolded node carries no folded key');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context JSON side is a word, not a number', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+            });
+        });
+        const entries: { id: string; side: string }[] = JSON.parse(out);
+        const root = entries.find(e => e.id === 'root')!;
+        assert.ok(root, 'root is present');
+        assert.equal(root.side, 'center');
+        const a2 = entries.find(e => e.id === 'jm-a2')!;
+        assert.ok(a2, 'jm-a2 is present');
+        assert.equal(a2.side, 'left');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('cli - node set-style --dry-run reports what it would have written', () => {
     // Regression: the first implementation reread the file to build its report,
     // which under --dry-run returned the old value - reporting a change that had

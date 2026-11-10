@@ -70,6 +70,23 @@ export function parseSide(raw: string): JmNodeSide {
 }
 
 /**
+ * Converts a numeric side to its display word — the inverse of {@link parseSide}.
+ *
+ * @param side - The raw value from a node.
+ * @returns `"left"`, `"center"`, or `"right"`.
+ * @remarks
+ * The model stores sides as −1 / 0 / 1 so a vertical layout can reuse the same
+ * values with different words later.  This function is the place that picks the
+ * current word, and it is deliberately the only place: if a vertical layout ever
+ * lands, changing these three strings changes every caller at once.
+ */
+export function formatSide(side: JmNodeSide): string {
+    if (side === JmNodeSide.SideB) return 'left';
+    if (side === JmNodeSide.SideA) return 'right';
+    return 'center';
+}
+
+/**
  * Writes a command result in the shape the caller asked for.
  *
  * @param asJson - Emit JSON instead of prose.
