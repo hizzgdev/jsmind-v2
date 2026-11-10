@@ -134,9 +134,13 @@ export function describeNode(node: JmNode): Record<string, unknown> {
         text: node.content.value,
         parent: node.parent === null ? null : node.parent.id,
         children: node.children.map(child => child.id),
-        folded: node.folded,
-        side: node.side,
+        side: formatSide(node.side),
     };
+    // folded only when the node is collapsed — the default is false for every
+    // node and reporting it would add a key the caller never asked for.
+    if (node.folded) {
+        described.folded = true;
+    }
     const style = describeStyle(node.style);
     if (style !== null) {
         described.style = style;

@@ -211,7 +211,7 @@ function flattenStyle(style: Record<string, unknown>, prefix = ''): Record<strin
  * 30-node tree grows by roughly 360 characters, or about 90 tokens, which is
  * noise next to a single `export` image.
  */
-function styleSummary(node: JmNode): string {
+function stateSummary(node: JmNode): string {
     const parts: string[] = [];
 
     // side is always known.
@@ -252,7 +252,7 @@ function renderTree(
         }
         const label = clip(flatten(textOf(node)), options.maxText, options.fullText);
         // Three spaces per level, after the id column.
-        return `${id}   ${'  '.repeat(level)}${label}${styleSummary(node)}`;
+        return `${id}   ${'  '.repeat(level)}${label}${stateSummary(node)}`;
     });
 }
 
@@ -401,5 +401,7 @@ Discovery step: shows the tree so an agent can find the ids it needs.
 
 Ids are printed in a left-aligned column so they can be copied into the next
 command. Multi-line labels are flattened, and truncation ends in an ellipsis.
+Each line ends with a {side=left ...} block that shows the node's layout
+side, whether it is folded, and any style overrides from the theme.
 
 When --focus matches nothing, the closest candidates are listed instead.`;
