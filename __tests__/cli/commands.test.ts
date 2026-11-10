@@ -356,6 +356,28 @@ test('cli - mind find exits 1 for an unknown id', () => {
     rmSync(dir, { recursive: true, force: true });
 });
 
+test('cli - mind find JSON uses side as word and folded only when true', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runMind(file, 'find', { 'node-id': 'jm-b1' }, WRITE);
+        });
+        const node = JSON.parse(out);
+        assert.equal(node.side, 'right', 'side must be a word, not a number');
+        assert.equal(node.folded, true);
+
+        const { out: out2 } = capture(() => {
+            runMind(file, 'find', { 'node-id': 'jm-a1' }, WRITE);
+        });
+        const open = JSON.parse(out2);
+        assert.ok(!('folded' in open), 'unfolded node carries no folded key');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('cli - node set-text changes the label', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');

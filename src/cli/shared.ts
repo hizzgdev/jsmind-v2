@@ -120,6 +120,13 @@ export function describeStyle(style: JmNodeStyle | undefined): Record<string, un
  * node as-is walks straight back into the tree and blows the stack, so every id
  * crossing this boundary is extracted explicitly.
  *
+ * `side` is emitted as the word that `parseSide()` accepts (`"left"` / `"center"`
+ * / `"right"`), not the internal number, so an agent can copy the value straight
+ * into `jsmind node set-side`.
+ *
+ * `folded` appears only when `true` — every node defaults to unfolded, and
+ * reporting a key the caller never set would add noise to every response.
+ *
  * `style` is included only when the node overrides something. A command can set
  * it, so a discovery command has to be able to show it - otherwise the only way
  * to confirm a style change is to render an image and look, which costs a vision
