@@ -832,7 +832,7 @@ test('cli - context shows style in the text output too', () => {
         });
         // jm-a1 has a nested incoming block. Dotted keys match the flags, so the
         // value can be written back or cleared without translating.
-        assert.match(out, /jm-a1.*\{tone=success incoming\.color=#4fb681 incoming\.width=3 incoming\.pattern=dashed\}/);
+        assert.match(out, /jm-a1.*\{side=right tone=success incoming\.color=#4fb681 incoming\.width=3 incoming\.pattern=dashed\}/);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

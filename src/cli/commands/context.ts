@@ -196,22 +196,40 @@ function flattenStyle(style: Record<string, unknown>, prefix = ''): Record<strin
 }
 
 /**
- * Summarises a node's style overrides for the text output.
+ * Summarises a node's state for the text output — side, folded, and any style
+ * overrides.
  *
  * @param node - Node to summarise.
- * @returns A ` {tone=danger fontSize=22}` suffix, or an empty string.
+ * @returns A ` {side=left tone=danger}` suffix.  Every node carries at least
+ *   `side`; `folded` appears only when the node is collapsed, and style
+ *   overrides appear when the node differs from the theme.
  * @remarks
- * The JSON output is what a program reads; this is the same fact for a human
- * scanning the tree. Empty when the node overrides nothing, so the ordinary line
- * does not grow.
+ * `side` belongs here rather than in a separate column because it is short,
+ * almost never changes within a run, and is most useful when the agent is trying
+ * to understand a layout surprise — exactly when the visual scan of ids is
+ * already the point.  Putting it on every line adds ~12 characters per node; a
+ * 30-node tree grows by roughly 360 characters, or about 90 tokens, which is
+ * noise next to a single `export` image.
  */
 function styleSummary(node: JmNode): string {
-    const style = describeStyle(node.style);
-    if (style === null) {
-        return '';
+    const parts: string[] = [];
+
+    // side is always known.
+    const sideLabel = node.side === -1 ? 'left' : node.side === 1 ? 'right' : 'center';
+    parts.push(`side=${sideLabel}`);
+
+    if (node.folded) {
+        parts.push('folded');
     }
-    const parts = Object.entries(flattenStyle(style)).map(([key, value]) => `${key}=${value}`);
-    return parts.length === 0 ? '' : ` {${parts.join(' ')}}`;
+
+    const style = describeStyle(node.style);
+    if (style !== null) {
+        for (const [key, value] of Object.entries(flattenStyle(style))) {
+            parts.push(`${key}=${value}`);
+        }
+    }
+
+    return ` {${parts.join(' ')}}`;
 }
 
 /**
@@ -340,6 +358,10 @@ function emit(entries: { node: JmNode; level: number }[], options: ContextOption
                     ? undefined
                     : clip(flatten(textOf(node)), options.maxText, options.fullText),
             };
+            entry.side = node.side;
+            if (node.folded) {
+                entry.folded = true;
+            }
             // Only when the node overrides something. A style block records the
             // difference from the theme, so a node that overrode nothing would
             // contribute the same absent entry every time - length for
