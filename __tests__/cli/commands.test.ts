@@ -356,6 +356,28 @@ test('cli - mind find exits 1 for an unknown id', () => {
     rmSync(dir, { recursive: true, force: true });
 });
 
+test('cli - mind find JSON uses side as word and folded only when true', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runMind(file, 'find', { 'node-id': 'jm-b1' }, WRITE);
+        });
+        const node = JSON.parse(out);
+        assert.equal(node.side, 'right', 'side must be a word, not a number');
+        assert.equal(node.folded, true);
+
+        const { out: out2 } = capture(() => {
+            runMind(file, 'find', { 'node-id': 'jm-a1' }, WRITE);
+        });
+        const open = JSON.parse(out2);
+        assert.ok(!('folded' in open), 'unfolded node carries no folded key');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('cli - node set-text changes the label', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
@@ -832,7 +854,87 @@ test('cli - context shows style in the text output too', () => {
         });
         // jm-a1 has a nested incoming block. Dotted keys match the flags, so the
         // value can be written back or cleared without translating.
-        assert.match(out, /jm-a1.*\{tone=success incoming\.color=#4fb681 incoming\.width=3 incoming\.pattern=dashed\}/);
+        assert.match(out, /jm-a1.*\{side=right tone=success incoming\.color=#4fb681 incoming\.width=3 incoming\.pattern=dashed\}/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context shows folded in the text output', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+            });
+        });
+        // jm-b1 is folded.
+        assert.match(out, /jm-b1.*\{side=right folded .+\}/);
+        // jm-a1 is not folded — the word must not appear.
+        const a1Line = out.split('\n').find(l => l.includes('jm-a1'))!;
+        assert.ok(a1Line, 'jm-a1 is present');
+        assert.ok(!/\bfolded\b/.test(a1Line), 'unfolded node must not show folded');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context JSON includes folded only when true', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+            });
+        });
+        const entries: { id: string; folded?: boolean }[] = JSON.parse(out);
+        const b1 = entries.find(e => e.id === 'jm-b1')!;
+        assert.ok(b1, 'jm-b1 is present');
+        assert.equal(b1.folded, true);
+        const a1 = entries.find(e => e.id === 'jm-a1')!;
+        assert.ok(a1, 'jm-a1 is present');
+        assert.ok(!('folded' in a1), 'unfolded node carries no folded key');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context JSON side is a word, not a number', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+            });
+        });
+        const entries: { id: string; side: string }[] = JSON.parse(out);
+        const root = entries.find(e => e.id === 'root')!;
+        assert.ok(root, 'root is present');
+        assert.equal(root.side, 'center');
+        const a2 = entries.find(e => e.id === 'jm-a2')!;
+        assert.ok(a2, 'jm-a2 is present');
+        assert.equal(a2.side, 'left');
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

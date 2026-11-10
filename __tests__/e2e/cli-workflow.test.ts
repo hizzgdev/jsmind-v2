@@ -501,7 +501,7 @@ test('e2e - a style written through the API is read back by the CLI', () => {
         assert.match(
             text.stdout,
             new RegExp(
-                `${nodeId}.*\\{tone=accent fontSize=18 fontWeight=normal color=#123456 ` +
+                `${nodeId}.*\\{side=right tone=accent fontSize=18 fontWeight=normal color=#123456 ` +
                 'incoming\\.pattern=dotted incoming\\.curve=straight\\}'
             )
         );

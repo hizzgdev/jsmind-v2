@@ -16,7 +16,7 @@ import { JmMindJsonSerializer } from '../../serialization/json.ts';
 import type { JmNode } from '../../model/data/node.ts';
 import type { JmMind } from '../../model/mind.ts';
 import { readJsonFile } from '../io.ts';
-import { describeStyle, loadMindOrThrow } from '../shared.ts';
+import { describeStyle, formatSide, loadMindOrThrow } from '../shared.ts';
 import { CliExit, dataError } from '../exit.ts';
 
 /** Default number of levels shown below the root. */
@@ -196,22 +196,40 @@ function flattenStyle(style: Record<string, unknown>, prefix = ''): Record<strin
 }
 
 /**
- * Summarises a node's style overrides for the text output.
+ * Summarises a node's state for the text output — side, folded, and any style
+ * overrides.
  *
  * @param node - Node to summarise.
- * @returns A ` {tone=danger fontSize=22}` suffix, or an empty string.
+ * @returns A ` {side=left tone=danger}` suffix.  Every node carries at least
+ *   `side`; `folded` appears only when the node is collapsed, and style
+ *   overrides appear when the node differs from the theme.
  * @remarks
- * The JSON output is what a program reads; this is the same fact for a human
- * scanning the tree. Empty when the node overrides nothing, so the ordinary line
- * does not grow.
+ * `side` belongs here rather than in a separate column because it is short,
+ * almost never changes within a run, and is most useful when the agent is trying
+ * to understand a layout surprise — exactly when the visual scan of ids is
+ * already the point.  Putting it on every line adds ~12 characters per node; a
+ * 30-node tree grows by roughly 360 characters, or about 90 tokens, which is
+ * noise next to a single `export` image.
  */
-function styleSummary(node: JmNode): string {
-    const style = describeStyle(node.style);
-    if (style === null) {
-        return '';
+function stateSummary(node: JmNode): string {
+    const parts: string[] = [];
+
+    // side is always known.
+    const sideLabel = formatSide(node.side);
+    parts.push(`side=${sideLabel}`);
+
+    if (node.folded) {
+        parts.push('folded');
     }
-    const parts = Object.entries(flattenStyle(style)).map(([key, value]) => `${key}=${value}`);
-    return parts.length === 0 ? '' : ` {${parts.join(' ')}}`;
+
+    const style = describeStyle(node.style);
+    if (style !== null) {
+        for (const [key, value] of Object.entries(flattenStyle(style))) {
+            parts.push(`${key}=${value}`);
+        }
+    }
+
+    return ` {${parts.join(' ')}}`;
 }
 
 /**
@@ -234,7 +252,7 @@ function renderTree(
         }
         const label = clip(flatten(textOf(node)), options.maxText, options.fullText);
         // Three spaces per level, after the id column.
-        return `${id}   ${'  '.repeat(level)}${label}${styleSummary(node)}`;
+        return `${id}   ${'  '.repeat(level)}${label}${stateSummary(node)}`;
     });
 }
 
@@ -340,6 +358,10 @@ function emit(entries: { node: JmNode; level: number }[], options: ContextOption
                     ? undefined
                     : clip(flatten(textOf(node)), options.maxText, options.fullText),
             };
+            entry.side = formatSide(node.side);
+            if (node.folded) {
+                entry.folded = true;
+            }
             // Only when the node overrides something. A style block records the
             // difference from the theme, so a node that overrode nothing would
             // contribute the same absent entry every time - length for
@@ -379,5 +401,7 @@ Discovery step: shows the tree so an agent can find the ids it needs.
 
 Ids are printed in a left-aligned column so they can be copied into the next
 command. Multi-line labels are flattened, and truncation ends in an ellipsis.
+Each line ends with a {side=left ...} block that shows the node's layout
+side, whether it is folded, and any style overrides from the theme.
 
 When --focus matches nothing, the closest candidates are listed instead.`;

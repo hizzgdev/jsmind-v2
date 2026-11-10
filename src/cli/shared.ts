@@ -70,6 +70,23 @@ export function parseSide(raw: string): JmNodeSide {
 }
 
 /**
+ * Converts a numeric side to its display word — the inverse of {@link parseSide}.
+ *
+ * @param side - The raw value from a node.
+ * @returns `"left"`, `"center"`, or `"right"`.
+ * @remarks
+ * The model stores sides as −1 / 0 / 1 so a vertical layout can reuse the same
+ * values with different words later.  This function is the place that picks the
+ * current word, and it is deliberately the only place: if a vertical layout ever
+ * lands, changing these three strings changes every caller at once.
+ */
+export function formatSide(side: JmNodeSide): string {
+    if (side === JmNodeSide.SideB) return 'left';
+    if (side === JmNodeSide.SideA) return 'right';
+    return 'center';
+}
+
+/**
  * Writes a command result in the shape the caller asked for.
  *
  * @param asJson - Emit JSON instead of prose.
@@ -103,6 +120,13 @@ export function describeStyle(style: JmNodeStyle | undefined): Record<string, un
  * node as-is walks straight back into the tree and blows the stack, so every id
  * crossing this boundary is extracted explicitly.
  *
+ * `side` is emitted as the word that `parseSide()` accepts (`"left"` / `"center"`
+ * / `"right"`), not the internal number, so an agent can copy the value straight
+ * into `jsmind node set-side`.
+ *
+ * `folded` appears only when `true` — every node defaults to unfolded, and
+ * reporting a key the caller never set would add noise to every response.
+ *
  * `style` is included only when the node overrides something. A command can set
  * it, so a discovery command has to be able to show it - otherwise the only way
  * to confirm a style change is to render an image and look, which costs a vision
@@ -117,9 +141,13 @@ export function describeNode(node: JmNode): Record<string, unknown> {
         text: node.content.value,
         parent: node.parent === null ? null : node.parent.id,
         children: node.children.map(child => child.id),
-        folded: node.folded,
-        side: node.side,
+        side: formatSide(node.side),
     };
+    // folded only when the node is collapsed — the default is false for every
+    // node and reporting it would add a key the caller never asked for.
+    if (node.folded) {
+        described.folded = true;
+    }
     const style = describeStyle(node.style);
     if (style !== null) {
         described.style = style;
