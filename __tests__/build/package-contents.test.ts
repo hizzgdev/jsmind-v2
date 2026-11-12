@@ -1,7 +1,7 @@
 /**
  * @fileoverview What `npm publish` is allowed to ship, and that those
- * artifacts are actually usable: source maps carry TypeScript, and both
- * `import` and `require` see the library.
+ * artifacts are actually usable: source maps carry TypeScript, `import`
+ * loads the ESM build, and `require` loads the CJS build.
  *
  * The CLI later inlines `jsmind.js` from the same directory as `cli.js`.
  * That sibling layout is a publish contract, not an accident of the build.
@@ -9,8 +9,9 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { before, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -23,6 +24,8 @@ const PUBLISHED_FILES = [
     'dist/cli.js.map',
     'dist/jsmind.js',
     'dist/jsmind.js.map',
+    'dist/jsmind.cjs',
+    'dist/jsmind.cjs.map',
     'dist/jsmind.d.ts',
 ];
 
@@ -31,12 +34,20 @@ const V2_HOME = 'https://github.com/hizzgdev/jsmind-v2/';
 interface PackageJson {
     files: string[];
     main: string;
+    module: string;
     types: string;
     bin: { jsmind: string };
     homepage: string;
     repository: { url: string };
     bugs: { url: string };
     engines: { node: string };
+    exports: {
+        '.': {
+            types: string;
+            import: string;
+            require: string;
+        };
+    };
     directories?: unknown;
 }
 
@@ -45,18 +56,20 @@ interface SourceMap {
     sourcesContent: Array<string | null>;
 }
 
-interface JsMindModule {
-    default: {
-        create: unknown;
-        Mind: unknown;
-    };
+interface JsMindLibrary {
+    create: unknown;
+    Mind: unknown;
+}
+
+interface JsMindEsm {
+    default: JsMindLibrary;
 }
 
 function readPackage(): PackageJson {
     return JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as PackageJson;
 }
 
-/** Rollup output paths, so a later config change cannot split the two bundles. */
+/** Rollup output paths, so a later config change cannot split the bundles. */
 function rollupOutputFiles(): string[] {
     const source = readFileSync(join(ROOT, '.config/rollup.config.js'), 'utf8');
     return [...source.matchAll(/file:\s*'([^']+)'/g)].map((match) => match[1]);
@@ -83,35 +96,52 @@ function assertSourcesEmbedded(mapPath: string): void {
     }
 }
 
+function assertLibrary(value: unknown, label: string): asserts value is JsMindLibrary {
+    const library = value as Partial<JsMindLibrary>;
+    assert.strictEqual(typeof library.create, 'function', `${label} has no create`);
+    assert.strictEqual(typeof library.Mind, 'function', `${label} has no Mind`);
+}
+
 describe('npm package contents', () => {
-    it('publishes only the five dist artifacts', () => {
+    it('publishes the dist artifacts and nothing else from the repo', () => {
         const pkg = readPackage();
         assert.deepStrictEqual(pkg.files, PUBLISHED_FILES);
 
         const bin = pkg.bin.jsmind.replace(/^\.\//, '');
-        for (const entry of [pkg.main, pkg.types, bin]) {
+        const main = pkg.main.replace(/^\.\//, '');
+        const moduleEntry = pkg.module.replace(/^\.\//, '');
+        const types = pkg.types.replace(/^\.\//, '');
+        for (const entry of [main, moduleEntry, types, bin]) {
             assert.ok(pkg.files.includes(entry), `${entry} must be in files`);
         }
+        assert.strictEqual(pkg.exports['.'].import, './dist/jsmind.js');
+        assert.strictEqual(pkg.exports['.'].require, './dist/jsmind.cjs');
+        assert.strictEqual(pkg.exports['.'].types, './dist/jsmind.d.ts');
         // doc/example pointed at folders this package does not publish.
         assert.strictEqual(pkg.directories, undefined);
     });
 
-    it('keeps cli.js and jsmind.js as siblings in the package and the build', () => {
+    it('keeps cli.js, jsmind.js, and jsmind.cjs as siblings', () => {
         const pkg = readPackage();
         const cli = pkg.files.find((file) => file.endsWith('/cli.js'));
-        const lib = pkg.files.find((file) => file.endsWith('/jsmind.js'));
+        const esm = pkg.files.find((file) => file.endsWith('/jsmind.js'));
+        const cjs = pkg.files.find((file) => file.endsWith('/jsmind.cjs'));
         assert.ok(cli);
-        assert.ok(lib);
-        assert.strictEqual(dirname(cli), dirname(lib));
+        assert.ok(esm);
+        assert.ok(cjs);
+        assert.strictEqual(dirname(cli), dirname(esm));
+        assert.strictEqual(dirname(cli), dirname(cjs));
 
         const outputs = rollupOutputFiles();
         const builtCli = outputs.find((file) => file.endsWith('/cli.js'));
-        const builtLib = outputs.find((file) => file.endsWith('/jsmind.js'));
-        assert.ok(builtCli);
-        assert.ok(builtLib);
-        assert.strictEqual(dirname(builtCli), dirname(builtLib));
+        const builtEsm = outputs.find((file) => file.endsWith('/jsmind.js'));
+        const builtCjs = outputs.find((file) => file.endsWith('/jsmind.cjs'));
         assert.strictEqual(builtCli, cli);
-        assert.strictEqual(builtLib, lib);
+        assert.strictEqual(builtEsm, esm);
+        assert.strictEqual(builtCjs, cjs);
+        assert.ok(builtCli);
+        assert.strictEqual(dirname(builtCli), dirname(builtEsm ?? ''));
+        assert.strictEqual(dirname(builtCli), dirname(builtCjs ?? ''));
     });
 
     it('points repository metadata at the v2 repo', () => {
@@ -119,8 +149,6 @@ describe('npm package contents', () => {
         assert.strictEqual(pkg.repository.url, 'git+https://github.com/hizzgdev/jsmind-v2.git');
         assert.strictEqual(pkg.bugs.url, 'https://github.com/hizzgdev/jsmind-v2/issues');
         assert.strictEqual(pkg.homepage, 'https://github.com/hizzgdev/jsmind-v2#readme');
-        // require() of the ESM entry is unflagged starting here. Earlier 22.x
-        // throws ERR_REQUIRE_ESM, which is the bug this package must not ship.
         assert.strictEqual(pkg.engines.node, '>=22.12.0');
 
         const rollup = readFileSync(join(ROOT, '.config/rollup.config.js'), 'utf8');
@@ -134,31 +162,62 @@ describe('built package entry', () => {
         execFileSync('npm', ['run', 'build'], { cwd: ROOT, stdio: 'inherit' });
     });
 
-    it('embeds TypeScript in both source maps', () => {
+    it('embeds TypeScript in the published source maps', () => {
         assertSourcesEmbedded('dist/jsmind.js.map');
+        assertSourcesEmbedded('dist/jsmind.cjs.map');
         assertSourcesEmbedded('dist/cli.js.map');
         const libraryMap = readFileSync(join(ROOT, 'dist/jsmind.js.map'), 'utf8');
         assert.ok(libraryMap.includes('class JsMind'));
     });
 
-    it('ships an ES module whose default export is the library', async () => {
-        const source = readFileSync(join(ROOT, 'dist/jsmind.js'), 'utf8');
-        assert.match(source, /\bexport\b/);
-        assert.match(source, /globalThis\.jsMind\s*=/);
-        assert.doesNotMatch(source, /typeof exports === ['"]object['"]/);
+    it('exposes the library from both the ESM and the CJS entry', async () => {
+        const esmSource = readFileSync(join(ROOT, 'dist/jsmind.js'), 'utf8');
+        assert.match(esmSource, /\bexport\b/);
+        assert.match(esmSource, /globalThis\.jsMind\s*=/);
+        assert.doesNotMatch(esmSource, /module\.exports\s*=/);
 
-        const imported = await import(pathToFileURL(join(ROOT, 'dist/jsmind.js')).href) as JsMindModule;
-        assert.strictEqual(typeof imported.default.create, 'function');
-        assert.strictEqual(typeof imported.default.Mind, 'function');
+        const cjsSource = readFileSync(join(ROOT, 'dist/jsmind.cjs'), 'utf8');
+        assert.match(cjsSource, /module\.exports\s*=/);
+        assert.doesNotMatch(cjsSource, /^\s*export\b/m);
+        assert.match(cjsSource, /globalThis\.jsMind\s*=/);
+
+        const cliSource = readFileSync(join(ROOT, 'dist/cli.js'), 'utf8');
+        assert.doesNotMatch(cliSource, /module\.exports/);
+
+        const imported = await import(pathToFileURL(join(ROOT, 'dist/jsmind.js')).href) as JsMindEsm;
+        assertLibrary(imported.default, 'import()');
 
         const loadCjs = createRequire(import.meta.url);
-        const required = loadCjs(join(ROOT, 'dist/jsmind.js')) as JsMindModule;
-        assert.strictEqual(required.default, imported.default);
+        const required = loadCjs(join(ROOT, 'dist/jsmind.cjs')) as JsMindLibrary;
+        assertLibrary(required, 'require()');
 
-        for (const file of ['dist/jsmind.js', 'dist/cli.js', 'dist/jsmind.d.ts']) {
+        for (const file of ['dist/jsmind.js', 'dist/jsmind.cjs', 'dist/cli.js', 'dist/jsmind.d.ts']) {
             const text = readFileSync(join(ROOT, file), 'utf8');
             assert.ok(text.includes(V2_HOME), `${file} banner is not the v2 repo`);
             assert.ok(!text.includes('https://github.com/hizzgdev/jsmind/'), `${file} still names v1`);
+        }
+    });
+
+    it('resolves import and require through the package exports', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'jsmind-entry-'));
+        try {
+            mkdirSync(join(dir, 'node_modules'));
+            symlinkSync(ROOT, join(dir, 'node_modules', 'jsmind'));
+            writeFileSync(join(dir, 'package.json'), '{"type":"module"}\n');
+
+            const imported = execFileSync(
+                process.execPath,
+                ['--input-type=module', '-e', 'import jsmind from "jsmind"; if (typeof jsmind.create !== "function" || typeof jsmind.Mind !== "function") process.exit(1);'],
+                { cwd: dir, encoding: 'utf8' }
+            );
+            assert.strictEqual(imported, '');
+
+            // A CommonJS child, so the `require` export condition is selected.
+            writeFileSync(join(dir, 'load.cjs'), 'const jsmind = require("jsmind"); if (typeof jsmind.create !== "function" || typeof jsmind.Mind !== "function") process.exit(1);\n');
+            execFileSync(process.execPath, [join(dir, 'load.cjs')], { cwd: dir, encoding: 'utf8' });
+        }
+        finally {
+            rmSync(dir, { recursive: true, force: true });
         }
     });
 });

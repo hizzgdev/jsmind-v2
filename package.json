@@ -3,16 +3,17 @@
     "version": "2.0.0",
     "description": "Version 2 of jsMind, which is a TypeScript library for mindmap.",
     "type": "module",
-    "main": "dist/jsmind.js",
-    "types": "dist/jsmind.d.ts",
+    "main": "./dist/jsmind.cjs",
+    "module": "./dist/jsmind.js",
+    "types": "./dist/jsmind.d.ts",
     "bin": {
         "jsmind": "./dist/cli.js"
     },
     "exports": {
         ".": {
+            "types": "./dist/jsmind.d.ts",
             "import": "./dist/jsmind.js",
-            "require": "./dist/jsmind.js",
-            "types": "./dist/jsmind.d.ts"
+            "require": "./dist/jsmind.cjs"
         }
     },
     "files": [
@@ -20,6 +21,8 @@
         "dist/cli.js.map",
         "dist/jsmind.js",
         "dist/jsmind.js.map",
+        "dist/jsmind.cjs",
+        "dist/jsmind.cjs.map",
         "dist/jsmind.d.ts"
     ],
     "scripts": {

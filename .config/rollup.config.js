@@ -22,9 +22,10 @@ const typescriptPlugin = () => typescript({
 });
 
 export default [
-    // Library bundle. ESM, not UMD: package.json is "type": "module", and a
-    // UMD wrapper loaded as an ES module has an empty export namespace.
-    // `globalThis.jsMind` is assigned from the module for pages and the CLI.
+    // ESM entry. package.json is "type": "module", so this `.js` file is what
+    // `import` and `<script type="module">` load. A UMD wrapper cannot be this
+    // file: Node would parse it as ESM and the `module.exports` branch would
+    // never run.
     {
         input: 'src/application/jsmind.ts',
         output: {
@@ -35,7 +36,25 @@ export default [
         },
         plugins: [typescriptPlugin()],
     },
+    // CJS entry. `.cjs` stays CommonJS even when the package is `"type":
+    // "module"`, so `require('jsmind')` receives the library on every supported
+    // Node, not only where require() of an ES module happens to be enabled.
+    // `exports: 'default'` makes that value the class itself, not `{ default }`.
+    {
+        input: 'src/application/jsmind.ts',
+        output: {
+            file: 'dist/jsmind.cjs',
+            format: 'cjs',
+            exports: 'default',
+            esModule: false,
+            banner: banner,
+            sourcemap: true,
+        },
+        plugins: [typescriptPlugin()],
+    },
     // CLI bundle for Node — must not pull in the renderer, which needs a DOM.
+    // Stays ESM, beside the library bundles, so it can read `jsmind.js` via
+    // `__dirname` / `import.meta.url`.
     {
         input: 'src/cli/index.ts',
         output: {
