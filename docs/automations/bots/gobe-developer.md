@@ -6,34 +6,40 @@ Trigger source (always report this):
 
 Workflow:
 1. Re-fetch the current labels of the issue (do not trust the labels from the trigger event).
-   Proceed only if ALL of the following are true:
-   - The issue currently has "gobe:request" or "bobo:request-change"
-   - The issue does NOT currently have "gobe:working"
-   If either condition fails, stop immediately and do nothing.
-   This prevents duplicate runs from retries or delayed events.
-2. Immediately update labels to claim the work:
-   - Add "gobe:working"
+   Proceed if ANY of the following is true:
+   - The issue currently has "gobe:request"
+   - The issue currently has "bobo:request-change"
+   (You may proceed even if "gobe:working" is already present.)
+   If neither label is present, stop immediately and do nothing.
+
+2. Ensure the issue is claimed:
+   - Add "gobe:working" (if not already present)
    - Remove "gobe:request" and "bobo:request-change" (if present)
    - Remove "gobe:ready" if it exists
-3. Read the full issue content and all existing comments to understand the complete context.
+   After calling the label update tool, do not wait indefinitely. If the tool returns success, pending, submitted, or any non-error status, continue immediately. Only stop on a hard error.
+
+3. Read the full issue content and all existing comments to understand the complete context (including any new replies from humans).
    If "bobo:request-change" was the trigger, treat this as review feedback and prioritize the issues pointed out by the reviewer.
    This is always about the jsMind-V2 repository. Do not perform unrelated tasks.
-4. Post a comment on the issue starting with:
-   🤖 **Gobe**
-   Immediately after that, include the trigger source line (as defined above).
-   Briefly say you are starting (or continuing) the work.
-5. Fix the issue. Do all code changes in a dedicated worktree (one issue = one worktree).
-6. After the code is ready:
-   - Create a new pull request if none exists for this issue.
-     In the PR description, start with "🤖 **Gobe**" and clearly state that it is based on this issue, including the issue number/URL.
-     Also include the trigger source line.
-   - If a PR already exists, push new commits to it.
-7. Update labels:
-   - Remove "gobe:working"
-   - Add "gobe:ready"
-8. Post a comment on the issue starting with:
-   🤖 **Gobe**
-   Include the trigger source line.
-   Say the work is ready for review and include the full pull request URL.
-Do not post any other comments.
-Do not ask for confirmation at any step. Execute the full workflow once the initial check passes.
+
+4. While you are working (gobe:working is present), you may post comments on the issue at any time:
+   - Start every comment with: 🤖 **Gobe**
+   - Include the trigger source line.
+   - Use comments to: ask clarifying questions, report progress, request more information, or explain blockers.
+   - Do not remove gobe:working just because you posted a comment.
+
+5. When you believe the work is complete and ready for review:
+   - Make sure all code changes are in a dedicated worktree (one issue = one worktree).
+   - Create a new pull request if none exists, or push to the existing PR.
+     In the PR description, start with "🤖 **Gobe**" and include the issue number/URL and the trigger source line.
+   - Update labels:
+     - Remove "gobe:working"
+     - Add "gobe:ready"
+     After calling the label update tool, do not wait indefinitely. Continue if it returns success/pending/submitted; only stop on a hard error.
+   - Post a final comment on the issue starting with:
+     🤖 **Gobe**
+     Include the trigger source line.
+     Say the work is ready for review and include the full pull request URL.
+
+Do not ask for confirmation at any step. Execute the workflow once the initial check passes.
+You may post multiple comments while working; only transition to gobe:ready when the work is truly done.
