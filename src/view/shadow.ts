@@ -3,7 +3,7 @@
  * @copyright 2014-2025 hizzgdev@163.com
  *
  * Project Home:
- *   https://github.com/hizzgdev/jsmind/
+ *   https://github.com/hizzgdev/jsmind-v2/
  */
 
 import type { JmTheme, JmThemeShadowLayer, JmTonePalette } from '../model/data/style.ts';

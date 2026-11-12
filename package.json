@@ -38,16 +38,16 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/hizzgdev/jsmind.git"
+        "url": "git+https://github.com/hizzgdev/jsmind-v2.git"
     },
     "author": {
         "name": "hizzgdev@163.com"
     },
     "license": "BSD-3-Clause",
     "bugs": {
-        "url": "https://github.com/hizzgdev/jsmind/issues"
+        "url": "https://github.com/hizzgdev/jsmind-v2/issues"
     },
-    "homepage": "https://github.com/hizzgdev/jsmind#readme",
+    "homepage": "https://github.com/hizzgdev/jsmind-v2#readme",
     "keywords": [
         "jsmind",
         "mindmap"
@@ -78,6 +78,6 @@
         "typescript-eslint": "^8.52.0"
     },
     "engines": {
-        "node": ">=22.0.0"
+        "node": ">=22.12.0"
     }
 }

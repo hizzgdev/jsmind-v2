@@ -140,3 +140,9 @@ class JsMind {
 }
 
 export default JsMind;
+
+// Example pages and the CLI image export look the library up as a global.
+// The npm entry is the default export. A UMD wrapper cannot provide one:
+// this package is `"type": "module"`, so Node loads the file as ESM and the
+// wrapper's `module.exports` branch never runs.
+(globalThis as { jsMind?: typeof JsMind }).jsMind = JsMind;
