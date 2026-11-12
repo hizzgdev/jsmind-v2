@@ -15,6 +15,13 @@
             "types": "./dist/jsmind.d.ts"
         }
     },
+    "files": [
+        "dist/cli.js",
+        "dist/cli.js.map",
+        "dist/jsmind.js",
+        "dist/jsmind.js.map",
+        "dist/jsmind.d.ts"
+    ],
     "directories": {
         "doc": "docs",
         "example": "example"
