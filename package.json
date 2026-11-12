@@ -22,10 +22,6 @@
         "dist/jsmind.js.map",
         "dist/jsmind.d.ts"
     ],
-    "directories": {
-        "doc": "docs",
-        "example": "example"
-    },
     "scripts": {
         "server": "http-server",
         "build": "rollup -c .config/rollup.config.js",

@@ -27,6 +27,7 @@ interface PackageJson {
     main: string;
     types: string;
     bin: { jsmind: string };
+    directories?: unknown;
 }
 
 function readPackage(): PackageJson {
@@ -48,6 +49,8 @@ describe('npm package contents', () => {
         for (const entry of [pkg.main, pkg.types, bin]) {
             assert.ok(pkg.files.includes(entry), `${entry} must be in files`);
         }
+        // doc/example pointed at folders this package does not publish.
+        assert.strictEqual(pkg.directories, undefined);
     });
 
     it('keeps cli.js and jsmind.js as siblings in the package and the build', () => {
