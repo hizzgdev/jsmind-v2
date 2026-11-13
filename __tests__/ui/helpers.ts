@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** Where the UMD bundle has to live for a browser to load it. */
+/** Where the library bundle has to live for a browser to load it. */
 const BUNDLE = join(REPO_ROOT, 'dist/jsmind.js');
 
 /** Launch attempts before giving up, each on a fresh port. */
@@ -137,7 +137,7 @@ function ensureBundle(): void {
     if (process.env.CI) {
         throw new Error(
             `${BUNDLE} is ${problem} — ci.yml must run \`npm run build\` before the tests. ` +
-                'UI tests exercise the UMD bundle a browser loads, not the sources.'
+                'UI tests exercise the built bundle a browser loads, not the sources.'
         );
     }
 
@@ -388,12 +388,25 @@ export class BrowserHarness {
     }
 
     /**
-     * Reads the UMD bundle so it can be injected into a page.
+     * Installs the built library on the page.
      *
-     * @returns The bundle source.
+     * The bundle is an ES module, so it cannot be evaluated as a classic
+     * script. Importing it from a blob URL runs it, and the module assigns
+     * `globalThis.jsMind` for the expressions that follow.
      */
-    bundleSource(): string {
-        return readFileSync(BUNDLE, 'utf8');
+    async loadBundle(): Promise<void> {
+        const source = readFileSync(BUNDLE, 'utf8');
+        await this.evaluate(
+            `(async () => {
+                const url = URL.createObjectURL(new Blob([${JSON.stringify(source)}], { type: 'text/javascript' }));
+                try {
+                    await import(url);
+                } finally {
+                    URL.revokeObjectURL(url);
+                }
+            })()`,
+            true
+        );
     }
 
     /**

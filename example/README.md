@@ -16,11 +16,13 @@ Two pages and one data file.
    npm run build
    ```
 
-2. Serve the repository root — the pages load `../dist/jsmind.js`, and `file://` will hit CORS:
+2. Serve the repository root — the pages load `../dist/jsmind.js` as a module, and `file://` will hit CORS:
 
    ```bash
    npm run server
    ```
+
+   A classic `<script>` tag, with no `type="module"`, cannot load that file (`export` is a syntax error). Point it at `dist/jsmind.umd.js` instead. That build assigns `window.jsMind`.
 
 3. Open `http://localhost:8080/example/demo.html` or `.../playground.html`.
 

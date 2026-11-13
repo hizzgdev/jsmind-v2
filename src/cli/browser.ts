@@ -115,6 +115,27 @@ interface CdpMessage {
 class PageError extends Error {}
 
 /**
+ * Expression that imports the ESM bundle.
+ *
+ * The bundle is an ES module (`export`, plus a `globalThis.jsMind` assignment).
+ * Evaluating that source as a classic script is a syntax error, which is how
+ * the CLI used to load the old UMD build. A blob URL is a module.
+ *
+ * @param source - Contents of `dist/jsmind.js`.
+ * @returns An async expression for `Runtime.evaluate`.
+ */
+function bundleImportExpression(source: string): string {
+    return `(async () => {
+        const url = URL.createObjectURL(new Blob([${JSON.stringify(source)}], { type: 'text/javascript' }));
+        try {
+            await import(url);
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    })()`;
+}
+
+/**
  * Starts a headless browser with jsMind loaded on a blank page.
  *
  * @param width - CSS width of the viewport.
@@ -220,7 +241,19 @@ export async function openBrowser(width: number, height: number): Promise<JmBrow
                 `#stage{width:${width}px;height:${height}px}` +
                 '</style></head><body><div id="stage"></div></body></html>',
         });
-        await send('Runtime.evaluate', { expression: bundle });
+        const loaded = await send('Runtime.evaluate', {
+            expression: bundleImportExpression(bundle),
+            awaitPromise: true,
+        });
+        const loadError = loaded.result?.exceptionDetails as
+            | { exception?: { description?: string }; text?: string }
+            | undefined;
+        if (loadError) {
+            throw new CliError(
+                loadError.exception?.description ?? loadError.text ?? 'Could not load the jsMind bundle.',
+                CliExit.IoError
+            );
+        }
 
         const evaluate = async (expression: string): Promise<unknown> => {
             const message = await send('Runtime.evaluate', {

@@ -140,3 +140,9 @@ class JsMind {
 }
 
 export default JsMind;
+
+// Example pages and the CLI image export look the library up as a global.
+// Package consumers use the default export from the ESM bundle, or the CJS
+// entry at `dist/jsmind.cjs`. A classic script tag loads `dist/jsmind.umd.js`,
+// which assigns this same global without an `export`.
+(globalThis as { jsMind?: typeof JsMind }).jsMind = JsMind;

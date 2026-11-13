@@ -3,25 +3,34 @@
     "version": "2.0.0",
     "description": "Version 2 of jsMind, which is a TypeScript library for mindmap.",
     "type": "module",
-    "main": "dist/jsmind.js",
-    "types": "dist/jsmind.d.ts",
+    "main": "./dist/jsmind.cjs",
+    "module": "./dist/jsmind.js",
+    "types": "./dist/jsmind.d.ts",
     "bin": {
         "jsmind": "./dist/cli.js"
     },
     "exports": {
         ".": {
+            "types": "./dist/jsmind.d.ts",
             "import": "./dist/jsmind.js",
-            "require": "./dist/jsmind.js",
-            "types": "./dist/jsmind.d.ts"
+            "require": "./dist/jsmind.cjs"
         }
     },
-    "directories": {
-        "doc": "docs",
-        "example": "example"
-    },
+    "files": [
+        "dist/cli.js",
+        "dist/cli.js.map",
+        "dist/jsmind.js",
+        "dist/jsmind.js.map",
+        "dist/jsmind.cjs",
+        "dist/jsmind.cjs.map",
+        "dist/jsmind.umd.js",
+        "dist/jsmind.umd.js.map",
+        "dist/jsmind.d.ts"
+    ],
     "scripts": {
         "server": "http-server",
         "build": "rollup -c .config/rollup.config.js",
+        "assemble-site": "node scripts/assemble-site.ts",
         "test": "node --test \"__tests__/!(ui)/**/*.test.ts\"",
         "test-lite": "node --test --test-reporter=dot \"__tests__/!(ui)/**/*.test.ts\"",
         "format": "eslint --fix --config .config/eslint.config.js",
@@ -35,16 +44,16 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/hizzgdev/jsmind.git"
+        "url": "git+https://github.com/hizzgdev/jsmind-v2.git"
     },
     "author": {
         "name": "hizzgdev@163.com"
     },
     "license": "BSD-3-Clause",
     "bugs": {
-        "url": "https://github.com/hizzgdev/jsmind/issues"
+        "url": "https://github.com/hizzgdev/jsmind-v2/issues"
     },
-    "homepage": "https://github.com/hizzgdev/jsmind#readme",
+    "homepage": "https://github.com/hizzgdev/jsmind-v2#readme",
     "keywords": [
         "jsmind",
         "mindmap"
@@ -75,6 +84,6 @@
         "typescript-eslint": "^8.52.0"
     },
     "engines": {
-        "node": ">=22.0.0"
+        "node": ">=22.12.0"
     }
 }

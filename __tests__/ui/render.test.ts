@@ -56,7 +56,7 @@ async function renderFixture(): Promise<RenderedNode[]> {
     await browser.setContent(
         `<div id="container" style="width:${CONTAINER_WIDTH}px;height:${CONTAINER_HEIGHT}px"></div>`
     );
-    await browser.evaluate(browser.bundleSource());
+    await browser.loadBundle();
 
     const nodes = await browser.evaluate<RenderedNode[]>(
         `
@@ -233,7 +233,7 @@ async function renderStyled(tone?: string, mindStyle?: Record<string, unknown>):
     await browser.setContent(
         `<div id="container" style="width:${CONTAINER_WIDTH}px;height:${CONTAINER_HEIGHT}px"></div>`
     );
-    await browser.evaluate(browser.bundleSource());
+    await browser.loadBundle();
 
     const nodes = await browser.evaluate<StyledNode[]>(
         `
@@ -335,7 +335,7 @@ async function measureExpander(): Promise<ExpanderBox> {
     await browser.setContent(
         `<div id="container" style="width:${CONTAINER_WIDTH}px;height:${CONTAINER_HEIGHT}px"></div>`
     );
-    await browser.evaluate(browser.bundleSource());
+    await browser.loadBundle();
 
     const box = await browser.evaluate<ExpanderBox>(
         `
@@ -422,7 +422,7 @@ async function renderLines(
     await browser.setContent(
         `<div id="container" style="width:${CONTAINER_WIDTH}px;height:${CONTAINER_HEIGHT}px"></div>`
     );
-    await browser.evaluate(browser.bundleSource());
+    await browser.loadBundle();
 
     const lines = await browser.evaluate<RenderedLine[]>(
         `
@@ -563,7 +563,7 @@ async function exportMap(
     await browser.setContent(
         `<div id="container" style="width:${viewport.width}px;height:${viewport.height}px"></div>`
     );
-    await browser.evaluate(browser.bundleSource());
+    await browser.loadBundle();
 
     const result = await browser.evaluate<ExportedImage>(
         `

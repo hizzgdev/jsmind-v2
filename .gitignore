@@ -3,6 +3,7 @@ node_modules/
 coverage
 dist/
 logs/
+_site/
 .vscode/settings.json
 
 
