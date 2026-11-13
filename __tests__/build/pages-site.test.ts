@@ -1,9 +1,11 @@
 /**
- * @fileoverview The Pages assembler must keep the playground's module script.
+ * @fileoverview Pages rewrites the playground script src and nothing else.
  *
- * `dist/jsmind.js` is ESM. Publishing a classic `<script src="jsmind.js">`
- * throws on `export`, and a rewrite that misses the module tag leaves the
- * page pointing at `../dist/jsmind.js`, which does not exist on the site.
+ * The page is already `<script type="module" src="../dist/jsmind.js">`.
+ * That relative path is what `npm run server` needs. Publication copies the
+ * page to the site root and the bundle beside it, so the workflow sed
+ * changes the src to `jsmind.js` and leaves `type="module"` as written.
+ * A second rewriter is not part of the deploy.
  */
 
 import assert from 'node:assert/strict';
@@ -12,32 +14,24 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { rewritePlayground } from '../../scripts/assemble-pages.js';
-
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
+const SOURCE_TAG = '<script type="module" src="../dist/jsmind.js"></script>';
+const PUBLISHED_TAG = '<script type="module" src="jsmind.js"></script>';
+
 describe('pages site assembly', () => {
-    it('rewrites the real playground to a module script beside the bundle', () => {
+    it('rewrites only the playground src and keeps the module script', () => {
         const html = readFileSync(join(ROOT, 'example/playground.html'), 'utf8');
-        const rewritten = rewritePlayground(html);
+        assert.ok(html.includes(SOURCE_TAG));
 
-        assert.match(rewritten, /<script type="module" src="jsmind\.js"><\/script>/);
-        assert.ok(!rewritten.includes('../dist/jsmind.js'));
-        assert.ok(rewritten.includes('type="module"'));
-    });
-
-    it('refuses a classic script tag, which cannot run the ESM bundle', () => {
-        const html = '<script type="text/javascript" src="../dist/jsmind.js"></script>';
-        assert.throws(() => rewritePlayground(html), /type="module"/);
-    });
-
-    it('refuses a page that does not load the bundle', () => {
-        assert.throws(() => rewritePlayground('<html></html>'), /type="module"/);
-    });
-
-    it('the workflow assembles the site with that script', () => {
         const workflow = readFileSync(join(ROOT, '.github/workflows/static.yml'), 'utf8');
-        assert.match(workflow, /node scripts\/assemble-pages\.js/);
-        assert.ok(!workflow.includes('sed '));
+        assert.match(workflow, /sed 's\|src="\\\.\\\.\/dist\/jsmind\\\.js"\|src="jsmind\.js"\|'/);
+        assert.match(workflow, /<script type="module" src="jsmind\.js">/);
+        assert.ok(!workflow.includes('assemble-pages'));
+
+        const published = html.replaceAll('src="../dist/jsmind.js"', 'src="jsmind.js"');
+        assert.ok(published.includes(PUBLISHED_TAG));
+        assert.ok(!published.includes('../dist/jsmind.js'));
+        assert.ok(published.includes('type="module"'));
     });
 });
