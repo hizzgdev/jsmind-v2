@@ -25,7 +25,7 @@ Three bots collaborate through GitHub labels and events to handle development, r
    The label `bobo:request-change` triggers Gobe again. After fixing, Gobe adds `gobe:ready` for another review cycle.
 
 5. **Cleanup**  
-   When the PR is merged, Cleo is triggered. Cleo finds and safely removes the corresponding worktree, then leaves a cleanup comment on the issue.
+   When the PR is merged, Cleo is triggered. Cleo finds and safely removes the corresponding worktree, leaves a cleanup comment on the issue, and closes the issue.
 
 ## Labels
 
@@ -36,5 +36,6 @@ Three bots collaborate through GitHub labels and events to handle development, r
 | `gobe:ready` | Ready for review | Bobo |
 | `bobo:request-change` | Changes needed | Gobe |
 | `bobo:approve` | Approved, ready to merge | — |
+| `request-change` | Changes needed | Human |
 
 The entire flow is driven by label changes and the pull request merged event. Comment content is not used for control.
