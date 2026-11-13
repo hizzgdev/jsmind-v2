@@ -1,7 +1,8 @@
 /**
  * @fileoverview What `npm publish` is allowed to ship, and that those
  * artifacts are actually usable: source maps carry TypeScript, `import`
- * loads the ESM build, and `require` loads the CJS build.
+ * loads the ESM build, `require` loads the CJS build, and a classic script
+ * loads the UMD build.
  *
  * The CLI later inlines `jsmind.js` from the same directory as `cli.js`.
  * That sibling layout is a publish contract, not an accident of the build.
@@ -15,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { before, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import vm from 'node:vm';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -26,6 +28,8 @@ const PUBLISHED_FILES = [
     'dist/jsmind.js.map',
     'dist/jsmind.cjs',
     'dist/jsmind.cjs.map',
+    'dist/jsmind.umd.js',
+    'dist/jsmind.umd.js.map',
     'dist/jsmind.d.ts',
 ];
 
@@ -121,27 +125,33 @@ describe('npm package contents', () => {
         assert.strictEqual(pkg.directories, undefined);
     });
 
-    it('keeps cli.js, jsmind.js, and jsmind.cjs as siblings', () => {
+    it('keeps cli.js, jsmind.js, jsmind.cjs, and jsmind.umd.js as siblings', () => {
         const pkg = readPackage();
         const cli = pkg.files.find((file) => file.endsWith('/cli.js'));
         const esm = pkg.files.find((file) => file.endsWith('/jsmind.js'));
         const cjs = pkg.files.find((file) => file.endsWith('/jsmind.cjs'));
+        const umd = pkg.files.find((file) => file.endsWith('/jsmind.umd.js'));
         assert.ok(cli);
         assert.ok(esm);
         assert.ok(cjs);
+        assert.ok(umd);
         assert.strictEqual(dirname(cli), dirname(esm));
         assert.strictEqual(dirname(cli), dirname(cjs));
+        assert.strictEqual(dirname(cli), dirname(umd));
 
         const outputs = rollupOutputFiles();
         const builtCli = outputs.find((file) => file.endsWith('/cli.js'));
         const builtEsm = outputs.find((file) => file.endsWith('/jsmind.js'));
         const builtCjs = outputs.find((file) => file.endsWith('/jsmind.cjs'));
+        const builtUmd = outputs.find((file) => file.endsWith('/jsmind.umd.js'));
         assert.strictEqual(builtCli, cli);
         assert.strictEqual(builtEsm, esm);
         assert.strictEqual(builtCjs, cjs);
+        assert.strictEqual(builtUmd, umd);
         assert.ok(builtCli);
         assert.strictEqual(dirname(builtCli), dirname(builtEsm ?? ''));
         assert.strictEqual(dirname(builtCli), dirname(builtCjs ?? ''));
+        assert.strictEqual(dirname(builtCli), dirname(builtUmd ?? ''));
     });
 
     it('points repository metadata at the v2 repo', () => {
@@ -165,6 +175,7 @@ describe('built package entry', () => {
     it('embeds TypeScript in the published source maps', () => {
         assertSourcesEmbedded('dist/jsmind.js.map');
         assertSourcesEmbedded('dist/jsmind.cjs.map');
+        assertSourcesEmbedded('dist/jsmind.umd.js.map');
         assertSourcesEmbedded('dist/cli.js.map');
         const libraryMap = readFileSync(join(ROOT, 'dist/jsmind.js.map'), 'utf8');
         assert.ok(libraryMap.includes('class JsMind'));
@@ -191,7 +202,14 @@ describe('built package entry', () => {
         const required = loadCjs(join(ROOT, 'dist/jsmind.cjs')) as JsMindLibrary;
         assertLibrary(required, 'require()');
 
-        for (const file of ['dist/jsmind.js', 'dist/jsmind.cjs', 'dist/cli.js', 'dist/jsmind.d.ts']) {
+        const umdSource = readFileSync(join(ROOT, 'dist/jsmind.umd.js'), 'utf8');
+        assert.doesNotMatch(umdSource, /^\s*export\b/m);
+        assert.doesNotMatch(umdSource, /^\s*import\b/m);
+        const sandbox: { jsMind?: JsMindLibrary } = {};
+        vm.runInNewContext(umdSource, sandbox, { filename: 'jsmind.umd.js' });
+        assertLibrary(sandbox.jsMind, 'classic script');
+
+        for (const file of ['dist/jsmind.js', 'dist/jsmind.cjs', 'dist/jsmind.umd.js', 'dist/cli.js', 'dist/jsmind.d.ts']) {
             const text = readFileSync(join(ROOT, file), 'utf8');
             assert.ok(text.includes(V2_HOME), `${file} banner is not the v2 repo`);
             assert.ok(!text.includes('https://github.com/hizzgdev/jsmind/'), `${file} still names v1`);

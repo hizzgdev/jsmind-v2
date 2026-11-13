@@ -52,6 +52,21 @@ export default [
         },
         plugins: [typescriptPlugin()],
     },
+    // Classic `<script src>` entry. `jsmind.js` is ESM, so a script tag without
+    // `type="module"` throws on `export`. This file has no import or export;
+    // the wrapper assigns `jsMind` on the page, which is what v1 pages load.
+    {
+        input: 'src/application/jsmind.ts',
+        output: {
+            file: 'dist/jsmind.umd.js',
+            format: 'umd',
+            name: 'jsMind',
+            exports: 'default',
+            banner: banner,
+            sourcemap: true,
+        },
+        plugins: [typescriptPlugin()],
+    },
     // CLI bundle for Node — must not pull in the renderer, which needs a DOM.
     // Stays ESM, beside the library bundles, so it can read `jsmind.js` via
     // `__dirname` / `import.meta.url`.

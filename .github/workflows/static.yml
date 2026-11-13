@@ -53,56 +53,11 @@ jobs:
       - name: Build the library
         run: npm run build
 
-      # Three files make up the site, and only two of them already exist under
-      # the names they need.
-      #
-      # playground.html is the awkward one: it lives at example/ and its script
-      # tag points at ../dist/jsmind.js. Neither survives publication - example/
-      # is not part of the site and there is no dist/ on it - so the page is
-      # copied to the root with the path rewritten, and the bundle is copied
-      # beside it.
-      #
-      # The source file is left alone. ../dist/jsmind.js is correct for anyone
-      # serving the repository locally with `npm run server`.
-      #
-      # The page is already `<script type="module" ...>`. The sed rewrites only
-      # the src, so that type does not need a second pass. The bundle is ESM;
-      # a classic script throws on `export` and the playground renders nothing.
+      # `npm run assemble-site` writes `_site`: the landing page, the
+      # playground, and the bundle. Path rewrite and the check that the page
+      # still loads the bundle live in that command, not here.
       - name: Assemble the site
-        run: |
-          set -euo pipefail
-          mkdir -p _site
-
-          cp index.html _site/index.html
-          cp dist/jsmind.js _site/jsmind.js
-
-          sed 's|src="\.\./dist/jsmind\.js"|src="jsmind.js"|' \
-            example/playground.html > _site/playground.html
-
-          # Fail here rather than publish a playground that renders nothing. A
-          # sed that matched nothing would leave the page pointing at a path
-          # that does not exist on the site, and nothing downstream would notice.
-          # The module type has to survive that path rewrite.
-          if grep -q '\.\./dist/jsmind\.js' _site/playground.html; then
-            echo "::error::playground.html still points at ../dist/jsmind.js"
-            exit 1
-          fi
-          grep -q '<script type="module" src="jsmind.js">' _site/playground.html || {
-            echo "::error::playground.html does not load the ESM bundle"
-            exit 1
-          }
-
-          ls -la _site
-
-      # Pages will happily publish an empty artifact, and a blank deploy looks
-      # exactly like a broken one from the outside.
-      - name: Check the site is complete
-        run: |
-          set -euo pipefail
-          for f in index.html playground.html jsmind.js; do
-            test -f "_site/$f" || { echo "::error::missing _site/$f"; exit 1; }
-          done
-          echo "site size: $(du -sh _site | cut -f1)"
+        run: npm run assemble-site
 
       # No actions/configure-pages step: it exists to configure Jekyll and Pages
       # settings for a build, and these files are already finished HTML.

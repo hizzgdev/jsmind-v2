@@ -23,11 +23,14 @@
         "dist/jsmind.js.map",
         "dist/jsmind.cjs",
         "dist/jsmind.cjs.map",
+        "dist/jsmind.umd.js",
+        "dist/jsmind.umd.js.map",
         "dist/jsmind.d.ts"
     ],
     "scripts": {
         "server": "http-server",
         "build": "rollup -c .config/rollup.config.js",
+        "assemble-site": "node scripts/assemble-site.ts",
         "test": "node --test \"__tests__/!(ui)/**/*.test.ts\"",
         "test-lite": "node --test --test-reporter=dot \"__tests__/!(ui)/**/*.test.ts\"",
         "format": "eslint --fix --config .config/eslint.config.js",
