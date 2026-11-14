@@ -13,7 +13,9 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { join, dirname, extname, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -410,6 +412,58 @@ export class BrowserHarness {
     }
 
     /**
+     * Sets the viewport size used for layout and click coordinates.
+     *
+     * @param width - CSS pixel width.
+     * @param height - CSS pixel height.
+     */
+    async setViewport(width: number, height: number): Promise<void> {
+        await this.send('Emulation.setDeviceMetricsOverride', {
+            width,
+            height,
+            deviceScaleFactor: 1,
+            mobile: false,
+        });
+    }
+
+    /**
+     * Navigates the page to a URL and waits for it to finish loading.
+     *
+     * @param url - Absolute URL to open.
+     */
+    async navigate(url: string): Promise<void> {
+        await this.send('Page.navigate', { url });
+        const deadline = Date.now() + 15_000;
+        while (Date.now() < deadline) {
+            const href = await this.evaluate<string>('location.href');
+            const ready = await this.evaluate<string>('document.readyState');
+            if ((href === url || href.startsWith(url)) && ready === 'complete') {
+                await this.settle();
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        throw new Error(`page did not load ${url}`);
+    }
+
+    /**
+     * Dispatches a real left click at a viewport point.
+     *
+     * @param x - CSS pixel X, as `getBoundingClientRect()` reports it.
+     * @param y - CSS pixel Y, as `getBoundingClientRect()` reports it.
+     */
+    async clickAt(x: number, y: number): Promise<void> {
+        const params = {
+            x,
+            y,
+            button: 'left',
+            clickCount: 1,
+        };
+        await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...params });
+        await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...params });
+    }
+
+    /**
      * Shuts the browser down and removes its temporary profile.
      */
     async close(): Promise<void> {
@@ -450,4 +504,107 @@ async function waitForDevTools(
         await new Promise(resolve => setTimeout(resolve, 200));
     }
     throw new Error(`browser never exposed DevTools on port ${port}`);
+}
+
+
+const MIME_TYPES: Record<string, string> = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.map': 'application/json; charset=utf-8',
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml',
+};
+
+/**
+ * A tiny static file server so the browser can load real pages and ES modules.
+ *
+ * @remarks
+ * `Page.setDocumentContent` has no origin, so `<script type="module">` cannot
+ * fetch `../dist/jsmind.js`. Serving the repo over localhost gives the
+ * playground the same layout a person would open.
+ */
+export class StaticServer {
+    private readonly server: Server;
+
+    readonly origin: string;
+
+    private constructor(server: Server, origin: string) {
+        this.server = server;
+        this.origin = origin;
+    }
+
+    /**
+     * Serves `root` on an ephemeral port.
+     *
+     * @param root - Directory to expose. Defaults to the repository root.
+     * @returns A listening server.
+     */
+    static start(root: string = REPO_ROOT): Promise<StaticServer> {
+        const directory = resolve(root);
+        const httpServer = createServer((request, response) => {
+            void serveFile(directory, request, response);
+        });
+        return new Promise((resolveStart, reject) => {
+            httpServer.once('error', reject);
+            httpServer.listen(0, '127.0.0.1', () => {
+                const address = httpServer.address();
+                if (!address || typeof address === 'string') {
+                    reject(new Error('static server did not bind a TCP port'));
+                    return;
+                }
+                resolveStart(new StaticServer(httpServer, `http://127.0.0.1:${address.port}`));
+            });
+        });
+    }
+
+    /**
+     * Stops the server.
+     */
+    close(): Promise<void> {
+        return new Promise((resolveClose, reject) => {
+            this.server.close(error => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+                resolveClose();
+            });
+        });
+    }
+}
+
+/**
+ * Writes one file from `root` as an HTTP response, or 404 / 403.
+ *
+ * @param root - Directory the server is allowed to read.
+ * @param request - Incoming request.
+ * @param response - Response to fill.
+ */
+async function serveFile(
+    root: string,
+    request: IncomingMessage,
+    response: ServerResponse
+): Promise<void> {
+    const rawPath = request.url ?? '/';
+    const relativePath = decodeURIComponent(new URL(rawPath, 'http://127.0.0.1').pathname);
+    const resolved = resolve(root, `.${relativePath}`);
+    const rel = relative(root, resolved);
+    if (rel.startsWith('..') || resolve(root, rel) !== resolved) {
+        response.writeHead(403);
+        response.end();
+        return;
+    }
+
+    try {
+        const body = await readFile(resolved);
+        const type = MIME_TYPES[extname(resolved)] ?? 'application/octet-stream';
+        response.writeHead(200, { 'content-type': type });
+        response.end(body);
+    } catch {
+        response.writeHead(404);
+        response.end();
+    }
 }
