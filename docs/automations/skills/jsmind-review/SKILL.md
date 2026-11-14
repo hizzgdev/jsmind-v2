@@ -1,11 +1,11 @@
 ---
 name: jsmind-review
-description: "Review methodology for jsMind-V2 PRs. Use when acting as Bobo to review a pull request, focusing on contracts, testability, and long-term maintainability."
+description: "Review methodology for jsMind-V2 PRs. Use when reviewing a pull request, focusing on contracts, testability, and long-term maintainability."
 type: workflow
 lifecycle: active
 ---
 
-# Bobo Review Methodology
+# jsMind Review Methodology
 
 Review as a project steward, not only as a functional checker. Functional correctness is necessary but not sufficient.
 
