@@ -796,28 +796,27 @@ if (mind) {
                     const container = document.getElementById('jsmind_container');
                     if (!container || this.isSetup) return;
 
-                    // Use event delegation to listen for node clicks
+                    // Clicks originate inside the view's shadow root. The event
+                    // is retargeted to this container, so event.target and
+                    // parentElement never see the node. composedPath() still
+                    // includes the real path across the shadow boundary.
                     container.addEventListener('click', (event) => {
-                        let target = event.target;
-                        let foundNode = false;
-                        
-                        while (target && target !== container) {
-                            // Check if it's a jsmind-node element
-                            if (target.classList && target.classList.contains('jsmind-node')) {
+                        const path = typeof event.composedPath === 'function'
+                            ? event.composedPath()
+                            : [];
+                        for (const target of path) {
+                            if (target === container) {
+                                break;
+                            }
+                            if (target && target.classList && target.classList.contains('jsmind-node')) {
                                 const nodeId = target.getAttribute('data-jm-node-id');
                                 if (nodeId) {
                                     this.handleNodeClick(nodeId);
-                                    foundNode = true;
                                     return;
                                 }
                             }
-                            target = target.parentElement;
                         }
-                        
-                        // If no node found, clear info bar
-                        if (!foundNode) {
-                            NodeInfoBar.clear();
-                        }
+                        NodeInfoBar.clear();
                     });
                     
                     this.isSetup = true;
