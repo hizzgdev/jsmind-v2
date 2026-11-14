@@ -1,5 +1,5 @@
 ---
-name: bobo-review
+name: jsmind-review
 description: "Review methodology for jsMind-V2 PRs. Use when acting as Bobo to review a pull request, focusing on contracts, testability, and long-term maintainability."
 type: workflow
 lifecycle: active
