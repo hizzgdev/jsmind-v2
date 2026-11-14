@@ -104,3 +104,165 @@ mind move <file> --node-id <id> --parent-id <id>
 ```
 
 换边以 `node set-side` 为准。列表里 `add-child` 那一行的 `--side` 不要当成已经换边；换边后用 `context` 行尾的 `side=` 核对。
+
+## 示例会话
+
+**需求：** 给我画一张 jsMind v2 的架构脑图。  
+**Intent：** `BUILD`  
+**文件：** `tmp/jsmind-arch.json`  
+**图片：** `tmp/jsmind-arch.png`
+
+目标结构：
+
+```
+jsMind v2 架构
+├── 模型
+│   ├── 节点与边
+│   └── 校验
+├── 视图
+│   ├── 布局
+│   └── 渲染
+└── CLI          ← 重点，tone=primary
+    ├── context
+    ├── 修改命令
+    ├── validate
+    └── export
+```
+
+### 1. 建文件，不要手写 JSON
+
+```
+$ jsmind create tmp/jsmind-arch.json --title "jsMind v2 架构"
+created tmp/jsmind-arch.json
+```
+
+### 2. Checkpoint 1：先 `context`，再拿 id
+
+```
+$ jsmind context tmp/jsmind-arch.json
+root   jsMind v2 架构 {side=center}
+```
+
+根节点 id 是 `root`。不要猜 id。
+
+### 3. 第一轮修改：搭结构
+
+```
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id root --text "模型"
+added jm-mwgmfzax under root
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id root --text "视图"
+added jm-mwgmfzcf under root
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id root --text "CLI"
+added jm-mwgmfzdq under root
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfzax --text "节点与边"
+added jm-mwgmfzf6 under jm-mwgmfzax
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfzax --text "校验"
+added jm-mwgmfzgi under jm-mwgmfzax
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfzcf --text "布局"
+added jm-mwgmfzi0 under jm-mwgmfzcf
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfzcf --text "渲染"
+added jm-mwgmfzja under jm-mwgmfzcf
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfzdq --text "context"
+added jm-mwgmfzkj under jm-mwgmfzdq
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfzdq --text "修改命令"
+added jm-mwgmfzlv under jm-mwgmfzdq
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfzdq --text "validate"
+added jm-mwgmfzn9 under jm-mwgmfzdq
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfzdq --text "export"
+added jm-mwgmfzon under jm-mwgmfzdq
+```
+
+### 4. Checkpoint 2：`validate`，再 `context` 看缩进
+
+```
+$ jsmind validate tmp/jsmind-arch.json
+tmp/jsmind-arch.json: valid
+
+$ jsmind context tmp/jsmind-arch.json --depth 2
+root          jsMind v2 架构 {side=center}
+jm-mwgmfzax     模型 {side=right}
+jm-mwgmfzf6       节点与边 {side=right}
+jm-mwgmfzgi       校验 {side=right}
+jm-mwgmfzcf     视图 {side=right}
+jm-mwgmfzi0       布局 {side=right}
+jm-mwgmfzja       渲染 {side=right}
+jm-mwgmfzdq     CLI {side=right}
+jm-mwgmfzkj       context {side=right}
+jm-mwgmfzlv       修改命令 {side=right}
+jm-mwgmfzn9       validate {side=right}
+jm-mwgmfzon       export {side=right}
+```
+
+子节点都缩进在对应父节点下面，结构正确。但所有分支都是 `side=right`。
+
+### 5. Checkpoint 3：出图并查看
+
+```
+$ jsmind export tmp/jsmind-arch.json tmp/jsmind-arch.png
+tmp/jsmind-arch.png: 2400x1600 (155.8 KB)
+```
+
+看图，四项逐条判断：
+
+1. 文字挤压：通过
+2. 一侧过重：失败。三个一级分支都在右侧，左侧几乎是空的
+3. 不该折叠的分支：通过
+4. 连线交叉：通过
+
+有一项失败，回到 checkpoint 1，不要继续用凭记忆的旧结论。
+
+### 6. 第二轮：调整左右，并标出重点
+
+```
+$ jsmind context tmp/jsmind-arch.json --depth 2
+（同上，确认 id）
+
+$ jsmind node set-side tmp/jsmind-arch.json --node-id jm-mwgmfzax --side left
+set side of jm-mwgmfzax to left
+
+$ jsmind node set-side tmp/jsmind-arch.json --node-id jm-mwgmfzcf --side left
+set side of jm-mwgmfzcf to left
+
+$ jsmind node set-style tmp/jsmind-arch.json --node-id jm-mwgmfzdq --tone primary
+set style of jm-mwgmfzdq: {"tone":"primary"}
+```
+
+CLI 保持右侧，并标成重点。
+
+```
+$ jsmind validate tmp/jsmind-arch.json
+tmp/jsmind-arch.json: valid
+
+$ jsmind context tmp/jsmind-arch.json --depth 2
+root          jsMind v2 架构 {side=center}
+jm-mwgmfzax     模型 {side=left}
+jm-mwgmfzf6       节点与边 {side=right}
+jm-mwgmfzgi       校验 {side=right}
+jm-mwgmfzcf     视图 {side=left}
+jm-mwgmfzi0       布局 {side=right}
+jm-mwgmfzja       渲染 {side=right}
+jm-mwgmfzdq     CLI {side=right tone=primary}
+jm-mwgmfzkj       context {side=right}
+jm-mwgmfzlv       修改命令 {side=right}
+jm-mwgmfzn9       validate {side=right}
+jm-mwgmfzon       export {side=right}
+```
+
+### 7. 再次出图
+
+```
+$ jsmind export tmp/jsmind-arch.json tmp/jsmind-arch.png
+tmp/jsmind-arch.png: 2400x1600 (145.2 KB)
+```
+
+四项全部通过：文字不挤压，左右都有内容，没有不该折叠的分支，连线无交叉。最终产物是 `tmp/jsmind-arch.json` 和 `tmp/jsmind-arch.png`。
