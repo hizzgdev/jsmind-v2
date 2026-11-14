@@ -875,8 +875,10 @@ test('cli - context shows folded in the text output', () => {
                 asJson: false,
             });
         });
-        // jm-b1 is folded.
-        assert.match(out, /jm-b1.*\{side=right folded .+\}/);
+        // jm-b1 is folded and deeper than a root child, so it must not show
+        // side. Style overrides still appear.
+        assert.match(out, /jm-b1.*\{folded tone=warning borderWidth=2 borderStyle=dotted\}/);
+        assert.ok(!/jm-b1.*\{[^}]*\bside=/.test(out), 'deeper nodes must not show side');
         // jm-a1 is not folded — the word must not appear.
         const a1Line = out.split('\n').find(l => l.includes('jm-a1'))!;
         assert.ok(a1Line, 'jm-a1 is present');
@@ -928,13 +930,84 @@ test('cli - context JSON side is a word, not a number', () => {
                 asJson: true,
             });
         });
-        const entries: { id: string; side: string }[] = JSON.parse(out);
+        const entries: { id: string; side?: string }[] = JSON.parse(out);
         const root = entries.find(e => e.id === 'root')!;
         assert.ok(root, 'root is present');
         assert.equal(root.side, 'center');
         const a2 = entries.find(e => e.id === 'jm-a2')!;
         assert.ok(a2, 'jm-a2 is present');
         assert.equal(a2.side, 'left');
+        const b1 = entries.find(e => e.id === 'jm-b1')!;
+        assert.ok(b1, 'jm-b1 is present');
+        assert.ok(!('side' in b1), 'nodes below the root\'s direct children omit side');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context text shows side only for the root and its direct children', () => {
+    // side is only meaningful on those nodes. Deeper lines may still show
+    // folded or style, but they must not carry side=.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+            });
+        });
+        const lines = out.trim().split('\n');
+        const byId = (id: string) => lines.find(line => line.startsWith(id));
+        const rootLine = byId('root')!;
+        const a1Line = byId('jm-a1')!;
+        const a2Line = byId('jm-a2')!;
+        const b1Line = byId('jm-b1')!;
+        assert.ok(rootLine && a1Line && a2Line && b1Line, out);
+        assert.match(rootLine, /\{side=center\b/);
+        assert.match(a1Line, /\{side=right\b/);
+        assert.match(a2Line, /\{side=left\b/);
+        assert.ok(!/\bside=/.test(b1Line), `deeper node must omit side: ${b1Line}`);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context does not rewrite or print descendant sides after set-side', () => {
+    // Moving a parent to the left must not "correct" children in the output.
+    // Their stored side is left alone, and because they are deeper than a
+    // direct child of the root, it is not printed either.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        capture(() => {
+            runNode(file, 'set-side', { 'node-id': 'jm-a1', 'side': 'left' }, WRITE);
+        });
+
+        const after = JSON.parse(readFileSync(file, 'utf8'));
+        assert.equal(after.nodes['jm-a1'].side, -1, 'parent moved to the left');
+        assert.equal(after.nodes['jm-b1'].side, 1, 'descendant side is not rewritten');
+
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+            });
+        });
+        const a1Line = out.split('\n').find(line => line.startsWith('jm-a1'))!;
+        const b1Line = out.split('\n').find(line => line.startsWith('jm-b1'))!;
+        assert.match(a1Line, /\{side=left\b/);
+        assert.ok(!/\bside=/.test(b1Line), `descendant must still omit side: ${b1Line}`);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

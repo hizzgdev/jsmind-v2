@@ -196,27 +196,31 @@ function flattenStyle(style: Record<string, unknown>, prefix = ''): Record<strin
 }
 
 /**
- * Summarises a node's state for the text output — side, folded, and any style
- * overrides.
+ * Summarises a node's state for the text output — side (when it is meaningful),
+ * folded, and any style overrides.
  *
  * @param node - Node to summarise.
- * @returns A ` {side=left tone=danger}` suffix.  Every node carries at least
- *   `side`; `folded` appears only when the node is collapsed, and style
- *   overrides appear when the node differs from the theme.
+ * @param level - Depth in the printed tree: 0 is the root, 1 is a direct child
+ *   of the root.
+ * @returns A ` {side=left tone=danger}` suffix, or an empty string when the
+ *   node has nothing to report.
  * @remarks
- * `side` belongs here rather than in a separate column because it is short,
- * almost never changes within a run, and is most useful when the agent is trying
- * to understand a layout surprise — exactly when the visual scan of ids is
- * already the point.  Putting it on every line adds ~12 characters per node; a
- * 30-node tree grows by roughly 360 characters, or about 90 tokens, which is
- * noise next to a single `export` image.
+ * `side` is only meaningful for the root and the root's direct children, so it
+ * is shown only when `level` is 0 or 1.  Deeper nodes inherit layout from their
+ * ancestor on the root; printing `side` there would look like a fact the agent
+ * should act on.  `folded` appears only when the node is collapsed, and style
+ * overrides appear when the node differs from the theme.  After a parent is
+ * moved to the other side, descendants are left alone: their stored `side` is
+ * not rewritten, and it is not printed either.
  */
-function stateSummary(node: JmNode): string {
+function stateSummary(node: JmNode, level: number): string {
     const parts: string[] = [];
 
-    // side is always known.
-    const sideLabel = formatSide(node.side);
-    parts.push(`side=${sideLabel}`);
+    // side is only meaningful for the root and the root's direct children.
+    if (level <= 1) {
+        const sideLabel = formatSide(node.side);
+        parts.push(`side=${sideLabel}`);
+    }
 
     if (node.folded) {
         parts.push('folded');
@@ -229,6 +233,9 @@ function stateSummary(node: JmNode): string {
         }
     }
 
+    if (parts.length === 0) {
+        return '';
+    }
     return ` {${parts.join(' ')}}`;
 }
 
@@ -252,7 +259,7 @@ function renderTree(
         }
         const label = clip(flatten(textOf(node)), options.maxText, options.fullText);
         // Three spaces per level, after the id column.
-        return `${id}   ${'  '.repeat(level)}${label}${stateSummary(node)}`;
+        return `${id}   ${'  '.repeat(level)}${label}${stateSummary(node, level)}`;
     });
 }
 
@@ -358,7 +365,12 @@ function emit(entries: { node: JmNode; level: number }[], options: ContextOption
                     ? undefined
                     : clip(flatten(textOf(node)), options.maxText, options.fullText),
             };
-            entry.side = formatSide(node.side);
+            // Same rule as the text output: side only for the root and its
+            // direct children. Deeper nodes keep whatever side is stored; it
+            // is just not printed, and it is not rewritten when a parent moves.
+            if (level <= 1) {
+                entry.side = formatSide(node.side);
+            }
             if (node.folded) {
                 entry.folded = true;
             }
@@ -401,7 +413,8 @@ Discovery step: shows the tree so an agent can find the ids it needs.
 
 Ids are printed in a left-aligned column so they can be copied into the next
 command. Multi-line labels are flattened, and truncation ends in an ellipsis.
-Each line ends with a {side=left ...} block that shows the node's layout
-side, whether it is folded, and any style overrides from the theme.
+Each line may end with a {…} block. side is shown only for the root and the
+root's direct children. folded appears when the node is collapsed, and style
+overrides appear when the node differs from the theme.
 
 When --focus matches nothing, the closest candidates are listed instead.`;
