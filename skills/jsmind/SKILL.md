@@ -104,3 +104,165 @@ mind move <file> --node-id <id> --parent-id <id>
 ```
 
 A side change is `node set-side`. `--side` on `add-child` is not a side change you already made. After you change side, check `side=` at the end of the `context` line.
+
+## Example session
+
+**Request:** Draw an architecture mind map of jsMind v2.  
+**Intent:** `BUILD`  
+**File:** `tmp/jsmind-arch.json`  
+**Image:** `tmp/jsmind-arch.png`
+
+Target tree:
+
+```
+jsMind v2 architecture
+├── Model
+│   ├── Nodes and edges
+│   └── Validation
+├── View
+│   ├── Layout
+│   └── Rendering
+└── CLI          ← emphasis, tone=primary
+    ├── context
+    ├── edit commands
+    ├── validate
+    └── export
+```
+
+### 1. Create the file; do not write JSON by hand
+
+```
+$ jsmind create tmp/jsmind-arch.json --title "jsMind v2 architecture"
+created tmp/jsmind-arch.json
+```
+
+### 2. Checkpoint 1: run `context` first, then copy the id
+
+```
+$ jsmind context tmp/jsmind-arch.json
+root   jsMind v2 architecture {side=center}
+```
+
+The root id is `root`. Do not guess an id.
+
+### 3. First round of edits: build the structure
+
+```
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id root --text "Model"
+added jm-mwgmfqzp under root
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id root --text "View"
+added jm-mwgmfr18 under root
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id root --text "CLI"
+added jm-mwgmfr2p under root
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfqzp --text "Nodes and edges"
+added jm-mwgmfr41 under jm-mwgmfqzp
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfqzp --text "Validation"
+added jm-mwgmfr5d under jm-mwgmfqzp
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfr18 --text "Layout"
+added jm-mwgmfr6p under jm-mwgmfr18
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfr18 --text "Rendering"
+added jm-mwgmfr7z under jm-mwgmfr18
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfr2p --text "context"
+added jm-mwgmfr9g under jm-mwgmfr2p
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfr2p --text "edit commands"
+added jm-mwgmfraq under jm-mwgmfr2p
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfr2p --text "validate"
+added jm-mwgmfrc3 under jm-mwgmfr2p
+
+$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgmfr2p --text "export"
+added jm-mwgmfrdg under jm-mwgmfr2p
+```
+
+### 4. Checkpoint 2: `validate`, then `context` to check indent
+
+```
+$ jsmind validate tmp/jsmind-arch.json
+tmp/jsmind-arch.json: valid
+
+$ jsmind context tmp/jsmind-arch.json --depth 2
+root          jsMind v2 architecture {side=center}
+jm-mwgmfqzp     Model {side=right}
+jm-mwgmfr41       Nodes and edges {side=right}
+jm-mwgmfr5d       Validation {side=right}
+jm-mwgmfr18     View {side=right}
+jm-mwgmfr6p       Layout {side=right}
+jm-mwgmfr7z       Rendering {side=right}
+jm-mwgmfr2p     CLI {side=right}
+jm-mwgmfr9g       context {side=right}
+jm-mwgmfraq       edit commands {side=right}
+jm-mwgmfrc3       validate {side=right}
+jm-mwgmfrdg       export {side=right}
+```
+
+Children are indented under the correct parents, so the structure is right. Every branch is still `side=right`.
+
+### 5. Checkpoint 3: export and look
+
+```
+$ jsmind export tmp/jsmind-arch.json tmp/jsmind-arch.png
+tmp/jsmind-arch.png: 2400x1600 (166.9 KB)
+```
+
+Open the png. Each of the four checks gets a pass or a fail:
+
+1. Crushed text: pass
+2. One side overloaded: fail. All three top-level branches sit on the right; the left is almost empty
+3. Folded when this task needs it open: pass
+4. Lines cross: pass
+
+One check failed. Go back to checkpoint 1. Do not keep using conclusions remembered from the previous round.
+
+### 6. Second round: balance the sides and mark what matters
+
+```
+$ jsmind context tmp/jsmind-arch.json --depth 2
+(same tree as above; confirm the ids)
+
+$ jsmind node set-side tmp/jsmind-arch.json --node-id jm-mwgmfqzp --side left
+set side of jm-mwgmfqzp to left
+
+$ jsmind node set-side tmp/jsmind-arch.json --node-id jm-mwgmfr18 --side left
+set side of jm-mwgmfr18 to left
+
+$ jsmind node set-style tmp/jsmind-arch.json --node-id jm-mwgmfr2p --tone primary
+set style of jm-mwgmfr2p: {"tone":"primary"}
+```
+
+CLI stays on the right and is marked as the emphasis.
+
+```
+$ jsmind validate tmp/jsmind-arch.json
+tmp/jsmind-arch.json: valid
+
+$ jsmind context tmp/jsmind-arch.json --depth 2
+root          jsMind v2 architecture {side=center}
+jm-mwgmfqzp     Model {side=left}
+jm-mwgmfr41       Nodes and edges {side=right}
+jm-mwgmfr5d       Validation {side=right}
+jm-mwgmfr18     View {side=left}
+jm-mwgmfr6p       Layout {side=right}
+jm-mwgmfr7z       Rendering {side=right}
+jm-mwgmfr2p     CLI {side=right tone=primary}
+jm-mwgmfr9g       context {side=right}
+jm-mwgmfraq       edit commands {side=right}
+jm-mwgmfrc3       validate {side=right}
+jm-mwgmfrdg       export {side=right}
+```
+
+### 7. Export again
+
+```
+$ jsmind export tmp/jsmind-arch.json tmp/jsmind-arch.png
+tmp/jsmind-arch.png: 2400x1600 (154.2 KB)
+```
+
+All four checks pass: text is not crushed, both sides have content, nothing that should be open is folded, and lines do not cross. The final artifacts are `tmp/jsmind-arch.json` and `tmp/jsmind-arch.png`.
