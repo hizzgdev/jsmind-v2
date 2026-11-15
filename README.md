@@ -75,3 +75,7 @@ The jsmind skill for drawing or editing a map with the CLI: [`skills/jsmind/SKIL
 ## Development
 
 How to work in this repository — environment, layout, branch and PR conventions, and commands — is in [`AGENTS.md`](AGENTS.md).
+
+## License
+
+This project is open source under the [BSD 3-Clause License](LICENSE).
