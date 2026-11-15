@@ -68,7 +68,7 @@ mind.addNode(
 
 ## 设计决策
 
-这个模块的设计推演在 [`archive/design-decisions/node-content.md`](../archive/design-decisions/node-content.md)：
+这个模块的设计推演在 [`team/archive/design-decisions/node-content.md`](../../team/archive/design-decisions/node-content.md)：
 为什么用 enum 不用字符串字面量、为什么工厂方法优先于直接构造、从 v1 演进时的取舍，
 以及**要加新内容类型时该动哪几处**（见那篇的「Future Extensibility」）。
 

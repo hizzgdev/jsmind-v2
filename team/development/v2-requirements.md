@@ -106,7 +106,7 @@ A 用 agent 生成 → 得到 PNG + 自包含 HTML
 - **与 v1 格式互通**（见 4.4）
 
 **图的模型**：父子关系用**树**表达（`node.parent` / `node.children`），`edges` 只装树之外的额外关系。
-设计理由与取舍见 [`docs/architecture/hybrid-edge-system.md`](architecture/hybrid-edge-system.md)。
+设计理由与取舍见 [`docs/architecture/hybrid-edge-system.md`](../../docs/architecture/hybrid-edge-system.md)。
 
 > 补充三条该文档未覆盖的论点：
 > 1. **兄弟节点有序** —— edge 列表没有"顺序"概念，要用就得给 edge 加 `order` 字段，排序逻辑从数据结构下沉到代码

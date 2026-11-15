@@ -1,96 +1,39 @@
-jsMind V2
-===
+# jsMind V2
 
-[Documentation](https://github.com/hizzgdev/jsmind-v2/tree/master/docs) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html)
+A mind-map kernel designed for AI agents — agents can reliably create, read, and modify structured maps; people can view, edit, and export them.
 
-<!-- Both links are absolute, and both leave the repository.
+[Documentation](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.md)
+
+中文说明见 [README.zh.md](README.zh.md)。
+
+<!-- Both the documentation and playground links are absolute, and both leave
+     the repository.
      Docs stay on GitHub rather than being published as a site: they can be
      searched, blamed and edited there, and rendering them to HTML would mean
      maintaining a markdown build step for a project whose site is one page.
+     The documentation link points at docs/README.md, the public docs index,
+     not the whole historical docs/ tree.
      The playground only exists on the published site - it is copied there from
      example/ with its script path rewritten during deployment - so a relative
      link would 404 when this README is read on GitHub. -->
 
-Development Environment
----
+## Documentation
 
-- IDE: VS Code
-- Plugins:
-    - [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-    - [Nodejs Test Runner](https://marketplace.visualstudio.com/items?itemName=connor4312.nodejs-testing)
-- Scripts:
-    - Setup pre push: `ln -s ../../scripts/git-hooks/pre-push .git/hooks`
-- Node.js (for dev): v24.12.0
+Public product docs are in [`docs/`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md):
 
+- Features — [serialization](docs/features/serialization.md), [image export](docs/features/image-export.md), [node content](docs/features/node-content.md), and [node move](docs/features/node-move.md)
+- [Architecture](docs/architecture/architecture-overview.md) — design notes on why the system is built this way, **not** a getting-started handbook
+- [Data format](docs/requirements/v2-data-format.md) — on-disk schema, validation rules, and error codes
+- [CLI](docs/requirements/v2-cli.md) — command structure and exit-code contract
 
+## Playground
 
-Repo Layout & Workflow
----
+Try the library in the [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html).
 
-### Directories
+## Skill
 
-```
-jsmind-v2/
-├── src/            # 源码
-├── __tests__/      # 测试（node --test）
-├── docs/           # 文档：architecture / features / development
-├── scripts/        # 工具脚本（含 git-hooks）
-├── example/        # 示例页面（demo / playground）+ CI 渲染用的数据
-└── tmp/            # 临时目录 —— 已 gitignore，不进版本控制
-```
+The jsmind skill for drawing or editing a map with the CLI: [`skills/jsmind/SKILL.md`](skills/jsmind/SKILL.md). A Chinese copy is in [`SKILL.zh.md`](skills/jsmind/SKILL.zh.md).
 
-**`tmp/` 是刻意保留的落脚点**：AI agent 与本机实验的产物都放这里 —— 渲染测试截图、一次性探测脚本、临时试验页。随时可以 `rm -rf tmp/*` 清空，不会有残留污染仓库。
+## Development
 
-### Branch & PR
-
-**所有改动走 PR，不直接推 master。**
-
-分支命名 `<type>/<short-slug>`，type 取自 Conventional Commits：
-
-| type | 用途 | 例 |
-|---|---|---|
-| `feat` | 新功能 | `feat/view-theme-system` |
-| `fix` | 修复 | `fix/arranger-cousin-spacing` |
-| `refactor` | 重构（行为不变） | `refactor/view-settle` |
-| `test` | 测试 | `test/arranger-coverage` |
-| `docs` | 文档 | `docs/v2-requirements` |
-| `chore` | 杂务（依赖、配置） | `chore/tmp-gitignore` |
-
-PR title 格式 `<type>(<scope>): <subject>`，**标题用英文，描述可用中文**：
-
-```
-docs: add v2 requirements and repo workflow conventions
-feat(view): support theme and node-level styles
-fix(arranger): correct cousin spacing calculation
-```
-
-**为什么标题用英文**：与 `docs/` 保持一致；便于将来的英文贡献者扫 PR 列表；`<type>(<scope>)` 前缀可被工具自动解析，用于生成 changelog 或过滤 PR。
-
-**commit message 同样用英文**，规则与 PR title 一致（Conventional Commits）：
-
-```
-docs: add v2 requirements and refresh outdated status docs
-chore: add repo layout and workflow conventions
-feat(view): support theme and node-level styles
-```
-
-**PR 标题和 commit message 用同一条规则** —— 这样 PR 列表和 `git log` 读起来是同一个体系，不用在两套措辞之间来回切换。中文只出现在 PR 描述里（那是给人读的说明，不是索引）。
-
-**scope 建议值**（对应 `src/` 下的目录）：`model` / `arranger` / `view` / `serialization` / `docs` / `tests` / `build`。
-
-### Running
-
-```bash
-npm test                                 # 全部测试
-npm run test-lite                        # 精简输出
-npm run type-check                       # tsc --noEmit
-npm run build                            # rollup 打包到 dist/
-
-# 直接跑单个 TS 文件做验证（Node 22+ 类型剥离，无需编译）
-node --experimental-strip-types path/to/probe.ts
-```
-
-TODO
----
-
-- Serialization in node_tree and freemind format
+How to work in this repository — environment, layout, branch and PR conventions, and commands — is in [`AGENTS.md`](AGENTS.md).

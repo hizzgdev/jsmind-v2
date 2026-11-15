@@ -3,7 +3,7 @@
 > **本文件定义 CLI 的命令结构与行为约定。** S7 依此实现。
 >
 > 相关文档：
-> - `v2-requirements.md` 4.5 节 —— skill 与 CLI 的分工原则
+> - `team/development/v2-requirements.md` 4.5 节 —— skill 与 CLI 的分工原则
 > - `v2-data-format.md` 第 8 节 —— 为什么只用 id 定位
 > - `v2-data-format.md` 第 9、10 节 —— 校验规则与 autofix 语义
 >
@@ -15,7 +15,7 @@
 
 **CLI 是确定性层。凡是"结果必须一致"的操作都在这里，不进 skill。**
 
-这条原则来自 `v2-requirements.md` 4.5：
+这条原则来自 `team/development/v2-requirements.md` 4.5：
 
 | 事情 | 放哪 | 理由 |
 |---|---|---|
