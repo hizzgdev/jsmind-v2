@@ -17,6 +17,44 @@ A mind-map kernel designed for AI agents — agents can reliably create, read, a
      example/ with its script path rewritten during deployment - so a relative
      link would 404 when this README is read on GitHub. -->
 
+## Install
+
+jsMind v2 has not been published to npm yet. The `jsmind` package on npm is still v1 0.9.1; do not run `npm install jsmind`.
+
+To use the CLI from this repository you need Node.js >= 22.12.0:
+
+```bash
+git clone https://github.com/hizzgdev/jsmind-v2.git
+cd jsmind-v2
+npm install
+npm run build
+```
+
+From the repository root, run the local CLI with `npx jsmind` or `node dist/cli.js`. The commands below use `npx jsmind`; `node dist/cli.js` is equivalent.
+
+## Quick start
+
+Create a map, read the root id from `context`, add a child, validate, and export a PNG:
+
+```
+$ npx jsmind create tmp/hello.json --title "Hello"
+created tmp/hello.json
+
+$ npx jsmind context tmp/hello.json
+root   Hello {side=center}
+
+$ npx jsmind mind add-child tmp/hello.json --parent-id root --text "World"
+added jm-mwh96wk6 under root
+
+$ npx jsmind validate tmp/hello.json
+tmp/hello.json: valid
+
+$ npx jsmind export tmp/hello.json tmp/hello.png
+tmp/hello.png: 2400x1600 (85.0 KB)
+```
+
+The root id in this example is `root`. Child ids are generated; when you run these commands, use the ids from your current `context` output, and do not copy example ids.
+
 ## Documentation
 
 Public product docs are in [`docs/`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md):

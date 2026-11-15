@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This is the internal entry for how to change this repository. Product-facing documentation lives in [`docs/`](docs/README.md). Collaboration and PR conventions live at the agreed path [`team/automations/agent-team-collaboration.md`](team/automations/agent-team-collaboration.md) (that file may land in a parallel PR). Do not keep a second copy of those conventions here.
+This is the internal entry for how to change this repository. Product-facing documentation lives in [`docs/`](docs/README.md). Collaboration and PR conventions live in [`team/automations/agent-team-collaboration.md`](team/automations/agent-team-collaboration.md). Do not keep a second copy of those conventions here.
 
 ## Development Environment
 
