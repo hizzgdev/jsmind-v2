@@ -61,9 +61,31 @@ Hubie 接手任务后，会给对应 Issue 打上 `in-progress`（颜色 `FBCA04
 9. **收尾。** PR 合并或关闭后，Hubie 去掉对应 Issue 上的 `in-progress`（即使 Issue 已因 `Closes #编号` 自动关闭，也要去掉），并让 Cody 删除对应分支（本地一定要清；远程若在合并时已被自动删除，确认即可）。Cody 回报后，Hubie 再通知终审人：这条任务结束。
 10. **`master` 的 CI。** 合并后如果 `master` 上的检查通过或失败，Hubie 会把结果告诉终审人。文档类 PR 里 UI 测试和预览被跳过，通常是预期行为。
 
-协调者自己偶尔也会创建文档类 PR。这类由 Hubie 直接提交的 PR，可以跳过 Cody 和 Reed，创建后用 API 请 `hizzgdev` 终审，并在对话里通知终审人。
+纯文档工作另有一条并行路径，见第 4 节；不必走上面的 Issue、开发和内部审查循环。开发任务仍按本节进行。
 
-## 4. 沟通方式
+## 4. 文档约定与文档工作路径
+
+这条路径与第 3 节的开发流程并列，不是替代。涉及 Issue、开发、审查、终审、合并清理的开发任务，仍按第 3 节走。
+
+### 目录与职责
+
+- `docs/` 只放对外发布的文档产品。
+- 对内材料放在仓库根目录的 `team/` 下，说明见 [`team/README.md`](../README.md)。
+- 技术/产品文档由 Mira 负责。
+- 管理类文档由 Hubie 负责（`team/automations/` 和 `team/README.md`）。
+- 以后的营销草稿由 Moka 负责（`team/marketing/`；这是约定位置，可能在并行 PR 落地）。真正对外的文案再进入落地页或 `docs/`。
+
+根目录的 `AGENTS.md` 是给编码 agent 的对内入口（约定位置，由另一个 PR 创建）。协作和 PR 约定以本文为准，路径是 `team/automations/agent-team-collaboration.md`。不要在别处再写一套流程。
+
+### 纯文档工作怎么做
+
+纯文档工作不必建 Issue：由负责人自己撰写、开 PR，并打上 `documentation` 标签。这类 PR 由 Hubie 请终审，不走第 3 节的开发审查循环。
+
+如果一项工作不只是文档（还要改代码或测试），文档部分先按上面的方式做完；开发部分再单独建 Issue，按第 3 节进行。
+
+协调者自己提交的文档类 PR，也走这条路径：创建后由 Hubie 用 API 请 `hizzgdev` 终审，并在对话里通知终审人。
+
+## 5. 沟通方式
 
 ### 内部沟通
 
@@ -86,7 +108,7 @@ GitHub 上的文字是给人和后续查阅用的，必须留下痕迹。
 - 请终审时，用 GitHub API 添加 reviewer `hizzgdev`。例如：`gh api -X POST repos/hizzgdev/jsmind-v2/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev`。
 - 终审人在 PR 上的评论，由 Hubie 阅读后决定下一步，不必在评论里点名某个 bot。
 
-## 5. 事件监听
+## 6. 事件监听
 
 Hubie 通过例程「jsMind-V2 GitHub 事件接收」监听仓库事件，而不是轮询，也不是依赖 GitHub webhook 自定义请求头。重建时，应在同一仓库上建立同类监听，事件如下：
 
@@ -105,21 +127,23 @@ Hubie 通过例程「jsMind-V2 GitHub 事件接收」监听仓库事件，而不
 
 监听目前做不到、因此不能当作信号的事情包括：标签变化、新建但未指派的 Issue、发布（Release），以及对整个仓库所有人的 PR 评论。这些限制是工具能力决定的，所以开工信号才放在「指派给 `zzgbot`」或「Mira 直接简报」上。
 
-## 6. 重建检查清单
+## 7. 重建检查清单
 
 如果需要重新设置这套 agent 团队，按下面的顺序做即可。
 
 1. 用第 1.1 节的名称、Title 和简介创建 Hubie、Mira、Cody、Reed、Moka。
 2. 所有 bot 连接并使用 GitHub 账号 `zzgbot`。终审人继续使用 `hizzgdev`。
 3. 在仓库中确认已有 `in-progress` 标签（颜色 `FBCA04`，说明：This task is being handled）。没有就创建。
-4. 为 Hubie 建立例程「jsMind-V2 GitHub 事件接收」，监听第 5 节列出的事件，并写入第 5 节的处理规则。PR 评论监听必须按 PR 作者 `zzgbot` 过滤，不能对整个仓库打开。
+4. 为 Hubie 建立例程「jsMind-V2 GitHub 事件接收」，监听第 6 节列出的事件，并写入第 6 节的处理规则。PR 评论监听必须按 PR 作者 `zzgbot` 过滤，不能对整个仓库打开。
 5. 把本文中的分工、开工路径、典型流程、沟通规则和收尾约定，作为各 agent 的工作规则保存下来。尤其要明确：Cody 和 Reed 只与 Hubie 沟通；不要向他们提及终审人或 `hizzgdev`；PR 评论由 Hubie 撰写；终审用 API 添加 reviewer，不用确认卡片；合并必须由 `hizzgdev` 亲手完成。
 6. 不要在 Hubie 的环境里克隆仓库做开发。看 Issue、PR 和写评论直接走 GitHub；写代码、改代码由 Cody 完成。
-7. 先用一个小的文档任务走通全流程，确认指派、开发、审查、PR 记录、终审、去标签和清分支都能闭环，再扩大使用。
+7. 所有会改这个仓库的 bot，都必须用 worktree 切分支，不能在共享主克隆上直接切换。
+8. 先用一个小的文档任务走通全流程，确认指派、开发、审查、PR 记录、终审、去标签和清分支都能闭环，再扩大使用。
 
-## 7. 还需要记住的约定
+## 8. 还需要记住的约定
 
 - **不要在 Hubie 这边克隆仓库做开发。** 日常看 Issue、PR 和写评论直接在 GitHub 上完成。写代码、改代码由 Cody 在自己的工作环境里做。
+- **改仓库必须用 worktree 切分支。** 所有会改这个仓库的 bot 都必须用 worktree 创建分支，不能在共享主克隆上直接切换分支。
 - **Issue 与 PR 的对应关系要始终跟住。** 收尾时去掉的是对应 Issue 的 `in-progress`，清理的是该 PR 的分支，而不是只处理 PR 本身。
 - **关闭与合并同样要收尾。** 终审人关闭 PR 而不合并时，也要去掉 `in-progress`，并让 Cody 清理分支。
 - **审查循环的出口在 Hubie。** Reed 回报「没有修改意见」或「有意见」之后，由 Hubie 决定是让 Cody 继续改、把问题写到 PR 上请终审人判断，还是正式请终审人审查。
@@ -128,6 +152,6 @@ Hubie 通过例程「jsMind-V2 GitHub 事件接收」监听仓库事件，而不
 - **`zzgbot` 没有仓库管理员权限。** 目前是推送和分诊权限。这足够创建 PR、评论、打标签和请求审查，但不能当成管理员来设计流程。
 - **当前例程正文主要描述「听到什么、转给谁」。** 像打或去掉 `in-progress`、用 API 请终审、审查结论必须写在 PR 上，这些执行细则也必须作为 Hubie 的工作规则保存下来。
 
-## 8. 一句话总结
+## 9. 一句话总结
 
-Mira 把需求说清楚，Hubie 安排和记录，Cody 开发，Reed 审查并回报 Hubie，终审人用 `hizzgdev` 终审并亲手合并。内部用消息协作，GitHub 上只留给人看的记录。
+Mira 把需求说清楚，Hubie 安排和记录，Cody 开发，Reed 审查并回报 Hubie，终审人用 `hizzgdev` 终审并亲手合并。内部用消息协作，GitHub 上只留给人看的记录。纯文档工作走第 4 节的并行路径，不替代上述开发流程。
