@@ -2,7 +2,7 @@
 
 > **这是 2026-11 文档重组之前的 roadmap 完整版本，已不再维护。**
 >
-> **新版在 [`development/roadmap.md`](../development/roadmap.md)** —— 结构更清楚，
+> **新版在 [`development/roadmap.md`](../../development/roadmap.md)** —— 结构更清楚，
 > 按技术层次组织，删掉了大量已经完成的 S 项细节。
 >
 > **留在这里的是新版为了可读性删掉的具体内容：**
@@ -22,11 +22,11 @@
 
 # jsMind v2 开发计划
 
-> **本文件定义 v2 的实现顺序与每个 PR 的边界。** 需求与决策见 [`docs/requirements/v2-requirements.md`](../requirements/v2-requirements.md)。
+> **本文件定义 v2 的实现顺序与每个 PR 的边界。** 需求与决策见 [`team/development/v2-requirements.md`](../../development/v2-requirements.md)。
 >
 > **状态**：规划中，PR 逐个推进。
 >
-> **先看 [`milestones.md`](milestones.md) 决定做什么，本文决定怎么做。**
+> **先看 [`milestones.md`](../../development/milestones.md) 决定做什么，本文决定怎么做。**
 > milestones 按受益者排优先级（Agent → 用户 → 功能丰富）并给出验收标准；
 > 本文按技术层次组织，存的是每一层怎么实现、有哪些已知的坑。
 > 两者的编号对照见 milestones 附录 A。

@@ -7,7 +7,7 @@
 >
 > **对当前项目的意义：** v2 的运行时校验体系（`src/model/validate/`，
 > 37 个错误码）就是这套思路的落地 —— 详见
-> [`requirements/v2-data-format.md`](../../requirements/v2-data-format.md)。
+> [`docs/requirements/v2-data-format.md`](../../../docs/requirements/v2-data-format.md)。
 >
 > 文章本身不再维护，留作背景阅读。
 

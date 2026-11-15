@@ -2,7 +2,7 @@
 
 > **这是从 `roadmap.md` 第 9 节移出的完整分析。**
 >
-> **新版在 [`development/roadmap.md`](../development/roadmap.md) 第 7.4 节** ——
+> **新版在 [`development/roadmap.md`](../../development/roadmap.md) 第 7.4 节** ——
 > 那里只留了一句结论：「接口设计已想清楚：`JmNodeRenderer` 返回 Promise +
 > cleanup 函数。前置是 `onNodeUpdated` 接通，实际起点在 S10 之后。」
 >

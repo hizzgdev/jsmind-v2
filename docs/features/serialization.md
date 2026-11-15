@@ -93,6 +93,6 @@ serializer.check(data)     // → { valid: boolean, errors: JmValidationIssue[] 
 ## 设计决策
 
 从 Manager 模式改成 Serializer 接口的完整理由与迁移过程，在
-[`archive/design-decisions/serialization.md`](../archive/design-decisions/serialization.md)。
+[`team/archive/design-decisions/serialization.md`](../../team/archive/design-decisions/serialization.md)。
 
 加新序列化格式之前值得读一遍。

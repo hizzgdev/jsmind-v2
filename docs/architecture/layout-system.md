@@ -14,11 +14,11 @@ jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中
 | `calculateNodePoint` | **节点左上角**：锚点再按 `side` 和自身尺寸调整 | `(70, -38)` |
 | `calculateNodeOutgoingPoint` | **出线点**：锚点 + `(size.width + expanderSize) × side` | `(143, -24)` |
 
-![坐标关系](./images/layout/coordinates.png)
+![坐标关系](../images/layout/coordinates.png)
 
 **`outgoing.x` 不在节点右边界上，比它多出一个 `expanderSize`（折叠按钮宽度，13px）。** 写断言时别拿 `outgoing` 去比节点边缘，会差这 13px。
 
-![节点坐标](./images/layout/coordinates-node.png)
+![节点坐标](../images/layout/coordinates-node.png)
 
 ---
 
@@ -26,7 +26,7 @@ jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中
 
 每个节点由三层尺寸构成：
 
-![盒模型](./images/layout/box-model.png)
+![盒模型](../images/layout/box-model.png)
 
 | 层 | 内容 |
 |---|---|
@@ -34,11 +34,11 @@ jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中
 | **节点盒** | 内容区 + 边框 |
 | **展开器** | 折叠按钮，在节点右侧（左侧节点则在左边），13px |
 
-![节点盒模型](./images/layout/box-model-node.png)
+![节点盒模型](../images/layout/box-model-node.png)
 
 展开器不参与节点的宽度计算——节点宽度由内容决定，展开器单独追加在边上。
 
-![组合示意](./images/layout/box-model-compose.png)
+![组合示意](../images/layout/box-model-compose.png)
 
 ---
 

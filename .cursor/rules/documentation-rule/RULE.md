@@ -5,5 +5,7 @@ alwaysApply: false
 
 # Documentation Rules
 
-When generating documentation, save files in the `docs/` directory, organize them into subdirectories by category (`architecture/`, `features/`, `development/`), and use kebab-case for filenames (e.g., `missing-features.md`).
+When generating documentation, use kebab-case for filenames (e.g., `missing-features.md`).
 
+- Public product docs stay under `docs/`, organized into `architecture/`, `features/`, and `requirements/` (data format and CLI).
+- Internal development material goes under `team/development/` (milestones, roadmap, internal requirements). Archived material goes under `team/archive/`.
