@@ -13,6 +13,44 @@ English version: [README.md](README.md).
      Playground 只存在于发布后的站点 —— 部署时从 example/ 复制并改写脚本路径 ——
      所以本 README 在 GitHub 上阅读时，相对链接会 404。 -->
 
+## 安装
+
+jsMind v2 还没有发布到 npm。npm 上的 `jsmind` 仍是 v1 0.9.1，不要执行 `npm install jsmind`。
+
+从本仓库使用 CLI 需要 Node.js >= 22.12.0：
+
+```bash
+git clone https://github.com/hizzgdev/jsmind-v2.git
+cd jsmind-v2
+npm install
+npm run build
+```
+
+在仓库根目录，用 `npx jsmind` 或 `node dist/cli.js` 运行本地 CLI。下面的命令使用 `npx jsmind`；`node dist/cli.js` 效果相同。
+
+## 快速上手
+
+创建一张图，用 `context` 拿到根节点 id，添加子节点，校验，再导出 PNG：
+
+```
+$ npx jsmind create tmp/hello.json --title "Hello"
+created tmp/hello.json
+
+$ npx jsmind context tmp/hello.json
+root   Hello {side=center}
+
+$ npx jsmind mind add-child tmp/hello.json --parent-id root --text "World"
+added jm-mwh96wk6 under root
+
+$ npx jsmind validate tmp/hello.json
+tmp/hello.json: valid
+
+$ npx jsmind export tmp/hello.json tmp/hello.png
+tmp/hello.png: 2400x1600 (85.0 KB)
+```
+
+这个示例里的根节点 id 是 `root`。子节点 id 是生成的；执行时请使用当前 `context` 输出的 id，不要照抄示例 id。
+
 ## 文档
 
 对外产品文档在 [`docs/`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md)：
