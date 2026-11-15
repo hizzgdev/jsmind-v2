@@ -71,3 +71,7 @@ tmp/hello.png: 2400x1600 (85.0 KB)
 ## 开发
 
 如何改这个仓库（环境、目录、分支与 PR 约定、常用命令）见 [`AGENTS.md`](AGENTS.md)。
+
+## 开源协议
+
+本项目以 [BSD 3-Clause License](LICENSE) 开源。
