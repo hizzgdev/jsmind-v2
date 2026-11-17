@@ -56,6 +56,12 @@ jobs:
       - name: Verify pack contents
         run: npm run pack:check
 
+      - name: Assert release is a matching 2.x stable tag
+        env:
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: node scripts/assert-npm-release-guard.mjs
+
       - name: Stage publish with v2-preview tag
         run: npm run publish:preview
 
