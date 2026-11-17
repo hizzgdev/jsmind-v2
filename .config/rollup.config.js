@@ -4,7 +4,7 @@ import dts from 'rollup-plugin-dts';
 
 const banner = `/**
  * @license BSD-3-Clause
- * @copyright 2014-2025 hizzgdev@163.com
+ * @copyright 2014-2026 hizzgdev@163.com
  *
  * Project Home:
  *   https://github.com/hizzgdev/jsmind-v2/
