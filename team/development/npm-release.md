@@ -35,18 +35,30 @@ v2 目前只完成了 agent 这一侧：CLI、模型、渲染、导出、skill �
 # v1 维护版本：裸发。npm 会把 latest 指到这个版本，这正是想要的
 npm publish
 
-# v2 任何版本：必须带 tag，永远不带 latest
-npm publish --tag v2-preview
+# v2 任何版本：只通过 staged publishing，永远不要直接执行 npm publish
+npm stage publish --tag v2-preview
+# 或
+npm run publish:preview
 ```
 
-发布后必须确认一次：
+Trusted Publisher 要在 npmjs.com 上登记工作流文件名 `npm-publish.yml`，并且只授权 stage，不要授权直接 `npm publish`。CI 作业里也不能出现裸的或直接的 `npm publish`。
+
+分步发布后版本不会立刻公开。维护者再用 2FA 批准：
+
+```bash
+npm stage approve
+```
+
+批准后必须确认一次：
 
 ```bash
 npm dist-tag ls jsmind
 # 期望：latest: 0.9.x，v2-preview: 2.0.x
 ```
 
-`npm publish` 在没带 `--tag` 时会把 latest 指向新版本（npm 源码 `lib/commands/publish.js`）。所以 v2 的发布**只要忘一次 `--tag`，所有执行 `npm i jsmind` 的人会立刻装到 v2**——这是本方案唯一的致命故障点，要把它固化进脚本，不靠人记。
+staging 之后、批准之前，也可以先确认 `latest` 仍是 `0.9.x`。
+
+`npm publish` 在没带 `--tag` 时会把 latest 指向新版本（npm 源码 `lib/commands/publish.js`）。所以 v2 **不能直接执行 `npm publish`**——一旦走直接发布且忘了 `--tag`，所有执行 `npm i jsmind` 的人会立刻装到 v2。这是本方案唯一的致命故障点，要把它固化进脚本和工作流，不靠人记。
 
 ### 1.3 v2 内部的版本规则
 
@@ -111,9 +123,11 @@ npm deprecate jsmind@2.0.3 "Broken release, use 2.0.4"
 1. `npm pack --dry-run`，确认 tarball 只含 `dist/` 下 9 个文件加 README / LICENSE / package.json
 2. README 里不能有「has not been published to npm yet」这类占位说明
 3. 包名、版本号、`bin`、`engines` 检查一遍
-4. 发布用 `--tag v2-preview`
-5. 发布后 `npm dist-tag ls jsmind`，确认 latest 没被抢
-6. 去看一眼 npm 包页面显示的是哪份 README（见 3.2 的不确定性）
+4. `package.json` 的 `version` 是 `2.x` 且不是预发布号；GitHub Release 不是 prerelease；Release 的 tag（允许 `v2.0.0` 或 `2.0.0`）与该 version 一致。任一条件不满足则不要 stage
+5. 发布只用 `npm stage publish --tag v2-preview`（或 `npm run publish:preview`），不要直接执行 `npm publish`
+6. Trusted Publisher 已在 npmjs.com 登记工作流文件名 `npm-publish.yml`，且只授权 stage、不要授权直接 `npm publish`
+7. staging 之后确认 `latest` 仍是 `0.9.x`；用 `npm stage approve` 批准后，再执行 `npm dist-tag ls jsmind`，确认 `v2-preview` 指向本次版本、latest 没被抢
+8. 去看一眼 npm 包页面显示的是哪份 README（见 3.2 的不确定性）
 
 ## 2. 主要取舍
 
