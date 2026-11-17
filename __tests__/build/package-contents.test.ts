@@ -100,6 +100,41 @@ function assertSourcesEmbedded(mapPath: string): void {
     }
 }
 
+const PUBLISHED_JS = [
+    'dist/cli.js',
+    'dist/jsmind.js',
+    'dist/jsmind.cjs',
+    'dist/jsmind.umd.js',
+] as const;
+
+const LICENSE_BANNER = `/**
+ * @license BSD-3-Clause
+ * @copyright 2014-2025 hizzgdev@163.com
+ *
+ * Project Home:
+ *   https://github.com/hizzgdev/jsmind-v2/
+ */`;
+
+/**
+ * A published JS file starts with an optional shebang, then the license
+ * banner, then the bundle body (minified code + sourceMappingURL).
+ */
+function splitJsPreamble(source: string, file: string): { shebang: string | null; banner: string; body: string } {
+    let rest = source;
+    let shebang: string | null = null;
+    if (rest.startsWith('#!')) {
+        const newline = rest.indexOf('\n');
+        assert.ok(newline !== -1, `${file} shebang is not a complete line`);
+        shebang = rest.slice(0, newline);
+        rest = rest.slice(newline + 1);
+    }
+    const bannerMatch = rest.match(/^\/\*\*[\s\S]*?\*\//);
+    assert.ok(bannerMatch, `${file} does not start with a license banner`);
+    const banner = bannerMatch[0];
+    const body = rest.slice(banner.length).replace(/^\r?\n/, '');
+    return { shebang, banner, body };
+}
+
 function assertLibrary(value: unknown, label: string): asserts value is JsMindLibrary {
     const library = value as Partial<JsMindLibrary>;
     assert.strictEqual(typeof library.create, 'function', `${label} has no create`);
@@ -170,6 +205,36 @@ describe('npm package contents', () => {
 describe('built package entry', () => {
     before(() => {
         execFileSync('npm', ['run', 'build'], { cwd: ROOT, stdio: 'inherit' });
+    });
+
+    it('minifies JS bundles and keeps the license banner as the first comment', () => {
+        for (const file of PUBLISHED_JS) {
+            const source = readFileSync(join(ROOT, file), 'utf8');
+            const { shebang, banner, body } = splitJsPreamble(source, file);
+
+            if (file === 'dist/cli.js') {
+                assert.strictEqual(shebang, '#!/usr/bin/env node');
+            }
+            else {
+                assert.strictEqual(shebang, null, `${file} should not have a shebang`);
+            }
+
+            const prefix = shebang ? `${shebang}\n${LICENSE_BANNER}` : LICENSE_BANNER;
+            assert.ok(source.startsWith(prefix), `${file} license banner is not the first comment`);
+            assert.ok(banner.includes('@license BSD-3-Clause'), `${file} is missing the BSD license`);
+            assert.ok(banner.includes(V2_HOME), `${file} banner is not the v2 repo`);
+
+            assert.doesNotMatch(body, /\/\*\*/, `${file} still contains a JSDoc block`);
+            assert.doesNotMatch(body, /@param\b/, `${file} still contains @param JSDoc`);
+            assert.doesNotMatch(body, /@returns\b/, `${file} still contains @returns JSDoc`);
+            assert.doesNotMatch(body, /\n {2,}/, `${file} still contains indented source lines`);
+
+            const codeLines = body
+                .split(/\r?\n/)
+                .filter((line) => line.length > 0 && !line.startsWith('//#'));
+            assert.ok(codeLines.length <= 2, `${file} is not minified (${codeLines.length} code lines)`);
+            assert.match(body, /\/\/# sourceMappingURL=/);
+        }
     });
 
     it('embeds TypeScript in the published source maps', () => {

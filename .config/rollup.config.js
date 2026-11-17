@@ -1,4 +1,5 @@
 import typescript from '@rollup/plugin-typescript';
+import terser from '@rollup/plugin-terser';
 import dts from 'rollup-plugin-dts';
 
 const banner = `/**
@@ -21,6 +22,22 @@ const typescriptPlugin = () => typescript({
     inlineSources: true,
 });
 
+/**
+ * Minify published JS bundles. Rollup prepends `output.banner` before this
+ * plugin (and keeps a leading shebang on the CLI). Only the official
+ * BSD-3-Clause header is kept; other comments — including file-level
+ * `@license` blocks from individual sources — are stripped so they do not
+ * remain mid-bundle. Source maps stay on via `output.sourcemap`; the plugin
+ * chains them, and TypeScript sources remain inlined by the typescript plugin.
+ */
+const minifyPlugin = () => terser({
+    format: {
+        comments: (_node, comment) => /@license\s+BSD-3-Clause/.test(comment.value),
+    },
+});
+
+const jsPlugins = [typescriptPlugin(), minifyPlugin()];
+
 export default [
     // ESM entry. package.json is "type": "module", so this `.js` file is what
     // `import` and `<script type="module">` load. A UMD wrapper cannot be this
@@ -34,7 +51,7 @@ export default [
             banner: banner,
             sourcemap: true,
         },
-        plugins: [typescriptPlugin()],
+        plugins: jsPlugins,
     },
     // CJS entry. `.cjs` stays CommonJS even when the package is `"type":
     // "module"`, so `require('jsmind')` receives the library on every supported
@@ -50,7 +67,7 @@ export default [
             banner: banner,
             sourcemap: true,
         },
-        plugins: [typescriptPlugin()],
+        plugins: jsPlugins,
     },
     // Classic `<script src>` entry. `jsmind.js` is ESM, so a script tag without
     // `type="module"` throws on `export`. This file has no import or export;
@@ -65,7 +82,7 @@ export default [
             banner: banner,
             sourcemap: true,
         },
-        plugins: [typescriptPlugin()],
+        plugins: jsPlugins,
     },
     // CLI bundle for Node — must not pull in the renderer, which needs a DOM.
     // Stays ESM, beside the library bundles, so it can read `jsmind.js` via
@@ -79,7 +96,7 @@ export default [
             sourcemap: true,
         },
         external: [/^node:/],
-        plugins: [typescriptPlugin()],
+        plugins: jsPlugins,
     },
     // TypeScript declaration files
     {
