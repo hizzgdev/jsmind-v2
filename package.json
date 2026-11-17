@@ -1,7 +1,7 @@
 {
     "name": "jsmind",
     "version": "2.0.0",
-    "description": "Version 2 of jsMind, which is a TypeScript library for mindmap.",
+    "description": "A mind-map kernel designed for AI agents — agents can reliably create, read, and modify structured maps; people can view, edit, and export them.",
     "type": "module",
     "main": "./dist/jsmind.cjs",
     "module": "./dist/jsmind.js",
@@ -40,7 +40,9 @@
         "ci": "npm run format-check && npm run type-check && npm run test-lite && npm run build",
         "ci2": "npm run format-check && npm run type-check && npm run test-lite",
         "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=85 --test-coverage-exclude='tmp/**' --test-coverage-exclude='dist/**' --test-coverage-exclude='src/cli/browser.ts' --test-coverage-exclude='src/view/export.ts' \"__tests__/!(ui)/**/*.test.ts\"",
-        "test:ui": "node --test \"__tests__/ui/**/*.test.ts\""
+        "test:ui": "node --test \"__tests__/ui/**/*.test.ts\"",
+        "publish:preview": "npm stage publish --tag v2-preview",
+        "pack:check": "node scripts/verify-npm-pack.mjs"
     },
     "repository": {
         "type": "git",
@@ -50,13 +52,20 @@
         "name": "hizzgdev@163.com"
     },
     "license": "BSD-3-Clause",
+    "publishConfig": {
+        "tag": "v2-preview"
+    },
     "bugs": {
         "url": "https://github.com/hizzgdev/jsmind-v2/issues"
     },
     "homepage": "https://github.com/hizzgdev/jsmind-v2#readme",
     "keywords": [
         "jsmind",
-        "mindmap"
+        "mindmap",
+        "mind-map",
+        "cli",
+        "ai-agents",
+        "typescript"
     ],
     "maintainers": [
         {

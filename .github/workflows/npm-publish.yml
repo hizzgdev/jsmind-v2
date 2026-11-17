@@ -1,0 +1,63 @@
+# Stage the 2.x preview line to npm when a GitHub Release is published.
+# Trigger is `published`, not `created`, so drafting a release cannot publish.
+#
+# Trusted Publisher is stage-only: this workflow must never run a direct
+# `npm publish`. Staging goes only through `npm run publish:preview`, which is
+# `npm stage publish --tag v2-preview`. A maintainer later approves the staged
+# package (CLI or npmjs.com, with 2FA) before it becomes installable.
+# Use OIDC; do not add NODE_AUTH_TOKEN or any npm token.
+#
+# After approval, run `npm dist-tag ls jsmind` and confirm `v2-preview`
+# points at the new version, and `latest` is still 0.9.x.
+#
+# https://docs.npmjs.com/trusted-publishers
+# https://docs.npmjs.com/cli/v11/commands/npm-stage/
+
+name: Publish npm package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish-npm:
+    name: Stage v2-preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install npm 11
+        run: |
+          npm install -g 'npm@^11.15.0'
+          version="$(npm --version)"
+          echo "npm ${version}"
+          if ! printf '%s\n' '11.15.0' "${version}" | sort -V | head -n 1 | grep -qx '11.15.0'; then
+            echo "npm >= 11.15.0 is required for staged publishing, got ${version}"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run CI
+        run: npm run ci
+
+      - name: Verify pack contents
+        run: npm run pack:check
+
+      - name: Stage publish with v2-preview tag
+        run: npm run publish:preview
+
+      - name: Confirm latest is still 0.9.x
+        run: node scripts/assert-npm-dist-tags.mjs

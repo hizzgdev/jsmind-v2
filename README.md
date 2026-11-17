@@ -19,9 +19,13 @@ A mind-map kernel designed for AI agents — agents can reliably create, read, a
 
 ## Install
 
-jsMind v2 has not been published to npm yet. The `jsmind` package on npm is still v1 0.9.1; do not run `npm install jsmind`.
+```bash
+npm i jsmind@2
+```
 
-To use the CLI from this repository you need Node.js >= 22.12.0:
+This is the 2.x line (npm tag `v2-preview`), a rewrite. It is not a drop-in replacement for v1 yet. `npm i jsmind` still installs v1 (0.9.x).
+
+To build and run the CLI from this repository you need Node.js >= 22.12.0:
 
 ```bash
 git clone https://github.com/hizzgdev/jsmind-v2.git

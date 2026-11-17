@@ -15,9 +15,13 @@ English version: [README.md](README.md).
 
 ## 安装
 
-jsMind v2 还没有发布到 npm。npm 上的 `jsmind` 仍是 v1 0.9.1，不要执行 `npm install jsmind`。
+```bash
+npm i jsmind@2
+```
 
-从本仓库使用 CLI 需要 Node.js >= 22.12.0：
+这是 2.x 预览线（npm tag 为 `v2-preview`），是一次重写，目前还不是 v1 的替代品。`npm i jsmind` 仍然会安装 v1（0.9.x）。
+
+从本仓库构建并运行 CLI 需要 Node.js >= 22.12.0：
 
 ```bash
 git clone https://github.com/hizzgdev/jsmind-v2.git
