@@ -40,6 +40,10 @@ const DOCS_PAGES = [
     'guide/index.html',
     'guide/getting-started.html',
     'guide/skill.html',
+    'guide/node-content.html',
+    'guide/node-move.html',
+    'guide/image-export.html',
+    'guide/serialization.html',
     'reference/index.html',
     'reference/api.html',
     'reference/api/jsmind.html',
@@ -53,13 +57,14 @@ const DOCS_PAGES = [
     'reference/cli.html',
     'reference/data-format.html',
     'design/index.html',
+    'design/layout-system.html',
+    'design/theme-system.html',
+    'design/hybrid-edge-system.html',
     'community/index.html',
 ] as const;
 
 const STILL_PLACEHOLDER_PAGES = [
     'reference/data-format.html',
-    'design/index.html',
-    'community/index.html',
 ] as const;
 
 function collectFiles(dir: string, base: string = dir): string[] {
@@ -222,6 +227,20 @@ describe('pages site assembly', () => {
             assert.ok(zhApi.includes('addChildNode'));
             assert.ok(enApi.includes('jsmind_container'));
             assert.ok(zhApi.includes('jsmind_container'));
+
+            const enCommunity = readFileSync(join(docsDir, 'en', 'community', 'index.html'), 'utf8');
+            const zhCommunity = readFileSync(join(docsDir, 'zh', 'community', 'index.html'), 'utf8');
+            assert.ok(enCommunity.includes('https://github.com/hizzgdev/jsmind-v2/issues'));
+            assert.ok(zhCommunity.includes('https://github.com/hizzgdev/jsmind-v2/issues'));
+            assert.ok(!enCommunity.includes('Coming soon.'));
+            assert.ok(!zhCommunity.includes('内容即将推出。'));
+
+            const enDesign = readFileSync(join(docsDir, 'en', 'design', 'index.html'), 'utf8');
+            const zhDesign = readFileSync(join(docsDir, 'zh', 'design', 'index.html'), 'utf8');
+            assert.ok(enDesign.includes('JmMindChangeCoordinator'));
+            assert.ok(zhDesign.includes('JmMindChangeCoordinator'));
+            assert.ok(!enDesign.includes('Coming soon.'));
+            assert.ok(!zhDesign.includes('内容即将推出。'));
 
             const enJsMind = readFileSync(join(docsDir, 'en', 'reference', 'api', 'jsmind.html'), 'utf8');
             const zhJsMind = readFileSync(join(docsDir, 'zh', 'reference', 'api', 'jsmind.html'), 'utf8');

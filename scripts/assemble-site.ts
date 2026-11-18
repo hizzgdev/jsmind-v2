@@ -15,8 +15,9 @@
  *
  * The docs site is bilingual (`/docs/en/`, `/docs/zh/`). `/docs/` is a
  * language redirect that reads `jsmind-docs-lang` from localStorage.
- * Existing markdown under `docs/architecture/`, `docs/features/`, and
- * `docs/requirements/` stays in the repository but is not published here.
+ * Existing markdown under `docs/requirements/` stays in the repository
+ * but is not published here. Architecture and feature articles now live
+ * under the bilingual `docs/en/` and `docs/zh/` trees.
  */
 
 import { spawnSync } from 'node:child_process';

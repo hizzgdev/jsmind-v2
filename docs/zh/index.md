@@ -13,4 +13,4 @@ hero:
       link: https://hizzgdev.github.io/jsmind-v2/playground.html
 ---
 
-指南里已经写好了基础概念、安装方法、仓库中的 skill，以及预览版 CLI。[API](/zh/reference/api) 已按预览版写好。数据格式、设计与社区页面仍在编写中。
+指南里已经写好了基础概念、安装方法、仓库中的 skill、节点内容、节点移动、图片导出和序列化。[API](/zh/reference/api) 已按预览版写好。[设计](/zh/design/) 说明库是如何组织的。[社区](/zh/community/) 收录贡献与支持相关链接。数据格式页面仍在编写中。

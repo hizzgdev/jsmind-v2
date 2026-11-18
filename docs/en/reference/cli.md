@@ -132,6 +132,8 @@ Structure and edges. Locators are ids only. Use ids from a current `context` out
 | `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | Add a relation |
 | `remove-edge` | `--edge-id <id>` | Remove a relation |
 
+`add-child` does not accept `--side`. A direct child of the root defaults to the right side (`addChildNode` defaults to `SideA` when side is not specified). Use `jsmind node set-side` to change it.
+
 Every mutating subcommand validates the result and rolls back on failure. `--dry-run`, `--output`, and `--backup` are available on these writes.
 
 ## `node`

@@ -21,11 +21,16 @@ jsMind V2 是 jsMind 的下一代。它仍然是大家熟悉的思维导图，�
 - 一份帮助 agent 用该 CLI 画图或改图的 skill
 - 一个可以在浏览器里试用库的 Playground
 
-[API](/zh/reference/api) 已按预览版写好。磁盘上的数据格式会在后续页面中说明。
+[API](/zh/reference/api) 已按预览版写好。磁盘上的数据格式会在后续页面中说明；序列化与校验见[序列化](./serialization)。
 
 ## 接下来
 
 - [快速上手](./getting-started) — 安装 jsMind V2，并创建第一张导图
 - [Skill](./skill) — 让 agent 使用仓库里的 skill
+- [节点内容](./node-content) — 已发布的 `text` 内容类型
+- [节点移动](./node-move) — 换父节点、兄弟位置和方向
+- [导出图片](./image-export) — 用 API 或 CLI 导出 PNG、JPEG 或 WebP
+- [序列化](./serialization) — 读写导图和校验
 - [CLI](/zh/reference/cli) — 当前命令和用法（预览版）
 - [API](/zh/reference/api) — 如何调用已发布的 2.0.0 编程接口（预览版）
+- [设计](/zh/design/) — 库为什么采用现在的结构

@@ -109,8 +109,8 @@
   <h1>jsMind V2 <span class="version">思维导图内核</span></h1>
 
   <p class="lead">
-    为 AI agent 设计的脑图数据结构 —— agent 能可靠地生成、读取、修改，
-    人能查看、编辑、导出。
+    面向人与 agent 的思维导图内核 —— 人能查看、编辑、导出，
+    agent 能可靠地生成、读取、修改结构化导图。
   </p>
 
   <div class="actions">
@@ -122,11 +122,11 @@
   <dl>
     <div>
       <dt>数据格式</dt>
-      <dd>JSON，v1 兼容；带 <code>format</code> / <code>theme</code> / <code>style</code> 字段</dd>
+      <dd>JSON，带 <code>format</code> / <code>theme</code> / <code>style</code> 字段。这是一次重写，目前还不是 v1 的即插即用替代</dd>
     </div>
     <div>
       <dt>校验</dt>
-      <dd>37 个错误码，写后校验失败逐字节回滚</dd>
+      <dd>22 个错误码，写后校验失败逐字节回滚</dd>
     </div>
     <div>
       <dt>渲染</dt>
