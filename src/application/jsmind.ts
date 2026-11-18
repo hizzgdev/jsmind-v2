@@ -97,7 +97,7 @@ class JsMind {
      * Opens a mind map.
      *
      * @param mind - The mind map instance to open.
-     * @returns The opened mind map instance.
+     * @returns A promise that resolves when the mind map has been opened.
      */
     async open(mind: JmMind): Promise<void> {
         this.mind = mind;
@@ -107,11 +107,9 @@ class JsMind {
 
 
     /**
-     * Closes the current mind map (cleanup method).
+     * Closes the current mind map, if one is open.
      *
-     * @remarks
-     * This method can be extended in the future for cleanup operations
-     * like removing observers, clearing caches, etc.
+     * After `close`, {@link JsMind.mind} is `null` until you {@link JsMind.open} another map.
      */
     close(): void {
         if(this.mind) {

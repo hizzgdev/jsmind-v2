@@ -30,7 +30,7 @@ mind.addChildNode('World', mind.root.id);
 await jm.open(mind);
 ```
 
-`create` 接受一个容器元素或元素 id，以及可选的第二个参数作为选项。省略的字段使用库的默认值，其中包括根节点 id `root`。
+`create` 接受一个容器元素或元素 id，以及可选的第二个参数作为选项。省略的字段使用库的默认值。默认根节点 id `root` 来自构造 `new jsMind.Mind()` 时的 `MindOptions`，而不是来自 `create`。
 
 用传统 script 标签时，应加载 UMD 构建（`dist/jsmind.umd.js`），它会在页面上赋值 `jsMind`。ESM 包（`dist/jsmind.js`）用于 `import` 和 `<script type="module">`。`require('jsmind')` 从 CommonJS 入口（`dist/jsmind.cjs`）直接得到这个类。
 
@@ -38,25 +38,20 @@ await jm.open(mind);
 
 ## 构建和编辑导图
 
-`jsMind.Mind` 是数据模型。新创建的导图已经有一个根节点。用 `addChildNode` 在父节点下添加文本；需要指定位置、方向或其他创建选项时，使用 `addNode`。
+`jsMind.Mind` 是数据模型。新创建的导图已经有一个根节点。用 `addChildNode` 在父节点下添加文本。若要设置节点的方向或位置，再调用 `moveNode`，并使用 `jsMind.NodeSide`。
 
 ```js
 const parentId = mind.root.id;
 
 mind.addChildNode('左侧主题', parentId);
 
-const right = mind.addNode(
-    { type: 'text', value: '右侧主题' },
-    { parentId, side: jsMind.NodeSide.SideA }
-);
+const right = mind.addChildNode('右侧主题', parentId);
+mind.moveNode(right.id, { parentId, side: jsMind.NodeSide.SideA });
 
-mind.addNode(
-    { type: 'text', value: '细节' },
-    { parentId: right.id }
-);
+mind.addChildNode('细节', right.id);
 ```
 
-`addChildNode` 接受字符串（作为文本存储）或 `JmNodeContent` 实例。`addNode` 在类型声明中接受 `JmNodeContent`；实现也接受 `{ type, value }` 对象，上面的示例用的就是这种形式。
+`addChildNode` 接受字符串（作为文本存储）或 `JmNodeContent` 实例。这是类型检查能通过的添加文本节点的写法。`addNode` 在类型声明中接受 `JmNodeContent`，而不是 `{ type, value }` 对象字面量。
 
 模型上的其他方法包括 `findNodeById`、`moveNode`、`removeNode`、`addEdge`、`removeEdge` 和 `getEdges`。`removeNode` 会删除节点及其全部后代，并且拒绝删除根节点。在 Playground 的示例里，对已经打开的导图做修改后，会再次调用 `open` 以刷新视图。
 

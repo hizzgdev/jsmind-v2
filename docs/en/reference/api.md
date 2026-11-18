@@ -30,7 +30,7 @@ mind.addChildNode('World', mind.root.id);
 await jm.open(mind);
 ```
 
-`create` accepts a container element or the id of one, and an optional second argument of options. Omitted fields use the library defaults, including a root node id of `root`.
+`create` accepts a container element or the id of one, and an optional second argument of options. Omitted fields use the library defaults. The default root node id `root` comes from `MindOptions` when you construct `new jsMind.Mind()`, not from `create`.
 
 A classic script tag should load the UMD build (`dist/jsmind.umd.js`), which assigns `jsMind` on the page. The ESM bundle (`dist/jsmind.js`) is for `import` and `<script type="module">`. `require('jsmind')` receives the class itself from the CommonJS entry (`dist/jsmind.cjs`).
 
@@ -38,25 +38,20 @@ You can also try this flow in the [Playground](https://hizzgdev.github.io/jsmind
 
 ## Build and edit a map
 
-`jsMind.Mind` is the model. A new map already has a root node. Use `addChildNode` to add text under a parent, or `addNode` when you need a position, a side, or other creation options.
+`jsMind.Mind` is the model. A new map already has a root node. Use `addChildNode` to add text under a parent. To set a node's side or position, call `moveNode` with `jsMind.NodeSide`.
 
 ```js
 const parentId = mind.root.id;
 
 mind.addChildNode('Left topic', parentId);
 
-const right = mind.addNode(
-    { type: 'text', value: 'Right topic' },
-    { parentId, side: jsMind.NodeSide.SideA }
-);
+const right = mind.addChildNode('Right topic', parentId);
+mind.moveNode(right.id, { parentId, side: jsMind.NodeSide.SideA });
 
-mind.addNode(
-    { type: 'text', value: 'Detail' },
-    { parentId: right.id }
-);
+mind.addChildNode('Detail', right.id);
 ```
 
-`addChildNode` accepts a string (stored as text) or a `JmNodeContent` instance. `addNode` is typed as taking `JmNodeContent`; the implementation also accepts a `{ type, value }` object, which is what the example above uses.
+`addChildNode` accepts a string (stored as text) or a `JmNodeContent` instance. That is the type-checked way to add a text node. `addNode` is typed as taking `JmNodeContent`, not a `{ type, value }` object literal.
 
 Other model methods include `findNodeById`, `moveNode`, `removeNode`, `addEdge`, `removeEdge`, and `getEdges`. `removeNode` removes a node and all of its descendants, and it refuses to remove the root. After you change an already open map in the Playground samples, the examples call `open` again to refresh the view.
 

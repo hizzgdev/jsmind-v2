@@ -84,11 +84,11 @@ static get Version(): string
 close(): void
 ```
 
-关闭当前思维导图（清理方法）。
+如果当前有打开的思维导图，则关闭它。
 
 **说明**
 
-将来可以扩展此方法，用于移除观察者、清理缓存等清理操作。
+调用 `close` 之后，[JsMind.mind](/zh/reference/api/jsmind#JsMind.mind) 为 `null`，直到再次 [JsMind.open](/zh/reference/api/jsmind#JsMind.open) 打开另一张图。
 
 ### exportImage {#JsMind.exportImage}
 
@@ -120,7 +120,7 @@ open(mind: JmMind): Promise<void>
 
 打开一张思维导图。
 
-**返回值:** 被打开的思维导图实例。
+**返回值:** 当思维导图打开完成后，该 Promise 完成（无返回值）。
 
 **参数**
 

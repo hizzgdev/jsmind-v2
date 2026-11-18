@@ -87,12 +87,9 @@ Gets the version of jsMind.
 close(): void
 ```
 
-Closes the current mind map (cleanup method).
+Closes the current mind map, if one is open.
 
-**Remarks**
-
-This method can be extended in the future for cleanup operations
-like removing observers, clearing caches, etc.
+After `close`, [JsMind.mind](/en/reference/api/jsmind#JsMind.mind) is `null` until you [JsMind.open](/en/reference/api/jsmind#JsMind.open) another map.
 
 ### exportImage {#JsMind.exportImage}
 
@@ -127,7 +124,7 @@ open(mind: JmMind): Promise<void>
 
 Opens a mind map.
 
-**Returns:** The opened mind map instance.
+**Returns:** A promise that resolves when the mind map has been opened.
 
 **Parameters**
 

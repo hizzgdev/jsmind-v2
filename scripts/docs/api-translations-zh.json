@@ -664,8 +664,8 @@
     "returns": "版本字符串。"
   },
   "JsMind.close": {
-    "summary": "关闭当前思维导图（清理方法）。",
-    "remarks": "将来可以扩展此方法，用于移除观察者、清理缓存等清理操作。"
+    "summary": "如果当前有打开的思维导图，则关闭它。",
+    "remarks": "调用 `close` 之后，{@link JsMind.mind} 为 `null`，直到再次 {@link JsMind.open} 打开另一张图。"
   },
   "JsMind.create": {
     "summary": "创建 jsMind 实例，并将其视图附加到容器上。",
@@ -688,7 +688,7 @@
   },
   "JsMind.open": {
     "summary": "打开一张思维导图。",
-    "returns": "被打开的思维导图实例。",
+    "returns": "当思维导图打开完成后，该 Promise 完成（无返回值）。",
     "params": {
       "mind": "要打开的思维导图实例。"
     }
