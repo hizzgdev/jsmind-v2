@@ -26,7 +26,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { describe, it } from 'node:test';
@@ -344,6 +344,27 @@ function readRunStep(workflow: string, stepName: string): string {
 }
 
 /**
+ * `process.env` with git's repository selection removed.
+ *
+ * Git exports `GIT_DIR` (and friends) to hooks, and `scripts/git-hooks/pre-push`
+ * runs the full test suite. A test spawned from that hook inherits them, so an
+ * unscrubbed `git init` in a temporary directory re-initialises the
+ * developer's repository and commits into it instead. The isolation is not a
+ * nicety: without it this test rewrites the branch it is meant to describe.
+ *
+ * @returns The environment with every `GIT_*` variable dropped.
+ */
+function isolatedGitEnv(): Record<string, string | undefined> {
+    const env: Record<string, string | undefined> = { ...process.env };
+    for (const key of Object.keys(env)) {
+        if (key.startsWith('GIT_')) {
+            delete env[key];
+        }
+    }
+    return env;
+}
+
+/**
  * Runs the `changes` job's classification over a file list.
  *
  * A throwaway repository provides the two commits the step diffs, so the real
@@ -354,14 +375,22 @@ function readRunStep(workflow: string, stepName: string): string {
  */
 function classifyChanges(files: readonly string[]): Record<string, string> {
     const dir = mkdtempSync(join(tmpdir(), 'jsmind-ci-changes-'));
+    const env = isolatedGitEnv();
     try {
         const git = (...args: string[]): string => {
-            const result = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+            const result = spawnSync('git', args, { cwd: dir, encoding: 'utf8', env });
             assert.strictEqual(result.status, 0, `git ${args.join(' ')} failed: ${result.stderr}`);
             return result.stdout.trim();
         };
 
         git('init', '-q');
+        // Fail before writing anything if the repository selection leaked: the
+        // commits below must land here and nowhere else.
+        assert.strictEqual(
+            realpathSync(git('rev-parse', '--show-toplevel')),
+            realpathSync(dir),
+            'the throwaway repository must resolve to its own directory'
+        );
         git('config', 'user.email', 'ci@example.com');
         git('config', 'user.name', 'CI');
         writeFileSync(join(dir, 'unchanged.txt'), 'base\n');
@@ -383,7 +412,7 @@ function classifyChanges(files: readonly string[]): Record<string, string> {
             cwd: dir,
             encoding: 'utf8',
             env: {
-                ...process.env,
+                ...env,
                 EVENT_NAME: 'pull_request',
                 PR_BASE: base,
                 PR_HEAD: head,
@@ -405,6 +434,20 @@ function classifyChanges(files: readonly string[]): Record<string, string> {
     finally {
         rmSync(dir, { recursive: true, force: true });
     }
+}
+
+/**
+ * HEAD of the repository these tests belong to.
+ *
+ * Read with the caller's environment on purpose: this is the observation the
+ * isolation above has to leave unchanged.
+ *
+ * @returns The commit sha.
+ */
+function repositoryHead(): string {
+    const result = spawnSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
+    assert.strictEqual(result.status, 0, `git rev-parse HEAD failed: ${result.stderr}`);
+    return result.stdout.trim();
 }
 
 describe('landing page', () => {
@@ -516,6 +559,7 @@ describe('landing page', () => {
         // workflow skips and the page would publish untested. `landing` is the
         // flag that keeps it on the path; classifyChanges runs the real
         // classification block from ci.yml over a real diff.
+        const headBefore = repositoryHead();
         const readmeOnly = classifyChanges(['README.md']);
         assert.strictEqual(readmeOnly.landing, 'true', 'a README.md change should raise the landing flag');
         assert.strictEqual(readmeOnly.library, 'false', 'a README.md change should not run the library suite');
@@ -526,6 +570,14 @@ describe('landing page', () => {
         assert.strictEqual(classifyChanges(['docs/en/guide.md']).landing, 'false');
         assert.strictEqual(classifyChanges(['src/model/mind.ts']).landing, 'false');
         assert.strictEqual(classifyChanges(['README.md', 'docs/en/guide.md']).landing, 'true');
+
+        // Running under scripts/git-hooks/pre-push exports GIT_DIR, which this
+        // helper has to scrub - otherwise its commits land in this repository.
+        assert.strictEqual(
+            repositoryHead(),
+            headBefore,
+            'classifying a file list must not commit into this repository'
+        );
     });
 
     it('gates a landing-page test step on that flag', () => {
