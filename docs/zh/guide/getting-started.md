@@ -4,14 +4,14 @@
 
 ## 安装
 
-安装 2.x 线请使用：
+安装 2.x 版本请使用：
 
 ```bash
 npm i jsmind@2
 ```
 
 ::: warning
-`npm i jsmind` 仍然会安装 v1（0.9.x）。要使用本条发布线，请执行 `npm i jsmind@2`。
+`npm i jsmind` 仍然会安装 v1（0.9.x）。要使用 2.x 版本，请执行 `npm i jsmind@2`。
 :::
 
 2.x 是一次重写，通过 npm 的 `v2-preview` dist-tag 发布，目前还不是 v1 的替代品。
@@ -54,7 +54,7 @@ tmp/hello.png: 2400x1600 (85.0 KB)
 
 这个示例里的根节点 id 是 `root`。子节点 id 是生成的；执行时请使用当前 `context` 输出的 id，不要照抄示例 id。
 
-`export` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`。更多选项和其他命令见 [CLI](/zh/reference/cli) 页面。
+`export` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`。更多选项和其他命令见 [CLI](/zh/guide/cli) 页面。
 
 ## 试用 Playground
 

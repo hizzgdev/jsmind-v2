@@ -1,5 +1,7 @@
 # Reference
 
-This section collects the public API, the command-line interface, and the data format.
+This section collects the public API, feature details, and the data format.
 
-The [API](./api) and the [CLI](./cli) are documented here. How to serialize and validate a map is in the [Serialization](/en/guide/serialization) guide. The [data format](./data-format) page is still being written.
+The [API](./api) is documented as a preview. Feature details cover [node content](./node-content), [moving nodes](./node-move), [image export](./image-export), and [serialization](./serialization). The [data format](./data-format) page is still being written.
+
+Everyday usage of the command-line interface is in the [CLI](/en/guide/cli) guide.

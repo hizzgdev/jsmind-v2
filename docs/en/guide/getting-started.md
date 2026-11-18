@@ -4,14 +4,14 @@ This page shows how to install jsMind V2 and create a first map with the CLI.
 
 ## Install
 
-Install the 2.x line with:
+Install the 2.x version with:
 
 ```bash
 npm i jsmind@2
 ```
 
 ::: warning
-`npm i jsmind` still installs v1 (0.9.x). Use `npm i jsmind@2` for this release line.
+`npm i jsmind` still installs v1 (0.9.x). Use `npm i jsmind@2` for the 2.x version.
 :::
 
 2.x is a rewrite, published under the npm dist-tag `v2-preview`. It is not a drop-in replacement for v1 yet.
@@ -54,7 +54,7 @@ tmp/hello.png: 2400x1600 (85.0 KB)
 
 The root id in this example is `root`. Child ids are generated; when you run these commands, use the ids from your current `context` output, and do not copy example ids.
 
-`export` needs a Chromium browser. If it is not in a standard location, set `CHROME_PATH`. See the [CLI](/en/reference/cli) page for options and the rest of the commands.
+`export` needs a Chromium browser. If it is not in a standard location, set `CHROME_PATH`. See the [CLI](/en/guide/cli) page for options and the rest of the commands.
 
 ## Try the Playground
 

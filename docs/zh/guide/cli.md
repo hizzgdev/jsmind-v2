@@ -6,7 +6,7 @@
 
 CLI 是 jsMind V2 导图数据的命令行工具。你可以创建导图、查看树结构和 id、修改结构和节点属性、校验文件，以及导出图片。
 
-请先用 `npm i jsmind@2` 安装 2.x 线，然后运行 `npx jsmind`。如果使用本仓库的克隆，请先构建，再运行 `npx jsmind` 或 `node dist/cli.js`。安装说明见 [快速上手](/zh/guide/getting-started)。
+请先用 `npm i jsmind@2` 安装 2.x 版本，然后运行 `npx jsmind`。如果使用本仓库的克隆，请先构建，再运行 `npx jsmind` 或 `node dist/cli.js`。安装说明见 [快速上手](/zh/guide/getting-started)。
 
 需要临时查看参数时，可以运行 `jsmind --help`。要确认预览版当前有哪些命令，请以本文档为准。
 

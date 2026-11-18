@@ -320,7 +320,7 @@ jsmind export <file> <out.png> [--width N] [--height N] [--scale N] [--type F] [
 
 **需要 Chromium**，找不到会明确报错而不是导出空白图。
 
-**实现细节见[导出图片](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/image-export)。**
+**实现细节见[导出图片](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/image-export)。**
 
 ### 5.4 `convert`
 

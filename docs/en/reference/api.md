@@ -6,7 +6,7 @@ The jsMind V2 programming API is currently a preview. The API will change in lat
 
 This page shows how to start calling the published 2.0.0 API. It covers only capabilities that are already in the `jsmind@2` package. Class, interface, and method details are generated from the published typings `dist/jsmind.d.ts` and live in the pages linked below.
 
-Install the 2.x line with `npm i jsmind@2`. `npm i jsmind` still installs v1 (0.9.x). See [Getting Started](/en/guide/getting-started) for install details.
+Install the 2.x version with `npm i jsmind@2`. `npm i jsmind` still installs v1 (0.9.x). See [Getting Started](/en/guide/getting-started) for install details.
 
 The package's only export is the default `JsMind` class. In an ES module or from `require('jsmind')` you get that class; the UMD build also assigns the same value to the global `jsMind`. There are no named exports. Related constructors are available as static properties: `jsMind.Mind`, `jsMind.Serializer`, and `jsMind.NodeSide`.
 

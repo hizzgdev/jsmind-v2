@@ -18,10 +18,10 @@
 
 | 文件 | 留了什么 | 新版在哪 |
 |---|---|---|
-| [`node-move.md`](design-decisions/node-move.md) | 5 个关键决策（单方法 vs 多方法、options 对象 vs 多参数、智能事件发射、helper 提取、结果检测）各自的 Rationale 与被否决的替代方案；实现挑战与性能取舍 | [节点移动](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/node-move) |
-| [`node-content.md`](design-decisions/node-content.md) | enum vs 字符串字面量、工厂方法 vs 直接构造、构造时严格校验、内容为必填、类型判断方法；从 v1 演进的取舍；加新内容类型的扩展指南 | [节点内容](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/node-content) |
+| [`node-move.md`](design-decisions/node-move.md) | 5 个关键决策（单方法 vs 多方法、options 对象 vs 多参数、智能事件发射、helper 提取、结果检测）各自的 Rationale 与被否决的替代方案；实现挑战与性能取舍 | [节点移动](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/node-move) |
+| [`node-content.md`](design-decisions/node-content.md) | enum vs 字符串字面量、工厂方法 vs 直接构造、构造时严格校验、内容为必填、类型判断方法；从 v1 演进的取舍；加新内容类型的扩展指南 | [节点内容](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/node-content) |
 | [`hybrid-edge-system.md`](design-decisions/hybrid-edge-system.md) | 「树关系用直接字段、额外关系用边」这个混合设计为什么成立；否决过的纯边模型和纯字段模型 | [混合边系统](https://hizzgdev.github.io/jsmind-v2/docs/zh/design/hybrid-edge-system) |
-| [`serialization.md`](design-decisions/serialization.md) | 从 Manager 模式改成 Serializer 接口的完整理由与迁移过程 | [序列化](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/serialization) |
+| [`serialization.md`](design-decisions/serialization.md) | 从 Manager 模式改成 Serializer 接口的完整理由与迁移过程 | [序列化](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/serialization) |
 | [`custom-node-renderer.md`](design-decisions/custom-node-renderer.md) | **完整的 `JmNodeRenderer` TS 接口定义**；为什么必须由调用方返回 Promise 和清理函数；**四个动手时会踩的坑**（渲染器调用点必须在临时挂载之后、React 需要 `flushSync`、尺寸缓存吞掉重画、节点删除必须 unmount）；`innerHTML` 的 XSS 面 | [`development/roadmap.md`](../development/roadmap.md) 第 7.4 节（只有一句结论） |
 | [`roadmap-before-reorg.md`](design-decisions/roadmap-before-reorg.md) | 重组前的 roadmap 全文。**写后校验 + 逐字节回滚的完整代码块**（`writeJsonFile` / `restoreFile` / `dataError`）；「原计划 vs 实际落点」对照表，记录三处方案变更（三种引用形态合并、`mergeJmTheme` 深合并的原因、`resolveTheme` → `resolveJmStyle`）；每个 S 项的实现细节 | [`development/roadmap.md`](../development/roadmap.md) |
 

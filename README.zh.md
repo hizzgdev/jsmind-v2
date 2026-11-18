@@ -17,7 +17,7 @@ English version: [README.md](README.md).
 npm i jsmind@2
 ```
 
-这是 2.x 预览线（npm tag 为 `v2-preview`），是一次重写，目前还不是 v1 的替代品。`npm i jsmind` 仍然会安装 v1（0.9.x）。
+这是 2.x 版本（npm tag 为 `v2-preview`），是一次重写，目前还不是 v1 的替代品。`npm i jsmind` 仍然会安装 v1（0.9.x）。
 
 从本仓库构建并运行 CLI 需要 Node.js >= 22.12.0：
 

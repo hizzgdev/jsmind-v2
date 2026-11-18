@@ -141,9 +141,66 @@ export function writeDocsLanguageRedirect(docsDir: string): void {
 }
 
 /**
+ * Retired doc paths and their in-tree relative destinations.
+ * Written after the VitePress build so old bookmarks keep working on
+ * GitHub Pages for both `/docs/en/...` and `/docs/zh/...`.
+ */
+export const DOCS_PAGE_REDIRECTS = [
+    { from: 'guide/node-content.html', to: '../reference/node-content' },
+    { from: 'guide/node-move.html', to: '../reference/node-move' },
+    { from: 'guide/image-export.html', to: '../reference/image-export' },
+    { from: 'guide/serialization.html', to: '../reference/serialization' },
+    { from: 'reference/cli.html', to: '../guide/cli' },
+] as const;
+
+/**
+ * A static redirect page. GitHub Pages serves `name.html` for `/name`,
+ * so these cover both the extensionless bookmark and the `.html` URL.
+ *
+ * @param to - Relative destination, without a query or hash.
+ */
+export function docsPageRedirectHtml(to: string): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page moved</title>
+<meta http-equiv="refresh" content="0; url=${to}">
+<script>
+(function () {
+    location.replace('${to}' + location.search + location.hash);
+})();
+</script>
+</head>
+<body>
+<noscript>
+    <p><a href="${to}">This page has moved</a></p>
+</noscript>
+</body>
+</html>
+`;
+}
+
+/**
+ * Writes retired-path redirects under `en/` and `zh/`.
+ *
+ * @param docsDir - Docs output directory (`_site/docs`).
+ */
+export function writeDocsPageRedirects(docsDir: string): void {
+    for (const locale of ['en', 'zh'] as const) {
+        for (const { from, to } of DOCS_PAGE_REDIRECTS) {
+            const path = join(docsDir, locale, from);
+            mkdirSync(dirname(path), { recursive: true });
+            writeFileSync(path, docsPageRedirectHtml(to));
+        }
+    }
+}
+
+/**
  * Builds the VitePress documentation site into `docsDir`, then writes the
  * language redirect at the docs root so `/docs/` is not left as a VitePress
- * index. Language-prefixed trees under `en/` and `zh/` are left alone.
+ * index, and writes retired-path redirects under `en/` and `zh/`.
  *
  * @param root - Repository root.
  * @param docsDir - Docs output directory (`_site/docs`).
@@ -164,6 +221,7 @@ export function assembleDocsSite(root: string, docsDir: string): void {
     }
 
     writeDocsLanguageRedirect(docsDir);
+    writeDocsPageRedirects(docsDir);
 }
 
 /**

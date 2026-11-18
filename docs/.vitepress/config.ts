@@ -1,13 +1,9 @@
 import { defineConfig, type DefaultTheme } from 'vitepress';
 
-const FOOTER: DefaultTheme.Config['footer'] = {
-    message: '本文档由 AI 协助生成 / This documentation was prepared with AI assistance',
-};
-
 const enNav: DefaultTheme.NavItem[] = [
     { text: 'Guide', link: '/en/guide/', activeMatch: '/en/guide/' },
-    { text: 'Reference', link: '/en/reference/', activeMatch: '/en/reference/' },
     { text: 'Design', link: '/en/design/', activeMatch: '/en/design/' },
+    { text: 'Reference', link: '/en/reference/', activeMatch: '/en/reference/' },
     { text: 'Community', link: '/en/community/', activeMatch: '/en/community/' },
 ];
 
@@ -18,27 +14,7 @@ const enSidebar: DefaultTheme.Sidebar = [
             { text: 'Overview', link: '/en/guide/' },
             { text: 'Getting Started', link: '/en/guide/getting-started' },
             { text: 'Skill', link: '/en/guide/skill' },
-            { text: 'Node content', link: '/en/guide/node-content' },
-            { text: 'Moving nodes', link: '/en/guide/node-move' },
-            { text: 'Image export', link: '/en/guide/image-export' },
-            { text: 'Serialization', link: '/en/guide/serialization' },
-        ],
-    },
-    {
-        text: 'Reference',
-        items: [
-            { text: 'Overview', link: '/en/reference/' },
-            { text: 'API', link: '/en/reference/api' },
-            { text: 'JsMind', link: '/en/reference/api/jsmind' },
-            { text: 'JmMind', link: '/en/reference/api/mind' },
-            { text: 'Nodes', link: '/en/reference/api/node' },
-            { text: 'Edges', link: '/en/reference/api/edge' },
-            { text: 'Options', link: '/en/reference/api/options' },
-            { text: 'Serialization', link: '/en/reference/api/serialization' },
-            { text: 'Image export', link: '/en/reference/api/export' },
-            { text: 'Style and theme', link: '/en/reference/api/style' },
-            { text: 'CLI', link: '/en/reference/cli' },
-            { text: 'Data Format', link: '/en/reference/data-format' },
+            { text: 'CLI', link: '/en/guide/cli' },
         ],
     },
     {
@@ -51,6 +27,38 @@ const enSidebar: DefaultTheme.Sidebar = [
         ],
     },
     {
+        text: 'Reference',
+        items: [
+            { text: 'Overview', link: '/en/reference/' },
+            {
+                text: 'API',
+                collapsed: false,
+                items: [
+                    { text: 'API quick start', link: '/en/reference/api' },
+                    { text: 'JsMind', link: '/en/reference/api/jsmind' },
+                    { text: 'JmMind', link: '/en/reference/api/mind' },
+                    { text: 'Nodes', link: '/en/reference/api/node' },
+                    { text: 'Edges', link: '/en/reference/api/edge' },
+                    { text: 'Options', link: '/en/reference/api/options' },
+                    { text: 'Serialization', link: '/en/reference/api/serialization' },
+                    { text: 'Image export', link: '/en/reference/api/export' },
+                    { text: 'Style and theme', link: '/en/reference/api/style' },
+                ],
+            },
+            {
+                text: 'Features',
+                collapsed: false,
+                items: [
+                    { text: 'Node content', link: '/en/reference/node-content' },
+                    { text: 'Moving nodes', link: '/en/reference/node-move' },
+                    { text: 'Image export', link: '/en/reference/image-export' },
+                    { text: 'Serialization', link: '/en/reference/serialization' },
+                ],
+            },
+            { text: 'Data Format', link: '/en/reference/data-format' },
+        ],
+    },
+    {
         text: 'Community',
         items: [
             { text: 'Overview', link: '/en/community/' },
@@ -60,8 +68,8 @@ const enSidebar: DefaultTheme.Sidebar = [
 
 const zhNav: DefaultTheme.NavItem[] = [
     { text: '指南', link: '/zh/guide/', activeMatch: '/zh/guide/' },
-    { text: '参考', link: '/zh/reference/', activeMatch: '/zh/reference/' },
     { text: '设计', link: '/zh/design/', activeMatch: '/zh/design/' },
+    { text: '参考', link: '/zh/reference/', activeMatch: '/zh/reference/' },
     { text: '社区', link: '/zh/community/', activeMatch: '/zh/community/' },
 ];
 
@@ -72,27 +80,7 @@ const zhSidebar: DefaultTheme.Sidebar = [
             { text: '概述', link: '/zh/guide/' },
             { text: '快速上手', link: '/zh/guide/getting-started' },
             { text: 'Skill', link: '/zh/guide/skill' },
-            { text: '节点内容', link: '/zh/guide/node-content' },
-            { text: '节点移动', link: '/zh/guide/node-move' },
-            { text: '导出图片', link: '/zh/guide/image-export' },
-            { text: '序列化', link: '/zh/guide/serialization' },
-        ],
-    },
-    {
-        text: '参考',
-        items: [
-            { text: '概述', link: '/zh/reference/' },
-            { text: 'API', link: '/zh/reference/api' },
-            { text: 'JsMind', link: '/zh/reference/api/jsmind' },
-            { text: 'JmMind', link: '/zh/reference/api/mind' },
-            { text: '节点', link: '/zh/reference/api/node' },
-            { text: '边', link: '/zh/reference/api/edge' },
-            { text: '选项', link: '/zh/reference/api/options' },
-            { text: '序列化', link: '/zh/reference/api/serialization' },
-            { text: '图片导出', link: '/zh/reference/api/export' },
-            { text: '样式与主题', link: '/zh/reference/api/style' },
-            { text: 'CLI', link: '/zh/reference/cli' },
-            { text: '数据格式', link: '/zh/reference/data-format' },
+            { text: 'CLI', link: '/zh/guide/cli' },
         ],
     },
     {
@@ -102,6 +90,38 @@ const zhSidebar: DefaultTheme.Sidebar = [
             { text: '布局系统', link: '/zh/design/layout-system' },
             { text: '主题系统', link: '/zh/design/theme-system' },
             { text: '混合边系统', link: '/zh/design/hybrid-edge-system' },
+        ],
+    },
+    {
+        text: '参考',
+        items: [
+            { text: '概述', link: '/zh/reference/' },
+            {
+                text: 'API',
+                collapsed: false,
+                items: [
+                    { text: 'API 快速上手', link: '/zh/reference/api' },
+                    { text: 'JsMind', link: '/zh/reference/api/jsmind' },
+                    { text: 'JmMind', link: '/zh/reference/api/mind' },
+                    { text: '节点', link: '/zh/reference/api/node' },
+                    { text: '边', link: '/zh/reference/api/edge' },
+                    { text: '选项', link: '/zh/reference/api/options' },
+                    { text: '序列化', link: '/zh/reference/api/serialization' },
+                    { text: '图片导出', link: '/zh/reference/api/export' },
+                    { text: '样式与主题', link: '/zh/reference/api/style' },
+                ],
+            },
+            {
+                text: '功能说明',
+                collapsed: false,
+                items: [
+                    { text: '节点内容', link: '/zh/reference/node-content' },
+                    { text: '节点移动', link: '/zh/reference/node-move' },
+                    { text: '导出图片', link: '/zh/reference/image-export' },
+                    { text: '序列化', link: '/zh/reference/serialization' },
+                ],
+            },
+            { text: '数据格式', link: '/zh/reference/data-format' },
         ],
     },
     {
@@ -129,7 +149,6 @@ export default defineConfig({
             themeConfig: {
                 nav: enNav,
                 sidebar: enSidebar,
-                footer: FOOTER,
                 outline: { label: 'On this page' },
             },
         },
@@ -140,7 +159,6 @@ export default defineConfig({
             themeConfig: {
                 nav: zhNav,
                 sidebar: zhSidebar,
-                footer: FOOTER,
                 outline: { label: '本页目录' },
                 docFooter: {
                     prev: '上一页',
