@@ -13,3 +13,7 @@ _site/
 
 # 含凭证的本机约定，切勿提交
 /AGENTS.local.md
+
+# VitePress cache and default build output
+docs/.vitepress/cache/
+docs/.vitepress/dist/

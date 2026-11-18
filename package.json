@@ -31,6 +31,8 @@
         "server": "http-server",
         "build": "rollup -c .config/rollup.config.js",
         "assemble-site": "node scripts/assemble-site.ts",
+        "docs:dev": "vitepress dev docs",
+        "docs:build": "vitepress build docs",
         "test": "node --test \"__tests__/!(ui)/**/*.test.ts\"",
         "test-lite": "node --test --test-reporter=dot \"__tests__/!(ui)/**/*.test.ts\"",
         "format": "eslint --fix --config .config/eslint.config.js",
@@ -91,7 +93,8 @@
         "tslib": "^2.8.1",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3",
-        "typescript-eslint": "^8.52.0"
+        "typescript-eslint": "^8.52.0",
+        "vitepress": "^1.6.4"
     },
     "engines": {
         "node": ">=22.12.0"

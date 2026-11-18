@@ -2,20 +2,17 @@
 
 A mind-map kernel designed for AI agents — agents can reliably create, read, and modify structured maps; people can view, edit, and export them.
 
-[Documentation](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.md)
+[Documentation](https://hizzgdev.github.io/jsmind-v2/docs/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.md)
 
 中文说明见 [README.zh.md](README.zh.md)。
 
-<!-- Both the documentation and playground links are absolute, and both leave
-     the repository.
-     Docs stay on GitHub rather than being published as a site: they can be
-     searched, blamed and edited there, and rendering them to HTML would mean
-     maintaining a markdown build step for a project whose site is one page.
-     The documentation link points at docs/README.md, the public docs index,
-     not the whole historical docs/ tree.
-     The playground only exists on the published site - it is copied there from
-     example/ with its script path rewritten during deployment - so a relative
-     link would 404 when this README is read on GitHub. -->
+<!-- The documentation and playground links are absolute, because both leave
+     the repository when this README is read on GitHub. The documentation
+     link is the published docs site entry, which restores the last language
+     choice (or English by default). A language-prefixed docs URL is not used
+     here. The playground only exists on the published site - it is copied
+     there from example/ with its script path rewritten during deployment -
+     so a relative link would 404 when this README is read on GitHub. -->
 
 ## Install
 
@@ -61,12 +58,7 @@ The root id in this example is `root`. Child ids are generated; when you run the
 
 ## Documentation
 
-Public product docs are in [`docs/`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md):
-
-- Features — [serialization](docs/features/serialization.md), [image export](docs/features/image-export.md), [node content](docs/features/node-content.md), and [node move](docs/features/node-move.md)
-- [Architecture](docs/architecture/architecture-overview.md) — design notes on why the system is built this way, **not** a getting-started handbook
-- [Data format](docs/requirements/v2-data-format.md) — on-disk schema, validation rules, and error codes
-- [CLI](docs/requirements/v2-cli.md) — command structure and exit-code contract
+The public documentation site is at [https://hizzgdev.github.io/jsmind-v2/docs/](https://hizzgdev.github.io/jsmind-v2/docs/). English and Chinese are both available; the entry URL remembers the last language you chose, or defaults to English.
 
 ## Playground
 

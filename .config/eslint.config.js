@@ -6,7 +6,7 @@ import css from '@eslint/css';
 
 export default [
     {
-        ignores: ['node_modules/*', 'coverage/*', 'dist/*', 'tmp/*', 'logs/*'],
+        ignores: ['node_modules/*', 'coverage/*', 'dist/*', 'tmp/*', 'logs/*', 'docs/.vitepress/cache/**', 'docs/.vitepress/dist/**', '_site/**'],
     },
     {
         plugins: {
