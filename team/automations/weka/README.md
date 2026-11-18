@@ -59,6 +59,19 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 - 同一个编号最多一张 open 卡。webhook 建卡前先查，命中就把这次事件追加成那张卡的 comment，不建新卡。
 - 编号只标识"建卡的那个对象"，issue 和 PR 之间不做映射。要串起来让 agent 自己看 PR body 里的 `Closes #N`。
 
+## 触发规则
+
+建卡的条件是"全部满足"，任何一条不满足都只记一条日志，不建卡。
+
+| 方向 | 必须同时满足 |
+| --- | --- |
+| issue 建卡 | ① 标签里有 `weka`；② `zzgbot` 在 assignees 里（多个指派人也算，不要求它是唯一或第一个）；③ 事件是 `opened` / `labeled` / `assigned` 三者之一 |
+| PR 建卡 | ① 由 `hizzgdev` 提交的 review（非 `approved`），或 `hizzgdev` 在 PR 上的会话评论；② PR 带 `weka-reviewed`；③ 该编号没有 open 卡；④ 板上没有 `running` / `review` 的卡 |
+
+为什么 issue 方向要两道门：公开仓库上任何人都能给 issue 打标签，所以标签只说明"这是想交给 weka 的活"，真正决定要不要花 token 的是指派——只有仓库所有者能把 issue 指派给 bot 账号。
+
+为什么 PR 方向要限定作者：bot 自己也会在 PR 上写评论（reed 的审查意见），限定为仓库所有者才能保证"只有人的动作触发返工卡"，不会被自己的输出喂回去。
+
 ## 标签与人工审核门
 
 | 标签 | 打在哪 | 谁打 | 用途 |

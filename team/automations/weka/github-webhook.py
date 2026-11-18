@@ -230,13 +230,16 @@ class Weka:
 
         # Resource gate: only an issue assigned to the bot account proceeds —
         # otherwise anyone on the public repo could open an issue with the label
-        # and drain the team's LLM budget.
+        # and drain the team's LLM budget. `assignees` is the full list; the
+        # scalar `assignee` is order-dependent when several people are assigned.
         number = issue.get("number")
-        assignee = (issue.get("assignee") or {}).get("login")
-        if assignee != self.gate_login:
+        assigned = [a.get("login") for a in (issue.get("assignees") or []) if a]
+        if not assigned:
+            assigned = [(issue.get("assignee") or {}).get("login")]
+        if self.gate_login not in assigned:
             print(
                 f"[GATE] Issue #{number} not assigned to {self.gate_login} "
-                f"(assignee={assignee or 'none'}), skipping",
+                f"(assignees={', '.join(a for a in assigned if a) or 'none'}), skipping",
                 file=sys.stderr,
             )
             return
