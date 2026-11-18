@@ -1,23 +1,70 @@
 /**
- * @fileoverview `npm run assemble-site` is what publishes the playground.
+ * @fileoverview `npm run assemble-site` publishes the landing page, the
+ * playground, and the VitePress documentation site.
  *
  * The page in `example/` is a module script whose src is `../dist/jsmind.js`.
  * That relative path is what `npm run server` needs. The command copies the
  * page to the site root and the bundle beside it, and rewrites only the src.
  * `type` may sit on either side of `src`. The Pages workflow runs the command
  * and does not check the tag itself.
+ *
+ * Docs output is verified by running the VitePress build against this
+ * repository into a temporary directory. The root-file fixture stays focused
+ * on the playground rewrite and does not invoke VitePress.
  */
 
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { assembleSite, moduleScriptSrcs, rewritePlayground } from '../../scripts/assemble-site.ts';
+import {
+    assembleDocsSite,
+    assembleRootSite,
+    DOCS_LANG_STORAGE_KEY,
+    DOCS_LANGUAGE_REDIRECT_HTML,
+    moduleScriptSrcs,
+    rewritePlayground,
+} from '../../scripts/assemble-site.ts';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+
+const DOCS_SITE_ENTRY = 'https://hizzgdev.github.io/jsmind-v2/docs/';
+const DOCS_README_BLOB = 'https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md';
+const FOOTER_TEXT = '本文档由 AI 协助生成 / This documentation was prepared with AI assistance';
+
+const PLACEHOLDER_PAGES = [
+    'index.html',
+    'guide/index.html',
+    'guide/getting-started.html',
+    'reference/index.html',
+    'reference/api.html',
+    'reference/cli.html',
+    'reference/data-format.html',
+    'design/index.html',
+    'community/index.html',
+] as const;
+
+function collectFiles(dir: string, base: string = dir): string[] {
+    const files: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) {
+            files.push(...collectFiles(path, base));
+        }
+        else {
+            files.push(relative(base, path).split(sep)
+                .join('/'));
+        }
+    }
+    return files;
+}
+
+function hasHref(haystack: string, href: string): boolean {
+    return haystack.includes(`](${href})`) || haystack.includes(`href="${href}"`);
+}
 
 describe('pages site assembly', () => {
     it('keeps the source playground on the local bundle path', () => {
@@ -46,7 +93,7 @@ describe('pages site assembly', () => {
         );
     });
 
-    it('writes the three site files and nothing the workflow has to check', () => {
+    it('writes the three root site files from a focused fixture', () => {
         const dir = mkdtempSync(join(tmpdir(), 'jsmind-site-'));
         try {
             mkdirSync(join(dir, 'example'), { recursive: true });
@@ -58,7 +105,8 @@ describe('pages site assembly', () => {
                 '<script src="../dist/jsmind.js" type="module"></script>\n'
             );
 
-            assembleSite(dir);
+            mkdirSync(join(dir, '_site'), { recursive: true });
+            assembleRootSite(dir, join(dir, '_site'));
 
             assert.strictEqual(readFileSync(join(dir, '_site', 'index.html'), 'utf8'), '<html>home</html>\n');
             assert.strictEqual(readFileSync(join(dir, '_site', 'jsmind.js'), 'utf8'), 'export {}\n');
@@ -76,5 +124,80 @@ describe('pages site assembly', () => {
         assert.ok(!workflow.includes('grep'));
         assert.ok(!workflow.includes('sed '));
         assert.ok(!workflow.includes('assemble-pages'));
+    });
+
+    it('points README and landing-page docs links at the site entry', () => {
+        const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+        const readmeZh = readFileSync(join(ROOT, 'README.zh.md'), 'utf8');
+        const landing = readFileSync(join(ROOT, 'index.html'), 'utf8');
+
+        assert.ok(hasHref(readme, DOCS_SITE_ENTRY));
+        assert.ok(hasHref(readmeZh, DOCS_SITE_ENTRY));
+        assert.ok(hasHref(landing, DOCS_SITE_ENTRY));
+
+        assert.ok(!hasHref(readme, DOCS_README_BLOB));
+        assert.ok(!hasHref(readmeZh, DOCS_README_BLOB));
+        assert.ok(!hasHref(landing, DOCS_README_BLOB));
+        assert.ok(!landing.includes(DOCS_README_BLOB));
+
+        assert.ok(!hasHref(readme, `${DOCS_SITE_ENTRY}en/`));
+        assert.ok(!hasHref(readme, `${DOCS_SITE_ENTRY}zh/`));
+        assert.ok(!hasHref(readmeZh, `${DOCS_SITE_ENTRY}en/`));
+        assert.ok(!hasHref(readmeZh, `${DOCS_SITE_ENTRY}zh/`));
+        assert.ok(!hasHref(landing, `${DOCS_SITE_ENTRY}en/`));
+        assert.ok(!hasHref(landing, `${DOCS_SITE_ENTRY}zh/`));
+    });
+
+    it('builds the docs site with a language redirect and bilingual placeholders', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'jsmind-docs-'));
+        const docsDir = join(dir, 'docs');
+        try {
+            assembleDocsSite(ROOT, docsDir);
+
+            const redirect = readFileSync(join(docsDir, 'index.html'), 'utf8');
+            assert.strictEqual(redirect, DOCS_LANGUAGE_REDIRECT_HTML);
+            assert.ok(redirect.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
+            assert.ok(redirect.includes('lang = \'en\''));
+            assert.ok(redirect.includes('location.replace(lang + \'/\''));
+
+            const files = collectFiles(docsDir);
+            for (const locale of ['en', 'zh'] as const) {
+                for (const page of PLACEHOLDER_PAGES) {
+                    const rel = `${locale}/${page}`;
+                    assert.ok(files.includes(rel), `missing ${rel}`);
+                }
+            }
+
+            const enHome = readFileSync(join(docsDir, 'en', 'index.html'), 'utf8');
+            const zhHome = readFileSync(join(docsDir, 'zh', 'index.html'), 'utf8');
+            assert.ok(enHome.includes(FOOTER_TEXT));
+            assert.ok(zhHome.includes(FOOTER_TEXT));
+            assert.ok(enHome.includes('/jsmind-v2/docs/zh/'));
+            assert.ok(zhHome.includes('/jsmind-v2/docs/en/'));
+            assert.ok(enHome.includes('/jsmind-v2/docs/en/guide/'));
+            assert.ok(zhHome.includes('/jsmind-v2/docs/zh/guide/'));
+            assert.ok(!enHome.includes('href="/jsmind-v2/docs/guide/'));
+            assert.ok(!zhHome.includes('href="/jsmind-v2/docs/guide/'));
+            assert.ok(!enHome.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
+            assert.ok(!zhHome.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
+
+            const bundled = files
+                .filter((name) => name.endsWith('.js') || name.endsWith('.html'))
+                .map((name) => readFileSync(join(docsDir, name), 'utf8'))
+                .join('\n');
+            assert.ok(bundled.includes('localStorage.setItem'));
+            assert.ok(bundled.includes(DOCS_LANG_STORAGE_KEY));
+
+            assert.ok(!files.some((name) => name === 'AGENTS.md' || name.endsWith('/AGENTS.md')));
+            assert.ok(!files.some((name) => name === 'team' || name.startsWith('team/')));
+            assert.ok(!files.some((name) => /(^|\/)architecture\//.test(name)));
+            assert.ok(!files.some((name) => /(^|\/)features\//.test(name)));
+            assert.ok(!files.some((name) => /(^|\/)requirements\//.test(name)));
+            assert.ok(!files.some((name) => name.includes('architecture-overview')));
+            assert.ok(!files.some((name) => name.includes('AGENTS')));
+        }
+        finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });
