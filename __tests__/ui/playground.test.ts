@@ -243,7 +243,7 @@ test('ui - playground header contains a visible link to the jsmind-v2 repository
     assert.strictEqual(link.href, 'https://github.com/hizzgdev/jsmind-v2');
     assert.strictEqual(link.target, '_blank');
     assert.ok(link.rel.split(/\s+/).includes('noopener'), 'the link should use rel=noopener');
-    assert.ok(link.text.includes('GitHub'), 'the link should have visible text');
+    assert.ok(link.text.includes('jsmind-v2'), 'the link should visibly name the jsmind-v2 project');
 });
 
 test('ui - playground node clicks update the info bar under a shadow root, and a blank click clears it', async () => {
