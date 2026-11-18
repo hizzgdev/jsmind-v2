@@ -173,14 +173,29 @@ class Weka:
                 if f"branch refs/heads/{branch}" in lines:
                     path = current_path
                     break
+        main_tree = False
         if path:
-            rc, out = self._run(["git", "worktree", "remove", path])
-            if rc != 0:
-                # Never --force: an unforced failure means uncommitted work there.
-                print(f"[WARN] worktree remove failed for {path}: {out}", file=sys.stderr)
+            main_tree = os.path.realpath(path) == os.path.realpath(REPO_ROOT)
+            if main_tree:
+                # The PR branch is checked out in our own working tree (someone
+                # developed it in place). git refuses `worktree remove` on a main
+                # working tree and cannot delete a branch that is checked out, so
+                # skip both instead of logging two failures per merge.
+                print(
+                    f"[INFO] {branch} is checked out in the main working tree; leaving it",
+                    file=sys.stderr,
+                )
+                path = None
             else:
-                print(f"[OK] removed worktree {path}")
-        if merged:
+                rc, out = self._run(["git", "worktree", "remove", path])
+                if rc != 0:
+                    # Never --force: an unforced failure means uncommitted work there.
+                    print(f"[WARN] worktree remove failed for {path}: {out}", file=sys.stderr)
+                else:
+                    print(f"[OK] removed worktree {path}")
+        if main_tree:
+            pass  # the branch belongs to this checkout; nothing to delete
+        elif merged:
             rc, out = self._run(["git", "branch", "-D", branch])
             if rc != 0:
                 print(f"[WARN] branch delete failed for {branch}: {out}", file=sys.stderr)
