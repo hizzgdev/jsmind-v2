@@ -220,6 +220,10 @@ class Weka:
                 ["gh", "api", "-X", "DELETE", f"repos/{out}/issues/{number}/labels/{label}"]
             )
             if rc != 0:
+                # A 404 means the label is already gone — that is the goal state,
+                # not a failure. Reserving WARN for real errors keeps it meaningful.
+                if "HTTP 404" in err or "Label does not exist" in err:
+                    continue
                 print(f"[WARN] label {label} not removed from #{number}: {err}", file=sys.stderr)
 
     # ---- event handlers -----------------------------------------------------
