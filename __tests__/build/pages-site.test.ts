@@ -159,38 +159,222 @@ function assertSectionOrder(html: string, locale: 'en' | 'zh', label: string): v
     }
 }
 
+/** A heading as written in the README, before inline markup is rendered. */
+interface ReadmeHeading {
+    readonly level: number;
+    readonly text: string;
+}
+
+/** A link as written in the README. */
+interface ReadmeLink {
+    readonly label: string;
+    readonly href: string;
+}
+
+/** What the landing-page tests read out of a README. */
+interface ReadmeStructure {
+    readonly headings: ReadmeHeading[];
+    readonly links: ReadmeLink[];
+    /** Fence marker lines, so the block count is this number halved. */
+    readonly fenceLines: number;
+}
+
+const HEADING_LINE = /^(#{1,6})\s+(.*\S)\s*$/;
+const FENCE_LINE = /^```/;
+const LINK_SPAN = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+const README_COMMENT = /<!--[\s\S]*?-->/g;
+const ENTITY = /&(?:amp|lt|gt|quot|#39);/g;
+const NAMED_ENTITIES: Readonly<Record<string, string>> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': '\'',
+};
+
+/**
+ * Reads headings, links, and the fence count from markdown.
+ *
+ * Fenced blocks and HTML comments are skipped: a `#` in a shell transcript is
+ * not a heading, and a link inside a comment is not a link.
+ *
+ * @param markdown - Markdown source.
+ * @returns Block structure as written, with no assumptions about the wording.
+ */
+function readReadmeStructure(markdown: string): ReadmeStructure {
+    const lines = markdown.replace(README_COMMENT, '')
+        .replaceAll('\r\n', '\n')
+        .split('\n');
+    const headings: ReadmeHeading[] = [];
+    const links: ReadmeLink[] = [];
+    let fenceLines = 0;
+    let inFence = false;
+
+    for (const line of lines) {
+        if (FENCE_LINE.test(line)) {
+            inFence = !inFence;
+            fenceLines += 1;
+            continue;
+        }
+        if (inFence) {
+            continue;
+        }
+
+        const heading = line.match(HEADING_LINE);
+        if (heading !== null) {
+            headings.push({ level: heading[1].length, text: heading[2] });
+        }
+        for (const link of line.matchAll(LINK_SPAN)) {
+            links.push({ label: link[1], href: link[2] });
+        }
+    }
+
+    return { headings, links, fenceLines };
+}
+
+/**
+ * Flattens the inline markup the renderer interprets to the text it renders as.
+ *
+ * @param text - Inline markdown.
+ * @returns Code spans unwrapped, link labels without their target.
+ */
+function flattenInline(text: string): string {
+    return text.replaceAll('`', '')
+        .replace(LINK_SPAN, '$1')
+        .trim();
+}
+
+/**
+ * Text content of an HTML fragment, with entities decoded.
+ *
+ * @param fragment - HTML.
+ * @returns The readable text it contains.
+ */
+function textOf(fragment: string): string {
+    return fragment.replace(/<[^>]*>/g, '')
+        .replace(ENTITY, (entity) => NAMED_ENTITIES[entity]);
+}
+
+/**
+ * Markdown that reached the page as literal text instead of markup.
+ *
+ * The renderer interprets headings, paragraphs, lists, fences, code spans and
+ * links; anything else it escapes and passes through. That is a deliberate
+ * subset, so the page is only correct while the README stays inside it. These
+ * patterns are what a README edit outside the subset leaves behind.
+ */
+const UNRENDERED_MARKDOWN: ReadonlyArray<{ readonly syntax: string; readonly pattern: RegExp }> = [
+    { syntax: 'emphasis', pattern: /\*\*|__/ },
+    { syntax: 'image', pattern: /!\[/ },
+    { syntax: 'link', pattern: /\]\(/ },
+    { syntax: 'table', pattern: /(?:^|\n)\s*\|/ },
+    // Raw HTML is escaped into text, so a tag-shaped run is residue, not markup.
+    { syntax: 'raw HTML', pattern: /<[/]?[a-z][a-z0-9-]*[\s/>]/ },
+];
+
+/**
+ * Reports the markdown syntax that the page shows verbatim.
+ *
+ * Rendered markup, stylesheet, code blocks and code spans are removed before
+ * the scan: their contents are supposed to be literal.
+ *
+ * @param page - A complete HTML document.
+ * @returns One entry per unrendered syntax family, empty when the page is clean.
+ */
+function findUnrenderedMarkdown(page: string): string[] {
+    const text = textOf(page.replace(/<style>[\s\S]*?<\/style>/g, '')
+        .replace(/<pre>[\s\S]*?<\/pre>/g, '')
+        .replace(/<code>[\s\S]*?<\/code>/g, ''));
+    return UNRENDERED_MARKDOWN.filter(({ pattern }) => pattern.test(text))
+        .map(({ syntax }) => syntax);
+}
+
 describe('landing page', () => {
     const readme = readFileSync(join(ROOT, LANDING_PAGE_SOURCE), 'utf8');
     const page = renderLandingPage(ROOT);
+    const structure = readReadmeStructure(readme);
 
     it('is rendered from the README at assembly time, not checked in', () => {
         assert.ok(
             !existsSync(join(ROOT, 'index.html')),
             'the repository root must not carry a landing page'
         );
-        assert.strictEqual(page, renderReadmePage(readme, { linkBase: REPO_BLOB_BASE }));
         assert.match(page, /^<!DOCTYPE html>\n<html lang="en">/);
-        assert.ok(page.includes('<title>jsMind V2</title>'));
+
+        // The title is the README's first heading, whatever it happens to say.
+        const title = /<title>([\s\S]*?)<\/title>/.exec(page);
+        assert.ok(title !== null, 'the page should carry a title');
+        const firstHeading = structure.headings.find((heading) => heading.level === 1);
+        assert.ok(firstHeading !== undefined, 'the README should open with an h1');
+        assert.strictEqual(textOf(title[1]), flattenInline(firstHeading.text));
     });
 
-    it('renders the README headings, code blocks, and links', () => {
-        assert.ok(page.includes('<h1>jsMind V2</h1>'));
-        assert.ok(page.includes('<h2>Install</h2>'));
-        assert.ok(page.includes('<pre><code class="language-bash">npm i jsmind@2\n</code></pre>'));
-        assert.ok(page.includes('<pre><code>$ npx jsmind create tmp/hello.json'));
+    it('renders every README heading, in order, as a heading element', () => {
+        const rendered = [...page.matchAll(/<h([1-6])>([\s\S]*?)<\/h\1>/g)]
+            .map((match) => ({ level: Number(match[1]), text: textOf(match[2]) }));
+        assert.deepStrictEqual(
+            rendered,
+            structure.headings.map((heading) => ({
+                level: heading.level,
+                text: flattenInline(heading.text),
+            })),
+            'every README heading should reach the page as an <hN> with the same text'
+        );
+    });
+
+    it('rebases every README link and drops none', () => {
+        const anchors = [...page.matchAll(/<a href="([^"]*)">([\s\S]*?)<\/a>/g)]
+            .map((match) => ({ href: match[1], text: textOf(match[2]) }));
+        assert.strictEqual(anchors.length, structure.links.length);
+
+        for (const [index, link] of structure.links.entries()) {
+            // Relative README links point at files the site does not publish, so
+            // they are rebased onto the repository instead of 404ing; absolute,
+            // site-absolute, and in-page hrefs are left as written.
+            const rebased = /^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(link.href)
+                ? link.href
+                : `${REPO_BLOB_BASE}${link.href.replace(/^\.\//, '')}`;
+            assert.deepStrictEqual(
+                anchors[index],
+                { href: rebased, text: flattenInline(link.label) },
+                `README link ${index + 1} (${link.label}) should reach the page rebased`
+            );
+        }
+    });
+
+    it('renders every fenced block as pre/code and leaks no fence', () => {
+        assert.ok(structure.fenceLines > 0, 'the README should carry a code fence');
+        assert.strictEqual(
+            (page.match(/<pre><code/g) ?? []).length,
+            structure.fenceLines / 2
+        );
         assert.ok(!page.includes('```'));
         assert.ok(!page.includes('<!--'), 'README comments must not reach the page');
+    });
 
-        assert.ok(page.includes(`<a href="${DOCS_SITE_ENTRY}">Documentation</a>`));
-        assert.ok(
-            page.includes('<a href="https://hizzgdev.github.io/jsmind-v2/playground.html">Playground</a>')
+    it('never shows markdown the renderer does not interpret', () => {
+        assert.deepStrictEqual(
+            findUnrenderedMarkdown(page),
+            [],
+            'README grew syntax that scripts/readme-page.ts does not render: extend the '
+            + 'renderer, or keep that syntax out of the README'
         );
+    });
 
-        // Relative README links point at files the site does not publish, so
-        // they are rebased onto the repository instead of 404ing.
-        const skill = `${REPO_BLOB_BASE}skills/jsmind/SKILL.md`;
-        assert.ok(page.includes(`<a href="${skill}"><code>skills/jsmind/SKILL.md</code></a>`));
-        assert.ok(page.includes(`href="${REPO_BLOB_BASE}README.zh.md"`));
+    it('reports the constructs the guard exists to catch', () => {
+        // Without this the guard above can rot into a test that passes because
+        // it stopped looking, so feed it the next likely README edits.
+        const unsupported = renderReadmePage(
+            '# Guard\n\n'
+            + '[![npm](https://img.shields.io/npm/v/jsmind.svg)](https://www.npmjs.com/package/jsmind)\n\n'
+            + '**v2**\n\n'
+            + '| a | b |\n| --- | --- |\n| 1 | 2 |\n\n'
+            + '<details><summary>more</summary></details>\n'
+        );
+        const found = findUnrenderedMarkdown(unsupported);
+        for (const syntax of ['emphasis', 'image', 'link', 'table', 'raw HTML']) {
+            assert.ok(found.includes(syntax), `expected ${syntax} residue, got [${found.join(', ')}]`);
+        }
     });
 
     it('escapes markdown text instead of trusting it', () => {
