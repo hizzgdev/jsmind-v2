@@ -2,12 +2,14 @@
  * @fileoverview Builds the GitHub Pages directory.
  *
  * The workflow only publishes `_site`. This command renders the landing page
- * from `landing-page.ts`, copies the playground and the bundle, points the
+ * from `README.md`, copies the playground and the bundle, points the
  * playground at the bundle that sits beside it, and builds the VitePress
  * documentation site into `_site/docs`.
  *
- * The landing page is generated, not checked in: its `playground.html` link
- * only resolves once the playground sits beside it at the site root.
+ * The landing page is generated, not checked in: the README is its only
+ * source, so the site and GitHub cannot describe the project differently.
+ * Relative README links are rebased onto the repository (`REPO_BLOB_BASE`),
+ * because their targets are not published to the site.
  *
  * `example/playground.html` keeps `../dist/jsmind.js`. That path is what
  * `npm run server` needs, because the page lives in `example/`. On the site
@@ -28,9 +30,12 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, wr
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { renderLandingPage } from './landing-page.ts';
+import { REPO_BLOB_BASE, renderReadmePage } from './readme-page.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Markdown source of the landing page. */
+export const LANDING_PAGE_SOURCE = 'README.md';
 
 /** Script src while the page still lives under `example/`. */
 export const LOCAL_BUNDLE_SRC = '../dist/jsmind.js';
@@ -111,6 +116,17 @@ export function rewritePlayground(html: string): string {
 }
 
 /**
+ * Renders the landing page for the site root from the repository's README.
+ *
+ * @param root - Repository root holding the README.
+ * @returns A complete HTML document.
+ */
+export function renderLandingPage(root: string): string {
+    const readme = readFileSync(join(root, LANDING_PAGE_SOURCE), 'utf8');
+    return renderReadmePage(readme, { linkBase: REPO_BLOB_BASE });
+}
+
+/**
  * Renders the landing page and copies the playground and bundle into an
  * already-created site directory. Does not wipe the directory or build the
  * docs site.
@@ -121,7 +137,7 @@ export function rewritePlayground(html: string): string {
 export function assembleRootSite(root: string, siteDir: string): void {
     mkdirSync(siteDir, { recursive: true });
 
-    writeFileSync(join(siteDir, 'index.html'), renderLandingPage());
+    writeFileSync(join(siteDir, 'index.html'), renderLandingPage(root));
     copyFileSync(join(root, 'dist', 'jsmind.js'), join(siteDir, 'jsmind.js'));
 
     const playground = readFileSync(join(root, 'example', 'playground.html'), 'utf8');

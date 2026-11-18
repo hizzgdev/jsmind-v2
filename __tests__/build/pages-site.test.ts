@@ -8,9 +8,10 @@
  * `type` may sit on either side of `src`. The Pages workflow runs the command
  * and does not check the tag itself.
  *
- * The landing page is generated from `scripts/landing-page.ts`; the repository
- * keeps no `index.html`. These tests therefore assert against the renderer and
- * against what assembly writes, not against a checked-in file.
+ * The landing page is rendered from `README.md` during assembly; the
+ * repository keeps neither `index.html` nor a separate page module. These
+ * tests therefore assert against the renderer and against what assembly
+ * writes, not against a checked-in file.
  *
  * Docs output is verified by running the VitePress build against this
  * repository into a temporary directory. The root-file fixture stays focused
@@ -31,17 +32,17 @@ import {
     DOCS_LANGUAGE_REDIRECT_HTML,
     DOCS_PAGE_REDIRECTS,
     docsPageRedirectHtml,
+    LANDING_PAGE_SOURCE,
     moduleScriptSrcs,
+    renderLandingPage,
     rewritePlayground,
     writeDocsPageRedirects,
 } from '../../scripts/assemble-site.ts';
-import { LANDING_PAGE, renderLandingPage } from '../../scripts/landing-page.ts';
+import { REPO_BLOB_BASE, renderMarkdown, renderReadmePage } from '../../scripts/readme-page.ts';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 const DOCS_SITE_ENTRY = 'https://hizzgdev.github.io/jsmind-v2/docs/';
-const PLAYGROUND_ENTRY = 'playground.html';
-const REPO_ENTRY = 'https://github.com/hizzgdev/jsmind-v2';
 const DOCS_README_BLOB = 'https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md';
 const FOOTER_TEXT = '本文档由 AI 协助生成 / This documentation was prepared with AI assistance';
 
@@ -159,56 +160,56 @@ function assertSectionOrder(html: string, locale: 'en' | 'zh', label: string): v
 }
 
 describe('landing page', () => {
-    const page = renderLandingPage();
+    const readme = readFileSync(join(ROOT, LANDING_PAGE_SOURCE), 'utf8');
+    const page = renderLandingPage(ROOT);
 
-    it('is generated at build time, not checked in', () => {
+    it('is rendered from the README at assembly time, not checked in', () => {
         assert.ok(
             !existsSync(join(ROOT, 'index.html')),
             'the repository root must not carry a landing page'
         );
-        assert.strictEqual(page, renderLandingPage(LANDING_PAGE));
-        assert.match(page, /^<!DOCTYPE html>\n<html lang="zh-CN">/);
+        assert.strictEqual(page, renderReadmePage(readme, { linkBase: REPO_BLOB_BASE }));
+        assert.match(page, /^<!DOCTYPE html>\n<html lang="en">/);
+        assert.ok(page.includes('<title>jsMind V2</title>'));
     });
 
-    it('links the playground, the repository, and the docs site', () => {
-        assert.deepStrictEqual(
-            LANDING_PAGE.actions.map((action) => action.href),
-            [PLAYGROUND_ENTRY, REPO_ENTRY, DOCS_SITE_ENTRY]
+    it('renders the README headings, code blocks, and links', () => {
+        assert.ok(page.includes('<h1>jsMind V2</h1>'));
+        assert.ok(page.includes('<h2>Install</h2>'));
+        assert.ok(page.includes('<pre><code class="language-bash">npm i jsmind@2\n</code></pre>'));
+        assert.ok(page.includes('<pre><code>$ npx jsmind create tmp/hello.json'));
+        assert.ok(!page.includes('```'));
+        assert.ok(!page.includes('<!--'), 'README comments must not reach the page');
+
+        assert.ok(page.includes(`<a href="${DOCS_SITE_ENTRY}">Documentation</a>`));
+        assert.ok(
+            page.includes('<a href="https://hizzgdev.github.io/jsmind-v2/playground.html">Playground</a>')
         );
-        for (const href of [PLAYGROUND_ENTRY, REPO_ENTRY, DOCS_SITE_ENTRY]) {
-            assert.ok(page.includes(`href="${href}"`), `landing page should link to ${href}`);
-        }
-        assert.strictEqual(LANDING_PAGE.actions.filter((action) => action.primary === true).length, 1);
+
+        // Relative README links point at files the site does not publish, so
+        // they are rebased onto the repository instead of 404ing.
+        const skill = `${REPO_BLOB_BASE}skills/jsmind/SKILL.md`;
+        assert.ok(page.includes(`<a href="${skill}"><code>skills/jsmind/SKILL.md</code></a>`));
+        assert.ok(page.includes(`href="${REPO_BLOB_BASE}README.zh.md"`));
     });
 
-    it('lists the five features', () => {
-        assert.strictEqual(LANDING_PAGE.features.length, 5);
-        assert.strictEqual(page.match(/<dt>/g)?.length, 5);
-        for (const { term } of LANDING_PAGE.features) {
-            assert.ok(page.includes(`<dt>${term}</dt>`), `landing page should list ${term}`);
-        }
-    });
-
-    it('follows the system color scheme', () => {
-        assert.match(page, /<style>[\s\S]*@media \(prefers-color-scheme: dark\)[\s\S]*<\/style>/);
-        assert.ok(page.includes('--bg: #14171c'), 'the dark palette should be present');
-    });
-
-    it('escapes content and keeps code segments as markup', () => {
-        const escaped = renderLandingPage({
-            lang: 'en',
-            title: '<b>t</b>',
-            kicker: 'k & k',
-            lead: 'a & b',
-            actions: [{ label: '<x>', href: 'a"b' }],
-            features: [{ term: '<t>', detail: ['x < y ', { code: 'n<m' }, ' end'] }],
+    it('escapes markdown text instead of trusting it', () => {
+        const html = renderMarkdown('# <b>t</b> & co\n\nA & B `a<b` [rel](docs/x.md)\n', {
+            linkBase: REPO_BLOB_BASE,
         });
-        assert.ok(escaped.includes('<title>&lt;b&gt;t&lt;/b&gt;</title>'));
-        assert.ok(escaped.includes('<span class="version">k &amp; k</span>'));
-        assert.ok(escaped.includes('a &amp; b'));
-        assert.ok(escaped.includes('href="a&quot;b"'));
-        assert.ok(escaped.includes('<dt>&lt;t&gt;</dt>'));
-        assert.ok(escaped.includes('x &lt; y <code>n&lt;m</code> end'));
+        assert.ok(html.includes('<h1>&lt;b&gt;t&lt;/b&gt; &amp; co</h1>'));
+        assert.ok(html.includes('A &amp; B <code>a&lt;b</code>'));
+        assert.ok(html.includes(`<a href="${REPO_BLOB_BASE}docs/x.md">rel</a>`));
+    });
+
+    it('keeps fenced code and lists as blocks', () => {
+        const html = renderMarkdown('```\nx < y\n```\n\n- one\n- `two`\n\n1. first\n');
+        assert.strictEqual(
+            html,
+            '<pre><code>x &lt; y\n</code></pre>\n'
+            + '<ul>\n    <li>one</li>\n    <li><code>two</code></li>\n</ul>\n'
+            + '<ol>\n    <li>first</li>\n</ol>'
+        );
     });
 });
 
@@ -239,11 +240,12 @@ describe('pages site assembly', () => {
         );
     });
 
-    it('renders the landing page into the three root site files', () => {
+    it('renders the landing page from the README into the three root site files', () => {
         const dir = mkdtempSync(join(tmpdir(), 'jsmind-site-'));
         try {
             mkdirSync(join(dir, 'example'), { recursive: true });
             mkdirSync(join(dir, 'dist'), { recursive: true });
+            writeFileSync(join(dir, LANDING_PAGE_SOURCE), '# Fixture site\n\nRendered during assembly.\n');
             writeFileSync(join(dir, 'dist', 'jsmind.js'), 'export {}\n');
             writeFileSync(
                 join(dir, 'example', 'playground.html'),
@@ -253,10 +255,18 @@ describe('pages site assembly', () => {
             mkdirSync(join(dir, '_site'), { recursive: true });
             assembleRootSite(dir, join(dir, '_site'));
 
-            // The page is rendered from content, not copied from the checkout,
-            // so the fixture needs no index.html of its own.
+            // The page comes from the README, not from the checkout, so the
+            // fixture needs no index.html of its own.
             assert.ok(!existsSync(join(dir, 'index.html')));
-            assert.strictEqual(readFileSync(join(dir, '_site', 'index.html'), 'utf8'), renderLandingPage());
+            const index = readFileSync(join(dir, '_site', 'index.html'), 'utf8');
+            assert.ok(index.includes('<h1>Fixture site</h1>'));
+            assert.ok(index.includes('<p>Rendered during assembly.</p>'));
+            assert.strictEqual(
+                index,
+                renderReadmePage(readFileSync(join(dir, LANDING_PAGE_SOURCE), 'utf8'), {
+                    linkBase: REPO_BLOB_BASE,
+                })
+            );
             assert.strictEqual(readFileSync(join(dir, '_site', 'jsmind.js'), 'utf8'), 'export {}\n');
             assert.strictEqual(
                 readFileSync(join(dir, '_site', 'playground.html'), 'utf8'),
@@ -293,10 +303,10 @@ describe('pages site assembly', () => {
         }
     });
 
-    it('points README and landing-page docs links at the site entry', () => {
+    it('points the README and the rendered landing page at the docs entry', () => {
         const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
         const readmeZh = readFileSync(join(ROOT, 'README.zh.md'), 'utf8');
-        const landing = renderLandingPage();
+        const landing = renderLandingPage(ROOT);
 
         assert.ok(hasHref(readme, DOCS_SITE_ENTRY));
         assert.ok(hasHref(readmeZh, DOCS_SITE_ENTRY));
