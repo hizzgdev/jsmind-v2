@@ -791,6 +791,7 @@ if (mind) {
             // ============================================================================
             const NodeClickListener = {
                 isSetup: false,
+                handler: null,
 
                 setup: function() {
                     const container = document.getElementById('jsmind_container');
@@ -800,7 +801,7 @@ if (mind) {
                     // is retargeted to this container, so event.target and
                     // parentElement never see the node. composedPath() still
                     // includes the real path across the shadow boundary.
-                    container.addEventListener('click', (event) => {
+                    this.handler = (event) => {
                         const path = typeof event.composedPath === 'function'
                             ? event.composedPath()
                             : [];
@@ -817,7 +818,8 @@ if (mind) {
                             }
                         }
                         NodeInfoBar.clear();
-                    });
+                    };
+                    container.addEventListener('click', this.handler);
                     
                     this.isSetup = true;
                     console.log('Node click listener has been set up');
@@ -843,6 +845,11 @@ if (mind) {
                 },
 
                 reset: function() {
+                    const container = document.getElementById('jsmind_container');
+                    if (container && this.handler) {
+                        container.removeEventListener('click', this.handler);
+                    }
+                    this.handler = null;
                     this.isSetup = false;
                 }
             };

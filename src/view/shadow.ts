@@ -320,7 +320,8 @@ export function applyTonePalette(
  *
  * A host that already has a shadow root keeps it. Calling `attachShadow` twice
  * throws, and constructing the view again on the same host (which happens when
- * a mind map is reloaded) must not.
+ * a mind map is reloaded) must not. Previous rendered trees are removed so
+ * stale `.jsmind-node` elements cannot remain clickable beside the new map.
  *
  * @param container - The host element supplied by the caller.
  * @returns The shadow root that rendered content belongs in.
@@ -341,6 +342,15 @@ export function attachViewShadowRoot(container: HTMLElement): ShadowRoot {
         root.appendChild(style);
     }
     style.textContent = JSMIND_VIEW_STYLES;
+
+    // Keep the stylesheet, drop earlier .jsmind-inner trees. Reusing the
+    // shadow root without this would stack maps, and a click can hit a node
+    // whose id is no longer in the current mind.
+    for (const child of [...root.children]) {
+        if (child !== style) {
+            child.remove();
+        }
+    }
 
     return root;
 }
