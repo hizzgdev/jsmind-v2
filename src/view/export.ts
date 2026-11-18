@@ -33,7 +33,7 @@ export const JmImageType = {
 
 export type JmImageType = typeof JmImageType[keyof typeof JmImageType];
 
-/** Options for {@link captureShadowContent}. */
+/** Options for exporting the rendered mind map to an image. */
 export interface JmExportImageOptions {
     /**
      * Device pixel ratio to render at. 2 gives a crisp result on high-density
@@ -49,7 +49,7 @@ export interface JmExportImageOptions {
     quality?: number;
 }
 
-/** What a capture produced. */
+/** The encoded image returned by {@link JsMind.exportImage}, plus its dimensions. */
 export interface JmExportImageResult {
     blob: Blob;
     /** Pixel width of the image, i.e. the content width times `scale`. */

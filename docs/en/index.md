@@ -13,4 +13,4 @@ hero:
       link: https://hizzgdev.github.io/jsmind-v2/playground.html
 ---
 
-The guide already covers concepts, installation, the repository skill, and the preview CLI. The API, data format, design, and community pages are still being written.
+The guide already covers concepts, installation, the repository skill, and the preview CLI. The [API](/en/reference/api) is documented as a preview. The data format, design, and community pages are still being written.

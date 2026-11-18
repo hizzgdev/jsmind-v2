@@ -62,6 +62,12 @@ export class JmNodeContent {
         return this.hasType(JmNodeContentType.Text);
     }
 
+    /**
+     * Returns the text value of this content.
+     *
+     * @returns The text value.
+     * @throws {@link Error} If the content is not text type.
+     */
     getText(): string {
         if (!this.isText()) {
             throw new Error('Content is not text type');

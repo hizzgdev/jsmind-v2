@@ -107,6 +107,16 @@ export class JmMind {
     }
 
 
+    /**
+     * Adds a child node under a parent. A string is stored as text content;
+     * a {@link JmNodeContent} is used as-is.
+     *
+     * @param content - Text, or a {@link JmNodeContent} object.
+     * @param parentId - The parent node ID.
+     * @returns The created node.
+     * @throws {@link JsMindError} If `parentId` is missing, `content` is missing,
+     * or `content` is not a string or {@link JmNodeContent}.
+     */
     addChildNode(content: unknown, parentId: string): JmNode {
         if(!parentId) {
             throw new JsMindError('parentId is required for addChildNode');

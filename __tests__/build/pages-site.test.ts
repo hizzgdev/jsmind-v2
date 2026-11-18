@@ -42,6 +42,14 @@ const DOCS_PAGES = [
     'guide/skill.html',
     'reference/index.html',
     'reference/api.html',
+    'reference/api/jsmind.html',
+    'reference/api/mind.html',
+    'reference/api/node.html',
+    'reference/api/edge.html',
+    'reference/api/options.html',
+    'reference/api/serialization.html',
+    'reference/api/export.html',
+    'reference/api/style.html',
     'reference/cli.html',
     'reference/data-format.html',
     'design/index.html',
@@ -49,7 +57,6 @@ const DOCS_PAGES = [
 ] as const;
 
 const STILL_PLACEHOLDER_PAGES = [
-    'reference/api.html',
     'reference/data-format.html',
     'design/index.html',
     'community/index.html',
@@ -202,6 +209,28 @@ describe('pages site assembly', () => {
             assert.ok(zhCli.includes('预览版本'));
             assert.ok(!enCli.includes('Coming soon.'));
             assert.ok(!zhCli.includes('内容即将推出。'));
+
+            const enApi = readFileSync(join(docsDir, 'en', 'reference', 'api.html'), 'utf8');
+            const zhApi = readFileSync(join(docsDir, 'zh', 'reference', 'api.html'), 'utf8');
+            assert.ok(enApi.includes('Preview version'));
+            assert.ok(zhApi.includes('预览版本'));
+            assert.ok(!enApi.includes('Coming soon.'));
+            assert.ok(!zhApi.includes('内容即将推出。'));
+            assert.ok(enApi.includes('npm i jsmind@2'));
+            assert.ok(zhApi.includes('npm i jsmind@2'));
+            assert.ok(enApi.includes('addChildNode'));
+            assert.ok(zhApi.includes('addChildNode'));
+            assert.ok(enApi.includes('jsmind_container'));
+            assert.ok(zhApi.includes('jsmind_container'));
+
+            const enJsMind = readFileSync(join(docsDir, 'en', 'reference', 'api', 'jsmind.html'), 'utf8');
+            const zhJsMind = readFileSync(join(docsDir, 'zh', 'reference', 'api', 'jsmind.html'), 'utf8');
+            assert.ok(enJsMind.includes('Preview version'));
+            assert.ok(zhJsMind.includes('预览版本'));
+            assert.ok(enJsMind.includes('JsMind.create'));
+            assert.ok(zhJsMind.includes('JsMind.create'));
+            assert.ok(enJsMind.includes('Creates a jsMind instance'));
+            assert.ok(zhJsMind.includes('创建 jsMind 实例'));
 
             const bundled = files
                 .filter((name) => name.endsWith('.js') || name.endsWith('.html'))

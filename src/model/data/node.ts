@@ -182,6 +182,11 @@ export class JmNode {
         return false;
     }
 
+    /**
+     * Checks whether this node is the root (it has no parent).
+     *
+     * @returns True if this node has no parent.
+     */
     isRoot(): boolean {
         return this.parent === null;
     }

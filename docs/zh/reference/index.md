@@ -2,4 +2,4 @@
 
 本节汇总公开 API、命令行工具和数据格式。
 
-[CLI](./cli) 已在此说明。[API](./api) 和 [数据格式](./data-format) 页面仍在编写中。
+[API](./api) 和 [CLI](./cli) 已在此说明。[数据格式](./data-format) 页面仍在编写中。

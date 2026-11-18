@@ -21,10 +21,11 @@ jsMind V2 是 jsMind 的下一代。它仍然是大家熟悉的思维导图，�
 - 一份帮助 agent 用该 CLI 画图或改图的 skill
 - 一个可以在浏览器里试用库的 Playground
 
-编程 API 和磁盘上的数据格式会在后续页面中说明。
+[API](/zh/reference/api) 已按预览版写好。磁盘上的数据格式会在后续页面中说明。
 
 ## 接下来
 
 - [快速上手](./getting-started) — 安装 jsMind V2，并创建第一张导图
 - [Skill](./skill) — 让 agent 使用仓库里的 skill
 - [CLI](/zh/reference/cli) — 当前命令和用法（预览版）
+- [API](/zh/reference/api) — 如何调用已发布的 2.0.0 编程接口（预览版）
