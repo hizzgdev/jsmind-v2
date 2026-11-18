@@ -87,14 +87,18 @@ jobs:
           #   renders: moving or renaming the fixture would break the preview,
           #   and the run that breaks it should be the run that shows it.
           #
-          # docs_only: is every one of these files prose? Documentation is a
-          #   directory of markdown plus the repository's own READMEs. Nothing
-          #   that gets compiled, type-checked or built reads them, so on a
-          #   documentation-only change those steps re-prove yesterday's result.
+          # docs_only: is every one of these files prose? Prose is markdown
+          #   (READMEs and documentation pages). docs/.vitepress/ holds
+          #   TypeScript that VitePress compiles and runs in the browser, and
+          #   any other non-markdown file under docs/ (ts, js, vue, ...) is
+          #   likewise not prose. Those files feed type-check, pages-site
+          #   tests and the site build, so a change that touches them must
+          #   not skip those steps.
           #
-          # The two answers are not complements: a change to docs/ is prose and
-          # cannot move the picture, a change to .github/workflows/static.yml is
-          # neither prose nor a render input, and a change to src/ is both.
+          # The two answers are not complements: a markdown change under
+          # docs/ is prose and cannot move the picture, a change to
+          # .github/workflows/static.yml is neither prose nor a render input,
+          # and a change to src/ is both.
           render=false
           docs_only=true
           while IFS= read -r file; do
@@ -108,7 +112,17 @@ jobs:
             esac
 
             case "$file" in
-              docs/*|*.md)
+              docs/.vitepress/*)
+                docs_only=false; echo "not prose: $file" ;;
+              docs/*)
+                case "$file" in
+                  *.md)
+                    : ;;
+                  *)
+                    docs_only=false; echo "not prose: $file" ;;
+                esac
+                ;;
+              *.md)
                 : ;;
               *)
                 docs_only=false; echo "not prose: $file" ;;
