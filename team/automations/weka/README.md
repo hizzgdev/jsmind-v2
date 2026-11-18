@@ -67,7 +67,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 | 方向 | 必须同时满足 |
 | --- | --- |
 | issue 建卡 | ① 标签里有 `weka`；② `zzgbot` 在 assignees 里（多个指派人也算，不要求它是唯一或第一个）；③ 事件是 `opened` / `labeled` / `assigned` 三者之一 |
-| PR 建卡 | ① 由 `hizzgdev` 提交的 review（非 `approved`），或 `hizzgdev` 在 PR 上的会话评论；② PR 带 `weka-reviewed`；③ 该编号没有 open 卡；④ 板上没有 `running` / `review` 的卡 |
+| PR 建卡 | ① `hizzgdev` 的三个入口之一：提交 review（非 `approved`）、PR 会话评论、diff 上的行内评论；② PR 带 `weka-reviewed`；③ 该编号没有 open 卡；④ 板上没有 `running` / `review` 的卡 |
 
 为什么 issue 方向要两道门：公开仓库上任何人都能给 issue 打标签，所以标签只说明"这是想交给 weka 的活"，真正决定要不要花 token 的是指派——只有仓库所有者能把 issue 指派给 bot 账号。
 
@@ -217,9 +217,9 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
 - Payload URL：`http://<public-ip>:<webhook-port>`
 - Content type：`application/json`
 - Secret：第 4 步生成的 secret
-- Events：**Issues、Issue comments、Pull requests、Pull request reviews**
+- Events：**Issues、Issue comments、Pull requests、Pull request reviews、Pull request review comments**
 
-（是 "Pull request reviews"，不是 "Pull request review comments"——触发返工卡的是你提交的 review，不是行内评论。）
+两个 review 相关的事件都要勾。它们在 GitHub 上是两件事：提交一个 review（Approved / Request changes / Comment）走 `pull_request_review`，而在 diff 上留一条行内评论走 `pull_request_review_comment`——只在行内评论里提意见时，review 的 body 是空的，只有后一个事件会来。只勾一个的话，提意见的方式换个按钮就静默失效了。
 
 云控制台放通 <webhook-port> 入站（安全组）——只放 <webhook-port>，不放 9180。
 
@@ -236,10 +236,12 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
 任何一环卡住，按顺序看：
 
 ```bash
-journalctl --user -u github-webhook.service     # webhook 侧：验签、gate、建卡
+journalctl --user -u github-webhook.service     # webhook 侧：验签、gate、建卡、[SKIP] 事件名
 hermes kanban --board jsmind-v2 list            # 卡片侧：状态、assignee
 hermes kanban --board jsmind-v2 runs <task>     # 每次尝试的结果
 tail -n 40 ~/.hermes/profiles/<worker>/logs/managed-worker.log   # worker 真正的报错
 ```
+
+日志里出现 `[SKIP] unhandled event: xxx`，说明 GitHub 送来了这个脚本不认识的事件——多半是 Settings → Webhooks 里少勾了对应的 events，或者脚本来不及支持这个动作。出现 `[GATE]` 则是收到了但条件不满足，括号里会写清是哪一条（没有 `weka-reviewed`、不是仓库所有者、编号已有 open 卡）。
 
 卡崩两次会被自动 block。先看 `weka-working` 是不是还挂在对象上——挂着但板上没卡在跑，说明 worker 起不来，直接看上面那个 `managed-worker.log`。
