@@ -33,6 +33,6 @@ A map that exercises the v2 feature set — tones, per-node styles, folded branc
 Two places use it:
 
 - **CI** renders it to the preview image on every pull request, so a rendering regression shows up as a visibly wrong picture rather than a passing test.
-- The [image export guide](https://hizzgdev.github.io/jsmind-v2/docs/en/reference/image-export) uses it in the CLI examples.
+- The [image export](https://hizzgdev.github.io/jsmind-v2/docs/en/reference/image-export) page in Reference uses it in the CLI examples.
 
 Neither page loads it — they build their maps inline so they stay readable as standalone documents. That makes this file a test fixture that happens to sit next to the examples rather than sample data for them. What the two have in common is only that both are things a reader wants to open, and one directory beats a second plural directory holding a single file.

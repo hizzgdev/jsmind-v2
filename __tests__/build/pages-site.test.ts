@@ -25,8 +25,11 @@ import {
     assembleRootSite,
     DOCS_LANG_STORAGE_KEY,
     DOCS_LANGUAGE_REDIRECT_HTML,
+    DOCS_PAGE_REDIRECTS,
+    docsPageRedirectHtml,
     moduleScriptSrcs,
     rewritePlayground,
+    writeDocsPageRedirects,
 } from '../../scripts/assemble-site.ts';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -61,14 +64,6 @@ const DOCS_PAGES = [
     'design/theme-system.html',
     'design/hybrid-edge-system.html',
     'community/index.html',
-] as const;
-
-const RETIRED_DOCS_PAGES = [
-    'guide/node-content.html',
-    'guide/node-move.html',
-    'guide/image-export.html',
-    'guide/serialization.html',
-    'reference/cli.html',
 ] as const;
 
 const AI_NOTICE_CLASS = 'jsmind-docs-ai-notice';
@@ -216,6 +211,25 @@ describe('pages site assembly', () => {
         assert.ok(!workflow.includes('assemble-pages'));
     });
 
+    it('writes retired docs path redirects for both locales', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'jsmind-docs-redirects-'));
+        try {
+            writeDocsPageRedirects(dir);
+            for (const locale of ['en', 'zh'] as const) {
+                for (const { from, to } of DOCS_PAGE_REDIRECTS) {
+                    const html = readFileSync(join(dir, locale, from), 'utf8');
+                    assert.strictEqual(html, docsPageRedirectHtml(to));
+                    assert.ok(html.includes(`location.replace('${to}'`));
+                    assert.ok(html.includes(`url=${to}`));
+                    assert.ok(html.includes(`href="${to}"`));
+                }
+            }
+        }
+        finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
     it('points README and landing-page docs links at the site entry', () => {
         const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
         const readmeZh = readFileSync(join(ROOT, 'README.zh.md'), 'utf8');
@@ -258,9 +272,14 @@ describe('pages site assembly', () => {
                 }
             }
 
-            for (const page of RETIRED_DOCS_PAGES) {
-                assert.ok(!files.includes(`en/${page}`), `retired page still present: en/${page}`);
-                assert.ok(!files.includes(`zh/${page}`), `retired page still present: zh/${page}`);
+            for (const locale of ['en', 'zh'] as const) {
+                for (const { from, to } of DOCS_PAGE_REDIRECTS) {
+                    const rel = `${locale}/${from}`;
+                    assert.ok(files.includes(rel), `missing redirect ${rel}`);
+                    const html = readFileSync(join(docsDir, locale, from), 'utf8');
+                    assert.strictEqual(html, docsPageRedirectHtml(to), `${rel} should be a static redirect`);
+                    assert.ok(!html.includes(FOOTER_TEXT), `${rel} should not be a VitePress content page`);
+                }
             }
 
             const enHome = readFileSync(join(docsDir, 'en', 'index.html'), 'utf8');
