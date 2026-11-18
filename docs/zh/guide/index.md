@@ -30,7 +30,7 @@ jsMind V2 是 jsMind 的下一代。它仍然是大家熟悉的思维导图，�
 - [节点内容](./node-content) — 已发布的 `text` 内容类型
 - [节点移动](./node-move) — 换父节点、兄弟位置和方向
 - [导出图片](./image-export) — 用 API 或 CLI 导出 PNG、JPEG 或 WebP
-- [序列化](./serialization) — 读写导图、校验和 autofix
+- [序列化](./serialization) — 读写导图和校验
 - [CLI](/zh/reference/cli) — 当前命令和用法（预览版）
 - [API](/zh/reference/api) — 如何调用已发布的 2.0.0 编程接口（预览版）
 - [设计](/zh/design/) — 库为什么采用现在的结构

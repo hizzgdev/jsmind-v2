@@ -48,7 +48,7 @@ jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中
 
 ## 4. 间距规则
 
-布局里有两个关键间距参数（在 `LayoutOptions` 中）：
+布局里有关键间距参数（在 `LayoutOptions` 中）：
 
 | 参数 | 默认 | 含义 |
 |---|---|---|

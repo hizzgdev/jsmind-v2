@@ -83,4 +83,6 @@ jsonSerializer.check(data)  // → { valid: boolean, errors: JmValidationIssue[]
 
 ## 5. autofix
 
-`validate` 默认只报告。加 `--autofix` 才写入，**且绝不静默**——必须输出改动清单。修复原则：宁可位置不对也不丢数据（孤儿节点挂 root）、不重建 `children` 顺序、不修改 `content`。详细规则见 [`v2-data-format.md` 第 10 节](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md#10-autofix)。
+已发布的 2.0.0 CLI 尚未提供 `--autofix`。当前命令只有 `jsmind validate <file> [--json]`：只报告问题，不修改文件。
+
+格式规范描述了未来的 `--autofix`：加该选项才写入，**且绝不静默**——必须输出改动清单。修复原则：宁可位置不对也不丢数据（孤儿节点挂 root）、不重建 `children` 顺序、不修改 `content`。详细规则见 [`v2-data-format.md` 第 10 节](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md#10-autofix)。

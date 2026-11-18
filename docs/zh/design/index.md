@@ -17,7 +17,7 @@ CLI         jsMind 命令入口，参数解析、退出码、无头浏览器封�
 application JsMind 门面、JmMindChangeCoordinator（被动观察）、JmCommander（主动指令）
 view        渲染：Shadow DOM 隔离、节点/连线/展开器、主题变量、导出图片
 arranger    纯计算布局：喂入节点尺寸 → 算出坐标。零 DOM 依赖
-serialization JSON/FreeMind 读写、校验器（37 个错误码）
+serialization JSON/FreeMind 读写、校验器（22 个错误码）
 model       JmMind / JmNode / JmEdge / JmNodeContent / style / theme 类型体系
 ```
 

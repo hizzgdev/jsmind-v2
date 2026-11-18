@@ -30,7 +30,7 @@ The [API](/en/reference/api) is documented as a preview. The on-disk data format
 - [Node content](./node-content) — the published `text` content type
 - [Moving nodes](./node-move) — change parent, sibling position, and side
 - [Image export](./image-export) — export a PNG, JPEG, or WebP from the API or the CLI
-- [Serialization](./serialization) — read and write maps, validate, and autofix
+- [Serialization](./serialization) — read and write maps, and validate
 - [CLI](/en/reference/cli) — current commands and usage (preview)
 - [API](/en/reference/api) — how to call the published 2.0.0 programming interface (preview)
 - [Design](/en/design/) — why the library is structured this way

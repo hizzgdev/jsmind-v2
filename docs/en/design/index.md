@@ -17,7 +17,7 @@ CLI         jsMind command entry point, argument parsing, exit codes, headless b
 application JsMind facade, JmMindChangeCoordinator (passive observation), JmCommander (active commands)
 view        Rendering: Shadow DOM isolation, nodes / connections / expanders, theme variables, image export
 arranger    Pure layout calculation: feed in node sizes → compute coordinates. Zero DOM dependency
-serialization JSON/FreeMind read and write, validator (37 error codes)
+serialization JSON/FreeMind read and write, validator (22 error codes)
 model       JmMind / JmNode / JmEdge / JmNodeContent / style / theme type system
 ```
 
