@@ -276,7 +276,11 @@ class Weka:
         if payload.get("action") != "submitted":
             return
         review = payload.get("review") or {}
-        if (review.get("user") or {}).get("login", "") != self.human:
+        login = (review.get("user") or {}).get("login", "")
+        if login != self.human:
+            # Bots and other collaborators do not drive the flow; log it so a
+            # "why did nothing happen" question has an answer in the journal.
+            print(f"[GATE] review by {login or 'unknown'} ignored (not {self.human})", file=sys.stderr)
             return
         state = review.get("state", "")
         if state == "approved":
