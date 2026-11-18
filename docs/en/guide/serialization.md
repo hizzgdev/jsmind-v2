@@ -7,8 +7,8 @@ The jsMind v2 serialization layer turns an in-memory `JmMind` object into a file
 | `src/serialization/serializer.ts` | The `JmMindSerializer` interface — `serialize` / `deserialize` / `validate` / `getFormatName` |
 | `src/serialization/json.ts` | Full implementation of the v2 format: `JmMindJsonSerializer`, corresponding to `format: "jsmind_v2"` |
 | `src/serialization/freemind.ts` | FreeMind XML compatibility |
-| `src/serialization/serializer-factory.ts` | `JmMindSerializerFactory.create('json' | 'freemind')` |
-| `src/serialization/validation.ts` | `validateMindData()` — structural validation with 37 error codes, separated from read/write (does not depend on a serializer) |
+| `src/serialization/serializer-factory.ts` | `jsMind.Serializer.create('json' | 'freemind')` |
+| `src/serialization/validation.ts` | `validateMindData()` — structural validation with 22 error codes, separated from read/write (does not depend on a serializer) |
 
 See also the [serialization](/en/reference/api/serialization) API reference. The full on-disk schema is not reproduced here; it remains in the repository as [`docs/requirements/v2-data-format.md`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md). The [Data Format](/en/reference/data-format) page on this site is still being written.
 
@@ -23,7 +23,7 @@ interface JmMindSerializer {
 }
 ```
 
-Get an instance with `JmMindSerializerFactory.create('json')`; do not `new` it directly.
+Get an instance with `jsMind.Serializer.create('json')`; do not `new` it directly.
 
 ## 2. JSON serialization
 
@@ -36,7 +36,7 @@ The complete schema is in [`docs/requirements/v2-data-format.md`](https://github
 ### serialize
 
 ```ts
-const serializer = new JmMindJsonSerializer();
+const serializer = jsMind.Serializer.create('json');
 const doc = serializer.serialize(mind);
 // → { format: "jsmind_v2", meta: {...}, root: "root", nodes: {...}, edges: {...} }
 ```
@@ -56,14 +56,20 @@ This calls `validateMindData()` internally. If validation fails it throws `JsMin
 
 ```ts
 serializer.validate(data)  // → true | false
-serializer.check(data)     // → { valid: boolean, errors: JmValidationIssue[] }
 ```
 
-`check` returns the error list in addition to what `validate` returns. Each error has a `code` (a stable identifier, such as `E_FORMAT`), a `path` (a location in the document), and a `message` (text for a person to read).
+`validate` is on the `JmMindSerializer` interface and returns only a boolean. The JSON serializer implementation, `JmMindJsonSerializer`, also has a `check` method that is not part of the interface. Use `check` when you need the error list as well as the boolean:
+
+```ts
+// On JmMindJsonSerializer only — not on the JmMindSerializer interface
+jsonSerializer.check(data)  // → { valid: boolean, errors: JmValidationIssue[] }
+```
+
+Each error has a `code` (a stable identifier, such as `E_FORMAT`), a `path` (a location in the document), and a `message` (text for a person to read).
 
 ## 3. FreeMind serialization
 
-`JmMindFreeMindSerializer` is compatible with the FreeMind XML format. It shares the same `JmMindSerializer` interface as the JSON serializer. Get it from the factory: `JmMindSerializerFactory.create('freemind')`.
+`JmMindFreeMindSerializer` is compatible with the FreeMind XML format. It shares the same `JmMindSerializer` interface as the JSON serializer. Get it from the factory: `jsMind.Serializer.create('freemind')`.
 
 ## 4. Validation layer
 
@@ -73,7 +79,7 @@ serializer.check(data)     // → { valid: boolean, errors: JmValidationIssue[] 
 - The serializer and the CLI share the same validation logic
 - A validation failure does not throw; it returns `{ valid: false, errors: [...] }`
 
-The 37 error codes fall into four groups: structural integrity (`E_FORMAT` / `E_META` / `E_NODES_MISSING`, and so on), reference integrity (`E_NODE_PARENT_MISSING` / `E_ROOT_MISSING`, and so on), consistency (`E_PARENT_CHILD_MISMATCH`), and value legality (`E_SIDE` / `E_TONE` / `E_CONTENT_TYPE`, and so on). The complete list is in [section 9 of `v2-data-format.md`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md#9-完整性校验).
+The 22 error codes fall into four groups: structural integrity (`E_FORMAT` / `E_META` / `E_NODES_MISSING`, and so on), reference integrity (`E_NODE_PARENT_MISSING` / `E_ROOT_MISSING`, and so on), consistency (`E_PARENT_CHILD_MISMATCH`), and value legality (`E_SIDE` / `E_TONE` / `E_CONTENT_TYPE`, and so on). The complete list is in [section 9 of `v2-data-format.md`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md#9-完整性校验).
 
 ## 5. autofix
 
