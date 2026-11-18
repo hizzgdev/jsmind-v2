@@ -1,15 +1,14 @@
 /**
  * @fileoverview Builds the GitHub Pages directory.
  *
- * The workflow only publishes `_site`. This command renders the landing page
- * from `README.md`, copies the playground and the bundle, points the
- * playground at the bundle that sits beside it, and builds the VitePress
+ * The workflow only publishes `_site`. This command writes the root index as
+ * a redirect to the docs site, copies the playground and the bundle, points
+ * the playground at the bundle that sits beside it, and builds the VitePress
  * documentation site into `_site/docs`.
  *
- * The landing page is generated, not checked in: the README is its only
- * source, so the site and GitHub cannot describe the project differently.
- * Relative README links are rebased onto the repository (`REPO_BLOB_BASE`),
- * because their targets are not published to the site.
+ * The site root is a redirect, not a page: `/docs/` is the project front
+ * page, so a second copy of the project description at the root would only
+ * drift from it. The index is generated, not checked in.
  *
  * `example/playground.html` keeps `../dist/jsmind.js`. That path is what
  * `npm run server` needs, because the page lives in `example/`. On the site
@@ -30,12 +29,32 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, wr
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { REPO_BLOB_BASE, renderReadmePage } from './readme-page.ts';
-
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Markdown source of the landing page. */
-export const LANDING_PAGE_SOURCE = 'README.md';
+/**
+ * Site root index: a redirect to the documentation, which is the project
+ * front page. Nothing else lives here - no title, no styles, no feature list.
+ *
+ * `location.replace` keeps the redirect out of history so the back button
+ * does not land on it again. The search and hash are carried over, so old
+ * links that arrived with a query or an anchor keep their information, and
+ * the `<noscript>` link is the way in without JavaScript.
+ */
+export const LANDING_REDIRECT_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+location.replace('docs/' + location.search + location.hash);
+</script>
+</head>
+<body>
+<noscript>
+    <p><a href="docs/">jsMind V2 documentation</a></p>
+</noscript>
+</body>
+</html>
+`;
 
 /** Script src while the page still lives under `example/`. */
 export const LOCAL_BUNDLE_SRC = '../dist/jsmind.js';
@@ -116,18 +135,7 @@ export function rewritePlayground(html: string): string {
 }
 
 /**
- * Renders the landing page for the site root from the repository's README.
- *
- * @param root - Repository root holding the README.
- * @returns A complete HTML document.
- */
-export function renderLandingPage(root: string): string {
-    const readme = readFileSync(join(root, LANDING_PAGE_SOURCE), 'utf8');
-    return renderReadmePage(readme, { linkBase: REPO_BLOB_BASE });
-}
-
-/**
- * Renders the landing page and copies the playground and bundle into an
+ * Writes the site root index, the playground and the bundle into an
  * already-created site directory. Does not wipe the directory or build the
  * docs site.
  *
@@ -137,7 +145,7 @@ export function renderLandingPage(root: string): string {
 export function assembleRootSite(root: string, siteDir: string): void {
     mkdirSync(siteDir, { recursive: true });
 
-    writeFileSync(join(siteDir, 'index.html'), renderLandingPage(root));
+    writeFileSync(join(siteDir, 'index.html'), LANDING_REDIRECT_HTML);
     copyFileSync(join(root, 'dist', 'jsmind.js'), join(siteDir, 'jsmind.js'));
 
     const playground = readFileSync(join(root, 'example', 'playground.html'), 'utf8');
