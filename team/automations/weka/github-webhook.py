@@ -55,6 +55,9 @@ class Weka:
         self.label = config["target_label"]
         self.assignee = config.get("assignee", "cody")
         self.human = config.get("human_login", "hizzgdev")
+        # Assignee gate: an issue triggers the flow only when assigned to this
+        # bot account, so strangers on the public repo cannot burn LLM budget.
+        self.gate_login = config.get("bot_login", "zzgbot")
         self.board = config.get("kanban_board")
         # A board's DB sits at ~/.hermes/kanban/boards/<slug>/kanban.db — derive
         # it instead of asking users to hand-fill a path that follows naturally.
@@ -98,14 +101,26 @@ class Weka:
 
     def handle_issue(self, payload: dict) -> None:
         action = payload.get("action", "")
-        if action not in ("opened", "labeled"):
+        if action not in ("opened", "labeled", "assigned"):
             return
         issue = payload.get("issue", {})
         label_names = [lbl.get("name", "") for lbl in issue.get("labels", [])]
         if self.label not in label_names:
             return
 
+        # Resource gate: only an issue assigned to the bot account proceeds —
+        # otherwise anyone on the public repo could open an issue with the label
+        # and drain the team's LLM budget.
         number = issue.get("number")
+        assignee = (issue.get("assignee") or {}).get("login")
+        if assignee != self.gate_login:
+            print(
+                f"[GATE] Issue #{number} not assigned to {self.gate_login} "
+                f"(assignee={assignee or 'none'}), skipping",
+                file=sys.stderr,
+            )
+            return
+
         title = issue.get("title", "")
         url = issue.get("html_url", "")
         body = (issue.get("body") or "").strip()
