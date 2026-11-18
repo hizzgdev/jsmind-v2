@@ -1,10 +1,13 @@
 /**
  * @fileoverview Builds the GitHub Pages directory.
  *
- * The workflow only publishes `_site`. This command copies the landing page,
- * the playground, and the bundle, points the playground at the bundle that
- * sits beside it, and builds the VitePress documentation site into
- * `_site/docs`.
+ * The workflow only publishes `_site`. This command renders the landing page
+ * from `landing-page.ts`, copies the playground and the bundle, points the
+ * playground at the bundle that sits beside it, and builds the VitePress
+ * documentation site into `_site/docs`.
+ *
+ * The landing page is generated, not checked in: its `playground.html` link
+ * only resolves once the playground sits beside it at the site root.
  *
  * `example/playground.html` keeps `../dist/jsmind.js`. That path is what
  * `npm run server` needs, because the page lives in `example/`. On the site
@@ -24,6 +27,8 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import { renderLandingPage } from './landing-page.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -106,8 +111,9 @@ export function rewritePlayground(html: string): string {
 }
 
 /**
- * Copies the landing page, playground, and bundle into an already-created
- * site directory. Does not wipe the directory or build the docs site.
+ * Renders the landing page and copies the playground and bundle into an
+ * already-created site directory. Does not wipe the directory or build the
+ * docs site.
  *
  * @param root - Repository root.
  * @param siteDir - Output directory.
@@ -115,7 +121,7 @@ export function rewritePlayground(html: string): string {
 export function assembleRootSite(root: string, siteDir: string): void {
     mkdirSync(siteDir, { recursive: true });
 
-    copyFileSync(join(root, 'index.html'), join(siteDir, 'index.html'));
+    writeFileSync(join(siteDir, 'index.html'), renderLandingPage());
     copyFileSync(join(root, 'dist', 'jsmind.js'), join(siteDir, 'jsmind.js'));
 
     const playground = readFileSync(join(root, 'example', 'playground.html'), 'utf8');
