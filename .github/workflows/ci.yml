@@ -6,8 +6,10 @@ on:
   # before opening the PR, once after) does not burn two runs.
   push:
     branches: [master]
+  # Any PR base, not just master, so a stacked docs PR (for example one
+  # whose base is this branch) still gets CI checks. Pages deploy in
+  # static.yml remains master-only.
   pull_request:
-    branches: [master]
 
 # New pushes to the same branch cancel older runs
 concurrency:
