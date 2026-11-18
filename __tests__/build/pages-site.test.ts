@@ -16,12 +16,19 @@
  * Docs output is verified by running the VitePress build against this
  * repository into a temporary directory. The root-file fixture stays focused
  * on the playground rewrite and does not invoke VitePress.
+ *
+ * Where the landing-page guard is enforced: this file's `landing page` tests
+ * fail when the README grows markdown the renderer passes through as text, and
+ * ci.yml raises a `landing` flag for a root README change and runs those tests
+ * for it - a README edit sets no other flag, so without that wiring the one
+ * change class the guard exists for would publish untested.
  */
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative, sep } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -41,6 +48,7 @@ import {
 import { REPO_BLOB_BASE, renderMarkdown, renderReadmePage } from '../../scripts/readme-page.ts';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+const CI_WORKFLOW = readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8');
 
 const DOCS_SITE_ENTRY = 'https://hizzgdev.github.io/jsmind-v2/docs/';
 const DOCS_README_BLOB = 'https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md';
@@ -270,6 +278,14 @@ const UNRENDERED_MARKDOWN: ReadonlyArray<{ readonly syntax: string; readonly pat
     { syntax: 'table', pattern: /(?:^|\n)\s*\|/ },
     // Raw HTML is escaped into text, so a tag-shaped run is residue, not markup.
     { syntax: 'raw HTML', pattern: /<[/]?[a-z][a-z0-9-]*[\s/>]/ },
+    // A blockquote is not a paragraph that happens to start with a caret: the
+    // renderer keeps that caret, and the page shows it.
+    { syntax: 'blockquote', pattern: /(?:^|\n)[ \t]*>/ },
+    // Thematic breaks survive as a line of hyphens, asterisks or underscores.
+    { syntax: 'horizontal rule', pattern: /(?:^|\n)[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*(?:\n|$)/ },
+    // `<https://...>` is markdown's bare link; escaped, it reads as a tag-shaped
+    // run without matching the raw-HTML pattern above.
+    { syntax: 'autolink', pattern: /<[a-z][a-z0-9+.-]*:[^\s<>]*>/ },
 ];
 
 /**
@@ -287,6 +303,108 @@ function findUnrenderedMarkdown(page: string): string[] {
         .replace(/<code>[\s\S]*?<\/code>/g, ''));
     return UNRENDERED_MARKDOWN.filter(({ pattern }) => pattern.test(text))
         .map(({ syntax }) => syntax);
+}
+
+/**
+ * The shell body of a `run: |` step in a workflow file, dedented.
+ *
+ * The `changes` step is exercised by running it rather than by matching its
+ * text: which flags a file list raises is the behaviour the rest of CI reads,
+ * and a comment saying "README.md means landing" would not prove it.
+ *
+ * @param workflow - Workflow file contents.
+ * @param stepName - The `name:` of the step to extract.
+ * @returns The step's script, ready to hand to bash.
+ */
+function readRunStep(workflow: string, stepName: string): string {
+    const lines = workflow.split('\n');
+    const start = lines.findIndex((line) => line.trim() === `- name: ${stepName}`);
+    assert.ok(start >= 0, `ci.yml should carry a step named "${stepName}"`);
+
+    const runIndex = lines.findIndex((line, index) => index > start && /^\s*run: \|$/.test(line));
+    assert.ok(runIndex > start, `the "${stepName}" step should be a multi-line run step`);
+    const runIndent = lines[runIndex].length - lines[runIndex].trimStart().length;
+
+    const body: string[] = [];
+    for (let index = runIndex + 1; index < lines.length; index += 1) {
+        const line = lines[index];
+        const indent = line.length - line.trimStart().length;
+        if (line.trim() !== '' && indent <= runIndent) {
+            break;
+        }
+        body.push(line);
+    }
+
+    const indents = body.filter((line) => line.trim() !== '')
+        .map((line) => line.length - line.trimStart().length);
+    const dedent = Math.min(...indents);
+    return body.map((line) => line.slice(dedent))
+        .join('\n')
+        .trimEnd();
+}
+
+/**
+ * Runs the `changes` job's classification over a file list.
+ *
+ * A throwaway repository provides the two commits the step diffs, so the real
+ * shell block answers for the real paths.
+ *
+ * @param files - Paths that differ between the base commit and the head.
+ * @returns `$GITHUB_OUTPUT` as a map of flag to value.
+ */
+function classifyChanges(files: readonly string[]): Record<string, string> {
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-ci-changes-'));
+    try {
+        const git = (...args: string[]): string => {
+            const result = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+            assert.strictEqual(result.status, 0, `git ${args.join(' ')} failed: ${result.stderr}`);
+            return result.stdout.trim();
+        };
+
+        git('init', '-q');
+        git('config', 'user.email', 'ci@example.com');
+        git('config', 'user.name', 'CI');
+        writeFileSync(join(dir, 'unchanged.txt'), 'base\n');
+        git('add', '.');
+        git('commit', '-q', '-m', 'base');
+        const base = git('rev-parse', 'HEAD');
+
+        for (const file of files) {
+            mkdirSync(dirname(join(dir, file)), { recursive: true });
+            writeFileSync(join(dir, file), 'changed\n');
+        }
+        git('add', '.');
+        git('commit', '-q', '-m', 'change');
+        const head = git('rev-parse', 'HEAD');
+
+        const outputPath = join(dir, 'github-output');
+        writeFileSync(outputPath, '');
+        const result = spawnSync('bash', ['-c', readRunStep(CI_WORKFLOW, 'Compare against the base')], {
+            cwd: dir,
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                EVENT_NAME: 'pull_request',
+                PR_BASE: base,
+                PR_HEAD: head,
+                PUSH_BEFORE: '',
+                PUSH_AFTER: '',
+                GITHUB_OUTPUT: outputPath,
+            },
+        });
+        assert.strictEqual(result.status, 0, `the changes step failed: ${result.stderr}`);
+
+        return Object.fromEntries(readFileSync(outputPath, 'utf8')
+            .split('\n')
+            .filter((line) => line.includes('='))
+            .map((line) => [
+                line.slice(0, line.indexOf('=')),
+                line.slice(line.indexOf('=') + 1),
+            ]));
+    }
+    finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 }
 
 describe('landing page', () => {
@@ -375,6 +493,52 @@ describe('landing page', () => {
         for (const syntax of ['emphasis', 'image', 'link', 'table', 'raw HTML']) {
             assert.ok(found.includes(syntax), `expected ${syntax} residue, got [${found.join(', ')}]`);
         }
+    });
+
+    it('reports the block-level constructs it had missed', () => {
+        // Each of these renders as literal text and used to slip past the
+        // guard, so they are fed in one at a time: a combined fixture would
+        // still pass if the scan only ever reported the first match.
+        const constructs: ReadonlyArray<{ readonly syntax: string; readonly markdown: string }> = [
+            { syntax: 'blockquote', markdown: '> note: install with npm\n' },
+            { syntax: 'horizontal rule', markdown: '---\n' },
+            { syntax: 'autolink', markdown: 'See <https://example.com> for more.\n' },
+        ];
+        for (const { syntax, markdown } of constructs) {
+            const found = findUnrenderedMarkdown(renderReadmePage(`# ${syntax}\n\n${markdown}`));
+            assert.ok(found.includes(syntax), `expected ${syntax} residue, got [${found.join(', ')}]`);
+        }
+    });
+
+    it('runs on the one change class that can break the page', () => {
+        // The guard above is only worth its lines if CI runs it for the change
+        // it exists to catch: a README edit is prose, so every other job in the
+        // workflow skips and the page would publish untested. `landing` is the
+        // flag that keeps it on the path; classifyChanges runs the real
+        // classification block from ci.yml over a real diff.
+        const readmeOnly = classifyChanges(['README.md']);
+        assert.strictEqual(readmeOnly.landing, 'true', 'a README.md change should raise the landing flag');
+        assert.strictEqual(readmeOnly.library, 'false', 'a README.md change should not run the library suite');
+        assert.strictEqual(readmeOnly.docs, 'false');
+
+        // Only the root README is rendered into the site.
+        assert.strictEqual(classifyChanges(['README.zh.md']).landing, 'false');
+        assert.strictEqual(classifyChanges(['docs/en/guide.md']).landing, 'false');
+        assert.strictEqual(classifyChanges(['src/model/mind.ts']).landing, 'false');
+        assert.strictEqual(classifyChanges(['README.md', 'docs/en/guide.md']).landing, 'true');
+    });
+
+    it('gates a landing-page test step on that flag', () => {
+        assert.match(
+            CI_WORKFLOW,
+            /^\s+landing: \$\{\{ steps\.paths\.outputs\.landing \}\}$/m,
+            'the changes job should publish the landing flag as an output'
+        );
+        assert.match(
+            CI_WORKFLOW,
+            /if: needs\.changes\.outputs\.landing == 'true'\n\s+run: node --test --test-name-pattern='landing page' /,
+            'a step should run the landing-page tests when the flag is set'
+        );
     });
 
     it('escapes markdown text instead of trusting it', () => {
