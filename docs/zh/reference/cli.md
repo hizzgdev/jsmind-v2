@@ -132,6 +132,8 @@ jsmind mind <subcommand> <file> [options]
 | `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | 添加一条关系边 |
 | `remove-edge` | `--edge-id <id>` | 删除一条关系边 |
 
+`add-child` 不接受 `--side`。根的直接子节点默认在右侧（`addChildNode` 未指定 side 时默认 `SideA`）。要用 `jsmind node set-side` 再改。
+
 所有会改写数据的子命令都会在完成后校验结果，失败则回滚。这些写入可以使用 `--dry-run`、`--output` 和 `--backup`。
 
 ## `node`

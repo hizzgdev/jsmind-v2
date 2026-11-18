@@ -1,6 +1,6 @@
 # jsMind V2
 
-为 AI agent 设计的思维导图内核 —— agent 能可靠地生成、读取、修改结构化的脑图数据，人能查看、编辑、导出。
+面向人与 agent 的思维导图内核 —— 人能查看、编辑、导出导图，agent 能可靠地生成、读取、修改结构化的脑图数据。
 
 [文档](https://hizzgdev.github.io/jsmind-v2/docs/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.zh.md)
 

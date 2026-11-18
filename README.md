@@ -1,6 +1,6 @@
 # jsMind V2
 
-A mind-map kernel designed for AI agents — agents can reliably create, read, and modify structured maps; people can view, edit, and export them.
+A mind-map kernel for people and agents — people can view, edit, and export maps; agents can reliably create, read, and modify structured maps.
 
 [Documentation](https://hizzgdev.github.io/jsmind-v2/docs/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.md)
 
