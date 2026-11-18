@@ -58,7 +58,8 @@ export default [
         plugins: { css },
         ...css.configs.recommended,
         rules: {
-            'css/use-baseline': ['error', { 'allowProperties': ['user-select'] }]
+            'css/use-baseline': ['error', { 'allowProperties': ['user-select'] }],
+            '@stylistic/eol-last': ['error', 'always']
         }
     },
     {
@@ -66,5 +67,9 @@ export default [
         ignores: ['package-lock.json'],
         language: 'json/json',
         ...json.configs.recommended,
+        rules: {
+            ...json.configs.recommended.rules,
+            '@stylistic/eol-last': ['error', 'always']
+        },
     },
 ];
