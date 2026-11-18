@@ -19,7 +19,7 @@ Design contract (see README.md for the full version):
   URL plus a snapshot of the event that created it, and nothing else is
   authoritative.
 - The card key is the number of the object that created it, in the title:
-  `#85: <title>` for issue cards, `#86: Rework N — <title>` for PR cards.
+  `#85: <title>` for issue cards, `#86: Rework — <title>` for PR cards.
 - `weka-reviewed` is the only label with flow-control meaning: a human event on
   a PR creates a card only while that label is present, and only when no card is
   already open for the same number.
@@ -149,16 +149,6 @@ class Weka:
         except Exception as exc:
             print(f"[WARN] busy-card lookup failed: {exc}", file=sys.stderr)
             return []
-
-    def rework_count(self, number: int) -> int:
-        try:
-            rows = self._query(
-                "SELECT COUNT(*) FROM tasks WHERE title LIKE ?", (f"#{number}: Rework%",)
-            )
-        except Exception as exc:
-            print(f"[WARN] rework count failed for #{number}: {exc}", file=sys.stderr)
-            return 0
-        return int(rows[0][0]) if rows else 0
 
     # ---- git / gh helpers ---------------------------------------------------
 
@@ -345,7 +335,6 @@ class Weka:
         branch = ((pr.get("head") or {}).get("ref")) or ""
         pr_url = pr.get("html_url") or ""
         pr_title = pr.get("title") or ""
-        round_no = self.rework_count(number) + 1
         body = (
             f"{pr_url}\n\n"
             "## trigger\n"
@@ -368,7 +357,7 @@ class Weka:
         )
         self.kanban(
             "create",
-            f"#{number}: Rework {round_no} — {pr_title}"[:120],
+            f"#{number}: Rework — {pr_title}"[:120],
             "--assignee", self.assignee,
             "--body", body,
             "--idempotency-key", idem_key,

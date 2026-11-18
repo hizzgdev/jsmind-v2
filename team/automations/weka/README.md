@@ -50,11 +50,12 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 所有卡的标题以编号开头：
 
 ```
-#85: <issue 标题>                  从 issue 建的卡
-#86: Rework 2 — <PR 标题>          从 PR 建的卡（返工）
+#85: <issue 标题>              从 issue 建的卡
+#86: Rework — <PR 标题>        从 PR 建的卡（返工）
 ```
 
 - 编号是唯一键，查卡用前缀匹配：`title LIKE '#86:%' AND status NOT IN ('done','archived')`。
+- 不带轮次号：第几轮这件事在 PR 的 review 历史里，卡上再记一份只是多一个会算错的来源。同一个 PR 的连续返工卡标题相同，按 `created_at` 排序即可。
 - 前缀锚定是关键：标题中段出现 `#86:` 不会误伤，`#860…` 也不会命中 `#86:`。
 - 同一个编号最多一张 open 卡。webhook 建卡前先查，命中就把这次事件追加成那张卡的 comment，不建新卡。
 - 编号只标识"建卡的那个对象"，issue 和 PR 之间不做映射。要串起来让 agent 自己看 PR body 里的 `Closes #N`。
