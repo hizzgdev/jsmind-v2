@@ -11,6 +11,8 @@ Events handled:
 - pull_request_review (submitted by the human, not an
   approval, on a PR already marked weka-reviewed)         -> create a rework card
 - issue_comment (created by the human on such a PR)       -> create a rework card
+- pull_request_review_comment (created by the human, same
+  gate as a review)                                        -> create rework card
 - pull_request (closed)                                   -> clean up worktree
 
 Design contract (see README.md for the full version):
@@ -322,6 +324,33 @@ class Weka:
             idem_key=f"gh-pr-{self._pr_number(payload)}-comment-{comment.get('id', '')}",
         )
 
+    def handle_pr_review_comment(self, payload: dict) -> None:
+        """Inline review comments arrive as their own event type.
+
+        GitHub sends `pull_request_review_comment` for a comment left inside the
+        diff; a review submitted with only inline comments produces that event
+        and an empty review body. Treating them as feedback is what makes a
+        drive-by inline comment trigger a rework card.
+        """
+        if payload.get("action") != "created":
+            return
+        comment = payload.get("comment") or {}
+        login = (comment.get("user") or {}).get("login", "")
+        if login != self.human:
+            return
+        where = comment.get("path") or ""
+        line = comment.get("line") or comment.get("original_line")
+        if where and line:
+            where = f"{where}:{line}"
+        self._create_rework_card(
+            payload,
+            event="pull_request_review_comment.created",
+            actor=login,
+            text=f"{where}\n{comment.get('body') or ''}".strip(),
+            ref_url=comment.get("html_url") or "",
+            idem_key=f"gh-pr-{self._pr_number(payload)}-review-comment-{comment.get('id', '')}",
+        )
+
     def _create_rework_card(self, payload: dict, *, event: str, actor: str, text: str,
                             ref_url: str, idem_key: str) -> None:
         """Gate on weka-reviewed, then create (or annotate) the PR's card."""
@@ -442,8 +471,14 @@ def make_handler(weka: Weka):
                     weka.handle_pr_review(payload)
                 elif event == "issue_comment":
                     weka.handle_issue_comment(payload)
+                elif event == "pull_request_review_comment":
+                    weka.handle_pr_review_comment(payload)
                 elif event == "pull_request":
                     weka.handle_pr(payload)
+                else:
+                    # Silence here is what makes "the webhook ignored me" undebuggable:
+                    # name the event so the subscription can be checked.
+                    print(f"[SKIP] unhandled event: {event}", file=sys.stderr)
             except Exception as exc:
                 print(f"[ERROR] {event}: {exc}", file=sys.stderr)
 
