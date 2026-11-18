@@ -28,3 +28,7 @@ docs/.vitepress/dist/
 
 # weka 自动化的 worktree 工作区（Cody/Reed 的隔离目录，带独立 .git），勿提交
 /.worktrees/
+
+# Python 字节码（webhook 脚本本地跑过就会有）
+__pycache__/
+*.pyc

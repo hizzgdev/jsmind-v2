@@ -1,8 +1,14 @@
 # Weka — 基于 webhook + kanban 的 jsMind-V2 开发流程
 
-weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签的 Issue 会触发 webhook，转成 Kanban 卡片，由调度器拉起 Cody（开发）和 Reed（审查）两个 profile 干活，仓库所有者做终审。
+weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签的 Issue 会触发 webhook，转成 Kanban 卡片，由调度器拉起 Cody（开发）和 Reed（审查）两个 profile 干活，仓库所有者做终审。你在 PR 上要求修改时，webhook 会再建一张返工卡。
 
 名字是 we(webhook) + ka(kanban) 拼出来的。
+
+三条基本约定，后文展开：
+
+- **卡只是触发器**，事实来源是 GitHub 上的 issue/PR。卡里只有对象 URL 和触发快照。
+- **卡标题以编号开头**（`#85: …`），编号是查卡的唯一键。
+- **看板上没有"等人审核"这个状态**：人审的门在 GitHub（reviewer 请求 + `weka-reviewed` 标签）。
 
 本目录自包含：流程说明、脚本、SOUL、部署步骤和重建清单都在这里，入口就是这份 README。
 
@@ -20,25 +26,50 @@ weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签�
 ## 流程全景
 
 ```
-GitHub Issue（打 weka 标签）
-  → webhook: issues.opened/labeled
-  → hermes kanban create --assignee cody（board: jsmind-v2）
-  → dispatcher（60s tick）拉起 cody
-  → Cody: worktree 开发 + 自测 + 开 PR + PR URL 写卡 comment + request-review reed
+GitHub Issue（weka 标签 + 指派 zzgbot）
+  → webhook: kanban create "#85: <标题>" --assignee cody
+  → dispatcher 拉起 cody（60s tick）
+  → Cody: 打 weka-working → 开发 → 自测 → 开 PR → 打 weka-reviewing → request_review(reed)
   → dispatcher 拉起 reed
-  → Reed: 按 jsmind-review skill 审查，意见写 PR
-       ├─ 有必须改的问题 → request-changes，打回 cody 循环
-       └─ 没有 → add-reviewer hizzgdev + 清空自己 assignee，等人类终审
-  → 人类合并 PR
-  → webhook: pull_request.closed(merged) → assign cody 收尾
-  → Cody: 删 worktree + 删分支 + complete
+  → Reed: 按 sdlc-review 流程审 → 意见写在 PR 上
+       ├─ 有必须改 → request_changes（卡回 cody，可无限轮，不计任何计数）
+       └─ 通过 → 摘 weka-reviewing/working、加 weka-reviewed、加 reviewer hizzgdev、complete
+  → 你在 GitHub 上终审
+       ├─ 合并 → webhook 删 worktree + 本地分支 + 摘标签（不建卡）
+       └─ 要求修改 → webhook 见 weka-reviewed → 建 "#86: Rework N — ..." 卡给 cody
 ```
 
 关键设计：
 
-- 人类只跟 GitHub 打交道；bot 之间只跟看板打交道。webhook 脚本是两者之间的桥。
-- PR URL 是卡片和 PR 之间的对应键：Cody 开 PR 后把 URL 写进卡 comment，webhook 收到 PR 事件后靠查 `task_comments` 表反查卡片。
-- webhook 脚本不跑任何 LLM，只做验签 + 调 CLI，不烧 token。
+- 人类只跟 GitHub 打交道，bot 之间只跟看板打交道；webhook 是两者之间的桥，不跑任何 LLM。
+- **卡只是触发器，GitHub 才是事实来源。** 卡上只有对象 URL 和触发快照，细节由 cody/reed 自己去 GitHub 查。
+- 看板上没有"等人审核"这个状态。人审的门在 GitHub 上：reviewer 请求 + `weka-reviewed` 标签。所以卡不会被 block 也不会有 triage，`block/triage/specify` 那一整套都不涉及。
+
+## 卡片与编号
+
+所有卡的标题以编号开头：
+
+```
+#85: <issue 标题>                  从 issue 建的卡
+#86: Rework 2 — <PR 标题>          从 PR 建的卡（返工）
+```
+
+- 编号是唯一键，查卡用前缀匹配：`title LIKE '#86:%' AND status NOT IN ('done','archived')`。
+- 前缀锚定是关键：标题中段出现 `#86:` 不会误伤，`#860…` 也不会命中 `#86:`。
+- 同一个编号最多一张 open 卡。webhook 建卡前先查，命中就把这次事件追加成那张卡的 comment，不建新卡。
+- 编号只标识"建卡的那个对象"，issue 和 PR 之间不做映射。要串起来让 agent 自己看 PR body 里的 `Closes #N`。
+
+## 标签与人工审核门
+
+| 标签 | 打在哪 | 谁打 | 用途 |
+| --- | --- | --- | --- |
+| `weka-working` | issue 卡打 issue，PR 卡打 PR | cody 开工时 | 给人看：AI 正在干。卡完成时由 reed 摘掉 |
+| `weka-reviewing` | 永远是 PR | cody 交接前 | 给人看：AI 正在审 |
+| `weka-reviewed` | 永远是 PR | reed 通过时 | **唯一控制流程的标签**：只有它存在时，你在 PR 上的动作才会触发返工卡 |
+
+规则只有一条：**人在 PR 上的动作（提交 review 或留言），只在 PR 带 `weka-reviewed` 时才建卡**。cody 拿到返工卡的第一件事就是摘掉它，所以不会重复触发。
+
+副产品：`weka-working` 挂在对象上、但板上没有对应的卡在跑，就是"卡崩了"的可视信号——排查先看标签，比翻看板快。
 
 ## 安全边界
 
@@ -69,11 +100,21 @@ webhook 脚本要求 Python 3.10+，只依赖标准库。不要用系统自带�
 
 ### 1. 审查 skill（Reed 用）
 
+两个都要装，缺第二个会让 reed 的 worker 启动即崩：
+
 ```bash
+# 项目审查标准（我们自己的）
 mkdir -p ~/.hermes/profiles/reed/skills/jsmind-review
 cp team/automations/skills/jsmind-review/SKILL.md \
    ~/.hermes/profiles/reed/skills/jsmind-review/SKILL.md
+
+# 框架的 review 通道协议（Hermes 自带，硬编码要求）
+hermes skills repair-official sdlc-review --restore
 ```
+
+`sdlc-review` 是 review 通道写死要加载的 skill（`gateway/session_kanban.py` 在这一轮来自 review 通道时无条件追加）。profile 里没有它时，worker 会在调用模型之前抛 `ValueError: kanban_skills_unavailable` 死掉，外层只报 "Kanban execution unknown; retained by owner"，卡崩两次自动 blocked——看起来完全不像缺文件。
+
+还要确认它没被 curator 剪枝记录挡住：`skills/.curator_suppressed` 里有 `sdlc-review` 的话删掉那一行（`~/.hermes` 和各 profile 的都要查），否则下一次 update 或剪枝会把它再移走。
 
 ### 2. Hermes profile
 
@@ -146,17 +187,45 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
 
 ### 5. GitHub 侧
 
-- 仓库建 label `weka`（本流程的开工信号）。
-- Settings → Webhooks → Add webhook：
-  - Payload URL：`http://<public-ip>:<webhook-port>`
-  - Content type：`application/json`
-  - Secret：第 4 步生成的 secret
-  - Events：Issues、Issue comments、Pull requests、Pull request review comments
-- 云控制台放通 <webhook-port> 入站（安全组）——只放 <webhook-port>，不放 9180。
+先把四个 label 建好（`gh` 不会自动创建，加一个不存在的 label 会直接报错）：
+
+```bash
+gh label create weka           --color 0B7A3B --description "Weka flow: issue/card is owned by the automation"
+gh label create weka-working   --color FBCA04 --description "weka: an AI worker is doing the work"
+gh label create weka-reviewing --color FBCA04 --description "weka: an AI reviewer is reviewing the PR"
+gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review passed; awaiting the human"
+```
+
+`weka` 是 issue 的开工信号；`weka-reviewed` 是唯一控制流程的标签（见上文「标签与人工审核门」）。
+
+再配 webhook：Settings → Webhooks → Add webhook：
+
+- Payload URL：`http://<public-ip>:<webhook-port>`
+- Content type：`application/json`
+- Secret：第 4 步生成的 secret
+- Events：**Issues、Issue comments、Pull requests、Pull request reviews**
+
+（是 "Pull request reviews"，不是 "Pull request review comments"——触发返工卡的是你提交的 review，不是行内评论。）
+
+云控制台放通 <webhook-port> 入站（安全组）——只放 <webhook-port>，不放 9180。
 
 ### 6. 端到端自检
 
-建一个打 `weka` 标签的 Issue，观察：卡片创建 → Cody 开发并开 PR → Reed 审查 →
-你被加为 reviewer → 你合并 → Cody 清理 → 卡片 done。任何一环卡住，先看
-`journalctl --user -u github-webhook.service`（webhook 侧）和
-`hermes kanban --board jsmind-v2 list`（卡片侧）。
+建一个打 `weka` 标签、指派给 `zzgbot` 的 Issue，观察这条链：
+
+1. 卡片 `#<issue>: <标题>` 被创建并跑起来；
+2. issue 上出现 `weka-working`，开 PR 后 PR 上出现 `weka-reviewing`；
+3. Reed 审完，PR 上变成 `weka-reviewed`，你被加为 reviewer；
+4. 你在 PR 上提一条 `changes_requested` 的 review → 出现卡片 `#<pr>: Rework 1 — ...`，`weka-reviewed` 被摘掉；
+5. 你合并 PR → worktree 和本地分支被删掉，标签清空，不再有卡片。
+
+任何一环卡住，按顺序看：
+
+```bash
+journalctl --user -u github-webhook.service     # webhook 侧：验签、gate、建卡
+hermes kanban --board jsmind-v2 list            # 卡片侧：状态、assignee
+hermes kanban --board jsmind-v2 runs <task>     # 每次尝试的结果
+tail -n 40 ~/.hermes/profiles/<worker>/logs/managed-worker.log   # worker 真正的报错
+```
+
+卡崩两次会被自动 block。先看 `weka-working` 是不是还挂在对象上——挂着但板上没卡在跑，说明 worker 起不来，直接看上面那个 `managed-worker.log`。
