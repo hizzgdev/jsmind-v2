@@ -6,7 +6,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 
 本页说明如何开始调用已发布的 2.0.0 API，只覆盖 `jsmind@2` 包中已经提供的能力。类、接口和方法的详细说明由已发布的类型声明 `dist/jsmind.d.ts` 生成，见下方链接的页面。
 
-请先用 `npm i jsmind@2` 安装 2.x 线。`npm i jsmind` 仍然会安装 v1（0.9.x）。安装说明见 [快速上手](/zh/guide/getting-started)。
+请先用 `npm i jsmind@2` 安装 2.x 版本。`npm i jsmind` 仍然会安装 v1（0.9.x）。安装说明见 [快速上手](/zh/guide/getting-started)。
 
 该包的唯一导出是默认的 `JsMind` 类。在 ES 模块或 `require('jsmind')` 中得到的就是这个类；UMD 构建还会把同一个值赋给全局变量 `jsMind`。没有具名导出。相关的构造函数通过静态属性提供：`jsMind.Mind`、`jsMind.Serializer` 和 `jsMind.NodeSide`。
 

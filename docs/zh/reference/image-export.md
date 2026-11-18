@@ -9,7 +9,7 @@
 | 浏览器 | `await jm.exportImage(options)` → `Blob` |
 | 命令行 | `jsmind export <file> <out.png>` |
 
-另见[图片导出](/zh/reference/api/export) API 参考和 [CLI](/zh/reference/cli) 页面。
+另见[图片导出](/zh/reference/api/export) API 参考和 [CLI](/zh/guide/cli) 页面。
 
 ## 1. 尺寸语义
 

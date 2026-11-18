@@ -20,7 +20,7 @@ A mind-map kernel for people and agents — people can view, edit, and export ma
 npm i jsmind@2
 ```
 
-This is the 2.x line (npm tag `v2-preview`), a rewrite. It is not a drop-in replacement for v1 yet. `npm i jsmind` still installs v1 (0.9.x).
+This is the 2.x version (npm tag `v2-preview`), a rewrite. It is not a drop-in replacement for v1 yet. `npm i jsmind` still installs v1 (0.9.x).
 
 To build and run the CLI from this repository you need Node.js >= 22.12.0:
 

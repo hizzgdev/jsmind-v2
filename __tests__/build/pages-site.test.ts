@@ -40,10 +40,7 @@ const DOCS_PAGES = [
     'guide/index.html',
     'guide/getting-started.html',
     'guide/skill.html',
-    'guide/node-content.html',
-    'guide/node-move.html',
-    'guide/image-export.html',
-    'guide/serialization.html',
+    'guide/cli.html',
     'reference/index.html',
     'reference/api.html',
     'reference/api/jsmind.html',
@@ -54,7 +51,10 @@ const DOCS_PAGES = [
     'reference/api/serialization.html',
     'reference/api/export.html',
     'reference/api/style.html',
-    'reference/cli.html',
+    'reference/node-content.html',
+    'reference/node-move.html',
+    'reference/image-export.html',
+    'reference/serialization.html',
     'reference/data-format.html',
     'design/index.html',
     'design/layout-system.html',
@@ -62,6 +62,30 @@ const DOCS_PAGES = [
     'design/hybrid-edge-system.html',
     'community/index.html',
 ] as const;
+
+const RETIRED_DOCS_PAGES = [
+    'guide/node-content.html',
+    'guide/node-move.html',
+    'guide/image-export.html',
+    'guide/serialization.html',
+    'reference/cli.html',
+] as const;
+
+const AI_NOTICE_CLASS = 'jsmind-docs-ai-notice';
+const SECTION_HREFS = {
+    en: [
+        '/jsmind-v2/docs/en/guide/',
+        '/jsmind-v2/docs/en/design/',
+        '/jsmind-v2/docs/en/reference/',
+        '/jsmind-v2/docs/en/community/',
+    ],
+    zh: [
+        '/jsmind-v2/docs/zh/guide/',
+        '/jsmind-v2/docs/zh/design/',
+        '/jsmind-v2/docs/zh/reference/',
+        '/jsmind-v2/docs/zh/community/',
+    ],
+} as const;
 
 const STILL_PLACEHOLDER_PAGES = [
     'reference/data-format.html',
@@ -84,6 +108,52 @@ function collectFiles(dir: string, base: string = dir): string[] {
 
 function hasHref(haystack: string, href: string): boolean {
     return haystack.includes(`](${href})`) || haystack.includes(`href="${href}"`);
+}
+
+function withoutVpFooter(html: string): string {
+    return html.replace(/<footer\b[^>]*class="[^"]*\bVPFooter\b[^"]*"[^>]*>[\s\S]*?<\/footer>/g, '');
+}
+
+function readBuiltCss(docsDir: string): string {
+    const assets = join(docsDir, 'assets');
+    const files = collectFiles(assets).filter((name) => name.endsWith('.css'));
+    return files.map((name) => readFileSync(join(assets, name), 'utf8')).join('\n');
+}
+
+function assertVisibleAiNotice(html: string, css: string, label: string): void {
+    const escaped = FOOTER_TEXT.replace(/[\\/]/g, '\\$&');
+    const noticeRe = new RegExp(`<p class="${AI_NOTICE_CLASS}">${escaped}</p>`);
+    assert.match(html, noticeRe, `${label} should render the custom always-visible AI notice`);
+    assert.ok(
+        withoutVpFooter(html).includes(FOOTER_TEXT),
+        `${label} should not rely on VPFooter, which VitePress hides when a sidebar is present`
+    );
+    // VitePress hides `.VPFooter.has-sidebar`, so the notice must live in our
+    // custom element and stay displayed in the built CSS.
+    assert.match(
+        css,
+        new RegExp(`\\.${AI_NOTICE_CLASS}\\s*\\{[^}]*display:\\s*block`),
+        `${label} custom notice CSS should keep the notice displayed`
+    );
+    assert.doesNotMatch(
+        css,
+        new RegExp(`\\.${AI_NOTICE_CLASS}[^{]*\\{[^}]*display:\\s*none`),
+        `${label} custom notice CSS must not hide the notice`
+    );
+}
+
+function assertSectionOrder(html: string, locale: 'en' | 'zh', label: string): void {
+    const hrefs = SECTION_HREFS[locale];
+    const positions = hrefs.map((href) => html.indexOf(`href="${href}"`));
+    for (const [index, href] of hrefs.entries()) {
+        assert.ok(positions[index] >= 0, `${label} should link to ${href}`);
+        if (index > 0) {
+            assert.ok(
+                positions[index] > positions[index - 1],
+                `${label} should list ${hrefs[index - 1]} before ${href}`
+            );
+        }
+    }
 }
 
 describe('pages site assembly', () => {
@@ -188,10 +258,30 @@ describe('pages site assembly', () => {
                 }
             }
 
+            for (const page of RETIRED_DOCS_PAGES) {
+                assert.ok(!files.includes(`en/${page}`), `retired page still present: en/${page}`);
+                assert.ok(!files.includes(`zh/${page}`), `retired page still present: zh/${page}`);
+            }
+
             const enHome = readFileSync(join(docsDir, 'en', 'index.html'), 'utf8');
             const zhHome = readFileSync(join(docsDir, 'zh', 'index.html'), 'utf8');
-            assert.ok(enHome.includes(FOOTER_TEXT));
-            assert.ok(zhHome.includes(FOOTER_TEXT));
+            const enGuide = readFileSync(join(docsDir, 'en', 'guide', 'index.html'), 'utf8');
+            const zhGuide = readFileSync(join(docsDir, 'zh', 'guide', 'index.html'), 'utf8');
+            const enApiPage = readFileSync(join(docsDir, 'en', 'reference', 'api', 'jsmind.html'), 'utf8');
+            const zhApiPage = readFileSync(join(docsDir, 'zh', 'reference', 'api', 'jsmind.html'), 'utf8');
+            const builtCss = readBuiltCss(docsDir);
+            assertVisibleAiNotice(enHome, builtCss, 'en home');
+            assertVisibleAiNotice(zhHome, builtCss, 'zh home');
+            assertVisibleAiNotice(enGuide, builtCss, 'en guide');
+            assertVisibleAiNotice(zhGuide, builtCss, 'zh guide');
+            assertVisibleAiNotice(enApiPage, builtCss, 'en API');
+            assertVisibleAiNotice(zhApiPage, builtCss, 'zh API');
+
+            assertSectionOrder(enHome, 'en', 'en home nav');
+            assertSectionOrder(zhHome, 'zh', 'zh home nav');
+            assertSectionOrder(enGuide, 'en', 'en guide nav');
+            assertSectionOrder(zhGuide, 'zh', 'zh guide nav');
+
             assert.ok(enHome.includes('/jsmind-v2/docs/zh/'));
             assert.ok(zhHome.includes('/jsmind-v2/docs/en/'));
             assert.ok(enHome.includes('/jsmind-v2/docs/en/guide/'));
@@ -208,12 +298,27 @@ describe('pages site assembly', () => {
                 assert.ok(zhPage.includes('内容即将推出。'), `expected placeholder in zh/${page}`);
             }
 
-            const enCli = readFileSync(join(docsDir, 'en', 'reference', 'cli.html'), 'utf8');
-            const zhCli = readFileSync(join(docsDir, 'zh', 'reference', 'cli.html'), 'utf8');
+            const enCli = readFileSync(join(docsDir, 'en', 'guide', 'cli.html'), 'utf8');
+            const zhCli = readFileSync(join(docsDir, 'zh', 'guide', 'cli.html'), 'utf8');
             assert.ok(enCli.includes('Preview version'));
             assert.ok(zhCli.includes('预览版本'));
             assert.ok(!enCli.includes('Coming soon.'));
             assert.ok(!zhCli.includes('内容即将推出。'));
+
+            const enSkill = readFileSync(join(docsDir, 'en', 'guide', 'skill.html'), 'utf8');
+            const zhSkill = readFileSync(join(docsDir, 'zh', 'guide', 'skill.html'), 'utf8');
+            assert.ok(enSkill.includes('skills/jsmind/'));
+            assert.ok(zhSkill.includes('skills/jsmind/'));
+            assert.ok(enSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md'));
+            assert.ok(zhSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.zh.md'));
+            assert.ok(enSkill.includes('do not hand-write the JSON'));
+            assert.ok(zhSkill.includes('不要手写 JSON'));
+            assert.ok(enSkill.includes('[topic]'));
+            assert.ok(zhSkill.includes('[主题]'));
+            assert.ok(enSkill.includes('npm i jsmind@2'));
+            assert.ok(zhSkill.includes('npm i jsmind@2'));
+            assert.ok(enSkill.includes('jsmind validate'));
+            assert.ok(zhSkill.includes('jsmind validate'));
 
             const enApi = readFileSync(join(docsDir, 'en', 'reference', 'api.html'), 'utf8');
             const zhApi = readFileSync(join(docsDir, 'zh', 'reference', 'api.html'), 'utf8');

@@ -311,7 +311,7 @@ node.style.fontSize = 18
 
 #### S9 `feat(view): export to PNG, JSON and HTML`
 
-- **PNG 已完成**：`jsMind.exportImage()` + `jsmind export`，见[导出图片](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/image-export)
+- **PNG 已完成**：`jsMind.exportImage()` + `jsmind export`，见[导出图片](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/image-export)
   - SVG 序列化 → **data URL**（blob 会污染 canvas）→ canvas → PNG，与本节原计划一致
   - 尺寸取内容尺寸：小于视口保留空白，大于视口撑开不裁
   - 出图需要 Chromium，CLI 侧封装在 `src/cli/browser.ts`

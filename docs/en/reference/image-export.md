@@ -9,7 +9,7 @@ There are two entry points, and they share one implementation:
 | Browser | `await jm.exportImage(options)` → `Blob` |
 | Command line | `jsmind export <file> <out.png>` |
 
-See also the [image export](/en/reference/api/export) API reference and the [CLI](/en/reference/cli) page.
+See also the [image export](/en/reference/api/export) API reference and the [CLI](/en/guide/cli) page.
 
 ## 1. Size semantics
 

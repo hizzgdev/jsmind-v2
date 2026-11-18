@@ -10,9 +10,9 @@
 docs/
 ├── README.md                       # 本文件：对外文档索引
 ├── en/                             # 英文文档站源文件
-│   ├── guide/                      # 指南（怎么用）
-│   ├── reference/                  # API、CLI 与数据格式
+│   ├── guide/                      # 指南（入门与日常用法，含 CLI）
 │   ├── design/                     # 设计说明（为什么这样设计）
+│   ├── reference/                  # API、功能说明与数据格式
 │   └── community/                  # 社区、贡献与支持
 ├── zh/                             # 中文文档站源文件（与 en/ 成对）
 ├── requirements/                   # 对外规范（尚未迁入文档站）
@@ -28,12 +28,16 @@ docs/
         └── coordinates-node.png
 ```
 
+## 指南
+
+- [CLI（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/cli) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/cli) — 文档站上的命令说明（预览版）；仓库里的规范源文件见 [v2-cli.md](requirements/v2-cli.md)
+
 ## 功能说明
 
-- [序列化（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/serialization) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/serialization) — 序列化接口、JSON / FreeMind、校验层
-- [图片导出（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/image-export) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/image-export) — 导出图片（API + 命令行）
-- [节点内容（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/node-content) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/node-content) — 节点内容类型与创建
-- [节点移动（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/node-move) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/node-move) — 节点移动 API
+- [节点内容（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/reference/node-content) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/node-content) — 节点内容类型与创建
+- [节点移动（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/reference/node-move) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/node-move) — 节点移动 API
+- [图片导出（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/reference/image-export) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/image-export) — 导出图片（API + 命令行）
+- [序列化（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/reference/serialization) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/serialization) — 序列化接口、JSON / FreeMind、校验层
 
 ## 设计说明
 
@@ -48,10 +52,9 @@ docs/
 
 - [Community](https://hizzgdev.github.io/jsmind-v2/docs/en/community/) · [社区](https://hizzgdev.github.io/jsmind-v2/docs/zh/community/) — 交流、贡献、赞助与支持
 
-## 数据格式与 CLI
+## 数据格式
 
 - [数据格式](requirements/v2-data-format.md) — v2 磁盘格式规范（schema、校验规则、错误码）；文档站上的对应页面仍在编写中
-- [CLI（英文）](https://hizzgdev.github.io/jsmind-v2/docs/en/reference/cli) · [中文](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/cli) — 文档站上的命令说明（预览版）；仓库里的规范源文件见 [v2-cli.md](requirements/v2-cli.md)
 
 ## 示意图
 
