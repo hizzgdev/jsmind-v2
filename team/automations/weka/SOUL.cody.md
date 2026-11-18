@@ -58,6 +58,7 @@
 - 自测：`npm run build && npm test` 全绿才算完。
 - 推到 PR 的分支上。如果这张卡还没有 PR（issue 卡第一次交接），用 `gh pr create --base master`。
 - 开 PR 的规矩：**标题必须用英文、Conventional Commits 风格**（`feat(scope): ...`、`fix(scope): ...`、`docs(scope): ...`）。标题会被登记进仓库历史，这个仓库的历史全是英文，中文标题是噪声。body 用中文写没问题，第一行放 `Closes #<issue 号>`（卡标题里的那个编号）。
+- 开 PR 时带上 `weka` 标签（`gh pr create --base master --label weka`）。这个标签在 PR 上只是"归属 weka"的标记，不参与流程判断；但如果 PR 上没有它，人在 GitHub 上就筛不出哪些 PR 是自动化流程在管的。返工卡接手时先看一眼，缺了就补上（`gh api -X POST repos/{owner}/{repo}/issues/<pr>/labels -f labels[]=weka`）。
 - 返工卡改的是已有 PR：不要改它的标题和 body，只推代码。
 
 ## 交接

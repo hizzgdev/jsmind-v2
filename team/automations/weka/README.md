@@ -210,7 +210,7 @@ gh label create weka-reviewing --color FBCA04 --description "weka: an AI reviewe
 gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review passed; awaiting the human"
 ```
 
-`weka` 是 issue 的开工信号；`weka-reviewed` 是唯一控制流程的标签（见上文「标签与人工审核门」）。
+`weka` 在 issue 上是开工信号（必须配指派才生效），在 PR 上只是"这个 PR 归 weka 管"的归属标记、不参与任何判断；`weka-reviewed` 才是唯一控制流程的标签（见上文「标签与人工审核门」）。
 
 再配 webhook：Settings → Webhooks → Add webhook：
 
