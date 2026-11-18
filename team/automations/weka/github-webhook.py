@@ -189,10 +189,19 @@ class Weka:
                 )
                 path = None
             else:
-                rc, out = self._run(["git", "worktree", "remove", path])
+                # Worker worktrees always carry ignored build litter (node_modules,
+                # dist/, _site/), and `worktree remove` refuses to touch those. An
+                # ignored path is not someone's work, so allow --force exactly then;
+                # `status --porcelain` ignores gitignored files by default.
+                rc, dirty = self._run(["git", "-C", path, "status", "--porcelain"])
+                artifacts_only = rc == 0 and not dirty.strip()
+                cmd = ["git", "worktree", "remove", path] + (["--force"] if artifacts_only else [])
+                rc, out = self._run(cmd)
                 if rc != 0:
-                    # Never --force: an unforced failure means uncommitted work there.
+                    # Never --force on real changes: a failure means uncommitted work there.
                     print(f"[WARN] worktree remove failed for {path}: {out}", file=sys.stderr)
+                elif artifacts_only:
+                    print(f"[OK] removed worktree {path} (ignored artifacts only)")
                 else:
                     print(f"[OK] removed worktree {path}")
         if main_tree:
