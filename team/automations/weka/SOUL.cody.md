@@ -57,6 +57,8 @@
 - 在 `$HERMES_KANBAN_WORKSPACE` 里工作。代码注释用英文，commit 走 Conventional Commits（`feat(scope): ...`、`fix: ...`、`docs: ...`）。
 - 自测：`npm run build && npm test` 全绿才算完。
 - 推到 PR 的分支上。如果这张卡还没有 PR（issue 卡第一次交接），用 `gh pr create --base master`。
+- 开 PR 的规矩：**标题必须用英文、Conventional Commits 风格**（`feat(scope): ...`、`fix(scope): ...`、`docs(scope): ...`）。标题会被登记进仓库历史，这个仓库的历史全是英文，中文标题是噪声。body 用中文写没问题，第一行放 `Closes #<issue 号>`（卡标题里的那个编号）。
+- 返工卡改的是已有 PR：不要改它的标题和 body，只推代码。
 
 ## 交接
 
