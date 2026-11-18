@@ -221,6 +221,31 @@ async function clickSetup(label = 'Node 1'): Promise<{
     })()`);
 }
 
+test('ui - playground header contains a visible link to the jsmind-v2 repository', async () => {
+    const link = await browser.evaluate<{
+        href: string;
+        target: string;
+        rel: string;
+        text: string;
+        inHeader: boolean;
+    }>(`(() => {
+        const header = document.querySelector('.header');
+        const a = header && header.querySelector('a[href="https://github.com/hizzgdev/jsmind-v2"]');
+        return {
+            href: a ? a.getAttribute('href') || '' : '',
+            target: a ? a.getAttribute('target') || '' : '',
+            rel: a ? a.getAttribute('rel') || '' : '',
+            text: a ? a.textContent.replace(/\\s+/g, ' ').trim() : '',
+            inHeader: !!(header && a),
+        };
+    })()`);
+    assert.ok(link.inHeader, 'the repository link should be inside the header');
+    assert.strictEqual(link.href, 'https://github.com/hizzgdev/jsmind-v2');
+    assert.strictEqual(link.target, '_blank');
+    assert.ok(link.rel.split(/\s+/).includes('noopener'), 'the link should use rel=noopener');
+    assert.ok(link.text.includes('GitHub'), 'the link should have visible text');
+});
+
 test('ui - playground node clicks update the info bar under a shadow root, and a blank click clears it', async () => {
     const setup = await clickSetup();
 
