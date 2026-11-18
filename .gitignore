@@ -6,6 +6,11 @@ logs/
 _site/
 .vscode/settings.json
 
+# vim / editor swap & undo files (never commit these — they can carry file contents)
+*.swp
+*.swo
+*.swn
+
 
 
 # agent scratch space (experiments, screenshots, probes)
@@ -17,3 +22,6 @@ _site/
 # VitePress cache and default build output
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# weka webhook 真实配置（含 secret），仓库里只保留 config.example.json
+/team/automations/weka/config.json

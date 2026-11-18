@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This is the internal entry for how to change this repository. Product-facing documentation lives in [`docs/`](docs/README.md). Collaboration and PR conventions live in [`team/automations/agent-team-collaboration.md`](team/automations/agent-team-collaboration.md). Do not keep a second copy of those conventions here.
+This is the internal entry for how to change this repository. Product-facing documentation lives in [`docs/`](docs/README.md). Collaboration and PR conventions live in [`team/automations/hubie/agent-team-collaboration.md`](team/automations/hubie/agent-team-collaboration.md). Do not keep a second copy of those conventions here.
 
 ## Development Environment
 
@@ -41,7 +41,7 @@ Archived material is in [`team/archive/`](team/archive/).
 
 ## Branch & PR
 
-**所有改动走 PR，不直接推 master。** Collaboration and PR conventions are in [`team/automations/agent-team-collaboration.md`](team/automations/agent-team-collaboration.md). The rules below are the repository workflow already documented here; that file is the place for team process, not a second copy of it.
+**所有改动走 PR，不直接推 master。** Collaboration and PR conventions are in [`team/automations/hubie/agent-team-collaboration.md`](team/automations/hubie/agent-team-collaboration.md). The rules below are the repository workflow already documented here; that file is the place for team process, not a second copy of it.
 
 分支命名 `<type>/<short-slug>`，type 取自 Conventional Commits：
 
