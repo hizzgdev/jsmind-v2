@@ -32,12 +32,21 @@ class JsMind {
     static get Author(): string { return 'hizzgdev@163.com'; }
 
     /**
-     * Exported classes for browser use.
+     * The mind map model class. Construct a map with `new jsMind.Mind()`, then
+     * pass it to {@link JsMind.open}.
      */
     static Mind = JmMind;
 
+    /**
+     * Factory for serializers. `jsMind.Serializer.create('json')` and
+     * `jsMind.Serializer.create('freemind')` are the supported formats.
+     */
     static Serializer = JmMindSerializerFactory;
 
+    /**
+     * Node side values used when placing a node to the left, right, or center.
+     * Same object as the `JmNodeSide` enumeration in the typings.
+     */
     static NodeSide = JmNodeSide;
 
     /** The options for this jsMind instance. */
@@ -67,6 +76,14 @@ class JsMind {
         this.commander = commander;
     }
 
+    /**
+     * Creates a jsMind instance and attaches its view to a container.
+     *
+     * @param container - The container element, or the id of an element in the document.
+     * @param options - Configuration for the instance. Omitted fields use the library defaults.
+     * @returns A promise that resolves to the new instance. No mind map is open yet;
+     *          call {@link JsMind.open} with a {@link JmMind} to display one.
+     */
     static async create(container: string | HTMLElement, options?: JsMindOptions): Promise<JsMind> {
         const mergedOptions = mergeJsMindOptions(options);
         const arranger = new MindmapArranger(mergedOptions.layout);

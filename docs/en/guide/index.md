@@ -21,10 +21,11 @@ The current 2.0.0 preview already includes:
 - A skill that helps an agent draw or edit a map with that CLI
 - A Playground where you can try the library in the browser
 
-The programming API and the on-disk data format will be documented in later pages.
+The [API](/en/reference/api) is documented as a preview. The on-disk data format will be documented in a later page.
 
 ## Next steps
 
 - [Getting Started](./getting-started) — install jsMind V2 and create a first map
 - [Skill](./skill) — point an agent at the repository skill
 - [CLI](/en/reference/cli) — current commands and usage (preview)
+- [API](/en/reference/api) — how to call the published 2.0.0 programming interface (preview)
