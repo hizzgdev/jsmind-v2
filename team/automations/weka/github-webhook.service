@@ -1,0 +1,17 @@
+[Unit]
+Description=Weka webhook bridge (GitHub -> Kanban)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+# %h expands to the user's home. Run from a pinned virtualenv (Python 3.10+);
+# see README.md. The script and its config.json live in the repo checkout under
+# team/automations/weka/. config.json is gitignored.
+ExecStart=%h/.hermes/venvs/weka/bin/python %h/repos/jsmind-v2/team/automations/weka/github-webhook.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

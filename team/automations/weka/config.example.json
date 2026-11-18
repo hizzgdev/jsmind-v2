@@ -1,0 +1,8 @@
+{
+  "port": 9180,
+  "secret": "REPLACE_WITH_64_HEX_CHARS_from_openssl_rand_hex_32",
+  "target_label": "weka",
+  "kanban_board": "jsmind-v2",
+  "assignee": "cody",
+  "human_login": "hizzgdev"
+}

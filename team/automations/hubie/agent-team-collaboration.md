@@ -77,12 +77,12 @@ Holt 接手任务后，会给对应 Issue 打上 `in-progress`（颜色 `FBCA04`
 ### 目录与职责
 
 - `docs/` 只放对外发布的文档产品。
-- 对内材料放在仓库根目录的 `team/` 下，说明见 [`team/README.md`](../README.md)。
+- 对内材料放在仓库根目录的 `team/` 下，说明见 [`team/README.md`](../../README.md)。
 - 技术/产品文档由 Mira 负责。
-- 管理类文档由 Holt 负责（`team/automations/` 和 `team/README.md`）。
+- 管理类文档由 Holt 负责（`team/automations/hubie/` 和 `team/README.md`）。
 - 以后的营销草稿由 Moka 负责（约定位置是 `team/marketing/`，目录可能尚未创建）。真正对外的文案再进入落地页或 `docs/`。
 
-根目录的 `AGENTS.md` 是给编码 agent 的对内入口。协作和 PR 约定以本文为准，路径是 `team/automations/agent-team-collaboration.md`。不要在别处再写一套流程。
+根目录的 `AGENTS.md` 是给编码 agent 的对内入口。协作和 PR 约定以本文为准，路径是 `team/automations/hubie/agent-team-collaboration.md`。不要在别处再写一套流程。
 
 ### 纯文档工作怎么做
 
