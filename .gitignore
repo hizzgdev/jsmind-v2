@@ -25,3 +25,6 @@ docs/.vitepress/dist/
 
 # weka webhook 真实配置（含 secret），仓库里只保留 config.example.json
 /team/automations/weka/config.json
+
+# weka 自动化的 worktree 工作区（Cody/Reed 的隔离目录，带独立 .git），勿提交
+/.worktrees/
