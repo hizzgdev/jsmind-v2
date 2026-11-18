@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: jsMind V2
-  text: 为 AI agent 设计的思维导图内核
-  tagline: Agent 能可靠地生成、读取、修改结构化脑图；人能查看、编辑、导出。
+  text: jsMind 的下一代
+  tagline: 面向人与 agent 的思维导图内核，API 更合理，架构更好。人可以查看、编辑和导出导图；agent 可以创建、读取和修改结构化导图。
   actions:
     - theme: brand
       text: 快速上手
@@ -13,6 +13,4 @@ hero:
       link: https://hizzgdev.github.io/jsmind-v2/playground.html
 ---
 
-文档站正在搭建中。侧栏中的页面目前是占位内容，将在后续补充。
-
-内容即将推出。
+指南里已经写好了基础概念、安装方法、仓库中的 skill，以及预览版 CLI。API、数据格式、设计与社区页面仍在编写中。

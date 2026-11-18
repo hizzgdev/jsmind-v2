@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: jsMind V2
-  text: A mind-map kernel designed for AI agents
-  tagline: Agents can create, read, and modify structured maps. People can view, edit, and export them.
+  text: The next generation of jsMind
+  tagline: A mind-map kernel for people and agents, with a more reasonable API and a better architecture. People can view, edit, and export maps; agents can create, read, and modify them.
   actions:
     - theme: brand
       text: Get Started
@@ -13,6 +13,4 @@ hero:
       link: https://hizzgdev.github.io/jsmind-v2/playground.html
 ---
 
-The documentation site is under construction. Pages in the sidebar are placeholders and will be filled in later.
-
-Coming soon.
+The guide already covers concepts, installation, the repository skill, and the preview CLI. The API, data format, design, and community pages are still being written.

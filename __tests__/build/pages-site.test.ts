@@ -35,13 +35,21 @@ const DOCS_SITE_ENTRY = 'https://hizzgdev.github.io/jsmind-v2/docs/';
 const DOCS_README_BLOB = 'https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md';
 const FOOTER_TEXT = '本文档由 AI 协助生成 / This documentation was prepared with AI assistance';
 
-const PLACEHOLDER_PAGES = [
+const DOCS_PAGES = [
     'index.html',
     'guide/index.html',
     'guide/getting-started.html',
+    'guide/skill.html',
     'reference/index.html',
     'reference/api.html',
     'reference/cli.html',
+    'reference/data-format.html',
+    'design/index.html',
+    'community/index.html',
+] as const;
+
+const STILL_PLACEHOLDER_PAGES = [
+    'reference/api.html',
     'reference/data-format.html',
     'design/index.html',
     'community/index.html',
@@ -148,7 +156,7 @@ describe('pages site assembly', () => {
         assert.ok(!hasHref(landing, `${DOCS_SITE_ENTRY}zh/`));
     });
 
-    it('builds the docs site with a language redirect and bilingual placeholders', () => {
+    it('builds the docs site with a language redirect and bilingual pages', () => {
         const dir = mkdtempSync(join(tmpdir(), 'jsmind-docs-'));
         const docsDir = join(dir, 'docs');
         try {
@@ -162,7 +170,7 @@ describe('pages site assembly', () => {
 
             const files = collectFiles(docsDir);
             for (const locale of ['en', 'zh'] as const) {
-                for (const page of PLACEHOLDER_PAGES) {
+                for (const page of DOCS_PAGES) {
                     const rel = `${locale}/${page}`;
                     assert.ok(files.includes(rel), `missing ${rel}`);
                 }
@@ -180,6 +188,20 @@ describe('pages site assembly', () => {
             assert.ok(!zhHome.includes('href="/jsmind-v2/docs/guide/'));
             assert.ok(!enHome.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
             assert.ok(!zhHome.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
+
+            for (const page of STILL_PLACEHOLDER_PAGES) {
+                const enPage = readFileSync(join(docsDir, 'en', page), 'utf8');
+                const zhPage = readFileSync(join(docsDir, 'zh', page), 'utf8');
+                assert.ok(enPage.includes('Coming soon.'), `expected placeholder in en/${page}`);
+                assert.ok(zhPage.includes('内容即将推出。'), `expected placeholder in zh/${page}`);
+            }
+
+            const enCli = readFileSync(join(docsDir, 'en', 'reference', 'cli.html'), 'utf8');
+            const zhCli = readFileSync(join(docsDir, 'zh', 'reference', 'cli.html'), 'utf8');
+            assert.ok(enCli.includes('Preview version'));
+            assert.ok(zhCli.includes('预览版本'));
+            assert.ok(!enCli.includes('Coming soon.'));
+            assert.ok(!zhCli.includes('内容即将推出。'));
 
             const bundled = files
                 .filter((name) => name.endsWith('.js') || name.endsWith('.html'))

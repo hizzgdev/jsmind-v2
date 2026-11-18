@@ -17,6 +17,7 @@ const enSidebar: DefaultTheme.Sidebar = [
         items: [
             { text: 'Overview', link: '/en/guide/' },
             { text: 'Getting Started', link: '/en/guide/getting-started' },
+            { text: 'Skill', link: '/en/guide/skill' },
         ],
     },
     {
@@ -55,6 +56,7 @@ const zhSidebar: DefaultTheme.Sidebar = [
         items: [
             { text: '概述', link: '/zh/guide/' },
             { text: '快速上手', link: '/zh/guide/getting-started' },
+            { text: 'Skill', link: '/zh/guide/skill' },
         ],
     },
     {
@@ -95,7 +97,7 @@ export default defineConfig({
         en: {
             label: 'English',
             lang: 'en',
-            description: 'A mind-map kernel designed for AI agents.',
+            description: 'The next generation of jsMind: a mind-map kernel for people and agents.',
             themeConfig: {
                 nav: enNav,
                 sidebar: enSidebar,
@@ -106,7 +108,7 @@ export default defineConfig({
         zh: {
             label: '简体中文',
             lang: 'zh-CN',
-            description: '为 AI agent 设计的思维导图内核。',
+            description: 'jsMind 的下一代：面向人与 agent 的思维导图内核。',
             themeConfig: {
                 nav: zhNav,
                 sidebar: zhSidebar,
