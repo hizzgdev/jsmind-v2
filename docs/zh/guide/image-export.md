@@ -9,7 +9,7 @@
 | 浏览器 | `await jm.exportImage(options)` → `Blob` |
 | 命令行 | `jsmind export <file> <out.png>` |
 
----
+另见[图片导出](/zh/reference/api/export) API 参考和 [CLI](/zh/reference/cli) 页面。
 
 ## 1. 尺寸语义
 
@@ -27,8 +27,6 @@ max(容器尺寸, 脑图内容尺寸 + 视图 padding)
 - **内容比容器大** → 视图自己会撑开，图片跟着撑开，**不会按容器边界裁掉**。
 
 超过容器时不裁剪这一条容易做错。`.jsmind-inner` 的尺寸由 CSS 决定，`clientWidth` 读到的是**视口**而不是脑图：拿它当导出尺寸，大图就会被裁成窗口那么大，而且不报错。所以尺寸由视图单独维护并显式传给导出逻辑，不从元素上读。
-
----
 
 ## 2. 浏览器 API
 
@@ -55,8 +53,6 @@ const url = URL.createObjectURL(blob);
 
 没有打开的脑图就调，抛 `JsMindError`。
 
----
-
 ## 3. 命令行
 
 ```bash
@@ -82,8 +78,6 @@ small.png: 2095x1032 (145.0 KB)      # 视口装不下，图反而更大，没�
 **需要 Chromium。** 找不到会直接报错，并提示设置 `CHROME_PATH`；不会退化成「导出了一张空白图」。CI 在导图之前单独跑一步 `google-chrome --version`，让缺浏览器的失败看起来像缺浏览器，而不是像渲染 bug。
 
 退出码沿用 CLI 契约：`0` 成功、`1` 数据非法（不启动浏览器，先校验）、`2` 参数错误、`3` IO 或运行时失败。
-
----
 
 ## 4. 实现方式
 
@@ -116,8 +110,6 @@ small.png: 2095x1032 (145.0 KB)      # 视口装不下，图反而更大，没�
 5. **computed 的 `font-family` 带引号。** `"Times New Roman"` 里的引号会提前结束 XML 属性，SVG 解析失败，而 `Image.onerror` 只会说 "failed to load"。
 
 另外两条不是坑但要知道：容器自己的 `overflow: auto` 会把滚动条画进图里（导出时置为 `visible`）；折叠分支的隐藏子节点仍占着 (0,0) 的盒子，凡是按节点并集算范围的地方都会被它们拉偏。
-
----
 
 ## 5. 相关文件
 

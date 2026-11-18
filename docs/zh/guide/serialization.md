@@ -1,6 +1,6 @@
-# 序列化系统
+# 序列化
 
-jsMind v2 的序列化层把内存里的 `JmMind` 对象转成文件格式，以及反向读回。三个核心文件：
+jsMind v2 的序列化层把内存里的 `JmMind` 对象转成文件格式，以及反向读回。核心文件：
 
 | 文件 | 职责 |
 |---|---|
@@ -10,7 +10,7 @@ jsMind v2 的序列化层把内存里的 `JmMind` 对象转成文件格式，以
 | `src/serialization/serializer-factory.ts` | `JmMindSerializerFactory.create('json' | 'freemind')` |
 | `src/serialization/validation.ts` | `validateMindData()`——37 个错误码的结构校验，读写分离（不依赖序列化器） |
 
----
+另见[序列化](/zh/reference/api/serialization) API 参考。完整的磁盘 schema 不在本页展开，仍保留在仓库的 [`docs/requirements/v2-data-format.md`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md) 中。本站的[数据格式](/zh/reference/data-format)页面仍在编写中。
 
 ## 1. 接口
 
@@ -25,15 +25,13 @@ interface JmMindSerializer {
 
 用 `JmMindSerializerFactory.create('json')` 获取实例，不直接 `new`。
 
----
-
 ## 2. JSON 序列化
 
 ### 磁盘格式
 
 `format: "jsmind_v2"`。**扁平表**：`nodes` 是 `Record<string, SerializedNode>`，父子关系通过 id 引用（`parent` / `children`）表达，`edges` 只存树之外的额外关系。
 
-完整 schema 见 [`docs/requirements/v2-data-format.md`](../requirements/v2-data-format.md)。
+完整 schema 见 [`docs/requirements/v2-data-format.md`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md)。
 
 ### serialize
 
@@ -63,13 +61,9 @@ serializer.check(data)     // → { valid: boolean, errors: JmValidationIssue[] 
 
 `check` 比 `validate` 多返回错误列表。每个错误带 `code`（稳定标识，如 `E_FORMAT`）、`path`（文档内位置）、`message`（给人看的文案）。
 
----
-
 ## 3. FreeMind 序列化
 
 `JmMindFreeMindSerializer` 兼容 FreeMind XML 格式。与 JSON 序列化器共用同一个 `JmMindSerializer` 接口。通过 factory 获取：`JmMindSerializerFactory.create('freemind')`。
-
----
 
 ## 4. 校验层
 
@@ -79,20 +73,8 @@ serializer.check(data)     // → { valid: boolean, errors: JmValidationIssue[] 
 - 序列化器和 CLI 共用同一套校验逻辑
 - 校验失败不是抛异常，是回 `{ valid: false, errors: [...] }`
 
-37 个错误码分四类：结构完整性（`E_FORMAT`/`E_META`/`E_NODES_MISSING`等）、引用完整性（`E_NODE_PARENT_MISSING`/`E_ROOT_MISSING`等）、一致性（`E_PARENT_CHILD_MISMATCH`）、取值合法性（`E_SIDE`/`E_TONE`/`E_CONTENT_TYPE`等）。完整列表见 [`v2-data-format.md` 第 9 节](../requirements/v2-data-format.md#9-完整性校验)。
-
----
+37 个错误码分四类：结构完整性（`E_FORMAT`/`E_META`/`E_NODES_MISSING`等）、引用完整性（`E_NODE_PARENT_MISSING`/`E_ROOT_MISSING`等）、一致性（`E_PARENT_CHILD_MISMATCH`）、取值合法性（`E_SIDE`/`E_TONE`/`E_CONTENT_TYPE`等）。完整列表见 [`v2-data-format.md` 第 9 节](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md#9-完整性校验)。
 
 ## 5. autofix
 
-`validate` 默认只报告。加 `--autofix` 才写入，**且绝不静默**——必须输出改动清单。修复原则：宁可位置不对也不丢数据（孤儿节点挂 root）、不重建 `children` 顺序、不修改 `content`。详细规则见 [`v2-data-format.md` 第 10 节](../requirements/v2-data-format.md#10-autofix)。
-
-
----
-
-## 设计决策
-
-从 Manager 模式改成 Serializer 接口的完整理由与迁移过程，在
-[`team/archive/design-decisions/serialization.md`](../../team/archive/design-decisions/serialization.md)。
-
-加新序列化格式之前值得读一遍。
+`validate` 默认只报告。加 `--autofix` 才写入，**且绝不静默**——必须输出改动清单。修复原则：宁可位置不对也不丢数据（孤儿节点挂 root）、不重建 `children` 顺序、不修改 `content`。详细规则见 [`v2-data-format.md` 第 10 节](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md#10-autofix)。

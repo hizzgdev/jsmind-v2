@@ -2,7 +2,7 @@
 
 > **这是旧版全文，已不再维护。**
 >
-> **新版在 [`docs/features/serialization.md`](../../../docs/features/serialization.md)** ——
+> **新版在[序列化](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/serialization)** ——
 > 新版只保留了结论（API 签名、行为语义、使用示例）。
 >
 > **留在这里的是「为什么这么做」：** 当时的需求分析、每个设计决策的

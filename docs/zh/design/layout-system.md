@@ -2,8 +2,6 @@
 
 jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中。它是**纯计算**，不接受 DOM 依赖——节点尺寸由外部喂入（`recordNodeSize`），几何由内部计算。这就是为什么布局测试可以在 Node 里跑（644 行测试），不需要浏览器。
 
----
-
 ## 1. 坐标系统
 
 布局里定义了三类坐标点，搞混会导致连线飘移：
@@ -14,19 +12,17 @@ jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中
 | `calculateNodePoint` | **节点左上角**：锚点再按 `side` 和自身尺寸调整 | `(70, -38)` |
 | `calculateNodeOutgoingPoint` | **出线点**：锚点 + `(size.width + expanderSize) × side` | `(143, -24)` |
 
-![坐标关系](../images/layout/coordinates.png)
+![坐标关系](../../images/layout/coordinates.png)
 
 **`outgoing.x` 不在节点右边界上，比它多出一个 `expanderSize`（折叠按钮宽度，13px）。** 写断言时别拿 `outgoing` 去比节点边缘，会差这 13px。
 
-![节点坐标](../images/layout/coordinates-node.png)
-
----
+![节点坐标](../../images/layout/coordinates-node.png)
 
 ## 2. 盒模型
 
 每个节点由三层尺寸构成：
 
-![盒模型](../images/layout/box-model.png)
+![盒模型](../../images/layout/box-model.png)
 
 | 层 | 内容 |
 |---|---|
@@ -34,13 +30,11 @@ jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中
 | **节点盒** | 内容区 + 边框 |
 | **展开器** | 折叠按钮，在节点右侧（左侧节点则在左边），13px |
 
-![节点盒模型](../images/layout/box-model-node.png)
+![节点盒模型](../../images/layout/box-model-node.png)
 
 展开器不参与节点的宽度计算——节点宽度由内容决定，展开器单独追加在边上。
 
-![组合示意](../images/layout/box-model-compose.png)
-
----
+![组合示意](../../images/layout/box-model-compose.png)
 
 ## 3. 布局流程
 
@@ -51,8 +45,6 @@ jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中
 ```
 
 三步之间通过数据传递，渲染器不反过来操纵 arranger，也不自己测量。尺寸是输入，坐标是输出。
-
----
 
 ## 4. 间距规则
 
@@ -67,8 +59,6 @@ jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中
 
 **注意：兄弟节点之间的间距不是固定等于 `siblingSpace = 20`。** 一个节点占的垂直空间是它整个子树块的高度。叶子兄弟之间的间隙 = siblingSpace（20px），但带子树的兄弟之间远大于此——这不是 bug，是子树高度决定的。
 
----
-
 ## 5. 方向
 
 `JmNodeSide` 决定节点往哪边铺：
@@ -80,8 +70,6 @@ jsMind v2 的布局算法在 `src/arranger/mindmap.ts`（`MindmapArranger`）中
 | `1` (SideA) | 右侧 |
 
 子节点默认继承父节点的方向。`side: 0` 不是「中间」，是「没有方向」——布局要靠它确定从哪一点向两边铺开。子节点带 `0` 时布局找不到落点，结果是不画。校验器（`E_NON_ROOT_SIDE_CENTER`）会拦截这种情况。
-
----
 
 ## 6. Canvas 面积上限
 

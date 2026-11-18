@@ -2,8 +2,6 @@
 
 jsMind v2 的外观全部由主题数据驱动。样式表里不再写任何具体值——所有颜色、几何、阴影都通过 CSS 自定义属性传入，一套样式表服务所有主题。
 
----
-
 ## 1. 架构
 
 ```
@@ -13,8 +11,6 @@ JmMind.style (JSON) → resolveJmStyle() → JmTheme (完整)
 ```
 
 **几何属性写在宿主上，所有节点继承。** 颜色写在每个节点元素上，单节点覆盖只影响那一个。
-
----
 
 ## 2. tone：五个语义色 + accent
 
@@ -34,8 +30,6 @@ const JmTone = {
 
 `accent` 来自 v1 的紫色主题（`theme-wisteria`），没有语义含义——它只说「让这个显眼」，不附带「重要」「有问题」之类的断言。
 
----
-
 ## 3. 覆盖链
 
 三档回落，从具体到兜底：
@@ -53,8 +47,6 @@ const JmTone = {
 
 **`curve` 不参与 tone 回落。** tone 是颜色，带几何信息会让「同 tone 不同形态」无法表达。
 
----
-
 ## 4. 主题合并
 
 ```ts
@@ -62,8 +54,6 @@ resolveJmStyle(style?) → JmTheme
 ```
 
 从 `style.theme` 的名字找预设（默认 `"default"`），然后深度合并 `style` 的其余字段。**不是浅合并。** `tones: { primary: { fillColor: "#f00" } }` 如果浅合并会把整个 `primary` palette 替换掉，`textColor` / `borderColor` / `lineColor` 全丢，节点变黑底黑字。
-
----
 
 ## 5. 阴影
 
@@ -79,8 +69,6 @@ interface JmThemeShadow {
 
 **`mergeShadow` 做两级深合并。** `mergeObjects` 只有一层深：只改 `hover.blur` 如果不拆，会替换整个 shadow 块，`normal` 和 `selected` 全丢。
 
----
-
 ## 6. 内置默认主题
 
 `JSMIND_THEME_DEFAULT` 是唯一的预设。数值取自 v1 的样式表：
@@ -94,8 +82,6 @@ expander: { size:13, radius:6.5, fontSize:8, lineHeight:11, borderWidth:1 }
 ```
 
 `borderWidth: 0` 是因为 v1 用阴影来表现深度，不是边框。`lineHeight: 1.125` 是倍率（跟随 `fontSize` 缩放），展开器的 `lineHeight: 11` 是像素（尺寸独立）。
-
----
 
 ## 7. 展开器样式
 

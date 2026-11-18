@@ -18,6 +18,10 @@ const enSidebar: DefaultTheme.Sidebar = [
             { text: 'Overview', link: '/en/guide/' },
             { text: 'Getting Started', link: '/en/guide/getting-started' },
             { text: 'Skill', link: '/en/guide/skill' },
+            { text: 'Node content', link: '/en/guide/node-content' },
+            { text: 'Moving nodes', link: '/en/guide/node-move' },
+            { text: 'Image export', link: '/en/guide/image-export' },
+            { text: 'Serialization', link: '/en/guide/serialization' },
         ],
     },
     {
@@ -41,6 +45,9 @@ const enSidebar: DefaultTheme.Sidebar = [
         text: 'Design',
         items: [
             { text: 'Overview', link: '/en/design/' },
+            { text: 'Layout system', link: '/en/design/layout-system' },
+            { text: 'Theme system', link: '/en/design/theme-system' },
+            { text: 'Hybrid edge system', link: '/en/design/hybrid-edge-system' },
         ],
     },
     {
@@ -65,6 +72,10 @@ const zhSidebar: DefaultTheme.Sidebar = [
             { text: '概述', link: '/zh/guide/' },
             { text: '快速上手', link: '/zh/guide/getting-started' },
             { text: 'Skill', link: '/zh/guide/skill' },
+            { text: '节点内容', link: '/zh/guide/node-content' },
+            { text: '节点移动', link: '/zh/guide/node-move' },
+            { text: '导出图片', link: '/zh/guide/image-export' },
+            { text: '序列化', link: '/zh/guide/serialization' },
         ],
     },
     {
@@ -88,6 +99,9 @@ const zhSidebar: DefaultTheme.Sidebar = [
         text: '设计',
         items: [
             { text: '概述', link: '/zh/design/' },
+            { text: '布局系统', link: '/zh/design/layout-system' },
+            { text: '主题系统', link: '/zh/design/theme-system' },
+            { text: '混合边系统', link: '/zh/design/hybrid-edge-system' },
         ],
     },
     {
@@ -102,8 +116,6 @@ export default defineConfig({
     base: '/jsmind-v2/docs/',
     srcExclude: [
         'README.md',
-        'architecture/**',
-        'features/**',
         'requirements/**',
         'images/**',
     ],

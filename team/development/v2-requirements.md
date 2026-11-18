@@ -1,6 +1,6 @@
 # jsMind v2 需求文档
 
-> **本文件定义 v2 的目标与功能边界。** 技术实现细节见 `docs/architecture/` 与 `docs/features/`。
+> **本文件定义 v2 的目标与功能边界。** 技术实现细节见文档站的[设计](https://hizzgdev.github.io/jsmind-v2/docs/zh/design/)与[指南](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/)。
 >
 > **状态标记**：✅ 已决定 ｜ ⬜ 待决定 ｜ ❌ 已否决（附理由）
 
@@ -106,7 +106,7 @@ A 用 agent 生成 → 得到 PNG + 自包含 HTML
 - **与 v1 格式互通**（见 4.4）
 
 **图的模型**：父子关系用**树**表达（`node.parent` / `node.children`），`edges` 只装树之外的额外关系。
-设计理由与取舍见 [`docs/architecture/hybrid-edge-system.md`](../../docs/architecture/hybrid-edge-system.md)。
+设计理由与取舍见[混合边系统](https://hizzgdev.github.io/jsmind-v2/docs/zh/design/hybrid-edge-system)。
 
 > 补充三条该文档未覆盖的论点：
 > 1. **兄弟节点有序** —— edge 列表没有"顺序"概念，要用就得给 edge 加 `order` 字段，排序逻辑从数据结构下沉到代码
