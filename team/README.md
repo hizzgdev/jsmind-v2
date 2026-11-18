@@ -4,16 +4,17 @@
 
 对外发布的文档产品放在 `docs/`。
 
-## 子目录与负责人
+## 子目录
 
-下面是已约定的分工。当前已落地 `team/automations/`；`team/development/`、`team/archive/`、`team/marketing/` 是约定位置，可能在并行 PR 中落地。
+`team/automations/`、`team/development/`、`team/archive/` 已落地；`team/marketing/` 是约定位置，可能尚未创建。
 
-- `team/development/`（milestones、roadmap、对内需求）和 `team/archive/`：由 Mira 负责。
-- `team/automations/`（协作流程、团队约定）：下面有 hubie 和 weka 两套独立的开发流程，各用各的 GitHub 标签（`hubie` / `weka`），不要混用。hubie 见 [agent-team-collaboration.md](automations/hubie/agent-team-collaboration.md)；weka 见 [weka/README.md](automations/weka/README.md)。
-- 以后的 `team/marketing/`：由 Moka 负责。
+- `team/automations/`：自动化流程与团队协作约定，按流程分目录。从 [automations/README.md](automations/README.md) 进入，具体流程、标签和重建步骤都在各自目录里说明，这里不逐条展开。
+- `team/development/`：milestones、roadmap、对内需求和渲染测试计划。
+- `team/archive/`：不再维护但仍有参考价值的内容。
+- `team/marketing/`：营销草稿的约定位置，可能尚未创建。真正对外的文案再进入落地页或 `docs/`。
 
 ## 相关入口
 
-仓库根目录的 `AGENTS.md` 是给编码 agent 的对内入口。协作和 PR 约定方面，hubie 流程以 [agent-team-collaboration.md](automations/hubie/agent-team-collaboration.md) 为准，weka 流程以 [weka/README.md](automations/weka/README.md) 为准。
+仓库根目录的 `AGENTS.md` 是给编码 agent 的对内入口。协作和 PR 约定以 `team/automations/` 下各流程目录的文档为准，入口同样是 [automations/README.md](automations/README.md)。
 
 `docs/` 是对外文档产品。

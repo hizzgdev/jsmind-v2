@@ -4,12 +4,7 @@ weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签�
 
 名字是 we(webhook) + ka(kanban) 拼出来的。
 
-`team/automations/` 下有两套互不混用的流程：
-
-| 团队 | 开工信号 | 机制 | 文档 |
-| --- | --- | --- | --- |
-| Hubie | `hubie` 标签 | 例程监听 + 内部消息 | [agent-team-collaboration.md](../hubie/agent-team-collaboration.md) |
-| Weka | `weka` 标签 | webhook + kanban 卡片 | 本目录 |
+本目录自包含：流程说明、脚本、SOUL、部署步骤和重建清单都在这里，入口就是这份 README。
 
 ## 目录内容
 
@@ -151,7 +146,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
 
 ### 5. GitHub 侧
 
-- 仓库建 label `weka`（本流程开工信号，对应 Hubie 的 `hubie`）。
+- 仓库建 label `weka`（本流程的开工信号）。
 - Settings → Webhooks → Add webhook：
   - Payload URL：`http://<public-ip>:<webhook-port>`
   - Content type：`application/json`
