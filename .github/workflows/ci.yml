@@ -52,12 +52,6 @@ jobs:
       # Root README and other *.md files are prose: they do not set this,
       # and they also do not run or skip the docs site job.
       library: ${{ steps.paths.outputs.library }}
-      # 'true' when the published front page could have changed. The site root
-      # is rendered from the root README.md during assembly, so a prose-only
-      # edit there still needs the landing-page tests - none of the other jobs
-      # would run for it. Only the root README: README.zh.md and other markdown
-      # are not rendered into the site.
-      landing: ${{ steps.paths.outputs.landing }}
 
     steps:
       - name: Checkout
@@ -90,7 +84,6 @@ jobs:
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
             echo "docs=true" >> "$GITHUB_OUTPUT"
             echo "library=true" >> "$GITHUB_OUTPUT"
-            echo "landing=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -100,7 +93,6 @@ jobs:
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
             echo "docs=true" >> "$GITHUB_OUTPUT"
             echo "library=true" >> "$GITHUB_OUTPUT"
-            echo "landing=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -121,21 +113,15 @@ jobs:
           #   and other *.md files are prose: they do not require library
           #   checks, and they do not run or skip the docs site job.
           #
-          # landing: did the root README.md change? It is the only source of
-          #   the landing page, which is rendered into the site root during
-          #   assembly. A prose edit there is the one way to break that page,
-          #   and it is invisible to every other flag, so it gets its own.
-          #
           # These answers are not complements: a change only under docs/ is
           # docs_only and docs, not library; a README-only change is none of
-          # docs_only, docs, or library, but it is landing; a change to
+          # docs_only, docs, or library; a change to
           # .github/workflows/static.yml is library but not docs; a change
           # to src/ is both library and render.
           render=false
           docs_only=true
           docs=false
           library=false
-          landing=false
           while IFS= read -r file; do
             [ -z "$file" ] && continue
 
@@ -155,11 +141,6 @@ jobs:
                 docs_only=false
                 case "$file" in
                   *.md)
-                    # README.md is not just prose here: it is rendered into
-                    # the published front page. README.zh.md is not.
-                    if [ "$file" = "README.md" ]; then
-                      landing=true
-                    fi
                     echo "prose: $file"
                     ;;
                   *)
@@ -177,7 +158,6 @@ jobs:
           if [ -z "$changed" ]; then
             docs_only=false
             library=true
-            landing=true
             echo "empty diff; running the library checks"
           fi
 
@@ -185,16 +165,12 @@ jobs:
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
           echo "docs=$docs" >> "$GITHUB_OUTPUT"
           echo "library=$library" >> "$GITHUB_OUTPUT"
-          echo "landing=$landing" >> "$GITHUB_OUTPUT"
 
           if [ "$render" = "false" ]; then
             echo "nothing here can change the image; skipping the render"
           fi
           if [ "$library" = "false" ]; then
             echo "no library source changed; skipping type-check, unit tests, build and UI tests"
-          fi
-          if [ "$landing" = "true" ]; then
-            echo "README.md changed; the landing-page tests will run"
           fi
           if [ "$docs" = "true" ]; then
             echo "docs/ changed; the docs site job will decide which checks to run"
@@ -253,17 +229,6 @@ jobs:
       - name: Type check
         if: needs.changes.outputs.library == 'true'
         run: npm run type-check
-
-      # The landing page is rendered from the root README.md at assembly time,
-      # so a README edit alone can publish broken HTML to the front page - and
-      # a README edit alone runs none of the steps around this one. The pages
-      # site tests hold the guard for that; --test-name-pattern picks the
-      # landing-page cases so a prose fix does not pay for the VitePress build
-      # in the same file. The docs-site job runs the whole file when docs/
-      # changed, and the coverage suite covers it for a library change.
-      - name: Landing page tests
-        if: needs.changes.outputs.landing == 'true'
-        run: node --test --test-name-pattern='landing page' __tests__/build/pages-site.test.ts
 
       # Unit and data-layer suites only. The UI tests live in the job below,
       # because they drive a real browser against the built bundle.

@@ -1,6 +1,11 @@
 /**
- * @fileoverview `npm run assemble-site` publishes the landing page, the
+ * @fileoverview `npm run assemble-site` publishes the site root redirect, the
  * playground, and the VitePress documentation site.
+ *
+ * The site root is a redirect to `docs/`, not a page: the docs home is the
+ * project front page, so all there is to check is that the index forwards,
+ * keeps a plain link for clients without JavaScript, and stays tiny. The
+ * repository keeps no `index.html` of its own; assembly writes it.
  *
  * The page in `example/` is a module script whose src is `../dist/jsmind.js`.
  * That relative path is what `npm run server` needs. The command copies the
@@ -8,27 +13,15 @@
  * `type` may sit on either side of `src`. The Pages workflow runs the command
  * and does not check the tag itself.
  *
- * The landing page is rendered from `README.md` during assembly; the
- * repository keeps neither `index.html` nor a separate page module. These
- * tests therefore assert against the renderer and against what assembly
- * writes, not against a checked-in file.
- *
  * Docs output is verified by running the VitePress build against this
  * repository into a temporary directory. The root-file fixture stays focused
- * on the playground rewrite and does not invoke VitePress.
- *
- * Where the landing-page guard is enforced: this file's `landing page` tests
- * fail when the README grows markdown the renderer passes through as text, and
- * ci.yml raises a `landing` flag for a root README change and runs those tests
- * for it - a README edit sets no other flag, so without that wiring the one
- * change class the guard exists for would publish untested.
+ * on the redirect and the playground rewrite, and does not invoke VitePress.
  */
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, sep } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -39,16 +32,13 @@ import {
     DOCS_LANGUAGE_REDIRECT_HTML,
     DOCS_PAGE_REDIRECTS,
     docsPageRedirectHtml,
-    LANDING_PAGE_SOURCE,
+    LANDING_REDIRECT_HTML,
     moduleScriptSrcs,
-    renderLandingPage,
     rewritePlayground,
     writeDocsPageRedirects,
 } from '../../scripts/assemble-site.ts';
-import { REPO_BLOB_BASE, renderMarkdown, renderReadmePage } from '../../scripts/readme-page.ts';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const CI_WORKFLOW = readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8');
 
 const DOCS_SITE_ENTRY = 'https://hizzgdev.github.io/jsmind-v2/docs/';
 const DOCS_README_BLOB = 'https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md';
@@ -167,448 +157,34 @@ function assertSectionOrder(html: string, locale: 'en' | 'zh', label: string): v
     }
 }
 
-/** A heading as written in the README, before inline markup is rendered. */
-interface ReadmeHeading {
-    readonly level: number;
-    readonly text: string;
-}
-
-/** A link as written in the README. */
-interface ReadmeLink {
-    readonly label: string;
-    readonly href: string;
-}
-
-/** What the landing-page tests read out of a README. */
-interface ReadmeStructure {
-    readonly headings: ReadmeHeading[];
-    readonly links: ReadmeLink[];
-    /** Fence marker lines, so the block count is this number halved. */
-    readonly fenceLines: number;
-}
-
-const HEADING_LINE = /^(#{1,6})\s+(.*\S)\s*$/;
-const FENCE_LINE = /^```/;
-const LINK_SPAN = /\[([^\]]+)\]\(([^)\s]+)\)/g;
-const README_COMMENT = /<!--[\s\S]*?-->/g;
-const ENTITY = /&(?:amp|lt|gt|quot|#39);/g;
-const NAMED_ENTITIES: Readonly<Record<string, string>> = {
-    '&amp;': '&',
-    '&lt;': '<',
-    '&gt;': '>',
-    '&quot;': '"',
-    '&#39;': '\'',
-};
-
-/**
- * Reads headings, links, and the fence count from markdown.
- *
- * Fenced blocks and HTML comments are skipped: a `#` in a shell transcript is
- * not a heading, and a link inside a comment is not a link.
- *
- * @param markdown - Markdown source.
- * @returns Block structure as written, with no assumptions about the wording.
- */
-function readReadmeStructure(markdown: string): ReadmeStructure {
-    const lines = markdown.replace(README_COMMENT, '')
-        .replaceAll('\r\n', '\n')
-        .split('\n');
-    const headings: ReadmeHeading[] = [];
-    const links: ReadmeLink[] = [];
-    let fenceLines = 0;
-    let inFence = false;
-
-    for (const line of lines) {
-        if (FENCE_LINE.test(line)) {
-            inFence = !inFence;
-            fenceLines += 1;
-            continue;
-        }
-        if (inFence) {
-            continue;
-        }
-
-        const heading = line.match(HEADING_LINE);
-        if (heading !== null) {
-            headings.push({ level: heading[1].length, text: heading[2] });
-        }
-        for (const link of line.matchAll(LINK_SPAN)) {
-            links.push({ label: link[1], href: link[2] });
-        }
-    }
-
-    return { headings, links, fenceLines };
-}
-
-/**
- * Flattens the inline markup the renderer interprets to the text it renders as.
- *
- * @param text - Inline markdown.
- * @returns Code spans unwrapped, link labels without their target.
- */
-function flattenInline(text: string): string {
-    return text.replaceAll('`', '')
-        .replace(LINK_SPAN, '$1')
-        .trim();
-}
-
-/**
- * Text content of an HTML fragment, with entities decoded.
- *
- * @param fragment - HTML.
- * @returns The readable text it contains.
- */
-function textOf(fragment: string): string {
-    return fragment.replace(/<[^>]*>/g, '')
-        .replace(ENTITY, (entity) => NAMED_ENTITIES[entity]);
-}
-
-/**
- * Markdown that reached the page as literal text instead of markup.
- *
- * The renderer interprets headings, paragraphs, lists, fences, code spans and
- * links; anything else it escapes and passes through. That is a deliberate
- * subset, so the page is only correct while the README stays inside it. These
- * patterns are what a README edit outside the subset leaves behind.
- */
-const UNRENDERED_MARKDOWN: ReadonlyArray<{ readonly syntax: string; readonly pattern: RegExp }> = [
-    { syntax: 'emphasis', pattern: /\*\*|__/ },
-    { syntax: 'image', pattern: /!\[/ },
-    { syntax: 'link', pattern: /\]\(/ },
-    { syntax: 'table', pattern: /(?:^|\n)\s*\|/ },
-    // Raw HTML is escaped into text, so a tag-shaped run is residue, not markup.
-    { syntax: 'raw HTML', pattern: /<[/]?[a-z][a-z0-9-]*[\s/>]/ },
-    // A blockquote is not a paragraph that happens to start with a caret: the
-    // renderer keeps that caret, and the page shows it.
-    { syntax: 'blockquote', pattern: /(?:^|\n)[ \t]*>/ },
-    // Thematic breaks survive as a line of hyphens, asterisks or underscores.
-    { syntax: 'horizontal rule', pattern: /(?:^|\n)[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*(?:\n|$)/ },
-    // `<https://...>` is markdown's bare link; escaped, it reads as a tag-shaped
-    // run without matching the raw-HTML pattern above.
-    { syntax: 'autolink', pattern: /<[a-z][a-z0-9+.-]*:[^\s<>]*>/ },
-];
-
-/**
- * Reports the markdown syntax that the page shows verbatim.
- *
- * Rendered markup, stylesheet, code blocks and code spans are removed before
- * the scan: their contents are supposed to be literal.
- *
- * @param page - A complete HTML document.
- * @returns One entry per unrendered syntax family, empty when the page is clean.
- */
-function findUnrenderedMarkdown(page: string): string[] {
-    const text = textOf(page.replace(/<style>[\s\S]*?<\/style>/g, '')
-        .replace(/<pre>[\s\S]*?<\/pre>/g, '')
-        .replace(/<code>[\s\S]*?<\/code>/g, ''));
-    return UNRENDERED_MARKDOWN.filter(({ pattern }) => pattern.test(text))
-        .map(({ syntax }) => syntax);
-}
-
-/**
- * The shell body of a `run: |` step in a workflow file, dedented.
- *
- * The `changes` step is exercised by running it rather than by matching its
- * text: which flags a file list raises is the behaviour the rest of CI reads,
- * and a comment saying "README.md means landing" would not prove it.
- *
- * @param workflow - Workflow file contents.
- * @param stepName - The `name:` of the step to extract.
- * @returns The step's script, ready to hand to bash.
- */
-function readRunStep(workflow: string, stepName: string): string {
-    const lines = workflow.split('\n');
-    const start = lines.findIndex((line) => line.trim() === `- name: ${stepName}`);
-    assert.ok(start >= 0, `ci.yml should carry a step named "${stepName}"`);
-
-    const runIndex = lines.findIndex((line, index) => index > start && /^\s*run: \|$/.test(line));
-    assert.ok(runIndex > start, `the "${stepName}" step should be a multi-line run step`);
-    const runIndent = lines[runIndex].length - lines[runIndex].trimStart().length;
-
-    const body: string[] = [];
-    for (let index = runIndex + 1; index < lines.length; index += 1) {
-        const line = lines[index];
-        const indent = line.length - line.trimStart().length;
-        if (line.trim() !== '' && indent <= runIndent) {
-            break;
-        }
-        body.push(line);
-    }
-
-    const indents = body.filter((line) => line.trim() !== '')
-        .map((line) => line.length - line.trimStart().length);
-    const dedent = Math.min(...indents);
-    return body.map((line) => line.slice(dedent))
-        .join('\n')
-        .trimEnd();
-}
-
-/**
- * `process.env` with git's repository selection removed.
- *
- * Git exports `GIT_DIR` (and friends) to hooks, and `scripts/git-hooks/pre-push`
- * runs the full test suite. A test spawned from that hook inherits them, so an
- * unscrubbed `git init` in a temporary directory re-initialises the
- * developer's repository and commits into it instead. The isolation is not a
- * nicety: without it this test rewrites the branch it is meant to describe.
- *
- * @returns The environment with every `GIT_*` variable dropped.
- */
-function isolatedGitEnv(): Record<string, string | undefined> {
-    const env: Record<string, string | undefined> = { ...process.env };
-    for (const key of Object.keys(env)) {
-        if (key.startsWith('GIT_')) {
-            delete env[key];
-        }
-    }
-    return env;
-}
-
-/**
- * Runs the `changes` job's classification over a file list.
- *
- * A throwaway repository provides the two commits the step diffs, so the real
- * shell block answers for the real paths.
- *
- * @param files - Paths that differ between the base commit and the head.
- * @returns `$GITHUB_OUTPUT` as a map of flag to value.
- */
-function classifyChanges(files: readonly string[]): Record<string, string> {
-    const dir = mkdtempSync(join(tmpdir(), 'jsmind-ci-changes-'));
-    const env = isolatedGitEnv();
-    try {
-        const git = (...args: string[]): string => {
-            const result = spawnSync('git', args, { cwd: dir, encoding: 'utf8', env });
-            assert.strictEqual(result.status, 0, `git ${args.join(' ')} failed: ${result.stderr}`);
-            return result.stdout.trim();
-        };
-
-        git('init', '-q');
-        // Fail before writing anything if the repository selection leaked: the
-        // commits below must land here and nowhere else.
-        assert.strictEqual(
-            realpathSync(git('rev-parse', '--show-toplevel')),
-            realpathSync(dir),
-            'the throwaway repository must resolve to its own directory'
-        );
-        git('config', 'user.email', 'ci@example.com');
-        git('config', 'user.name', 'CI');
-        writeFileSync(join(dir, 'unchanged.txt'), 'base\n');
-        git('add', '.');
-        git('commit', '-q', '-m', 'base');
-        const base = git('rev-parse', 'HEAD');
-
-        for (const file of files) {
-            mkdirSync(dirname(join(dir, file)), { recursive: true });
-            writeFileSync(join(dir, file), 'changed\n');
-        }
-        git('add', '.');
-        git('commit', '-q', '-m', 'change');
-        const head = git('rev-parse', 'HEAD');
-
-        const outputPath = join(dir, 'github-output');
-        writeFileSync(outputPath, '');
-        const result = spawnSync('bash', ['-c', readRunStep(CI_WORKFLOW, 'Compare against the base')], {
-            cwd: dir,
-            encoding: 'utf8',
-            env: {
-                ...env,
-                EVENT_NAME: 'pull_request',
-                PR_BASE: base,
-                PR_HEAD: head,
-                PUSH_BEFORE: '',
-                PUSH_AFTER: '',
-                GITHUB_OUTPUT: outputPath,
-            },
-        });
-        assert.strictEqual(result.status, 0, `the changes step failed: ${result.stderr}`);
-
-        return Object.fromEntries(readFileSync(outputPath, 'utf8')
-            .split('\n')
-            .filter((line) => line.includes('='))
-            .map((line) => [
-                line.slice(0, line.indexOf('=')),
-                line.slice(line.indexOf('=') + 1),
-            ]));
-    }
-    finally {
-        rmSync(dir, { recursive: true, force: true });
-    }
-}
-
-/**
- * HEAD of the repository these tests belong to.
- *
- * Read with the caller's environment on purpose: this is the observation the
- * isolation above has to leave unchanged.
- *
- * @returns The commit sha.
- */
-function repositoryHead(): string {
-    const result = spawnSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
-    assert.strictEqual(result.status, 0, `git rev-parse HEAD failed: ${result.stderr}`);
-    return result.stdout.trim();
-}
-
 describe('landing page', () => {
-    const readme = readFileSync(join(ROOT, LANDING_PAGE_SOURCE), 'utf8');
-    const page = renderLandingPage(ROOT);
-    const structure = readReadmeStructure(readme);
-
-    it('is rendered from the README at assembly time, not checked in', () => {
+    it('is a redirect to the docs site, not a page of its own', () => {
+        // The docs home is the project front page; the site root only forwards
+        // to it. A checked-in page - or a second, generated copy of the project
+        // description - is what this guard keeps out of the repository.
         assert.ok(
             !existsSync(join(ROOT, 'index.html')),
             'the repository root must not carry a landing page'
         );
-        assert.match(page, /^<!DOCTYPE html>\n<html lang="en">/);
 
-        // The title is the README's first heading, whatever it happens to say.
-        const title = /<title>([\s\S]*?)<\/title>/.exec(page);
-        assert.ok(title !== null, 'the page should carry a title');
-        const firstHeading = structure.headings.find((heading) => heading.level === 1);
-        assert.ok(firstHeading !== undefined, 'the README should open with an h1');
-        assert.strictEqual(textOf(title[1]), flattenInline(firstHeading.text));
-    });
-
-    it('renders every README heading, in order, as a heading element', () => {
-        const rendered = [...page.matchAll(/<h([1-6])>([\s\S]*?)<\/h\1>/g)]
-            .map((match) => ({ level: Number(match[1]), text: textOf(match[2]) }));
-        assert.deepStrictEqual(
-            rendered,
-            structure.headings.map((heading) => ({
-                level: heading.level,
-                text: flattenInline(heading.text),
-            })),
-            'every README heading should reach the page as an <hN> with the same text'
-        );
-    });
-
-    it('rebases every README link and drops none', () => {
-        const anchors = [...page.matchAll(/<a href="([^"]*)">([\s\S]*?)<\/a>/g)]
-            .map((match) => ({ href: match[1], text: textOf(match[2]) }));
-        assert.strictEqual(anchors.length, structure.links.length);
-
-        for (const [index, link] of structure.links.entries()) {
-            // Relative README links point at files the site does not publish, so
-            // they are rebased onto the repository instead of 404ing; absolute,
-            // site-absolute, and in-page hrefs are left as written.
-            const rebased = /^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(link.href)
-                ? link.href
-                : `${REPO_BLOB_BASE}${link.href.replace(/^\.\//, '')}`;
-            assert.deepStrictEqual(
-                anchors[index],
-                { href: rebased, text: flattenInline(link.label) },
-                `README link ${index + 1} (${link.label}) should reach the page rebased`
-            );
-        }
-    });
-
-    it('renders every fenced block as pre/code and leaks no fence', () => {
-        assert.ok(structure.fenceLines > 0, 'the README should carry a code fence');
-        assert.strictEqual(
-            (page.match(/<pre><code/g) ?? []).length,
-            structure.fenceLines / 2
-        );
-        assert.ok(!page.includes('```'));
-        assert.ok(!page.includes('<!--'), 'README comments must not reach the page');
-    });
-
-    it('never shows markdown the renderer does not interpret', () => {
-        assert.deepStrictEqual(
-            findUnrenderedMarkdown(page),
-            [],
-            'README grew syntax that scripts/readme-page.ts does not render: extend the '
-            + 'renderer, or keep that syntax out of the README'
-        );
-    });
-
-    it('reports the constructs the guard exists to catch', () => {
-        // Without this the guard above can rot into a test that passes because
-        // it stopped looking, so feed it the next likely README edits.
-        const unsupported = renderReadmePage(
-            '# Guard\n\n'
-            + '[![npm](https://img.shields.io/npm/v/jsmind.svg)](https://www.npmjs.com/package/jsmind)\n\n'
-            + '**v2**\n\n'
-            + '| a | b |\n| --- | --- |\n| 1 | 2 |\n\n'
-            + '<details><summary>more</summary></details>\n'
-        );
-        const found = findUnrenderedMarkdown(unsupported);
-        for (const syntax of ['emphasis', 'image', 'link', 'table', 'raw HTML']) {
-            assert.ok(found.includes(syntax), `expected ${syntax} residue, got [${found.join(', ')}]`);
-        }
-    });
-
-    it('reports the block-level constructs it had missed', () => {
-        // Each of these renders as literal text and used to slip past the
-        // guard, so they are fed in one at a time: a combined fixture would
-        // still pass if the scan only ever reported the first match.
-        const constructs: ReadonlyArray<{ readonly syntax: string; readonly markdown: string }> = [
-            { syntax: 'blockquote', markdown: '> note: install with npm\n' },
-            { syntax: 'horizontal rule', markdown: '---\n' },
-            { syntax: 'autolink', markdown: 'See <https://example.com> for more.\n' },
-        ];
-        for (const { syntax, markdown } of constructs) {
-            const found = findUnrenderedMarkdown(renderReadmePage(`# ${syntax}\n\n${markdown}`));
-            assert.ok(found.includes(syntax), `expected ${syntax} residue, got [${found.join(', ')}]`);
-        }
-    });
-
-    it('runs on the one change class that can break the page', () => {
-        // The guard above is only worth its lines if CI runs it for the change
-        // it exists to catch: a README edit is prose, so every other job in the
-        // workflow skips and the page would publish untested. `landing` is the
-        // flag that keeps it on the path; classifyChanges runs the real
-        // classification block from ci.yml over a real diff.
-        const headBefore = repositoryHead();
-        const readmeOnly = classifyChanges(['README.md']);
-        assert.strictEqual(readmeOnly.landing, 'true', 'a README.md change should raise the landing flag');
-        assert.strictEqual(readmeOnly.library, 'false', 'a README.md change should not run the library suite');
-        assert.strictEqual(readmeOnly.docs, 'false');
-
-        // Only the root README is rendered into the site.
-        assert.strictEqual(classifyChanges(['README.zh.md']).landing, 'false');
-        assert.strictEqual(classifyChanges(['docs/en/guide.md']).landing, 'false');
-        assert.strictEqual(classifyChanges(['src/model/mind.ts']).landing, 'false');
-        assert.strictEqual(classifyChanges(['README.md', 'docs/en/guide.md']).landing, 'true');
-
-        // Running under scripts/git-hooks/pre-push exports GIT_DIR, which this
-        // helper has to scrub - otherwise its commits land in this repository.
-        assert.strictEqual(
-            repositoryHead(),
-            headBefore,
-            'classifying a file list must not commit into this repository'
-        );
-    });
-
-    it('gates a landing-page test step on that flag', () => {
+        assert.ok(LANDING_REDIRECT_HTML.includes('docs/'), 'the page should point at docs/');
         assert.match(
-            CI_WORKFLOW,
-            /^\s+landing: \$\{\{ steps\.paths\.outputs\.landing \}\}$/m,
-            'the changes job should publish the landing flag as an output'
+            LANDING_REDIRECT_HTML,
+            /location\.replace\('docs\/' \+ location\.search \+ location\.hash\)/,
+            'the redirect should keep a query and a hash and leave no history entry'
         );
-        assert.match(
-            CI_WORKFLOW,
-            /if: needs\.changes\.outputs\.landing == 'true'\n\s+run: node --test --test-name-pattern='landing page' /,
-            'a step should run the landing-page tests when the flag is set'
+        assert.ok(
+            LANDING_REDIRECT_HTML.includes('href="docs/"'),
+            'a client without JavaScript should get a plain link'
         );
-    });
-
-    it('escapes markdown text instead of trusting it', () => {
-        const html = renderMarkdown('# <b>t</b> & co\n\nA & B `a<b` [rel](docs/x.md)\n', {
-            linkBase: REPO_BLOB_BASE,
-        });
-        assert.ok(html.includes('<h1>&lt;b&gt;t&lt;/b&gt; &amp; co</h1>'));
-        assert.ok(html.includes('A &amp; B <code>a&lt;b</code>'));
-        assert.ok(html.includes(`<a href="${REPO_BLOB_BASE}docs/x.md">rel</a>`));
-    });
-
-    it('keeps fenced code and lists as blocks', () => {
-        const html = renderMarkdown('```\nx < y\n```\n\n- one\n- `two`\n\n1. first\n');
-        assert.strictEqual(
-            html,
-            '<pre><code>x &lt; y\n</code></pre>\n'
-            + '<ul>\n    <li>one</li>\n    <li><code>two</code></li>\n</ul>\n'
-            + '<ol>\n    <li>first</li>\n</ol>'
+        assert.ok(
+            LANDING_REDIRECT_HTML.length < 1024,
+            'the redirect should stay under 1 KB'
+        );
+        assert.doesNotMatch(
+            LANDING_REDIRECT_HTML,
+            /<title>|<style|<h1|<img/i,
+            'the redirect should carry no title, styles, logo or feature list'
         );
     });
 });
@@ -640,33 +216,25 @@ describe('pages site assembly', () => {
         );
     });
 
-    it('renders the landing page from the README into the three root site files', () => {
+    it('writes the redirect index, the playground and the bundle into the site root', () => {
         const dir = mkdtempSync(join(tmpdir(), 'jsmind-site-'));
         try {
             mkdirSync(join(dir, 'example'), { recursive: true });
             mkdirSync(join(dir, 'dist'), { recursive: true });
-            writeFileSync(join(dir, LANDING_PAGE_SOURCE), '# Fixture site\n\nRendered during assembly.\n');
             writeFileSync(join(dir, 'dist', 'jsmind.js'), 'export {}\n');
             writeFileSync(
                 join(dir, 'example', 'playground.html'),
                 '<script src="../dist/jsmind.js" type="module"></script>\n'
             );
 
-            mkdirSync(join(dir, '_site'), { recursive: true });
             assembleRootSite(dir, join(dir, '_site'));
 
-            // The page comes from the README, not from the checkout, so the
-            // fixture needs no index.html of its own.
-            assert.ok(!existsSync(join(dir, 'index.html')));
+            // Nothing is read from the checkout but the playground and the
+            // bundle: the index is the redirect, byte for byte.
             const index = readFileSync(join(dir, '_site', 'index.html'), 'utf8');
-            assert.ok(index.includes('<h1>Fixture site</h1>'));
-            assert.ok(index.includes('<p>Rendered during assembly.</p>'));
-            assert.strictEqual(
-                index,
-                renderReadmePage(readFileSync(join(dir, LANDING_PAGE_SOURCE), 'utf8'), {
-                    linkBase: REPO_BLOB_BASE,
-                })
-            );
+            assert.strictEqual(index, LANDING_REDIRECT_HTML);
+            assert.ok(index.includes('docs/'));
+            assert.ok(index.length < 1024, 'the published index should stay under 1 KB');
             assert.strictEqual(readFileSync(join(dir, '_site', 'jsmind.js'), 'utf8'), 'export {}\n');
             assert.strictEqual(
                 readFileSync(join(dir, '_site', 'playground.html'), 'utf8'),
@@ -703,26 +271,20 @@ describe('pages site assembly', () => {
         }
     });
 
-    it('points the README and the rendered landing page at the docs entry', () => {
+    it('points the README at the docs entry, not at the docs README blob', () => {
         const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
         const readmeZh = readFileSync(join(ROOT, 'README.zh.md'), 'utf8');
-        const landing = renderLandingPage(ROOT);
 
         assert.ok(hasHref(readme, DOCS_SITE_ENTRY));
         assert.ok(hasHref(readmeZh, DOCS_SITE_ENTRY));
-        assert.ok(hasHref(landing, DOCS_SITE_ENTRY));
 
         assert.ok(!hasHref(readme, DOCS_README_BLOB));
         assert.ok(!hasHref(readmeZh, DOCS_README_BLOB));
-        assert.ok(!hasHref(landing, DOCS_README_BLOB));
-        assert.ok(!landing.includes(DOCS_README_BLOB));
 
         assert.ok(!hasHref(readme, `${DOCS_SITE_ENTRY}en/`));
         assert.ok(!hasHref(readme, `${DOCS_SITE_ENTRY}zh/`));
         assert.ok(!hasHref(readmeZh, `${DOCS_SITE_ENTRY}en/`));
         assert.ok(!hasHref(readmeZh, `${DOCS_SITE_ENTRY}zh/`));
-        assert.ok(!hasHref(landing, `${DOCS_SITE_ENTRY}en/`));
-        assert.ok(!hasHref(landing, `${DOCS_SITE_ENTRY}zh/`));
     });
 
     it('builds the docs site with a language redirect and bilingual pages', () => {
