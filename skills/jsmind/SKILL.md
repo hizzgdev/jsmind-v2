@@ -15,7 +15,7 @@ Not a CLI manual. Does not replace `jsmind --help`. Does not decide structure â€
 
 The bans and the checkpoints below are the body. The command list at the end is not a tutorial and not optional background. It is the few lines you are most likely to forget. Do not skip it because you already know the CLI.
 
-Chinese copy of the same rules: [SKILL.zh.md](SKILL.zh.md). Follow this file.
+Installing this skill, and the CLI it calls, is in [INSTALL.md](INSTALL.md).
 
 ## Inputs (missing either one: fill it in before you start)
 

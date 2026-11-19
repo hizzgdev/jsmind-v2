@@ -6,22 +6,24 @@ jsmind skill 位于本仓库的 `skills/jsmind/`。它是一套禁令和检查�
 
 ## 在哪里找到它
 
-`master` 上的副本：
+`master` 上的文件：
 
 - 目录：[skills/jsmind/](https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind)
-- 中文：[skills/jsmind/SKILL.zh.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.zh.md)
-- 英文：[skills/jsmind/SKILL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md)
+- Skill：[skills/jsmind/SKILL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md)
+- 安装说明：[skills/jsmind/INSTALL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md)
 
-在本地克隆中，同样的文件位于 `skills/jsmind/SKILL.zh.md` 和 `skills/jsmind/SKILL.md`。
+在本地克隆中，同样的文件位于 `skills/jsmind/SKILL.md` 和 `skills/jsmind/INSTALL.md`。
 
 ## 怎么用
 
-把这些文件提供给 agent 即可。例如：
+把 skill 交给 agent 即可。例如：
 
-- 如果正在本仓库的克隆里工作，告诉 agent：生成或修改思维导图时按 `skills/jsmind/SKILL.zh.md`（或英文版）里的检查点做。
+- 如果正在本仓库的克隆里工作，告诉 agent：生成或修改思维导图时按 `skills/jsmind/SKILL.md` 里的检查点做。
 - 如果在别处工作，把整个 `skills/jsmind/` 目录复制到 agent 会加载 skill 的位置，保留 `jsmind/` 这一层。
 
 Skill 规定了哪些事不能做、哪些步骤不能跳过，以及该如何检查导出的图片。导图的结构仍由使用者（或 agent）自己决定。
+
+skill 只有英文版一份。它是给 agent 读的、不是给人读的，导图的文字语言由你的 prompt 决定，再存一份中文译文只会和这一份越走越远。
 
 ## 可直接复制的 prompt
 
@@ -30,36 +32,9 @@ Skill 规定了哪些事不能做、哪些步骤不能跳过，以及该如何�
 ### 安装 skill
 
 ```
-请从 jsmind-v2 仓库（https://github.com/hizzgdev/jsmind-v2）安装 jsMind skill，并把 jsmind CLI 装到能直接调用的位置。
+请从 https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md 安装 jsMind skill：读这份文件并照做。里面同时讲 skill 目录和 jsmind CLI，后者是另一个 npm 包。
 
-skill 只是说明文件，本身不带命令。生成或修改导图要走 jsmind CLI，那是另一个 npm 包，需要单独安装。skill 位于仓库的 `skills/jsmind/`，取整个目录，不要只下那两个 md：
-- 目录：https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind
-- 中文：https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.zh.md
-- 英文：https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md
-
-先装 CLI。2.x 还在预览通道上（npm 上的 tag 是 `v2-preview`），`latest` 仍然是 0.9.1（v1）：用 `npm i jsmind@2` 装，之后一律用 `npx jsmind <命令>` 调用。别只写 `npm i jsmind`：那会装到 0.9.1，这个包里没有 `bin` 字段，`npx jsmind` 报 `could not determine executable to run`，看着像 skill 坏了，其实是版本装错了。
-
-skill 正文里的命令写作 `jsmind <命令>`；按这条路线装，你实际敲的是 `npx jsmind <命令>`。
-
-环境：Node.js >= 22.12。`export` 需要本机有 Chromium；没有时 jsmind 报 `No Chromium found. Image export needs a browser`。这是缺浏览器，不是缺 skill 文件。
-
-然后放 skill，三步：
-1. 先确认当前 harness 从哪个目录加载 skill。
-2. 把 `skills/jsmind/` 放成 `<skills>/jsmind/`，保留 `jsmind/` 这一层；不要把 md 直接丢进 `skills/`。
-3. 放完回报一次能否被加载；加载不了就停下来说清楚，不要继续往下做。
-
-如果你已经在该仓库的克隆里工作，直接从 `skills/jsmind/` 原地加载，不用复制；CLI 用仓库自己的：`npm install && npm run build` 之后同样是 `npx jsmind`。
-
-最小验收，三项都过才算装好：
-- `npx jsmind --help` 打印用法（0.9.1 没有可执行文件，能出用法就说明装的是 2.x）；
-- `npx jsmind create` 建出的文件能通过 `npx jsmind validate`；
-- `npx jsmind export` 写出一张能打开的 PNG。
-
-装好之后，agent 生成或修改导图时会先 `context` 拿到节点 id，改完跑 `validate`，
-最后 `export` 出图。这些检查只有在走 CLI 时才存在：手写 JSON 也能画出图，
-但 id、分支方向、配色出错时没人拦。
-
-规则放在 skill 目录里就够了。不要把 skill 的规则抄进长期记忆（MEMORY.md 之类）：skill 有版本，记忆是死的，两边会打架。
+装完按文件末尾的 “Done means” 逐条核对，把每一条的结果告诉我。如果 skill 在你的 harness 里加载不了，停下来说清楚，不要绕过去。
 ```
 
 ### 示例：生成一张导图并导出 PNG
@@ -68,13 +43,10 @@ skill 正文里的命令写作 `jsmind <命令>`；按这条路线装，你实�
 请使用 jsMind skill，围绕「太阳系」生成一张思维导图，导出为 PNG。
 
 - 如果本会话已经加载过 jsMind skill，不要重复加载，直接用。
-- 输出到当前工作目录，文件名按主题取（solar-system.json / solar-system.png）。
-  不要用系统临时目录，也不要先问要不要移动。
+- 输出到当前工作目录，文件名按主题取（solar-system.json / solar-system.png）。不要用系统临时目录，也不要先问要不要移动。
 - 如果同名文件已存在，换个名字，不要覆盖。
-- 规模：太阳作为根节点，八大行星各一个一级分支，每个行星下至少两个二级分支。
-- 按 skill 的检查点顺序做：先 `npx jsmind context` 拿 id，改完 `npx jsmind validate`，通过后重新 `npx jsmind context` 核对父子缩进，最后 `npx jsmind export`。
-- 导出之后打开 PNG 看一眼：层级清楚、左右不要一边倒。
-- 完成后给出两个文件的绝对路径。
+- 内容：太阳作为根节点，八大行星各一个一级分支，每个行星下至少两个二级分支。
+- 完成的标准：两个文件都在；PNG 里层级分得清、左右不一边倒；完成后给出两个文件的绝对路径。
 ```
 
 ## 它覆盖什么
