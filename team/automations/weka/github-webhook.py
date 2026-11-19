@@ -13,7 +13,13 @@ Events handled:
 - issue_comment (created by the human on such a PR)       -> create a rework card
 - pull_request_review_comment (created by the human, same
   gate as a review)                                        -> create rework card
-- pull_request (closed)                                   -> clean up worktree
+- pull_request (closed)                                   -> clean up worktree, strip labels
+- issues (closed)                                         -> strip leftover labels
+
+Closing is the fallback that ends a label's life on the object. Both close
+payloads carry the object's current `labels`, so the cleanup reads that list and
+deletes only what is still there — no extra requests, and none of the 404s a
+blind DELETE would produce for the labels that are normally absent.
 
 Design contract (see README.md for the full version):
 
@@ -216,8 +222,24 @@ class Weka:
             print(f"[INFO] PR closed unmerged: kept local branch {branch}", file=sys.stderr)
         self._run(["git", "fetch", "--prune", "origin"])
 
-    def strip_labels(self, number: int) -> None:
-        """Best-effort removal of the flow labels from an issue/PR."""
+    def strip_labels(self, number: int | None, labels: list[str]) -> None:
+        """Best-effort removal of the flow labels still carrying `number`.
+
+        `labels` is the object's label list from the close payload, so only the
+        flow labels that are actually present get a request. A label that is
+        already gone needs none, which is the normal case on most closes: an
+        issue carries `weka-working` alone, a PR at merge time usually carries
+        `weka` and `weka-reviewed` alone.
+        """
+        if number is None:
+            print("[WARN] close payload carries no number: leaving flow labels in place", file=sys.stderr)
+            return
+        targets = [
+            label for label in (LABEL_WORKING, LABEL_REVIEWING, LABEL_REVIEWED) if label in labels
+        ]
+        if not targets:
+            print(f"[INFO] #{number} closed without flow labels: nothing to strip", file=sys.stderr)
+            return
         gh = shutil.which("gh")
         if gh is None:
             print("[WARN] gh not found: leaving flow labels in place", file=sys.stderr)
@@ -226,25 +248,38 @@ class Weka:
         if rc != 0 or not out:
             print(f"[WARN] repo lookup failed: {out}", file=sys.stderr)
             return
-        for label in (LABEL_WORKING, LABEL_REVIEWING, LABEL_REVIEWED):
+        for label in targets:
             rc, err = self._run(
                 ["gh", "api", "-X", "DELETE", f"repos/{out}/issues/{number}/labels/{label}"]
             )
             if rc != 0:
-                # A 404 means the label is already gone — that is the goal state,
-                # not a failure. Reserving WARN for real errors keeps it meaningful.
+                # The list said it was there, so a 404 means someone removed it
+                # in between: the goal state either way, not a failure. Reserving
+                # WARN for real errors keeps it meaningful.
                 if "HTTP 404" in err or "Label does not exist" in err:
                     continue
                 print(f"[WARN] label {label} not removed from #{number}: {err}", file=sys.stderr)
+            else:
+                print(f"[OK] removed {label} from #{number}")
 
     # ---- event handlers -----------------------------------------------------
 
     def handle_issue(self, payload: dict) -> None:
         action = payload.get("action", "")
-        if action not in ("opened", "labeled", "assigned"):
-            return
         issue = payload.get("issue", {})
         label_names = [lbl.get("name", "") for lbl in issue.get("labels", [])]
+        number = issue.get("number")
+
+        # Closing is the fallback that ends a label's life on the issue: an issue
+        # card puts weka-working on the Issue, and no worker is left holding it
+        # once the card is done, so a label that outlives the issue would stay
+        # forever. Checked before the open-time gates, which a close never passes.
+        if action == "closed":
+            self.strip_labels(number, label_names)
+            return
+
+        if action not in ("opened", "labeled", "assigned"):
+            return
         if self.label not in label_names:
             return
 
@@ -252,7 +287,6 @@ class Weka:
         # otherwise anyone on the public repo could open an issue with the label
         # and drain the team's LLM budget. `assignees` is the full list; the
         # scalar `assignee` is order-dependent when several people are assigned.
-        number = issue.get("number")
         assigned = [a.get("login") for a in (issue.get("assignees") or []) if a]
         if not assigned:
             assigned = [(issue.get("assignee") or {}).get("login")]
@@ -428,6 +462,7 @@ class Weka:
         number = pr.get("number")
         merged = bool(pr.get("merged"))
         branch = ((pr.get("head") or {}).get("ref")) or ""
+        labels = [lbl.get("name", "") for lbl in (pr.get("labels") or [])]
         print(f"[INFO] PR #{number} closed (merged={merged}), cleaning up {branch}", file=sys.stderr)
 
         existing = self.open_card_for(number)
@@ -439,7 +474,7 @@ class Weka:
             )
 
         self.cleanup_branch(branch, merged)
-        self.strip_labels(number)
+        self.strip_labels(number, labels)
 
     @staticmethod
     def _pr_number(payload: dict) -> int | None:

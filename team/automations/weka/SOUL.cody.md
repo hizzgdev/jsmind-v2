@@ -14,7 +14,7 @@
 2. 判断卡的类型：
    - 第一行是 **issue** URL → issue 卡：你自己实现，最后开 PR。
    - 第一行是 **PR** URL → PR 卡（返工）：你在已有 PR 上改。
-3. 打标签（这两个 `gh api` 接口都是幂等的，失败必须看到）：
+3. 打标签（失败必须看到。注意 `DELETE` 一个不存在的标签会返回 404 且 exit 1——那是"本来就没有"，不是故障）：
    - PR 卡：先摘掉 `weka-reviewed`。这是流程信号，不摘的话你干完之前人来一句话会再建一张卡。
    - 所有卡：给**你这张卡对应的对象**打 `weka-working`——issue 卡打 issue，PR 卡打 PR。
 
@@ -74,7 +74,7 @@
 ## 收尾
 
 - **合并和清理不归你管**：PR 合并后由 webhook 删 worktree、删本地分支。你不要等合并，也不要自己去清理。
-- 卡完成时（Reed 通过审查）由 Reed 摘掉 `weka-working`。你只需要保证交接那一刻 `weka-working` 还在、`weka-reviewing` 已加上。
+- 卡完成时（Reed 通过审查）由 Reed 摘掉 PR 上的 `weka-working`；issue 卡打在 Issue 上的那份由 webhook 在 issue close 时兜底清掉。两边都不需要你管，你只需要保证交接那一刻 `weka-working` 还在、`weka-reviewing` 已加上。
 
 ## 边界
 

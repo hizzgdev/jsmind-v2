@@ -28,17 +28,30 @@
 依次做完四件事，然后才算结束：
 
 1. 在 PR 上写"技术审查通过"。
-2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，并摘掉 `weka-working`（卡在这一刻结束）。
+2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，并摘掉 PR 上的 `weka-working`。
 3. 把仓库所有者加为 reviewer：`gh api -X POST repos/{owner}/{repo}/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev`。
-4. `kanban_complete(summary="...")`。
+4. `kanban_complete(summary="...")`。卡在这一刻结束。
 
-标签操作用幂接口，不要用 `gh pr edit`：
+标签操作不要用 `gh pr edit`。摘 `weka-working` 前先确认它确实在上面——`DELETE` 一个不存在的标签返回 404 且 exit 1，会让人误以为清理失败；先确认存在再删，才是真正幂等的。`weka-reviewing` 在审查时必然在 PR 上，直接删即可：
 
 ```bash
+# <number> 始终是 PR 编号
 gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewing
 gh api -X POST   repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewed
-gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working
+
+# issue 卡的 weka-working 打在 Issue 上，PR 上没有；这里只清 PR 自己的那份，
+# 没有就 no-op。Issue 上的那份不归你管，也不需要去 PR body 里找 Closes #N——
+# webhook 在 issue close 时会按事件里的标签兜底清掉。
+if ! labels=$(gh api repos/{owner}/{repo}/issues/<number> --jq '.labels[].name'); then
+  echo "WARN: label lookup failed for #<number>; weka-working not checked" >&2
+elif printf '%s\n' "$labels" | grep -qx weka-working; then
+  gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working
+fi
 ```
+
+`grep -qx` 匹配不到标签时整段什么都不做——这就是"已经干净"的正常路径：issue 卡的 PR 上本来就没有 `weka-working`，静默通过，退出码为 0。
+
+但"读不到"和"本来没有"要分开：标签列表那次 `gh api` 自己失败（鉴权、网络）时 `--jq` 没有输出，光靠管道会把它误判成"已经干净"。上面的写法用 `if ! labels=$(...)` 把读取失败单独接住并打 `WARN`——没检查过不算清理成功。DELETE 本身报错（权限、网络）同样是失败。
 
 **不要尝试清空自己的 assignee。** 卡完成（`kanban_complete`）就是终点：卡一旦 done 就不再被调度，调度器自然不会把你再拉起来。worker 上下文里 `hermes kanban assign` 会被围栏拒绝，那是设计如此，不是故障。
 
