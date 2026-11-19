@@ -21,6 +21,7 @@
  */
 
 import { test, before, after } from 'node:test';
+import type { TestContext } from 'node:test';
 import assert from 'node:assert';
 
 import { BrowserHarness, StaticServer } from './helpers.ts';
@@ -61,6 +62,27 @@ interface ConsoleLine {
     type: string;
     text: string;
 }
+
+/** The right-hand column as the browser lays it out. */
+interface ReadOnlyPanels {
+    headers: string[];
+    setupText: string;
+    setupFontSize: number;
+    initFontSize: number;
+    editorFontSize: number;
+    setupOverflow: number;
+    initOverflow: number;
+    heights: number[];
+    prismLoaded: boolean;
+    prismRequested: boolean;
+    setupTokens: number;
+    initTokens: number;
+    setupColors: string[];
+    initColors: string[];
+}
+
+/** How long to wait for the CDN copy of Prism before calling it unreachable. */
+const PRISM_TIMEOUT_MS = 10_000;
 
 let browser: BrowserHarness;
 
@@ -244,6 +266,110 @@ test('ui - playground header contains a visible link to the jsmind-v2 repository
     assert.strictEqual(link.target, '_blank');
     assert.ok(link.rel.split(/\s+/).includes('noopener'), 'the link should use rel=noopener');
     assert.ok(link.text.includes('jsmind-v2'), 'the link should visibly name the jsmind-v2 project');
+});
+
+test('ui - the right column shows the CDN setup line above the read-only code, both smaller and highlighted', async (t: TestContext) => {
+    const view = await browser.evaluate<ReadOnlyPanels>(
+        `(async () => {
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            // Prism is fetched from a CDN, so give it a bounded chance to
+            // arrive. Without it the page is expected to keep working, and
+            // only the colour assertions are skipped.
+            const deadline = Date.now() + ${PRISM_TIMEOUT_MS};
+            while (Date.now() < deadline && !window.Prism) {
+                await sleep(100);
+            }
+            if (window.Prism) {
+                const paintDeadline = Date.now() + 2000;
+                while (Date.now() < paintDeadline && !document.querySelector('#init-code-editor .token')) {
+                    await sleep(50);
+                }
+            }
+
+            const sections = [...document.querySelectorAll('.right-panel .code-section')];
+            const setupCode = document.getElementById('setup-code');
+            const setupPre = setupCode ? setupCode.closest('pre') : null;
+            const initPre = document.querySelector('#init-code-editor pre');
+            const initCode = initPre ? initPre.querySelector('code') : null;
+            const textarea = document.querySelector('#code-editor textarea');
+            const fontSize = el => (el ? Number.parseFloat(getComputedStyle(el).fontSize) : 0);
+            const colors = el => (el
+                ? [...new Set([...el.querySelectorAll('.token')].map(token => getComputedStyle(token).color))]
+                : []);
+
+            return {
+                headers: sections.map(section => section.querySelector('.panel-header').textContent),
+                setupText: setupCode ? setupCode.textContent : '',
+                setupFontSize: fontSize(setupCode),
+                initFontSize: fontSize(initCode),
+                editorFontSize: fontSize(textarea),
+                setupOverflow: setupPre ? setupPre.scrollWidth - setupPre.clientWidth : -1,
+                initOverflow: initPre ? initPre.scrollWidth - initPre.clientWidth : -1,
+                heights: sections.map(section => Math.round(section.getBoundingClientRect().height)),
+                prismLoaded: Boolean(window.Prism),
+                prismRequested: [...document.scripts].some(script => script.src.includes('prism.min.js')),
+                setupTokens: setupCode ? setupCode.querySelectorAll('.token').length : 0,
+                initTokens: initCode ? initCode.querySelectorAll('.token').length : 0,
+                setupColors: colors(setupCode),
+                initColors: colors(initCode),
+            };
+        })()`,
+        true
+    );
+
+    assert.deepStrictEqual(
+        view.headers,
+        ['Setup (Read-only)', 'Initialization Code (Read-only)', 'Code Editor'],
+        'the right column should read Setup, then Initialization Code, then Code Editor'
+    );
+
+    // The escaped tag is shown as text: the page itself keeps loading the local
+    // bundle, and @2 (not @latest, still v1) is the range the docs advertise.
+    assert.strictEqual(
+        view.setupText,
+        '<script type="module" src="https://cdn.jsdelivr.net/npm/jsmind@2/dist/jsmind.js"></script>',
+        'the Setup block should show the CDN script tag as text'
+    );
+
+    assert.ok(
+        view.setupFontSize > 0 && view.setupFontSize <= 13,
+        `the Setup block should be set around 12px, got ${view.setupFontSize}px`
+    );
+    assert.ok(
+        view.initFontSize > 0 && view.initFontSize <= 13,
+        `the read-only initialization code should be set around 12px, got ${view.initFontSize}px`
+    );
+    assert.strictEqual(view.editorFontSize, 14, 'the editable textarea should keep its 14px type');
+    assert.ok(
+        view.setupFontSize < view.editorFontSize && view.initFontSize < view.editorFontSize,
+        'both read-only blocks should be smaller than the editable editor'
+    );
+
+    // prism-tomorrow wants `white-space: pre`; the read-only blocks have to
+    // wrap instead of scrolling sideways.
+    assert.ok(view.setupOverflow <= 1, `the Setup block should not overflow sideways, by ${view.setupOverflow}px`);
+    assert.ok(view.initOverflow <= 1, `the initialization block should not overflow sideways, by ${view.initOverflow}px`);
+
+    // Setup takes its content height, the initialization block keeps its 35%,
+    // and the editor takes what is left.
+    assert.ok(
+        view.heights[0] < view.heights[1] && view.heights[1] < view.heights[2],
+        `expected Setup < Initialization Code < Code Editor, got ${view.heights.join(' / ')}`
+    );
+
+    if (!view.prismLoaded) {
+        t.diagnostic('Prism did not load from the CDN; colour assertions skipped (plain text is the documented fallback)');
+        assert.strictEqual(view.setupTokens, 0, 'without Prism the setup line should stay plain text');
+        assert.strictEqual(view.initTokens, 0, 'without Prism the init code should stay plain text');
+        return;
+    }
+
+    assert.ok(view.prismRequested, 'the page should request Prism from the CDN');
+    assert.ok(view.setupTokens > 0, 'the Setup line should be tokenized');
+    assert.ok(view.initTokens > 0, 'the initialization code should be tokenized after it is inserted');
+    assert.ok(view.setupColors.length > 1, `the Setup line should use more than one token colour, got ${view.setupColors.join(', ')}`);
+    assert.ok(view.initColors.length > 1, `the initialization code should use more than one token colour, got ${view.initColors.join(', ')}`);
 });
 
 test('ui - playground node clicks update the info bar under a shadow root, and a blank click clears it', async () => {
