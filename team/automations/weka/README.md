@@ -108,6 +108,57 @@ webhook 脚本要求 Python 3.10+，只依赖标准库。不要用系统自带�
 
 下面 service 模板的 `ExecStart` 已经指向这个 venv；换机器时按实际 Python 路径调整。
 
+## 并发与资源
+
+同一时刻能跑几个 worker，由两个键决定，都在 `~/.hermes/config.yaml` 的 `kanban:` 段：
+
+```yaml
+kanban:
+  max_in_progress_per_profile: 1   # 每个 profile 最多一个在跑
+  max_in_progress: 2               # 整机同时最多两个
+```
+
+注意位置：这两个键属于调度器，写 Hermes 的主配置；本目录的 `config.json` 只管 webhook 的端口、密钥、标签，两者不要混。
+
+| 键 | 作用 | 取值 |
+| --- | --- | --- |
+| `max_in_progress_per_profile` | 按 assignee 数 `running` 卡。到上限的 profile 本轮被跳过（`skipped_per_profile_capped`），下一 tick 再试。一个 profile 不会并行干两张卡。 | `1` |
+| `max_in_progress` | 整机上限，跨 board 计数，不看 assignee。 | `2` |
+
+两个都是正整数，用 `hermes config set` 写：
+
+```bash
+hermes config set kanban.max_in_progress_per_profile 1
+hermes config set kanban.max_in_progress 2
+```
+
+为什么设这两个值：
+
+- 一个 profile 同时只推进一张卡。同一个 profile 的两张卡会抢同一个工作区和分支，串行比并行稳。
+- 整机上限定成 2，正好是 Cody 一张 + Reed 一张：两个人都有位置，谁也不会把另一个饿死。
+- worker 是完整的 Hermes 会话，各自要跑构建和测试；并行数直接叠加 CPU 和内存占用。放开名额不会让流程变快，只会让几个 worker 抢同一台机器，一起变慢。
+
+`max_in_progress` 不显式设置时，调度器按内存总量推一个默认值（每 512MB 一个名额，下限 2、上限 8）。这个默认值偏向让机器跑满，建议显式写死。
+
+两个键在 gateway 启动时读一次并缓存，改完必须重启才生效：
+
+```bash
+systemctl --user restart hermes-gateway
+grep 'max_in_progress' ~/.hermes/logs/gateway.log | tail -2
+```
+
+日志会打印实际生效的值：`max_in_progress_per_profile=1`；`max_in_progress` 显式设置后，那条 `kanban.max_in_progress unset; using memory-derived default …` 就不再出现。
+
+### 流程变慢先看这两个键
+
+症状：卡在板上 `ready`，十几分钟不动；或者 gateway 日志里 `spawned=0` 而队列非空。
+
+- `hermes kanban --board jsmind-v2 list --status ready` 有卡，`running` 却只有一张：`max_in_progress_per_profile=1` 挡住了第二张（同一个 profile 的前一张还没收尾）。排队是设计如此，不是故障。
+- 已经两张在跑，新卡不动：`max_in_progress=2` 用满了，等其中一张收尾。
+- 长期只有一张卡在跑：所有卡都指派给了同一个 profile。per-profile 的 1 是按 profile 算的，不是全局。
+
+要放宽就先确认机器扛得住：worker 跑构建和测试时的 CPU、内存占用不会因为上限调大而变小，上限放开只是让它们同时抢。
+
 ## 重建清单
 
 在全新机器上按顺序重建：
@@ -155,6 +206,10 @@ hermes -p reed config set model.default deepseek-v4.1-flash
 ```bash
 hermes kanban boards create jsmind-v2
 hermes project create jsmind-v2 ~/repos/jsmind-v2 --board jsmind-v2 --use
+
+# 调度器并发上限（见上文「并发与资源」）
+hermes config set kanban.max_in_progress_per_profile 1
+hermes config set kanban.max_in_progress 2
 ```
 
 `--use` 把 project 设为 active。board 的 DB 会落在
