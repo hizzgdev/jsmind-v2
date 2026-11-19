@@ -415,12 +415,14 @@ describe('pages site assembly', () => {
             assert.ok(zhSkill.includes('skills/jsmind/'));
             assert.ok(enSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md'));
             assert.ok(zhSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.zh.md'));
-            assert.ok(enSkill.includes('do not hand-write the JSON'));
-            assert.ok(zhSkill.includes('不要手写 JSON'));
-            assert.ok(enSkill.includes('[topic]'));
-            assert.ok(zhSkill.includes('[主题]'));
-            assert.ok(enSkill.includes('npm i jsmind@2'));
-            assert.ok(zhSkill.includes('npm i jsmind@2'));
+            // The guide must name the CLI package and the 2.x channel: the skill alone
+            // ships no commands, and a bare `npm i jsmind` resolves to v1 (0.9.1).
+            assert.ok(enSkill.includes('npm i -g jsmind@2'));
+            assert.ok(zhSkill.includes('npm i -g jsmind@2'));
+            assert.ok(enSkill.includes('No Chromium found'));
+            assert.ok(zhSkill.includes('No Chromium found'));
+            assert.ok(enSkill.includes('solar-system.json'));
+            assert.ok(zhSkill.includes('solar-system.json'));
             assert.ok(enSkill.includes('jsmind validate'));
             assert.ok(zhSkill.includes('jsmind validate'));
 

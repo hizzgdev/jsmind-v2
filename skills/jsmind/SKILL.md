@@ -22,7 +22,7 @@ Chinese copy of the same rules: [SKILL.zh.md](SKILL.zh.md). Follow this file.
 - **Path**: one `.json`, and the corresponding `.png` for export.
 - **Intent**: `BUILD` (new structure on an empty map) or `CHANGE` (edit an existing map). If the user does not name either, pick the one that fits: no existing map, or they asked you to draw a new picture → `BUILD`; they asked you to change a map that already exists → `CHANGE`.
 
-The user gave a path: use it. The user gave no path: request temporary files from the current system — one JSON and a corresponding PNG — and generate usable paths in the system temporary directory, for example with `mktemp` or the platform temporary directory.
+The user gave a path: use it. A path given in the task description counts as the user's path — use it as given, and do not redirect it to the temporary directory. The user gave no path: request temporary files from the current system — one JSON and a corresponding PNG — and generate usable paths in the system temporary directory, for example with `mktemp` or the platform temporary directory.
 
 File does not exist, and the intent is `BUILD`: `create` that path. `create` does not make the parent directory, so a path whose directory is missing fails with `ENOENT` and exit code 3 — create the directory first. Do not write the JSON yourself. File already exists: do not `create --force`. That overwrites. It is not an edit.
 
