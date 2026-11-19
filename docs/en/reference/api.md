@@ -4,7 +4,7 @@
 The jsMind V2 programming API is currently a preview. The API will change in later updates. Please check this documentation anytime for the interface that is current.
 :::
 
-This page shows how to start calling the published 2.0.1 API. It covers only capabilities that are already in the `jsmind@2` package. Class, interface, and method details are generated from the published typings `dist/jsmind.d.ts` and live in the pages linked below.
+This page shows how to start calling the published 2.x API. It covers only capabilities that are already in the `jsmind@2` package. Class, interface, and method details are generated from the published typings `dist/jsmind.d.ts` and live in the pages linked below.
 
 Install the 2.x version with `npm i jsmind@2`. `npm i jsmind` still installs v1 (0.9.x). See [Getting Started](/en/guide/getting-started) for install details.
 

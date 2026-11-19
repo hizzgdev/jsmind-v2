@@ -83,6 +83,6 @@ The 22 error codes fall into four groups: structural integrity (`E_FORMAT` / `E_
 
 ## 5. autofix
 
-`--autofix` is not available in the published 2.0.1 CLI. The current command is only `jsmind validate <file> [--json]`: it reports problems and does not modify the file.
+`--autofix` is not available in the published 2.x CLI. The current command is only `jsmind validate <file> [--json]`: it reports problems and does not modify the file.
 
 The format specification describes a future `--autofix` that would write repairs, **never silently** — a list of changes must be printed. The repair principle is: prefer a wrong position over dropped data (orphan nodes are hung under root), do not rebuild `children` order, and do not modify `content`. Detailed rules are in [section 10 of `v2-data-format.md`](https://github.com/hizzgdev/jsmind-v2/blob/master/docs/requirements/v2-data-format.md#10-autofix).
