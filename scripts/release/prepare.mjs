@@ -218,8 +218,24 @@ function main(argv) {
 
     step('Commit and push');
     git(['add', 'package.json', 'package-lock.json']);
-    git(['commit', '-m', `chore(release): ${target}`]);
-    git(['push', '-u', 'origin', releaseBranch]);
+    try {
+        git(['commit', '-m', `chore(release): ${target}`]);
+    }
+    catch (error) {
+        fail(
+            `git commit failed on ${releaseBranch}.`,
+            `${error.message}\npackage.json and package-lock.json are bumped and staged. Commit by hand, or undo with:\n  git checkout -- package.json package-lock.json\n  git checkout master\n  git branch -d ${releaseBranch}`,
+        );
+    }
+    try {
+        git(['push', '-u', 'origin', releaseBranch]);
+    }
+    catch (error) {
+        fail(
+            `git push failed. The release commit is on ${releaseBranch}; no pull request was opened.`,
+            `${error.message}\nThe branch is ready locally. Retry with:\n  git push -u origin ${releaseBranch}\nthen open the pull request with the release plan printed above.`,
+        );
+    }
     note(`pushed ${releaseBranch}`);
 
     const tmp = join(root, 'tmp');

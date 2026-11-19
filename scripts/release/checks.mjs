@@ -103,13 +103,19 @@ export function checkCiSuccess(runs, headSha) {
     return null;
 }
 
-/** A version is released once. An existing tag - local or on origin - is final. */
+/**
+ * A version is released once. An existing tag - local or on origin - is final,
+ * with one exception worth its own message: a tag that exists locally but not
+ * on origin is what a run that failed between `git tag` and `git push` leaves
+ * behind, and calling that "released" would send the maintainer to bump the
+ * version of a release that never happened.
+ */
 export function checkTagAbsent(tag, { localTags, remoteTags }) {
-    if (localTags.includes(tag)) {
-        return `tag ${tag} already exists locally; that version has been released.\nA published version cannot be replaced — release the next one.`;
-    }
     if (remoteTags.includes(tag)) {
         return `tag ${tag} already exists on origin; that version has been released.\nA published version cannot be replaced — release the next one.`;
+    }
+    if (localTags.includes(tag)) {
+        return `tag ${tag} already exists locally but not on origin.\nIf an earlier run failed while pushing it, nothing was released: delete it with \`git tag -d ${tag}\` and run again.`;
     }
     return null;
 }

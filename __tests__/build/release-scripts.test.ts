@@ -96,12 +96,19 @@ describe('preflight checks', () => {
 
     it('never reuses a tag, locally or on origin', () => {
         assert.equal(checks.checkTagAbsent('v2.0.2', { localTags: [], remoteTags: [] }), null);
-        assert.match(
-            checks.checkTagAbsent('v2.0.2', { localTags: ['v2.0.2'], remoteTags: [] }),
-            /already exists locally/,
-        );
+        // Local-only is the leftover of a run that tagged and then failed to
+        // push: the message has to say how to recover, not that it shipped.
+        const localOnly = checks.checkTagAbsent('v2.0.2', { localTags: ['v2.0.2'], remoteTags: [] });
+        assert.match(localOnly, /already exists locally/);
+        assert.match(localOnly, /nothing was released/);
+        assert.match(localOnly, /git tag -d v2\.0\.2/);
         assert.match(
             checks.checkTagAbsent('v2.0.2', { localTags: [], remoteTags: ['v2.0.2'] }),
+            /already exists on origin/,
+        );
+        // A tag on origin is released whatever the local repository thinks.
+        assert.match(
+            checks.checkTagAbsent('v2.0.2', { localTags: ['v2.0.2'], remoteTags: ['v2.0.2'] }),
             /already exists on origin/,
         );
     });

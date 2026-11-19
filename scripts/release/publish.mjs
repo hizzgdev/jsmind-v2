@@ -155,8 +155,23 @@ function main(argv) {
     console.log(readFileSync(notesPath, 'utf8'));
 
     step(`Tagging ${tag}`);
-    git(['tag', tag]);
-    git(['push', 'origin', tag]);
+    try {
+        git(['tag', tag]);
+    }
+    catch (error) {
+        fail(`git tag ${tag} failed; nothing was released.`, error.message);
+    }
+    try {
+        git(['push', 'origin', tag]);
+    }
+    catch (error) {
+        // The tag is local-only now, which the next run reports as a tag that
+        // needs deleting rather than a version that shipped.
+        fail(
+            `git push origin ${tag} failed, so nothing was released. The tag exists locally.`,
+            `${error.message}\nDelete it and run this command again:\n  git tag -d ${tag}\n  npm run release:publish`,
+        );
+    }
     note(`pushed tag ${tag}`);
 
     step('Creating the GitHub Release');
