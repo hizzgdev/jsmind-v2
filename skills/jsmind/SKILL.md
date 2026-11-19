@@ -5,7 +5,8 @@ description: >-
   jsmind CLI. Use when the task is to draw or edit a mind map, including when
   the user only says "draw me a picture of X" and gives no path and does not
   say BUILD or CHANGE. Not a CLI manual — do not use it to look up flags that
-  --help already covers.
+  --help already covers. `jsmind --help` prints every subcommand in one place,
+  so when you need one, read that subcommand's section of it.
 ---
 
 # jsmind — bans and a checklist
@@ -23,7 +24,7 @@ Chinese copy of the same rules: [SKILL.zh.md](SKILL.zh.md). Follow this file.
 
 The user gave a path: use it. The user gave no path: request temporary files from the current system — one JSON and a corresponding PNG — and generate usable paths in the system temporary directory, for example with `mktemp` or the platform temporary directory.
 
-File does not exist, and the intent is `BUILD`: `create` that path. Do not write the JSON yourself. File already exists: do not `create --force`. That overwrites. It is not an edit.
+File does not exist, and the intent is `BUILD`: `create` that path. `create` does not make the parent directory, so a path whose directory is missing fails with `ENOENT` and exit code 3 — create the directory first. Do not write the JSON yourself. File already exists: do not `create --force`. That overwrites. It is not an edit.
 
 When all work is done, if the files are still in the temporary directory, ask the user whether to move those two files somewhere else. They give a new location: move them. They do not: leave them as temporary files.
 
@@ -37,6 +38,7 @@ When all work is done, if the files are still in the temporary directory, ask th
 - **Do not write the JSON file directly.** No editor, redirect, script, or read-modify-write. That bypasses `write → validate → rollback`.
 - **Do not bypass `jsmind`.** Add or remove nodes, change text, change side, fold, change style: all through `jsmind` subcommands.
 - **Do not continue while `validate` is failing.** Exit code is not 0: stop. Do not `export`. Do not start the next round of edits. Get `validate` to pass first.
+- **Read the exit code before you decide what is broken.** Non-zero does not always mean the data is bad, and guessing wrong sends you to edit a file that was never the problem. `1` is invalid data: the report names the nodes, fix those. `2` is a usage error — missing argument, unknown flag, value out of range — so the command is wrong, fix the command and leave the file alone. `3` is an IO or runtime failure, such as a file that does not exist or a missing parent directory: fix the environment, not the mind map.
 
 ## Hard checkpoints (in order, do not skip)
 
@@ -52,16 +54,18 @@ Get the ids, and see what the file contains now. The tree you remember and the t
 
 Do not copy an id yet. The next heading is still this checkpoint.
 
-### Read that `context` before you copy an id
+#### Read that `context` before you copy an id
 
 How to read the CLI output. Not a new step. Skip this and checkpoint 1 is not done.
+
+An id, `folded` or a style override taken out of the text tree is a field parsed from a format built for eyes, and every bullet below is a way that parse goes wrong. When you need the data rather than the picture, run `context --json`: it returns `id`, `level` and `text` for every node, plus `side` for the root and its direct children, `folded` when the node is folded, and `style` when the node overrides the theme. The text form below is for seeing the tree.
 
 - The id is at the start of the line. The text on that same line is that id's label. The status block at the end of the line contains `side` only for the root and the root's direct children, and `folded` when the node is folded. This only locates a node. It does not replace looking at the picture.
 - `--focus` prints the match together with its ancestors. Take the id from **the line whose label matches**. Do not take the first line (that is usually an ancestor, or the root).
 - The label is cut to an ellipsis, and you are about to change that text: run `context` again with `--full-text`. Still checkpoint 1.
 - After `validate` passes (checkpoint 2), run `context` again. A child must be indented under its parent. Wrong indent means the pair is not the one you wanted. Back to checkpoint 1. Do not `export`.
 
-### This round of `mind` / `node` edits
+#### This round of `mind` / `node` edits
 
 After checkpoint 1, before checkpoint 2. A round may be several commands. The round is over when you are about to look at the picture, or about to start a different kind of edit. Then checkpoint 2.
 
@@ -70,6 +74,24 @@ After checkpoint 1, before checkpoint 2. A round may be several commands. The ro
 **Do not skip:** a broken file does not show in the command echo. Exit code is not 0: stop. See the bans.
 
 Passing only means the file is legal. It does not mean the parent and child are the pair you wanted. Immediately `context` again and check the indent (previous heading, last bullet). Wrong indent: back to checkpoint 1. Do not `export`.
+
+A failure prints one block per problem — the error code, the path inside the document, and one sentence saying what is wrong there. `validate` reports every problem it finds, not just the first, so the count in the first line is the number of blocks you have to work through:
+
+```
+$ jsmind validate bad.json
+bad.json: 4 problem(s)
+
+  E_FORMAT  format
+    Expected format "jsmind_v2", got "jsmind".
+  E_META  meta
+    Missing "meta" object.
+  E_NODES_MISSING  nodes
+    Missing "nodes" object.
+  E_EDGES_MISSING  edges
+    Missing "edges" object.
+```
+
+Fix along the path each block names, then run `validate` on the whole file again. The second run is what counts: a fix can clear one problem and leave the rest.
 
 ### 3. `export` and look, once this round's structure is done
 
@@ -90,7 +112,7 @@ Open the png. Each of the four gets a pass or a fail. "Looks fine" and "overall 
 1. **Crushed text** — Fail: glyphs overlap, or text draws outside the node box. Fix: `node set-style` with a smaller `--font-size` on that node, or split the long label into shorter nodes (change text, remove, add — all through the CLI).
 2. **One side overloaded** — Fail: one side is crowded and deep, the other is almost empty. Fix: `node set-side` moves some nodes to the lighter side (`left` or `right`).
 3. **Folded when this task needs it open** — Fail: a branch this task has to show is collapsed (only the parent is on the picture, or the `context` line ends with `folded`). Fix: `node set-folded --folded false`.
-4. **Lines cross** — Fail: lines pass through each other or knot, instead of leaving the parent toward the children. Fix: change those nodes' side, or `mind move` until the crossings are gone. Do not edit coordinates.
+4. **Lines cross** — Fail: lines pass through each other or knot, instead of leaving the parent toward the children. Fix: only the root's direct children have a side that moves anything, so find the root-level child the crossing branch hangs off and move that one with `node set-side`. Running `set-side` on a deeper node exits 0 and prints a confirmation, but the picture does not change. Not enough: `mind move` changes the parent and child instead. Do not edit coordinates.
 
 All four pass, or this look is not done.
 
@@ -114,7 +136,9 @@ mind remove-node <file> --node-id <id>
 mind move <file> --node-id <id> --parent-id <id>
 ```
 
-`side` is only meaningful for the root's direct children. A new child of the root defaults to the right side. To change side, add the node first, then use `node set-side`. Do not pass `--side` to `add-child`. After you change side, check `side=` at the end of the `context` line (root and root children only).
+`side` is only meaningful for the root's direct children. A new child of the root defaults to the right side. To change side, add the node first, then use `node set-side`. Do not pass `--side` to `add-child`: the flag is accepted and silently ignored, so the command exits 0 and the node still lands on the right. `add-child --side` is exactly the case the bans warn about — the echo says nothing, and only `side=` at the end of the `context` line says whether a side actually changed (root and root children only).
+
+`--backup` keeps a `.bak` copy of the file before overwriting it, and `--dry-run` prints the document it would write and writes nothing. Both apply to the commands that write the mind map — `create`, `mind`, `node` — and not to `export`, which writes only the image. In a `CHANGE` task they are the cheap way to see a round's result before trusting it: `--dry-run` for the next command, `--backup` before the round.
 
 ## Example session
 

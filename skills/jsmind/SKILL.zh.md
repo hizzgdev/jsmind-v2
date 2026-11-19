@@ -5,7 +5,8 @@ description: >-
   jsmind CLI. Use when the task is to draw or edit a mind map, including when
   the user only says "draw me a picture of X" and gives no path and does not
   say BUILD or CHANGE. Not a CLI manual — do not use it to look up flags that
-  --help already covers.
+  --help already covers. `jsmind --help` prints every subcommand in one place,
+  so when you need one, read that subcommand's section of it.
 ---
 
 # jsmind — 画图禁令与检查清单
@@ -23,7 +24,7 @@ description: >-
 
 用户指定了路径，就用用户的路径。未指定路径时，向当前系统申请临时文件（JSON 和对应的 PNG 各一个），用系统临时目录生成可用路径，例如通过 `mktemp` 或该平台的临时目录。
 
-文件还不存在，并且意图是 `BUILD`：用 `create` 建出那个路径。不要自己写出 JSON。文件已经存在：不要 `create --force`，那是覆盖，不是编辑。
+文件还不存在，并且意图是 `BUILD`：用 `create` 建出那个路径。`create` 不会替你建父目录，目录不存在时直接 `ENOENT`、退出码 3——先把目录建出来。不要自己写出 JSON。文件已经存在：不要 `create --force`，那是覆盖，不是编辑。
 
 全部做完后，如果这两个文件还在临时目录，再问用户要不要把它们放到别的地方。用户给了新位置就移过去，不给就保持在临时文件。
 
@@ -37,6 +38,7 @@ description: >-
 - **不许直接写 JSON 文件。** 不许用编辑器、重定向、脚本或「读出来改完再写回」去改这个文件。那会绕过 `write → validate → rollback`。
 - **不许绕过 `jsmind`。** 增删节点、改字、换边、折叠、改样式，全部走 `jsmind` 子命令。
 - **不许在 `validate` 未通过时继续。** 退出码不是 0：停。不要 `export`，不要开始下一轮改动。先改到 `validate` 通过。
+- **先分清退出码是哪一类，再决定改什么。** 非 0 不等于数据坏了，猜错方向会让你去改一个本来没毛病的文件。`1` 是数据非法：报错点名了节点，按它改。`2` 是用法错误——缺参数、未知 flag、取值越界——命令写错了，改命令，别动文件。`3` 是 IO 或运行时失败，比如文件不存在、父目录不存在：修环境，不是修脑图。
 
 ## 硬性检查点（按顺序，不许跳）
 
@@ -52,16 +54,18 @@ description: >-
 
 先别抄 id。下一节仍是这一检查点。
 
-### 抄 id 之前，先读懂这次 `context`
+#### 抄 id 之前，先读懂这次 `context`
 
 这是 CLI 输出怎么读，不是新的一步。跳过它，检查点 1 就不算做完。
+
+从文本树里抠 id、抠 `folded`、抠样式，等于去解析一种给人眼看的格式——下面每一条都是这种解析会踩的坑。要的是数据而不是画面时，用 `context --json`：它给每个节点返回 `id`、`level`、`text`，根和根的直接子节点另有 `side`，折叠的节点有 `folded`，覆盖了主题的节点有 `style`。文本形态只用来看树。
 
 - 行首是 id，同一行的文字是这个 id 的标签。行尾状态块里，`side` 只出现在根和根的直接子节点上；折叠时还有 `folded`。这只用于定位，不能代替看图。
 - `--focus` 会连同祖先一起打印。要用**标签对得上的那一行**的 id，不要用输出里的第一行（那通常是祖先或根）。
 - 标签被截成省略号，而你正要改这段文字：给 `context` 加上 `--full-text` 再读一次。这仍然是检查点 1。
 - `validate` 通过之后（检查点 2）立刻再跑一次 `context`。子节点必须缩进在对应父节点下面。缩进错了，父子就不是你要的那一对。回到检查点 1，不要 `export`。
 
-### 这一轮的 `mind` / `node`
+#### 这一轮的 `mind` / `node`
 
 在检查点 1 之后、检查点 2 之前。一轮可以含多条命令。结束的标志是你准备看图，或准备做下一类改动。然后进入检查点 2。
 
@@ -70,6 +74,24 @@ description: >-
 **不能跳过：** 文件坏了，你读命令回显看不出来。退出码不是 0 就停，见禁令。
 
 `validate` 通过只说明文件合法，不说明父子关系是你要的那一对。通过后立刻再跑一次 `context`，按上一节最后一条核对缩进。缩进错了就回到检查点 1，不要 `export`。
+
+失败时每个问题打一块：错误码、文档里的路径、一句说明那里错在哪。`validate` 会把所有问题一次报完，不是只报第一个，所以第一行那个数字就是你要逐个处理掉的块数：
+
+```
+$ jsmind validate bad.json
+bad.json: 4 problem(s)
+
+  E_FORMAT  format
+    Expected format "jsmind_v2", got "jsmind".
+  E_META  meta
+    Missing "meta" object.
+  E_NODES_MISSING  nodes
+    Missing "nodes" object.
+  E_EDGES_MISSING  edges
+    Missing "edges" object.
+```
+
+按每一块给的路径去改，改完整份再跑一次 `validate`。以第二次为准：一次修改可能消掉一个问题，把剩下的留着。
 
 ### 3. 改完结构后 `export` 看图
 
@@ -90,7 +112,7 @@ description: >-
 1. **文字被挤压** — 不过：字与字重叠，或字画出节点框外。处理：用 `node set-style` 把该节点 `--font-size` 改小，或把这条长标签拆成多个更短的节点（改字、删掉、再加，都走 CLI）。
 2. **一侧过重** — 不过：一侧又多又深，另一侧几乎是空的。处理：`node set-side` 把一部分节点换到轻的一侧（`left` 或 `right`）。
 3. **不该折叠却折叠着** — 不过：这次任务要看见的分支是收起的（图上只有父节点，或 `context` 行尾带 `folded`）。处理：`node set-folded --folded false`。
-4. **连线交叉异常** — 不过：连线互相穿过、打结，而不是从父节点分开走向子节点。处理：换这些节点的侧，或用 `mind move` 调整父子，直到交叉消失。不要改坐标。
+4. **连线交叉异常** — 不过：连线互相穿过、打结，而不是从父节点分开走向子节点。处理：只有根的直接子节点有「侧」可换，所以先找到这条交叉支路所挂的**根级子节点**，用 `node set-side` 把它换到另一侧。对更深的节点跑 `set-side` 会退出 0 并回一句确认，但图上不会有任何变化。还不行就用 `mind move` 改父子关系。不要改坐标。
 
 四项都过，这一轮看图才算做完。
 
@@ -114,7 +136,9 @@ mind remove-node <file> --node-id <id>
 mind move <file> --node-id <id> --parent-id <id>
 ```
 
-`side` 只对根的直接子节点有意义。新的根子节点默认在右侧。若要换边，先添加节点，再用 `node set-side`。不要给 `add-child` 加 `--side`。换边后用 `context` 行尾的 `side=` 核对（只出现在根和根的直接子节点上）。
+`side` 只对根的直接子节点有意义。新的根子节点默认在右侧。若要换边，先添加节点，再用 `node set-side`。不要给 `add-child` 加 `--side`：这个参数会被接受并静默忽略，命令退出 0，节点照样落在右侧。`add-child --side` 正是禁令里说的那种情况——回显什么也看不出来，只有 `context` 行尾的 `side=` 才能说明侧到底有没有变（只出现在根和根的直接子节点上）。
+
+`--backup` 覆写前留一份 `.bak`，`--dry-run` 只把要写入的文档打出来、不落盘。这两个只作用于写脑图文件的命令——`create`、`mind`、`node`——不作用于 `export`，它只写图片。`CHANGE` 场景是破坏性编辑，这两个正好配套：下一条命令先用 `--dry-run` 看结果，整轮动手前先 `--backup`。
 
 ## 示例会话
 
