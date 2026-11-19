@@ -37,7 +37,9 @@ The skill is documentation only — it ships no commands. Building or editing a 
 - English: https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md
 - Chinese: https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.zh.md
 
-Install the CLI first. The 2.x line is still on a preview channel (the npm tag is `v2-preview`), and `latest` is still 0.9.1 (v1, no CLI): use `npm i -g jsmind@2`, or skip the global install and call `npx jsmind@2`. Do not run `npm i jsmind` or a bare `npx jsmind`: that resolves to 0.9.1, there is no `jsmind` command, and the error looks like a broken skill when the wrong version is what is installed.
+Install the CLI first. The 2.x line is still on a preview channel (the npm tag is `v2-preview`), and `latest` is still 0.9.1 (v1): install with `npm i jsmind@2`, then always call it as `npx jsmind <command>`. Do not run plain `npm i jsmind`: that installs 0.9.1, the package has no `bin` field, and `npx jsmind` fails with `could not determine executable to run` — it reads like a broken skill when the version is what is wrong.
+
+The skill writes its commands as `jsmind <command>`; on this install route you actually type `npx jsmind <command>`.
 
 Environment: Node.js >= 22.12. `export` needs a Chromium binary on the machine; without one jsmind fails with `No Chromium found. Image export needs a browser`. That is a missing browser, not a missing skill file.
 
@@ -46,12 +48,12 @@ Then place the skill, in three steps:
 2. Copy `skills/jsmind/` to `<skills>/jsmind/`, keeping the `jsmind/` level; do not drop the markdown files straight into `skills/`.
 3. Report back whether the skill loads. If it does not, stop there and say so; do not keep going.
 
-If you are already in a clone of that repository, load `skills/jsmind/` in place; do not copy anything.
+If you are already in a clone of that repository, load `skills/jsmind/` in place; do not copy anything. Use that clone's own CLI: after `npm install && npm run build` it is still `npx jsmind`.
 
 Minimum acceptance — all three:
-- `jsmind --help` prints the usage text (0.9.1 has no such command, so usage means you are on 2.x);
-- a file from `jsmind create` passes `jsmind validate`;
-- `jsmind export` writes a PNG you can open.
+- `npx jsmind --help` prints the usage text (0.9.1 ships no executable, so usage means you are on 2.x);
+- a file from `npx jsmind create` passes `npx jsmind validate`;
+- `npx jsmind export` writes a PNG you can open.
 
 Once it is installed, an agent builds and edits maps through the CLI: `context`
 first to get node ids, `validate` after the edit, `export` at the end. Those
@@ -70,7 +72,7 @@ Please use the jsMind skill to build a mind map about the solar system and expor
 - Write to the current working directory, with names taken from the topic (solar-system.json / solar-system.png). Do not use the system temporary directory, and do not ask whether to move the files afterwards.
 - If a file with that name already exists, pick another name; do not overwrite it.
 - Scale: the Sun is the root, each of the eight planets is a first-level branch, and every planet gets at least two second-level branches.
-- Work through the skill's checkpoints in order: `jsmind context` for the ids, `jsmind validate` after the edits, `jsmind context` again to check the parent-child indent, then `jsmind export`.
+- Work through the skill's checkpoints in order: `npx jsmind context` for the ids, `npx jsmind validate` after the edits, `npx jsmind context` again to check the parent-child indent, then `npx jsmind export`.
 - Open the PNG afterwards: levels should be clear, and the two sides should not be lopsided.
 - When you are done, give the absolute path of both files.
 ```

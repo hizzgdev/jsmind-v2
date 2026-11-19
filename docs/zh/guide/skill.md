@@ -37,7 +37,9 @@ skill 只是说明文件，本身不带命令。生成或修改导图要走 jsmi
 - 中文：https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.zh.md
 - 英文：https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md
 
-先装 CLI。2.x 还在预览通道上（npm 上的 tag 是 `v2-preview`），`latest` 仍然是 0.9.1（v1，没有 CLI）：用 `npm i -g jsmind@2`，或者不装全局、每次 `npx jsmind@2`。不要写 `npm i jsmind` 或裸的 `npx jsmind`：那会解析到 0.9.1，`jsmind` 命令不存在，报错看着像 skill 坏了，其实是版本装错了。
+先装 CLI。2.x 还在预览通道上（npm 上的 tag 是 `v2-preview`），`latest` 仍然是 0.9.1（v1）：用 `npm i jsmind@2` 装，之后一律用 `npx jsmind <命令>` 调用。别只写 `npm i jsmind`：那会装到 0.9.1，这个包里没有 `bin` 字段，`npx jsmind` 报 `could not determine executable to run`，看着像 skill 坏了，其实是版本装错了。
+
+skill 正文里的命令写作 `jsmind <命令>`；按这条路线装，你实际敲的是 `npx jsmind <命令>`。
 
 环境：Node.js >= 22.12。`export` 需要本机有 Chromium；没有时 jsmind 报 `No Chromium found. Image export needs a browser`。这是缺浏览器，不是缺 skill 文件。
 
@@ -46,12 +48,12 @@ skill 只是说明文件，本身不带命令。生成或修改导图要走 jsmi
 2. 把 `skills/jsmind/` 放成 `<skills>/jsmind/`，保留 `jsmind/` 这一层；不要把 md 直接丢进 `skills/`。
 3. 放完回报一次能否被加载；加载不了就停下来说清楚，不要继续往下做。
 
-如果你已经在该仓库的克隆里工作，直接从 `skills/jsmind/` 原地加载，不用复制。
+如果你已经在该仓库的克隆里工作，直接从 `skills/jsmind/` 原地加载，不用复制；CLI 用仓库自己的：`npm install && npm run build` 之后同样是 `npx jsmind`。
 
 最小验收，三项都过才算装好：
-- `jsmind --help` 打印用法（0.9.1 没有这个命令，能出用法就说明装的是 2.x）；
-- `jsmind create` 建出的文件能通过 `jsmind validate`；
-- `jsmind export` 写出一张能打开的 PNG。
+- `npx jsmind --help` 打印用法（0.9.1 没有可执行文件，能出用法就说明装的是 2.x）；
+- `npx jsmind create` 建出的文件能通过 `npx jsmind validate`；
+- `npx jsmind export` 写出一张能打开的 PNG。
 
 装好之后，agent 生成或修改导图时会先 `context` 拿到节点 id，改完跑 `validate`，
 最后 `export` 出图。这些检查只有在走 CLI 时才存在：手写 JSON 也能画出图，
@@ -70,7 +72,7 @@ skill 只是说明文件，本身不带命令。生成或修改导图要走 jsmi
   不要用系统临时目录，也不要先问要不要移动。
 - 如果同名文件已存在，换个名字，不要覆盖。
 - 规模：太阳作为根节点，八大行星各一个一级分支，每个行星下至少两个二级分支。
-- 按 skill 的检查点顺序做：先 `jsmind context` 拿 id，改完 `jsmind validate`，通过后重新 `jsmind context` 核对父子缩进，最后 `jsmind export`。
+- 按 skill 的检查点顺序做：先 `npx jsmind context` 拿 id，改完 `npx jsmind validate`，通过后重新 `npx jsmind context` 核对父子缩进，最后 `npx jsmind export`。
 - 导出之后打开 PNG 看一眼：层级清楚、左右不要一边倒。
 - 完成后给出两个文件的绝对路径。
 ```

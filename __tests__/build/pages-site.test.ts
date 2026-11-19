@@ -417,14 +417,22 @@ describe('pages site assembly', () => {
             assert.ok(zhSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.zh.md'));
             // The guide must name the CLI package and the 2.x channel: the skill alone
             // ships no commands, and a bare `npm i jsmind` resolves to v1 (0.9.1).
-            assert.ok(enSkill.includes('npm i -g jsmind@2'));
-            assert.ok(zhSkill.includes('npm i -g jsmind@2'));
+            // It must also stick to one install route: `npm i jsmind@2` plus
+            // `npx jsmind`, the pair every other page documents. A global install
+            // would make the acceptance commands work on that route only, so the
+            // npx route would fail them with command-not-found.
+            assert.ok(enSkill.includes('npm i jsmind@2'));
+            assert.ok(zhSkill.includes('npm i jsmind@2'));
+            assert.ok(!enSkill.includes('npm i -g jsmind'));
+            assert.ok(!zhSkill.includes('npm i -g jsmind'));
+            assert.ok(enSkill.includes('npx jsmind --help'));
+            assert.ok(zhSkill.includes('npx jsmind --help'));
             assert.ok(enSkill.includes('No Chromium found'));
             assert.ok(zhSkill.includes('No Chromium found'));
             assert.ok(enSkill.includes('solar-system.json'));
             assert.ok(zhSkill.includes('solar-system.json'));
-            assert.ok(enSkill.includes('jsmind validate'));
-            assert.ok(zhSkill.includes('jsmind validate'));
+            assert.ok(enSkill.includes('npx jsmind validate'));
+            assert.ok(zhSkill.includes('npx jsmind validate'));
 
             const enApi = readFileSync(join(docsDir, 'en', 'reference', 'api.html'), 'utf8');
             const zhApi = readFileSync(join(docsDir, 'zh', 'reference', 'api.html'), 'utf8');
