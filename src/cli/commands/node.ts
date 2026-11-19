@@ -337,18 +337,15 @@ export function runNode(
 }
 
 /**
- * Describes the `node` command group for `--help`.
+ * The `set-style` field table, printed by both the group help and the
+ * subcommand help.
+ *
+ * @remarks
+ * One copy, because `jsmind node --help` and `jsmind node set-style --help`
+ * both show it: two hand-written copies is exactly how a flag goes missing
+ * from one of them.
  */
-export const nodeHelp = `jsmind node <subcommand> <file> --node-id <id> [options]
-
-Node attributes (JmNode writable fields). Structure goes through \`jsmind mind\`.
-
-  set-text     --node-id <id> --text <text>       Change the label
-  set-folded   --node-id <id> --folded true|false Collapse or expand
-  set-side     --node-id <id> --side left|center|right
-  set-style    --node-id <id> [style fields]      Override the theme for one node
-
-set-style fields (any combination, applied in one write). A dot marks a level, so
+const STYLE_FIELDS_HELP = `set-style fields (any combination, applied in one write). A dot marks a level, so
 --incoming.color addresses \`style.incoming.color\`. Accepted values are read from
 the model's own enums, so this list cannot fall behind them:
 
@@ -376,9 +373,39 @@ absent override. \`--reset\` cannot be combined with fields or \`--clear\`.
 
 Colours are not checked beyond being strings; the theme accepts any CSS colour.
 Tones, patterns and weights are checked here so a bad value names the flag you
-typed rather than a JSON path.
+typed rather than a JSON path.`;
+
+/**
+ * Describes the `node` command group for `--help`.
+ */
+export const nodeHelp = `jsmind node <subcommand> <file> --node-id <id> [options]
+
+Node attributes (JmNode writable fields). Structure goes through \`jsmind mind\`.
+
+  set-text     --node-id <id> --text <text>       Change the label
+  set-folded   --node-id <id> --folded true|false Collapse or expand
+  set-side     --node-id <id> --side left|center|right
+  set-style    --node-id <id> [style fields]      Override the theme for one node
+
+${STYLE_FIELDS_HELP}
 
 Why the split: id, parent and children are readonly on the model, so they are only
 reachable through JmMind methods (\`jsmind mind\`). These fields are plain assignments.
 
 Every subcommand validates the result and rolls back on failure.`;
+
+/**
+ * Describes the `set-style` subcommand for `--help`.
+ *
+ * @remarks
+ * The third level of the help ladder. It exists because this subcommand's field
+ * table is longer than the rest of the group's descriptions together: given the
+ * group block, a reader still has to guess which of those flags belong here,
+ * which is the failure focused help is meant to prevent.
+ */
+export const setStyleHelp = `jsmind node set-style <file> --node-id <id> [style fields]
+
+${STYLE_FIELDS_HELP}
+
+The fields are applied in a single write, and the write is validated as a whole:
+an invalid result is rolled back rather than half-written.`;

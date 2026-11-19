@@ -34,7 +34,7 @@ import {
 import { JmImageType } from '../view/export.ts';
 import { runValidate, validateHelp, assertValidateArgs } from './commands/validate.ts';
 import { runMind, mindHelp } from './commands/mind.ts';
-import { runNode, nodeHelp } from './commands/node.ts';
+import { runNode, nodeHelp, setStyleHelp } from './commands/node.ts';
 import { runContext, contextHelp, DEFAULT_DEPTH, DEFAULT_MAX_TEXT } from './commands/context.ts';
 import { runCreate, createHelp } from './commands/create.ts';
 
@@ -180,6 +180,34 @@ function writeOptions(values: Record<string, unknown>): WriteOptions {
 }
 
 /**
+ * Picks the help text that matches how specific the invocation was.
+ *
+ * @param positionals - Command and, optionally, subcommand: `['mind']`,
+ *                      `['node', 'set-style']`, and so on.
+ * @returns The focused block, or `undefined` when the full index is the right
+ *          answer.
+ * @remarks
+ * `--help` used to print the root block before the command was looked at, so
+ * `jsmind mind --help` handed back the same 134 lines the root help points
+ * away from. The ladder is written out rather than derived from a registry:
+ * `set-style` is the only third level, because its field table is the only one
+ * long enough to swamp the group block it sits in. `create` / `validate` /
+ * `context` / `export` are single pages with no second level, so they keep
+ * falling back to the index, which already contains their block.
+ */
+function focusedHelp(positionals: string[]): string | undefined {
+    const [command, subcommand] = positionals;
+    switch (command) {
+        case 'mind':
+            return mindHelp;
+        case 'node':
+            return subcommand === 'set-style' ? setStyleHelp : nodeHelp;
+        default:
+            return undefined;
+    }
+}
+
+/**
  * Dispatches one parsed invocation.
  *
  * @param parsed - Options and positionals.
@@ -190,8 +218,12 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
     const [command, ...rest] = parsed.positionals;
     const asJson = parsed.values.json === true;
 
-    if (parsed.values.help === true || command === undefined || command === 'help') {
-        process.stdout.write(`${HELP}\n`);
+    // `help <command>` asks the same question as `<command> --help`, so both
+    // resolve through the same ladder. With no topic at all, the full index is
+    // the answer.
+    if (command === undefined || command === 'help' || parsed.values.help === true) {
+        const topic = command === 'help' ? rest : parsed.positionals;
+        process.stdout.write(`${focusedHelp(topic) ?? HELP}\n`);
         return CliExit.Ok;
     }
 
