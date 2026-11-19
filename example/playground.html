@@ -226,7 +226,18 @@
             align-items: center;
         }
 
-        .code-display {
+        /* Read-only snippets. Smaller than the editable editor on purpose: they
+           are reference material, not something you type into.
+
+           Prism puts `language-*` on the <pre> as well as the <code>, so
+           prism-tomorrow's `pre[class*=language-]` / `code[class*=language-]`
+           apply `white-space: pre` and `font-size: 1em` here. Both outrank a
+           bare class selector and both are wrong: `pre` lets a long line
+           overflow the panel, `1em` undoes the smaller type. The selectors
+           below are specific enough to win whatever order the CDN stylesheet
+           arrives in. */
+        .code-display,
+        pre.code-display[class*='language-'] {
             padding: 12px;
             margin: 0;
             overflow: auto;
@@ -234,11 +245,22 @@
             height: 100%;
             background: #1e1e1e;
             color: #d4d4d4;
-            font-family: monospace;
-            font-size: 14px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
             white-space: pre-wrap;
             word-wrap: break-word;
             box-sizing: border-box;
+        }
+
+        .code-display code[class*='language-'] {
+            background: none;
+            font-family: inherit;
+            font-size: inherit;
+            line-height: inherit;
+            text-shadow: none;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
 
         .code-textarea {
@@ -309,12 +331,27 @@
             min-height: 0;
         }
 
-        .code-section:first-child {
+        /* The right column stacks three blocks. Each one names its own flex
+           share: :first-child / :last-child would give the 35% to whichever
+           block happens to come first, which is now the one-line Setup block. */
+        .code-section-setup {
+            flex: 0 0 auto;
+        }
+
+        /* The setup snippet takes the height its content needs and never
+           stretches to fill the column. */
+        .code-section-setup .code-display {
+            flex: 0 0 auto;
+            height: auto;
+            min-height: 0;
+        }
+
+        .code-section-init {
             flex: 0 0 35%;
             min-height: 0;
         }
 
-        .code-section:last-child {
+        .code-section-editor {
             flex: 1 1 auto;
             min-height: 0;
             border-bottom: none;
@@ -375,8 +412,8 @@
             background: #4a5568;
         }
 
-        /* Code editor styles */
-        #init-code-editor pre,
+        /* Code editor styles. Only the editable textarea keeps the larger type; the
+           read-only snippets above it get theirs from .code-display. */
         #code-editor textarea {
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 14px;
@@ -426,8 +463,16 @@
 
         <!-- Right: Code Area -->
         <div class="right-panel">
-            <!-- Top: Initialization Code (Read-only) -->
-            <div class="code-section">
+            <!-- Setup (Read-only): the script tag a page needs, escaped so it
+                 reads as text. This page itself loads the local bundle below,
+                 so the playground works whether or not the CDN is reachable. -->
+            <div class="code-section code-section-setup">
+                <div class="panel-header">Setup (Read-only)</div>
+                <pre class="code-display"><code id="setup-code" class="language-html">&lt;script type="module" src="https://cdn.jsdelivr.net/npm/jsmind@2/dist/jsmind.js"&gt;&lt;/script&gt;</code></pre>
+            </div>
+
+            <!-- Middle: Initialization Code (Read-only) -->
+            <div class="code-section code-section-init">
                 <div class="panel-header">Initialization Code (Read-only)</div>
                 <div class="code-editor-wrapper">
                     <div id="init-code-editor" class="code-editor"></div>
@@ -435,7 +480,7 @@
             </div>
 
             <!-- Bottom: Editable Code Editor -->
-            <div class="code-section">
+            <div class="code-section code-section-editor">
                 <div class="panel-header">Code Editor</div>
                 <div class="code-templates-bar">
                     <span class="template-label">Templates:</span>
@@ -476,6 +521,15 @@
                 JSMIND_CHECK_INTERVAL: 100,
                 NODE_CLICK_LISTENER_DELAY: 100,
                 COPY_FEEDBACK_DURATION: 1000
+            };
+
+            // Prism comes from a CDN rather than the repository: the page must
+            // not add files to the tree, and losing the CDN only costs the token
+            // colours. Pinned versions, so a CDN update cannot swap a grammar
+            // under us.
+            const PRISM_CDN = {
+                script: 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js',
+                theme: 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css'
             };
 
             // Initialization code (read-only)
@@ -655,6 +709,70 @@ if (mind) {
                     }
 
                     document.body.removeChild(textArea);
+                }
+            };
+
+            // ============================================================================
+            // Syntax Highlighting
+            // ============================================================================
+            const SyntaxHighlight = {
+                requested: false,
+                pending: [],
+
+                /**
+                 * Highlights the given <code> elements with Prism, fetching
+                 * Prism on first use.
+                 *
+                 * When the CDN is unreachable the elements keep the text they
+                 * already have: no error, no blank block.
+                 */
+                highlight: function(elements) {
+                    this.pending.push(...elements);
+                    if (this.hasPrism()) {
+                        this.flush();
+                    } else if (!this.requested) {
+                        this.requested = true;
+                        this.load();
+                    }
+                },
+
+                hasPrism: function() {
+                    return Boolean(window.Prism) && typeof window.Prism.highlightElement === 'function';
+                },
+
+                /**
+                 * Injects the theme and the runtime as ordinary (non-module)
+                 * tags, so the page's single module script stays the jsMind
+                 * bundle and nothing here blocks rendering.
+                 */
+                load: function() {
+                    const theme = document.createElement('link');
+                    theme.rel = 'stylesheet';
+                    theme.href = PRISM_CDN.theme;
+                    document.head.appendChild(theme);
+
+                    const script = document.createElement('script');
+                    script.src = PRISM_CDN.script;
+                    script.onload = () => SyntaxHighlight.flush();
+                    script.onerror = () => {
+                        SyntaxHighlight.pending = [];
+                    };
+                    document.head.appendChild(script);
+                },
+
+                flush: function() {
+                    const elements = this.pending.slice();
+                    this.pending = [];
+                    if (!this.hasPrism()) {
+                        return;
+                    }
+                    elements.forEach(element => {
+                        try {
+                            window.Prism.highlightElement(element);
+                        } catch (error) {
+                            console.error('Syntax highlighting failed:', error);
+                        }
+                    });
                 }
             };
 
@@ -900,9 +1018,19 @@ if (mind) {
                     // Initialize read-only code display area
                     this.initCodeElement = document.getElementById('init-code-editor');
                     const initPre = document.createElement('pre');
-                    initPre.textContent = INIT_CODE;
                     initPre.className = 'code-display';
+                    const initCode = document.createElement('code');
+                    initCode.className = 'language-javascript';
+                    initCode.textContent = INIT_CODE;
+                    initPre.appendChild(initCode);
                     this.initCodeElement.appendChild(initPre);
+
+                    // Both read-only snippets get token colours. The Setup one
+                    // ships in the page; this one was built just above, which is
+                    // why it is highlighted after insertion rather than before.
+                    SyntaxHighlight.highlight(
+                        [document.getElementById('setup-code'), initCode].filter(Boolean)
+                    );
 
                     // Initialize editable code editor
                     const codeEditorElement = document.getElementById('code-editor');
