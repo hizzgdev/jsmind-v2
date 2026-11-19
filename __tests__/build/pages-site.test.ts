@@ -40,6 +40,11 @@ import {
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
+// Both home pages show this version at build time. Nothing in the tree spells
+// the version out (scripts/check-version-refs.mjs enforces that), so the value
+// has to come from here or the placeholder ships verbatim.
+const PACKAGE_VERSION = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
+
 const DOCS_SITE_ENTRY = 'https://hizzgdev.github.io/jsmind-v2/docs/';
 const DOCS_README_BLOB = 'https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md';
 const FOOTER_TEXT = '本文档由 AI 协助生成 / This documentation was prepared with AI assistance';
@@ -141,6 +146,18 @@ function assertVisibleAiNotice(html: string, css: string, label: string): void {
         new RegExp(`\\.${AI_NOTICE_CLASS}[^{]*\\{[^}]*display:\\s*none`),
         `${label} custom notice CSS must not hide the notice`
     );
+}
+
+/**
+ * The home pages read the version from `package.json` at build time. Asserting
+ * against the package version rather than a literal keeps this from becoming a
+ * second place to edit on every release, and asserting the absence of the
+ * placeholder catches the case the version guard cannot: a `{{ pkg.version }}`
+ * that lands somewhere VitePress does not interpolate still builds green.
+ */
+function assertHomeVersion(html: string, label: string): void {
+    assert.ok(html.includes(`v${PACKAGE_VERSION}`), `${label} should render v${PACKAGE_VERSION} from package.json`);
+    assert.ok(!html.includes('{{ pkg.version }}'), `${label} should not ship the uninterpolated placeholder`);
 }
 
 function assertSectionOrder(html: string, locale: 'en' | 'zh', label: string): void {
@@ -376,6 +393,8 @@ describe('pages site assembly', () => {
             const builtCss = readBuiltCss(docsDir);
             assertVisibleAiNotice(enHome, builtCss, 'en home');
             assertVisibleAiNotice(zhHome, builtCss, 'zh home');
+            assertHomeVersion(enHome, 'en home');
+            assertHomeVersion(zhHome, 'zh home');
             assertVisibleAiNotice(enGuide, builtCss, 'en guide');
             assertVisibleAiNotice(zhGuide, builtCss, 'zh guide');
             assertVisibleAiNotice(enApiPage, builtCss, 'en API');
