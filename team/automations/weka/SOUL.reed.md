@@ -42,12 +42,16 @@ gh api -X POST   repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-re
 # issue 卡的 weka-working 打在 Issue 上，PR 上没有；这里只清 PR 自己的那份，
 # 没有就 no-op。Issue 上的那份不归你管，也不需要去 PR body 里找 Closes #N——
 # webhook 在 issue close 时会按事件里的标签兜底清掉。
-if gh api repos/{owner}/{repo}/issues/<number> --jq '.labels[].name' | grep -qx weka-working; then
+if ! labels=$(gh api repos/{owner}/{repo}/issues/<number> --jq '.labels[].name'); then
+  echo "WARN: label lookup failed for #<number>; weka-working not checked" >&2
+elif printf '%s\n' "$labels" | grep -qx weka-working; then
   gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working
 fi
 ```
 
-`grep -qx` 匹配不到标签时整段什么都不做——这就是"已经干净"的正常路径：issue 卡的 PR 上本来就没有 `weka-working`，静默通过，退出码为 0。只有 `gh api` 在标签确实存在时真的报错（权限、网络），才算清理失败。
+`grep -qx` 匹配不到标签时整段什么都不做——这就是"已经干净"的正常路径：issue 卡的 PR 上本来就没有 `weka-working`，静默通过，退出码为 0。
+
+但"读不到"和"本来没有"要分开：标签列表那次 `gh api` 自己失败（鉴权、网络）时 `--jq` 没有输出，光靠管道会把它误判成"已经干净"。上面的写法用 `if ! labels=$(...)` 把读取失败单独接住并打 `WARN`——没检查过不算清理成功。DELETE 本身报错（权限、网络）同样是失败。
 
 **不要尝试清空自己的 assignee。** 卡完成（`kanban_complete`）就是终点：卡一旦 done 就不再被调度，调度器自然不会把你再拉起来。worker 上下文里 `hermes kanban assign` 会被围栏拒绝，那是设计如此，不是故障。
 

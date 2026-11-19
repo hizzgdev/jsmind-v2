@@ -110,6 +110,8 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 
 `weka` 标签只表示归属，不在这份清理名单里——对象关掉之后留着它没有意义，但它也是人筛"哪些是 weka 管的"的依据，脚本不动它。
 
+兜底只覆盖**部署之后**的 close 事件：在这份代码上线前就关掉的对象不会再收到 `close`，它们身上残留的标签不会自己消失。这类一次性残留要手工清一遍——用 `gh issue list --state closed --label weka-working` 找出来，对每个编号 `gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working`。
+
 ## 安全边界
 
 两层防线，层叠生效：
@@ -260,9 +262,23 @@ systemctl --user enable --now github-webhook.service
 **改了 `github-webhook.py` 或 `config.json` 之后，主 checkout 要先拉代码再重启，否则跑的还是旧代码。** `ExecStart` 直接指向主 checkout 里那份脚本，`Restart=always` 只在进程退出时重启，不会因为文件变了就重载——和 gateway、nginx 一样，改完不重启就是静默不生效：
 
 ```bash
-git -C ~/repos/jsmind-v2 pull --ff-only
-systemctl --user restart github-webhook.service
+cd ~/repos/jsmind-v2 &&
+  git switch master &&          # 主 checkout 可能停在已合并的旧分支上，那种分支远端已删，pull 会直接报错
+  git pull --ff-only &&
+  git log -1 --oneline &&       # 应看到刚合并的那次提交，不是旧的
+  systemctl --user restart github-webhook.service
 ```
+
+四步用 `&&` 串起来，任何一步失败都不会走到 `restart`——最坏的情况是停在那一步、什么都没变，而不是把旧代码重新拉起来一遍。
+
+**`SOUL.cody.md` / `SOUL.reed.md` 也要重拷。** profile 里的 `SOUL.md` 是这两个文件的副本（§2 的 `cp`），worker 起会话时才从 profile 读它。所以改了 SOUL 同样要在 pull 之后重拷一次，否则 live 的 agent 拿到的还是旧指令：
+
+```bash
+cp team/automations/weka/SOUL.cody.md ~/.hermes/profiles/cody/SOUL.md
+cp team/automations/weka/SOUL.reed.md ~/.hermes/profiles/reed/SOUL.md
+```
+
+这一步不需要重启任何服务：SOUL.md 在每次 worker 起会话时读，下一张卡自然生效。
 
 再挂 nginx 反代（独立 server 块，按公网 IP 直连，监听端口 <webhook-port>）：
 
