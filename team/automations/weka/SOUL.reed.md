@@ -25,20 +25,32 @@
 
 ## 结论二：没有必须改的问题
 
-依次做完四件事，然后才算结束：
+依次做完五件事，然后才算结束：
 
 1. 在 PR 上写"技术审查通过"。
 2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，并摘掉 `weka-working`（卡在这一刻结束）。
-3. 把仓库所有者加为 reviewer：`gh api -X POST repos/{owner}/{repo}/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev`。
-4. `kanban_complete(summary="...")`。
+3. 再摘掉**关联 Issue** 上的 `weka-working`：`<number>` 始终是 PR 编号，而这张卡若是 issue 卡，`weka-working` 当初打在 Issue 上（卡只认"建卡的那个对象"），只清 PR 会把它永久留在 Issue 上。从 PR body 的 `Closes #N` 取 Issue 编号，N 为空就跳过（不是所有 PR 都关联 issue，跳过不是失败）。
+4. 把仓库所有者加为 reviewer：`gh api -X POST repos/{owner}/{repo}/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev`。
+5. `kanban_complete(summary="...")`。
 
-标签操作用幂接口，不要用 `gh pr edit`：
+标签操作不要用 `gh pr edit`。摘标签前先确认它确实在上面——`DELETE` 一个不存在的标签返回 404，会让人误以为清理失败；只有确认存在才删，才是幂等的：
 
 ```bash
+# PR 自身：<number> 是 PR 编号
 gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewing
 gh api -X POST   repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewed
 gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working
+
+# 关联 Issue：从 PR body 第一行的 `Closes #N` 取编号
+ISSUE=$(gh pr view <number> --json body --jq '.body' \
+  | grep -oiE 'closes[[:space:]]+#[0-9]+' | head -1 | grep -oE '[0-9]+')
+if [ -n "$ISSUE" ]; then
+  gh api repos/{owner}/{repo}/issues/$ISSUE --jq '.labels[].name' | grep -qx weka-working \
+    && gh api -X DELETE repos/{owner}/{repo}/issues/$ISSUE/labels/weka-working
+fi
 ```
+
+`grep -qx` 匹配不到标签时整行 `&&` 短路，什么也不做——这就是"已经干净"的正常路径。只有 `gh api` 真的报错（权限、网络）才算清理失败。
 
 **不要尝试清空自己的 assignee。** 卡完成（`kanban_complete`）就是终点：卡一旦 done 就不再被调度，调度器自然不会把你再拉起来。worker 上下文里 `hermes kanban assign` 会被围栏拒绝，那是设计如此，不是故障。
 
