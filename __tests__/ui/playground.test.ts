@@ -84,6 +84,76 @@ interface ReadOnlyPanels {
 /** How long to wait for the CDN copy of Prism before calling it unreachable. */
 const PRISM_TIMEOUT_MS = 10_000;
 
+/** One measurement of the editor's two layers. */
+interface LayerMeasure {
+    /** Text currently in the highlight copy. */
+    highlightText: string;
+    /** Text currently in the textarea, the source of truth. */
+    value: string;
+    /** Number of Prism tokens painted in the copy. */
+    tokens: number;
+    /** Textarea scroll height, in CSS pixels. */
+    textareaScrollHeight: number;
+    /** Highlight layer scroll height, in CSS pixels. */
+    highlightScrollHeight: number;
+    /** Textarea content width, in CSS pixels. */
+    textareaClientWidth: number;
+    /** Highlight layer content width, in CSS pixels. */
+    highlightClientWidth: number;
+}
+
+/** The editor measured as the two layers the page renders. */
+interface EditorLayers {
+    present: boolean;
+    highlightPosition: string;
+    highlightPointerEvents: string;
+    highlightOverflow: string;
+    highlightAriaHidden: string | null;
+    textareaColor: string;
+    textareaCaretColor: string;
+    textareaBackground: string;
+    textareaZIndex: string;
+    geometry: Record<string, [string, string]>;
+    prismLoaded: boolean;
+    tokenColors: string[];
+    initial: LayerMeasure;
+    typed: LayerMeasure;
+    scrolled: { textareaScrollTop: number; highlightScrollTop: number };
+    trailing: LayerMeasure;
+    template: LayerMeasure;
+    scrollable: boolean;
+    executed: boolean;
+    restored: boolean;
+}
+
+/** The editor with Prism unreachable: same two layers, no colours. */
+interface OfflineEditor {
+    present: boolean;
+    prismLoaded: boolean;
+    fontSize: string;
+    typed: LayerMeasure;
+    executed: boolean;
+    completed: boolean;
+}
+
+/**
+ * Computed styles the two editor layers have to agree on.
+ *
+ * They lay out the same text twice, so a difference in any of these moves the
+ * caret away from the glyph it belongs to.
+ */
+const SHARED_LAYER_STYLES = [
+    'fontFamily',
+    'fontSize',
+    'lineHeight',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'whiteSpace',
+    'overflowWrap',
+];
+
 let browser: BrowserHarness;
 
 let server: StaticServer;
@@ -268,7 +338,7 @@ test('ui - playground header contains a visible link to the jsmind-v2 repository
     assert.ok(link.text.includes('jsmind-v2'), 'the link should visibly name the jsmind-v2 project');
 });
 
-test('ui - the right column shows the CDN setup line above the read-only code, both smaller and highlighted', async (t: TestContext) => {
+test('ui - the right column shows the CDN setup line above the read-only code, all at one type size, highlighted', async (t: TestContext) => {
     const view = await browser.evaluate<ReadOnlyPanels>(
         `(async () => {
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -340,11 +410,17 @@ test('ui - the right column shows the CDN setup line above the read-only code, b
         view.initFontSize > 0 && view.initFontSize <= 13,
         `the read-only initialization code should be set around 12px, got ${view.initFontSize}px`
     );
-    assert.strictEqual(view.editorFontSize, 14, 'the editable textarea should keep its 14px type');
-    assert.ok(
-        view.setupFontSize < view.editorFontSize && view.initFontSize < view.editorFontSize,
-        'both read-only blocks should be smaller than the editable editor'
+    assert.strictEqual(
+        view.editorFontSize,
+        view.initFontSize,
+        'the editable editor should use the same type size as the read-only blocks, not a larger one'
     );
+    assert.strictEqual(
+        view.setupFontSize,
+        view.initFontSize,
+        'Setup and Initialization Code should share one type size'
+    );
+    assert.strictEqual(view.editorFontSize, 12, `the editor should be 12px, got ${view.editorFontSize}px`);
 
     // prism-tomorrow wants `white-space: pre`; the read-only blocks have to
     // wrap instead of scrolling sideways.
@@ -370,6 +446,191 @@ test('ui - the right column shows the CDN setup line above the read-only code, b
     assert.ok(view.initTokens > 0, 'the initialization code should be tokenized after it is inserted');
     assert.ok(view.setupColors.length > 1, `the Setup line should use more than one token colour, got ${view.setupColors.join(', ')}`);
     assert.ok(view.initColors.length > 1, `the initialization code should use more than one token colour, got ${view.initColors.join(', ')}`);
+});
+
+test('ui - the code editor paints a highlighted copy under a transparent textarea and keeps the two aligned', async (t: TestContext) => {
+    const view = await browser.evaluate<EditorLayers>(
+        `(async () => {
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            const deadline = Date.now() + ${PRISM_TIMEOUT_MS};
+            while (Date.now() < deadline && !window.Prism) {
+                await sleep(100);
+            }
+
+            const textarea = document.querySelector('#code-editor textarea');
+            const pre = document.querySelector('#code-editor pre.editor-highlight');
+            const code = document.getElementById('editor-highlight-code');
+            if (!textarea || !pre || !code) {
+                return { present: false };
+            }
+
+            const style = element => getComputedStyle(element);
+            const geometry = {};
+            ${JSON.stringify(SHARED_LAYER_STYLES)}.forEach(prop => {
+                geometry[prop] = [style(textarea)[prop], style(pre)[prop]];
+            });
+
+            const measure = () => ({
+                highlightText: code.textContent,
+                value: textarea.value,
+                tokens: code.querySelectorAll('.token').length,
+                textareaScrollHeight: textarea.scrollHeight,
+                highlightScrollHeight: pre.scrollHeight,
+                textareaClientWidth: textarea.clientWidth,
+                highlightClientWidth: pre.clientWidth,
+            });
+
+            const original = { value: textarea.value, scrollTop: textarea.scrollTop };
+            const initial = measure();
+
+            const filler = [];
+            for (let i = 0; i < 40; i++) {
+                filler.push('const line' + i + ' = ' + i + '; // filler, forces the editor to scroll');
+            }
+            textarea.value = filler.join('\\n');
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            await sleep(100);
+            const typed = measure();
+            const scrollable = textarea.scrollHeight > textarea.clientHeight;
+
+            textarea.scrollTop = 120;
+            textarea.dispatchEvent(new Event('scroll'));
+            await sleep(100);
+            const scrolled = {
+                textareaScrollTop: textarea.scrollTop,
+                highlightScrollTop: pre.scrollTop,
+            };
+
+            // A value ending in a newline: the last, still-empty line must not
+            // collapse, or the copy would be one line shorter than the textarea.
+            textarea.value = filler.join('\\n') + '\\n';
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            await sleep(100);
+            const trailing = measure();
+
+            document.querySelector('a[data-template="addNode"]').click();
+            await sleep(150);
+            const template = measure();
+
+            // Execute Code must read the textarea, never the highlight copy.
+            textarea.value = "console.log('editor layer probe', Boolean(mind && mind.root));";
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            await sleep(50);
+            document.querySelector('[data-action="execute-code"]').click();
+            await sleep(1500);
+            const executed = [...document.querySelectorAll('#console-output .console-line')]
+                .some(line => line.textContent.includes('editor layer probe true'));
+
+            textarea.value = original.value;
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.scrollTop = original.scrollTop;
+            await sleep(100);
+
+            return {
+                present: true,
+                highlightPosition: style(pre).position,
+                highlightPointerEvents: style(pre).pointerEvents,
+                highlightOverflow: style(pre).overflow,
+                highlightAriaHidden: pre.getAttribute('aria-hidden'),
+                textareaColor: style(textarea).color,
+                textareaCaretColor: style(textarea).caretColor,
+                textareaBackground: style(textarea).backgroundColor,
+                textareaZIndex: style(textarea).zIndex,
+                geometry,
+                prismLoaded: Boolean(window.Prism),
+                tokenColors: [...new Set([...code.querySelectorAll('.token')].map(token => style(token).color))],
+                initial, typed, scrolled, trailing, template, scrollable, executed,
+                restored: textarea.value === original.value,
+            };
+        })()`,
+        true
+    );
+
+    assert.ok(view.present, 'the editor should render a textarea above a highlight layer');
+    assert.strictEqual(view.highlightAriaHidden, 'true', 'the copy is decoration: screen readers must skip it');
+    assert.strictEqual(view.highlightPosition, 'absolute', 'the copy must be stacked, not laid out next to the textarea');
+    assert.strictEqual(view.highlightPointerEvents, 'none', 'clicks must reach the textarea, not the copy');
+    assert.strictEqual(view.highlightOverflow, 'hidden', 'the copy must not grow its own scrollbars');
+    assert.strictEqual(
+        view.textareaColor,
+        'rgba(0, 0, 0, 0)',
+        'the textarea text must be transparent, otherwise the two copies are painted on top of each other'
+    );
+    assert.strictEqual(view.textareaBackground, 'rgba(0, 0, 0, 0)', 'the panel colour comes from the copy underneath');
+    assert.strictEqual(view.textareaCaretColor, 'rgb(212, 212, 212)', 'the caret stays visible on its own');
+    assert.ok(Number(view.textareaZIndex) > 0, 'the textarea must paint above the copy to receive input');
+
+    for (const prop of SHARED_LAYER_STYLES) {
+        const [textareaValue, highlightValue] = view.geometry[prop];
+        assert.strictEqual(
+            textareaValue,
+            highlightValue,
+            `${prop} must match between the textarea and the highlight copy, got ${textareaValue} vs ${highlightValue}`
+        );
+    }
+
+    // The copy is the textarea's text, laid out twice.
+    assert.strictEqual(view.initial.highlightText, view.initial.value, 'the copy should start as the textarea value');
+    assert.strictEqual(
+        view.initial.highlightScrollHeight,
+        view.initial.textareaScrollHeight,
+        'the two layers should lay out the same number of lines'
+    );
+    assert.strictEqual(
+        view.initial.highlightClientWidth,
+        view.initial.textareaClientWidth,
+        'the two layers should wrap at the same column'
+    );
+
+    assert.ok(view.scrollable, 'the filler code should overflow the editor, otherwise the scroll check proves nothing');
+    assert.strictEqual(view.typed.highlightText, view.typed.value, 'typing should rebuild the copy');
+    assert.strictEqual(
+        view.typed.highlightScrollHeight,
+        view.typed.textareaScrollHeight,
+        'the layers should stay line-for-line equal once the text is long enough to scroll'
+    );
+    assert.strictEqual(
+        view.typed.highlightClientWidth,
+        view.typed.textareaClientWidth,
+        'a visible scrollbar must not change the wrap column of one layer only'
+    );
+    assert.strictEqual(view.scrolled.textareaScrollTop, 120, 'the textarea should have scrolled by the requested amount');
+    assert.strictEqual(
+        view.scrolled.highlightScrollTop,
+        view.scrolled.textareaScrollTop,
+        'the copy should follow the textarea scroll offset'
+    );
+
+    assert.strictEqual(
+        view.trailing.highlightText,
+        `${view.trailing.value} `,
+        'a value ending in a newline gets one trailing space so the last line keeps its height'
+    );
+    assert.strictEqual(
+        view.trailing.highlightScrollHeight,
+        view.trailing.textareaScrollHeight,
+        'the trailing-newline padding must keep the line count identical'
+    );
+
+    assert.strictEqual(view.template.highlightText, view.template.value, 'loading a template should refresh the copy');
+    assert.ok(view.executed, 'Execute Code should still run the textarea value');
+    assert.ok(view.restored, 'the test should leave the editor as it found it');
+
+    if (!view.prismLoaded) {
+        t.diagnostic('Prism did not load from the CDN; the copy is plain text and colour assertions are skipped');
+        assert.strictEqual(view.initial.tokens, 0, 'without Prism the copy should stay plain text');
+        assert.strictEqual(view.template.tokens, 0, 'without Prism a template should stay plain text');
+        return;
+    }
+
+    assert.ok(view.initial.tokens > 0, 'the editor text should be tokenized');
+    assert.ok(view.typed.tokens > 0, 'the copy should be re-tokenized after typing');
+    assert.ok(view.template.tokens > 0, 'the copy should be re-tokenized after a template is loaded');
+    assert.ok(
+        view.tokenColors.length > 1,
+        `the editor tokens should use more than one colour, got ${view.tokenColors.join(', ')}`
+    );
 });
 
 test('ui - playground node clicks update the info bar under a shadow root, and a blank click clears it', async () => {
@@ -454,4 +715,72 @@ test('ui - playground reset then a node click does not warn Node not found', asy
             clickedLogs.map(line => line.text).join(' | ')
         }`
     );
+});
+
+test('ui - with the CDN blocked the editor still reads and still executes', async () => {
+    // Prism is fetched from a CDN, so this is the fallback the page promises:
+    // losing the CDN costs the colours and nothing else. It reloads the page
+    // with that host blocked, which is why it is the last test in the file —
+    // the map it builds and the history it leaves behind are not reused.
+    await browser.send('Network.enable');
+    await browser.send('Network.setBlockedURLs', { urls: ['*jsdelivr.net*'] });
+    await browser.navigate(`${server.origin}/example/playground.html`);
+    await waitForPlayground();
+
+    const view = await browser.evaluate<OfflineEditor>(
+        `(async () => {
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            const textarea = document.querySelector('#code-editor textarea');
+            const pre = document.querySelector('#code-editor pre.editor-highlight');
+            const code = document.getElementById('editor-highlight-code');
+            if (!textarea || !pre || !code) {
+                return { present: false };
+            }
+
+            textarea.value = "console.log('offline probe', Boolean(mind && mind.root));";
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            await sleep(100);
+            const typed = {
+                highlightText: code.textContent,
+                value: textarea.value,
+                tokens: code.querySelectorAll('.token').length,
+                textareaScrollHeight: textarea.scrollHeight,
+                highlightScrollHeight: pre.scrollHeight,
+                textareaClientWidth: textarea.clientWidth,
+                highlightClientWidth: pre.clientWidth,
+            };
+
+            document.querySelector('[data-action="execute-code"]').click();
+            await sleep(1500);
+            const logs = [...document.querySelectorAll('#console-output .console-line')]
+                .map(line => line.textContent);
+
+            return {
+                present: true,
+                prismLoaded: Boolean(window.Prism),
+                fontSize: getComputedStyle(pre).fontSize,
+                typed,
+                executed: logs.some(line => line.includes('offline probe true')),
+                completed: logs.some(line => line.includes('Code execution completed')),
+            };
+        })()`,
+        true
+    );
+
+    assert.ok(view.present, 'the editor should exist without the CDN');
+    assert.strictEqual(view.prismLoaded, false, 'the test should have blocked Prism, otherwise it proves nothing');
+    assert.strictEqual(view.fontSize, '12px', 'the fallback copy keeps the editor type size');
+    assert.strictEqual(view.typed.tokens, 0, 'without Prism the copy is plain text');
+    assert.strictEqual(
+        view.typed.highlightText,
+        view.typed.value,
+        'the plain-text copy still shows exactly what the textarea holds'
+    );
+    assert.strictEqual(
+        view.typed.highlightScrollHeight,
+        view.typed.textareaScrollHeight,
+        'the fallback layers still lay out the same number of lines'
+    );
+    assert.ok(view.executed, 'Execute Code must still run while the CDN is unreachable');
+    assert.ok(view.completed, 'the run should finish, not fail on the missing highlighter');
 });

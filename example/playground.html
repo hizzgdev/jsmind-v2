@@ -263,17 +263,44 @@
             word-wrap: break-word;
         }
 
+        /* The editor is two layers: a transparent textarea on top, which is the
+           only editable surface and owns the caret and the selection, and a
+           highlighted <pre> underneath that shows what the user typed.
+
+           Both layers lay out the same text, so they must agree on font-family,
+           font-size, line-height, padding, white-space and overflow-wrap.
+           Changing one side alone does not break anything visibly at rest — it
+           shows up as the caret sitting a few pixels away from the glyph it is
+           supposed to be inside. Keep the text metrics here identical to
+           `.code-display`. */
         .code-textarea {
             width: 100%;
             height: 100%;
             padding: 12px;
-            font-family: monospace;
-            font-size: 14px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
             border: none;
             resize: none;
-            background: #1e1e1e;
-            color: #d4d4d4;
+            background: transparent;
+            color: transparent;
+            caret-color: #d4d4d4;
+            /* Classic (non-overlay) scrollbars take layout width from the
+               textarea but not from the highlight layer, which would make the
+               two wrap at different columns once the text overflows. Reserving
+               the gutter on both keeps the content width identical either way. */
+            scrollbar-gutter: stable;
             box-sizing: border-box;
+        }
+
+        /* The glyphs themselves are transparent, so the selection paints a
+           translucent wash over the coloured copy below instead of hiding it:
+           the token colours stay readable while the selection is visible. */
+        .code-textarea::selection {
+            background: rgba(38, 79, 120, 0.6);
         }
 
         #jsmind_container {
@@ -370,8 +397,32 @@
             width: 100%;
             height: 100%;
             min-height: 0;
+            /* Anchors the absolutely positioned highlight layer below. */
+            position: relative;
             display: flex;
             flex-direction: column;
+        }
+
+        /* The highlighted copy under the textarea. `inset: 0` gives it the same
+           box as the textarea without taking part in the flex layout, and
+           `overflow: hidden` keeps it from growing its own scrollbar — the
+           textarea's scroll offset is copied onto it instead. It is painted
+           first so the transparent textarea above it can be read through. */
+        #code-editor pre.editor-highlight {
+            position: absolute;
+            inset: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 0;
+            /* Matches .code-textarea: same reserved gutter, same wrap column. */
+            scrollbar-gutter: stable;
+        }
+
+        #code-editor textarea {
+            position: relative;
+            z-index: 1;
         }
 
         .editor-toolbar {
@@ -412,13 +463,9 @@
             background: #4a5568;
         }
 
-        /* Code editor styles. Only the editable textarea keeps the larger type; the
-           read-only snippets above it get theirs from .code-display. */
-        #code-editor textarea {
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-        }
+        /* The editor's type and layering are set next to `.code-textarea` and
+           `.code-editor` above; there is deliberately no second font-size rule
+           here to drift out of sync with the highlight layer. */
     </style>
 </head>
 <body>
@@ -727,7 +774,14 @@ if (mind) {
                  * already have: no error, no blank block.
                  */
                 highlight: function(elements) {
-                    this.pending.push(...elements);
+                    // The editable editor re-queues the same <code> element on
+                    // every keystroke, and Prism can take a few seconds to
+                    // arrive, so queue each element at most once.
+                    elements.forEach(element => {
+                        if (element && !this.pending.includes(element)) {
+                            this.pending.push(element);
+                        }
+                    });
                     if (this.hasPrism()) {
                         this.flush();
                     } else if (!this.requested) {
@@ -1012,6 +1066,8 @@ if (mind) {
             // ============================================================================
             const CodeEditor = {
                 textarea: null,
+                highlightPre: null,
+                highlightCode: null,
                 initCodeElement: null,
 
                 init: function() {
@@ -1032,12 +1088,78 @@ if (mind) {
                         [document.getElementById('setup-code'), initCode].filter(Boolean)
                     );
 
-                    // Initialize editable code editor
+                    // Initialize editable code editor.
+                    //
+                    // A textarea cannot colour its own text, so the editor is
+                    // two layers: this <pre> holds a highlighted copy and the
+                    // textarea above it is transparent, keeping only the caret
+                    // and the selection. The layout the two layers have to
+                    // share is documented on `.code-textarea` in the styles.
+                    //
+                    // Known trade-off: while an IME is composing, the browser
+                    // draws the candidate string inside the textarea, whose
+                    // text is transparent, so the in-progress composition is
+                    // invisible until it is committed. Accepted for a code
+                    // editor — it is a real side effect of this structure, not
+                    // something to rediscover later.
                     const codeEditorElement = document.getElementById('code-editor');
+                    this.highlightPre = document.createElement('pre');
+                    this.highlightPre.className = 'code-display editor-highlight';
+                    this.highlightPre.setAttribute('aria-hidden', 'true');
+                    this.highlightCode = document.createElement('code');
+                    this.highlightCode.id = 'editor-highlight-code';
+                    this.highlightCode.className = 'language-javascript';
+                    this.highlightPre.appendChild(this.highlightCode);
+                    codeEditorElement.appendChild(this.highlightPre);
+
                     this.textarea = document.createElement('textarea');
                     this.textarea.value = DEFAULT_USER_CODE;
                     this.textarea.className = 'code-textarea';
+                    // No squiggles: they would be the only thing painted inside
+                    // the transparent textarea.
+                    this.textarea.spellcheck = false;
+                    this.textarea.addEventListener('input', () => this.syncHighlight());
+                    this.textarea.addEventListener('scroll', () => this.syncScroll());
                     codeEditorElement.appendChild(this.textarea);
+
+                    this.syncHighlight();
+                },
+
+                /**
+                 * Rebuilds the highlighted copy from the textarea's value.
+                 *
+                 * The textarea stays the single source of truth: getValue()
+                 * keeps reading it rather than this layer, so a broken or
+                 * unreachable Prism can only cost the colours — it can never
+                 * change what Execute Code runs.
+                 */
+                syncHighlight: function() {
+                    if (!this.textarea || !this.highlightCode) {
+                        return;
+                    }
+                    const value = this.textarea.value;
+                    // A trailing newline would collapse: in a <pre> the last,
+                    // still-empty line has no glyph to give it height, so the
+                    // copy would be one line shorter than the textarea and the
+                    // caret would land one line below its own text. One
+                    // trailing space holds that line open.
+                    this.highlightCode.textContent = value.endsWith('\n') ? value + ' ' : value;
+                    SyntaxHighlight.highlight([this.highlightCode]);
+                    this.syncScroll();
+                },
+
+                /**
+                 * Copies the textarea's scroll offset onto the highlight layer.
+                 *
+                 * The two boxes scroll independently; without this the colours
+                 * stay at the top while the text moves.
+                 */
+                syncScroll: function() {
+                    if (!this.textarea || !this.highlightPre) {
+                        return;
+                    }
+                    this.highlightPre.scrollTop = this.textarea.scrollTop;
+                    this.highlightPre.scrollLeft = this.textarea.scrollLeft;
                 },
 
                 getValue: function() {
