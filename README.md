@@ -4,6 +4,8 @@ A mind-map kernel for people and agents — people can view, edit, and export ma
 
 [Documentation](https://hizzgdev.github.io/jsmind-v2/docs/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.md)
 
+[![npm v2-preview](https://img.shields.io/npm/v/jsmind/v2-preview)](https://www.npmjs.com/package/jsmind?activeTab=versions)
+
 中文说明见 [README.zh.md](README.zh.md)。
 
 <!-- The documentation and playground links are absolute, because both leave

@@ -15,7 +15,7 @@ jsMind V2 是 jsMind 的下一代。它仍然是大家熟悉的思维导图，�
 
 ## 现在已经可以做什么
 
-当前的 2.0.1 预览版已经包括：
+当前的 2.x 预览版已经包括：
 
 - 用 CLI 创建、校验、编辑和导出导图
 - 一份帮助 agent 用该 CLI 画图或改图的 skill
@@ -28,6 +28,6 @@ jsMind V2 是 jsMind 的下一代。它仍然是大家熟悉的思维导图，�
 - [快速上手](./getting-started) — 安装 jsMind V2，并创建第一张导图
 - [Skill](./skill) — 让 agent 使用仓库里的 skill
 - [CLI](./cli) — 当前命令和用法（预览版）
-- [API](/zh/reference/api) — 如何调用已发布的 2.0.1 编程接口（预览版）
+- [API](/zh/reference/api) — 如何调用已发布的 2.x 编程接口（预览版）
 - [参考](/zh/reference/) — 节点内容、节点移动、导出图片、序列化和数据格式
 - [设计](/zh/design/) — 库为什么采用现在的结构

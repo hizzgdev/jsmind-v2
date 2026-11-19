@@ -4,6 +4,8 @@
 
 [文档](https://hizzgdev.github.io/jsmind-v2/docs/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.md)
 
+[![npm v2-preview](https://img.shields.io/npm/v/jsmind/v2-preview)](https://www.npmjs.com/package/jsmind?activeTab=versions)
+
 English version: [README.md](README.md).
 
 <!-- 文档和 Playground 都使用绝对链接，因为在 GitHub 上阅读本 README 时两者都会离开本仓库。
