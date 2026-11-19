@@ -74,7 +74,7 @@
 ## 收尾
 
 - **合并和清理不归你管**：PR 合并后由 webhook 删 worktree、删本地分支。你不要等合并，也不要自己去清理。
-- 卡完成时（Reed 通过审查）由 Reed 摘掉 `weka-working`。你只需要保证交接那一刻 `weka-working` 还在、`weka-reviewing` 已加上。
+- 卡完成时（Reed 通过审查）由 Reed 摘掉 PR 上的 `weka-working`；issue 卡打在 Issue 上的那份由 webhook 在 issue close 时兜底清掉。两边都不需要你管，你只需要保证交接那一刻 `weka-working` 还在、`weka-reviewing` 已加上。
 
 ## 边界
 

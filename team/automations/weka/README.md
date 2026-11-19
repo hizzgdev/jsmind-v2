@@ -35,8 +35,10 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
        ├─ 有必须改 → request_changes（卡回 cody，可无限轮，不计任何计数）
        └─ 通过 → 摘 weka-reviewing/working、加 weka-reviewed、加 reviewer hizzgdev、complete
   → 你在 GitHub 上终审
-       ├─ 合并 → webhook 删 worktree + 本地分支 + 摘标签（不建卡）
+       ├─ 合并 → webhook 删 worktree + 本地分支 + 摘 PR 上的标签（不建卡）
        └─ 要求修改 → webhook 见 weka-reviewed → 建 "#86: Rework N — ..." 卡给 cody
+  → issue 关闭（含合并时被 `Closes #N` 自动关闭）
+       → webhook 按事件里的标签兜底清掉 issue 上残留的 weka-working
 ```
 
 关键设计：
@@ -69,6 +71,8 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 | issue 建卡 | ① 标签里有 `weka`；② `zzgbot` 在 assignees 里（多个指派人也算，不要求它是唯一或第一个）；③ 事件是 `opened` / `labeled` / `assigned` 三者之一 |
 | PR 建卡 | ① `hizzgdev` 的三个入口之一：提交 review（非 `approved`）、PR 会话评论、diff 上的行内评论；② PR 带 `weka-reviewed`；③ 该编号没有 open 卡；④ 板上没有 `running` / `review` 的卡 |
 
+`closed` 不在这张表里：它不建卡，只做标签兜底清理，见下文「关闭时的兜底清理」。
+
 为什么 issue 方向要两道门：公开仓库上任何人都能给 issue 打标签，所以标签只说明"这是想交给 weka 的活"，真正决定要不要花 token 的是指派——只有仓库所有者能把 issue 指派给 bot 账号。
 
 为什么 PR 方向要限定作者：bot 自己也会在 PR 上写评论（reed 的审查意见），限定为仓库所有者才能保证"只有人的动作触发返工卡"，不会被自己的输出喂回去。
@@ -77,13 +81,34 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 
 | 标签 | 打在哪 | 谁打 | 用途 |
 | --- | --- | --- | --- |
-| `weka-working` | issue 卡打 issue，PR 卡打 PR | cody 开工时 | 给人看：AI 正在干。卡完成时由 reed 摘掉 |
+| `weka-working` | issue 卡打 issue，PR 卡打 PR | cody 开工时 | 给人看：AI 正在干。PR 上的那份由 reed 通过时摘掉，issue 上的那份由 webhook 在 close 时兜底清掉 |
 | `weka-reviewing` | 永远是 PR | cody 交接前 | 给人看：AI 正在审 |
 | `weka-reviewed` | 永远是 PR | reed 通过时 | **唯一控制流程的标签**：只有它存在时，你在 PR 上的动作才会触发返工卡 |
 
 规则只有一条：**人在 PR 上的动作（提交 review 或留言），只在 PR 带 `weka-reviewed` 时才建卡**。cody 拿到返工卡的第一件事就是摘掉它，所以不会重复触发。
 
 副产品：`weka-working` 挂在对象上、但板上没有对应的卡在跑，就是"卡崩了"的可视信号——排查先看标签，比翻看板快。
+
+### 关闭时的兜底清理
+
+标签的清理不靠谁"记得摘"，靠 `closed` 事件兜底：`issues.closed` 和 `pull_request.closed` 都在 webhook 订阅里，两条 payload 各自带着对象的 `labels`，脚本按这份列表判断存在性，只删确实还在的 `weka-*`。
+
+为什么放在这里而不是让 reed 去 PR body 里找 `Closes #N`：
+
+- 只有 `close` 这个事件知道"这个对象彻底结束了"。审批通过时 issue 还开着，那一刻清掉 issue 上的标签并不比关闭时更正确。
+- 编号和对象类型不用推断——payload 里是哪个对象就清哪个，不存在"从 PR 号猜 issue 号"这一步，也就不会删错对象。
+- 判断存在性用的是事件自带的列表，比"先 GET 一次标签、再 DELETE"少一次请求；列表里没有的标签根本不发 DELETE，也就不会产生 `HTTP 404` 那种看起来像失败的日志。
+
+覆盖到的路径：
+
+| 关闭方式 | 事件 | 清掉的标签 |
+| --- | --- | --- |
+| PR 合并 | `pull_request.closed`（`merged=true`） | PR 上残留的 `weka-working` / `weka-reviewing` / `weka-reviewed` |
+| PR 直接关闭不合并 | `pull_request.closed`（`merged=false`） | 同上（本地分支保留，只清标签） |
+| issue 手动关闭 | `issues.closed` | issue 上残留的 `weka-working` |
+| 合并时被 `Closes #N` 自动关闭的 issue | `issues.closed` | 同上 |
+
+`weka` 标签只表示归属，不在这份清理名单里——对象关掉之后留着它没有意义，但它也是人筛"哪些是 weka 管的"的依据，脚本不动它。
 
 ## 安全边界
 
@@ -276,6 +301,8 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
 
 两个 review 相关的事件都要勾。它们在 GitHub 上是两件事：提交一个 review（Approved / Request changes / Comment）走 `pull_request_review`，而在 diff 上留一条行内评论走 `pull_request_review_comment`——只在行内评论里提意见时，review 的 body 是空的，只有后一个事件会来。只勾一个的话，提意见的方式换个按钮就静默失效了。
 
+`Issues` 和 `Pull requests` 两条订阅覆盖的不只是新建：`closed` 这个 action 也走它们，关闭时的标签兜底清理就靠这两条，不要因为"只关心新建"就不勾。
+
 云控制台放通 <webhook-port> 入站（安全组）——只放 <webhook-port>，不放 9180。
 
 ### 6. 端到端自检
@@ -286,7 +313,7 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
 2. issue 上出现 `weka-working`，开 PR 后 PR 上出现 `weka-reviewing`；
 3. Reed 审完，PR 上变成 `weka-reviewed`，你被加为 reviewer；
 4. 你在 PR 上提一条 `changes_requested` 的 review → 出现卡片 `#<pr>: Rework 1 — ...`，`weka-reviewed` 被摘掉；
-5. 你合并 PR → worktree 和本地分支被删掉，标签清空，不再有卡片。
+5. 你合并 PR → worktree 和本地分支被删掉，PR 上标签清空，不再有卡片；PR body 里带 `Closes #N` 时 issue 会自动关闭，issue 上的 `weka-working` 同时被清掉（手动关闭 issue 同理）。
 
 任何一环卡住，按顺序看：
 

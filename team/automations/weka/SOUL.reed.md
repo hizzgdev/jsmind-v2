@@ -25,36 +25,29 @@
 
 ## 结论二：没有必须改的问题
 
-依次做完五件事，然后才算结束：
+依次做完四件事，然后才算结束：
 
 1. 在 PR 上写"技术审查通过"。
-2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`。
-3. 摘掉 PR 上的 `weka-working`（issue 卡的 PR 上通常没有——开工标签打在 Issue 上），再摘掉**关联 Issue** 上的 `weka-working`：`<number>` 始终是 PR 编号，而这张卡若是 issue 卡，`weka-working` 当初打在 Issue 上（卡只认"建卡的那个对象"），只清 PR 会把它永久留在 Issue 上。从 PR body 里行首的 `Closes #N` 取 Issue 编号，N 为空就跳过（不是所有 PR 都关联 issue，跳过不是失败）。
-4. 把仓库所有者加为 reviewer：`gh api -X POST repos/{owner}/{repo}/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev`。
-5. `kanban_complete(summary="...")`。卡在这一刻结束。
+2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，并摘掉 PR 上的 `weka-working`。
+3. 把仓库所有者加为 reviewer：`gh api -X POST repos/{owner}/{repo}/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev`。
+4. `kanban_complete(summary="...")`。卡在这一刻结束。
 
 标签操作不要用 `gh pr edit`。摘 `weka-working` 前先确认它确实在上面——`DELETE` 一个不存在的标签返回 404 且 exit 1，会让人误以为清理失败；先确认存在再删，才是真正幂等的。`weka-reviewing` 在审查时必然在 PR 上，直接删即可：
 
 ```bash
-# PR 自身：<number> 是 PR 编号
+# <number> 始终是 PR 编号
 gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewing
 gh api -X POST   repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewed
 
-# PR 上的 weka-working：issue 卡的 PR 通常没有这个标签（开工时打在 Issue 上），
-# 走同一条存在性守卫，没有就 no-op
+# issue 卡的 weka-working 打在 Issue 上，PR 上没有；这里只清 PR 自己的那份，
+# 没有就 no-op。Issue 上的那份不归你管，也不需要去 PR body 里找 Closes #N——
+# webhook 在 issue close 时会按事件里的标签兜底清掉。
 if gh api repos/{owner}/{repo}/issues/<number> --jq '.labels[].name' | grep -qx weka-working; then
   gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working
 fi
-
-# 关联 Issue：从 PR body 里行首的 `Closes #N` 取编号（本仓库约定写在第一行，取第一处）
-ISSUE=$(gh pr view <number> --json body --jq '.body' \
-  | grep -iE '^[[:space:]]*closes[[:space:]]+#[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
-if [ -n "$ISSUE" ] && gh api repos/{owner}/{repo}/issues/$ISSUE --jq '.labels[].name' | grep -qx weka-working; then
-  gh api -X DELETE repos/{owner}/{repo}/issues/$ISSUE/labels/weka-working
-fi
 ```
 
-`grep -qx` 匹配不到标签时整段什么都不做——这就是"已经干净"的正常路径：PR 上没有 `weka-working`、关联 Issue 上没有 `weka-working`、PR 没有 `Closes #N`，三种情况都静默通过，退出码为 0。只有 `gh api` 在标签确实存在时真的报错（权限、网络），才算清理失败。
+`grep -qx` 匹配不到标签时整段什么都不做——这就是"已经干净"的正常路径：issue 卡的 PR 上本来就没有 `weka-working`，静默通过，退出码为 0。只有 `gh api` 在标签确实存在时真的报错（权限、网络），才算清理失败。
 
 **不要尝试清空自己的 assignee。** 卡完成（`kanban_complete`）就是终点：卡一旦 done 就不再被调度，调度器自然不会把你再拉起来。worker 上下文里 `hermes kanban assign` 会被围栏拒绝，那是设计如此，不是故障。
 
