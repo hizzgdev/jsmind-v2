@@ -16,7 +16,7 @@
  */
 
 import { parseArgs } from 'node:util';
-import { CliError, CliExit, usageError } from './exit.ts';
+import { CliExit, describeFailure, usageError } from './exit.ts';
 import {
     enumOption,
     intOption,
@@ -344,16 +344,9 @@ async function main(argv: string[]): Promise<void> {
     try {
         process.exitCode = await dispatch(parse(argv));
     } catch (err) {
-        if (err instanceof CliError) {
-            process.stderr.write(`${err.message}\n`);
-            process.exitCode = err.exit;
-            return;
-        }
-        // Anything unexpected is a runtime failure, not a usage problem — the
-        // caller should stop and look rather than retry with a different
-        // command line.
-        process.stderr.write(`Unexpected failure: ${(err as Error).message}\n`);
-        process.exitCode = CliExit.IoError;
+        const failure = describeFailure(err);
+        process.stderr.write(`${failure.message}\n`);
+        process.exitCode = failure.exit;
     }
 }
 

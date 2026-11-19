@@ -77,3 +77,40 @@ export function dataError(message: string): CliError {
 export function ioError(message: string): CliError {
     return new CliError(message, CliExit.IoError);
 }
+
+/**
+ * A failure as the CLI presents it: the line for stderr and the code for the shell.
+ *
+ * @public
+ */
+export interface CliFailure {
+    /** Text to write to stderr, without a trailing newline. */
+    message: string;
+    /** Exit code the process should terminate with. */
+    exit: CliExit;
+}
+
+/**
+ * Turns a caught error into the message and exit code it deserves.
+ *
+ * @param err - Whatever a command threw.
+ * @returns The message and exit code to report.
+ * @remarks
+ * Every failure a command raises on purpose is a {@link CliError}, and already
+ * carries its own code. Everything else is a bug or an exhausted environment, so
+ * it is reported as `Unexpected failure:` + `IoError` - the caller has no
+ * command-line change that would fix it.
+ *
+ * The decision lives here, in one function, because that is the only place a
+ * test can hold the boundary between "fix your command" (1 and 2) and "stop and
+ * ask a human" (3) without exercising every command.
+ */
+export function describeFailure(err: unknown): CliFailure {
+    if (err instanceof CliError) {
+        return { message: err.message, exit: err.exit };
+    }
+    return {
+        message: `Unexpected failure: ${(err as Error).message}`,
+        exit: CliExit.IoError,
+    };
+}

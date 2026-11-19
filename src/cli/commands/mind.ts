@@ -10,7 +10,7 @@
  */
 
 import { JmMindJsonSerializer } from '../../serialization/json.ts';
-import type { JmNodeSide } from '../../model/data/node.ts';
+import type { JmNode, JmNodeSide } from '../../model/data/node.ts';
 import { JmNodeContent } from '../../model/data/node-content.ts';
 import { JmEdgeType } from '../../model/data/edge.ts';
 import type { JmMind } from '../../model/mind.ts';
@@ -37,6 +37,34 @@ const SUBCOMMANDS = [
     'list-edges',
 ] as const;
 
+/**
+ * Resolves a node id, failing as invalid data when the document has no such node.
+ *
+ * @remarks
+ * The model signals an absent id with `JsMindError`, which the top level can only
+ * read as a crash: exit 3, `Unexpected failure`, and an instruction to stop and
+ * ask a human. An id that is not in the document is none of those things - the
+ * caller fixes it by editing the command line - so every mutating subcommand
+ * resolves its ids through here before the model sees them, and the failure
+ * carries {@link CliExit.InvalidData} instead.
+ *
+ * `role` only changes the wording. `--node-id ghost` and `--parent-id ghost` are
+ * different mistakes, and the message names which one was made.
+ *
+ * @param mind - Loaded mind map.
+ * @param nodeId - Id taken from the command line.
+ * @param file - Path, for the message.
+ * @param role - Noun for the option this id came from, defaulting to `node`.
+ * @returns The node with that id.
+ * @throws {@link CliError} With `InvalidData` when no node has that id.
+ */
+function requireNode(mind: JmMind, nodeId: string, file: string, role = 'node'): JmNode {
+    const node = mind.findNodeById(nodeId);
+    if (node === null) {
+        throw dataError(`No ${role} with id "${nodeId}" in ${file}`);
+    }
+    return node;
+}
 
 /**
  * Runs a `mind` subcommand.
@@ -91,6 +119,7 @@ export function runMind(
             const parentId = requireOption(values, 'parent-id');
             const text = requireOption(values, 'text');
             const created = runMutation(file, options, (mind: JmMind) => {
+                requireNode(mind, parentId, file, 'parent node');
                 const node = mind.addChildNode(text, parentId);
                 return node.id;
             });
@@ -104,6 +133,7 @@ export function runMind(
             const position = optionalIntOption(values, 'position');
             const sideRaw = optionalOption(values, 'side');
             const created = runMutation(file, options, (mind: JmMind) => {
+                requireNode(mind, parentId, file, 'parent node');
                 const dest: { parentId: string; position?: number; side?: JmNodeSide } = {
                     parentId,
                 };
@@ -125,6 +155,20 @@ export function runMind(
             const parentId = requireOption(values, 'parent-id');
             const position = optionalIntOption(values, 'position');
             runMutation(file, options, (mind: JmMind) => {
+                // Resolve both ends first: the model reports a missing id as a
+                // library error, and a missing parent as a different string than
+                // a missing node, so neither reaches the top level as a crash.
+                const node = requireNode(mind, nodeId, file);
+                const parent = requireNode(mind, parentId, file, 'parent node');
+                if (node.id === parent.id) {
+                    throw dataError(`Cannot move "${nodeId}" under itself in ${file}`);
+                }
+                if (parent.isDescendant(node)) {
+                    throw dataError(
+                        `Cannot move "${nodeId}" under "${parentId}" in ${file}: ` +
+                            `"${parentId}" is a descendant of "${nodeId}"`
+                    );
+                }
                 const dest: { parentId: string; position?: number } = { parentId };
                 if (position !== undefined) {
                     dest.position = position;
@@ -139,6 +183,10 @@ export function runMind(
         case 'remove-node': {
             const nodeId = requireOption(values, 'node-id');
             runMutation(file, options, (mind: JmMind) => {
+                const node = requireNode(mind, nodeId, file);
+                if (node.isRoot()) {
+                    throw dataError(`Cannot remove the root node "${nodeId}" in ${file}`);
+                }
                 mind.removeNode(nodeId);
                 return nodeId;
             });
@@ -152,6 +200,8 @@ export function runMind(
             const typeRaw = optionalOption(values, 'type') ?? JmEdgeType.Link;
             const label = optionalOption(values, 'label') ?? null;
             const created = runMutation(file, options, (mind: JmMind) => {
+                requireNode(mind, sourceId, file, 'source node');
+                requireNode(mind, targetId, file, 'target node');
                 const edge = mind.addEdge(
                     sourceId,
                     targetId,
@@ -200,5 +250,8 @@ Structure and edges (mirrors JmMind methods). Locators are ids only.
   add-edge      --source-id <id> --target-id <id>    Add a relation (JmMind.addEdge)
                 [--type link] [--label <text>]
   remove-edge   --edge-id <id>                       Remove a relation
+
+--position is an index among the target parent's children. A value at or past
+the end appends (the model clamps it), and omitting --position appends too.
 
 Every mutating subcommand validates the result and rolls back on failure.`;
