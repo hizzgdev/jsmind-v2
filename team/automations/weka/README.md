@@ -33,7 +33,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
   → dispatcher 拉起 reed
   → Reed: 按 sdlc-review 流程审 → 意见写在 PR 上
        ├─ 有必须改 → request_changes（卡回 cody，可无限轮，不计任何计数）
-       └─ 通过 → 摘 weka-reviewing/working、加 weka-reviewed、加 reviewer hizzgdev、complete
+       └─ 通过 → 摘 weka-reviewing 与 PR 上的 weka-working（issue 卡打在 Issue 上、PR 上没有）、加 weka-reviewed、加 reviewer hizzgdev、complete
   → 你在 GitHub 上终审
        ├─ 合并 → webhook 删 worktree + 本地分支 + 摘 PR 上的标签（不建卡）
        └─ 要求修改 → webhook 见 weka-reviewed → 建 "#86: Rework N — ..." 卡给 cody
@@ -255,6 +255,13 @@ openssl rand -hex 32        # 把输出填进 config.json 的 "secret"
 systemctl --user link "$(pwd)/github-webhook.service"
 systemctl --user daemon-reload
 systemctl --user enable --now github-webhook.service
+```
+
+**改了 `github-webhook.py` 或 `config.json` 之后，主 checkout 要先拉代码再重启，否则跑的还是旧代码。** `ExecStart` 直接指向主 checkout 里那份脚本，`Restart=always` 只在进程退出时重启，不会因为文件变了就重载——和 gateway、nginx 一样，改完不重启就是静默不生效：
+
+```bash
+git -C ~/repos/jsmind-v2 pull --ff-only
+systemctl --user restart github-webhook.service
 ```
 
 再挂 nginx 反代（独立 server 块，按公网 IP 直连，监听端口 <webhook-port>）：
