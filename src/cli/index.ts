@@ -26,6 +26,7 @@ import {
 } from './io.ts';
 import {
     runExport,
+    exportHelp,
     EXPORT_TYPES,
     DEFAULT_WIDTH,
     DEFAULT_HEIGHT,
@@ -191,13 +192,25 @@ function writeOptions(values: Record<string, unknown>): WriteOptions {
  * `jsmind mind --help` handed back the same 134 lines the root help points
  * away from. The ladder is written out rather than derived from a registry:
  * `set-style` is the only third level, because its field table is the only one
- * long enough to swamp the group block it sits in. `create` / `validate` /
- * `context` / `export` are single pages with no second level, so they keep
- * falling back to the index, which already contains their block.
+ * long enough to swamp the group block it sits in.
+ *
+ * Every command has its own block at the first level, so `--help` never has to
+ * fall back to the index: `create`, `validate`, `context` and `export` are
+ * single pages whose block was already embedded in `HELP` (or, for `export`,
+ * written but never reached) — printing the index for them asked the reader to
+ * find the one part that answers their question inside 134 lines.
  */
 function focusedHelp(positionals: string[]): string | undefined {
     const [command, subcommand] = positionals;
     switch (command) {
+        case 'create':
+            return createHelp;
+        case 'validate':
+            return validateHelp;
+        case 'context':
+            return contextHelp;
+        case 'export':
+            return exportHelp;
         case 'mind':
             return mindHelp;
         case 'node':

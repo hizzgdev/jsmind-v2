@@ -16,6 +16,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { HELP } from '../../src/cli/index.ts';
+import { createHelp } from '../../src/cli/commands/create.ts';
+import { validateHelp } from '../../src/cli/commands/validate.ts';
+import { contextHelp } from '../../src/cli/commands/context.ts';
+import { exportHelp } from '../../src/cli/commands/export.ts';
 import { mindHelp } from '../../src/cli/commands/mind.ts';
 import { nodeHelp, setStyleHelp } from '../../src/cli/commands/node.ts';
 
@@ -82,11 +86,13 @@ test('help - `node set-style --help` prints only the style field table', () => {
 });
 
 test('help - `help <topic>` is the same request as `<topic> --help`', () => {
-    const aliased = runCli(['help', 'mind']);
-    const flagged = runCli(['mind', '--help']);
+    for (const topic of ['mind', 'create', 'validate', 'context', 'export']) {
+        const aliased = runCli(['help', topic]);
+        const flagged = runCli([topic, '--help']);
 
-    assert.strictEqual(aliased.code, 0);
-    assert.strictEqual(aliased.stdout, flagged.stdout);
+        assert.strictEqual(aliased.code, 0, `jsmind help ${topic} should succeed`);
+        assert.strictEqual(aliased.stdout, flagged.stdout, `help ${topic} should equal ${topic} --help`);
+    }
 });
 
 test('help - a mind subcommand other than set-style still gets the group block', () => {
@@ -97,4 +103,33 @@ test('help - a mind subcommand other than set-style still gets the group block',
 
     assert.strictEqual(run.code, 0);
     assert.strictEqual(run.stdout, `${mindHelp}\n`);
+});
+
+test('help - every single-page command prints only its own block', () => {
+    // `create`, `validate`, `context` and `export` have no second level, so
+    // their block is the whole answer. They used to get the 134-line index:
+    // the block was in there, but the caller had to find it.
+    const cases = [
+        { topic: 'create', block: createHelp, foreign: 'set-style' },
+        { topic: 'validate', block: validateHelp, foreign: '--title' },
+        { topic: 'context', block: contextHelp, foreign: 'add-child' },
+        { topic: 'export', block: exportHelp, foreign: 'set-style' },
+    ];
+
+    for (const { topic, block, foreign } of cases) {
+        const run = runCli([topic, '--help']);
+
+        assert.strictEqual(run.code, 0, `jsmind ${topic} --help should succeed`);
+        assert.strictEqual(run.stdout, `${block}\n`, `jsmind ${topic} --help should print only its block`);
+        assert.ok(!run.stdout.includes(foreign), `the ${topic} block should not carry ${foreign}`);
+    }
+});
+
+test('help - `--help` after the file argument still answers for the command', () => {
+    // Asking what a command takes should never run it: with `--help` present
+    // the dispatcher answers and stops, whether or not a path was typed first.
+    const run = runCli(['create', 'not-created.json', '--help']);
+
+    assert.strictEqual(run.code, 0);
+    assert.strictEqual(run.stdout, `${createHelp}\n`);
 });

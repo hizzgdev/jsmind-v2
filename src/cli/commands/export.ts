@@ -171,24 +171,23 @@ export async function runExport(options: ExportOptions): Promise<number> {
 export const EXPORT_TYPES: readonly string[] = Object.values(JmImageType);
 
 /**
- * Describes the export command for `--help`.
+ * Describes the `export` command for `--help`.
+ *
+ * @remarks
+ * Defaults and the format list are interpolated rather than typed out, so the
+ * help cannot quote a default the command no longer uses.
  */
-export function describeExport(): string {
-    return [
-        'Usage: jsmind export <file> <out.png> [options]',
-        '',
-        'Renders a mind map to an image. The size is the map\'s own size:',
-        'whitespace inside the viewport is kept, and a map larger than the',
-        'viewport is not cropped.',
-        '',
-        'Options:',
-        '  --width <px>      Viewport width to lay the map out in   (default 1200)',
-        '  --height <px>     Viewport height                        (default 800)',
-        '  --scale <n>       Output pixel ratio                     (default 2)',
-        '  --type <format>   image/png, image/jpeg or image/webp    (default image/png)',
-        '  --json            Machine-readable output',
-        '',
-        'Requires a Chromium binary. Set CHROME_PATH if it is not in a',
-        'standard location.',
-    ].join('\n');
-}
+export const exportHelp = `jsmind export <file> <out.png> [options]
+
+Renders a mind map to an image. The size is the map's own size:
+whitespace inside the viewport is kept, and a map larger than the
+viewport is not cropped.
+
+  --width <px>      Viewport width to lay the map out in   (default ${DEFAULT_WIDTH})
+  --height <px>     Viewport height                        (default ${DEFAULT_HEIGHT})
+  --scale <n>       Output pixel ratio                     (default ${DEFAULT_SCALE})
+  --type <format>   ${EXPORT_TYPES.join(', ')}      (default image/png)
+  --json            Machine-readable output
+
+Requires a Chromium binary. Set CHROME_PATH if it is not in a
+standard location.`;
