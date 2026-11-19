@@ -2,7 +2,7 @@
 
 面向人与 agent 的思维导图内核 —— 人能查看、编辑、导出导图，agent 能可靠地生成、读取、修改结构化的脑图数据。
 
-[文档](https://hizzgdev.github.io/jsmind-v2/docs/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.zh.md)
+[文档](https://hizzgdev.github.io/jsmind-v2/docs/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.md)
 
 English version: [README.md](README.md).
 
@@ -63,7 +63,7 @@ tmp/hello.png: 2400x1600 (85.0 KB)
 
 ## Skill
 
-用 CLI 画图或改图时使用的 jsmind skill：[`skills/jsmind/SKILL.zh.md`](skills/jsmind/SKILL.zh.md)。英文版见 [`SKILL.md`](skills/jsmind/SKILL.md)。
+用 CLI 生成或修改思维导图时使用的 jsmind skill：[`skills/jsmind/SKILL.md`](skills/jsmind/SKILL.md)。安装 skill 和 CLI 的步骤见 [`skills/jsmind/INSTALL.md`](skills/jsmind/INSTALL.md)。
 
 ## 开发
 

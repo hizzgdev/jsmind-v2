@@ -411,18 +411,43 @@ describe('pages site assembly', () => {
 
             const enSkill = readFileSync(join(docsDir, 'en', 'guide', 'skill.html'), 'utf8');
             const zhSkill = readFileSync(join(docsDir, 'zh', 'guide', 'skill.html'), 'utf8');
-            assert.ok(enSkill.includes('skills/jsmind/'));
-            assert.ok(zhSkill.includes('skills/jsmind/'));
+            // The guide is a pointer, not a second copy of the install: one skill file,
+            // English only, plus the install steps as a separate file inside the skill
+            // directory. The inline install prompt used to have to be kept in step with
+            // the CLI by hand, and drifted.
             assert.ok(enSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md'));
-            assert.ok(zhSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.zh.md'));
-            assert.ok(enSkill.includes('do not hand-write the JSON'));
-            assert.ok(zhSkill.includes('不要手写 JSON'));
-            assert.ok(enSkill.includes('[topic]'));
-            assert.ok(zhSkill.includes('[主题]'));
-            assert.ok(enSkill.includes('npm i jsmind@2'));
-            assert.ok(zhSkill.includes('npm i jsmind@2'));
-            assert.ok(enSkill.includes('jsmind validate'));
-            assert.ok(zhSkill.includes('jsmind validate'));
+            assert.ok(zhSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md'));
+            assert.ok(enSkill.includes('skills/jsmind/INSTALL.md'));
+            assert.ok(zhSkill.includes('skills/jsmind/INSTALL.md'));
+            assert.ok(!enSkill.includes('SKILL.zh.md'));
+            assert.ok(!zhSkill.includes('SKILL.zh.md'));
+            // Install and invocation detail belongs to INSTALL.md; the guide does not
+            // repeat it.
+            assert.ok(!enSkill.includes('npx jsmind'));
+            assert.ok(!zhSkill.includes('npx jsmind'));
+            // The example prompt names the output and what counts as done, and leaves
+            // the command order to the skill.
+            assert.ok(enSkill.includes('solar-system.json'));
+            assert.ok(zhSkill.includes('solar-system.json'));
+            assert.ok(!enSkill.includes('npx jsmind context'));
+            assert.ok(!zhSkill.includes('npx jsmind context'));
+
+            // INSTALL.md is the instrument the guide hands to an agent.
+            const install = readFileSync(join(ROOT, 'skills', 'jsmind', 'INSTALL.md'), 'utf8');
+            // The guide hands over a URL, not a clone, and a relative link does not
+            // survive a raw read of the file: every reference to the skill inside it has
+            // to be a path that works from that URL alone.
+            assert.ok(install.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md'));
+            assert.ok(install.includes('https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind'));
+            assert.ok(!install.includes('](SKILL.md)'));
+            assert.ok(install.includes('npm i jsmind@2'));
+            assert.ok(install.includes('npx jsmind <command>'));
+            assert.ok(install.includes('No Chromium found'));
+            // npx resolves from the tree it runs in, so installing elsewhere is the
+            // second route to 0.9.1 and to the same "executable" error.
+            assert.ok(install.includes('the directory you will work in'));
+            assert.ok(install.includes('Done means'));
+            assert.ok(!existsSync(join(ROOT, 'skills', 'jsmind', 'SKILL.zh.md')));
 
             const enApi = readFileSync(join(docsDir, 'en', 'reference', 'api.html'), 'utf8');
             const zhApi = readFileSync(join(docsDir, 'zh', 'reference', 'api.html'), 'utf8');

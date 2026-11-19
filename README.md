@@ -66,7 +66,7 @@ Try the library in the [Playground](https://hizzgdev.github.io/jsmind-v2/playgro
 
 ## Skill
 
-The jsmind skill for drawing or editing a map with the CLI: [`skills/jsmind/SKILL.md`](skills/jsmind/SKILL.md). A Chinese copy is in [`SKILL.zh.md`](skills/jsmind/SKILL.zh.md).
+The jsmind skill for drawing or editing a map with the CLI: [`skills/jsmind/SKILL.md`](skills/jsmind/SKILL.md). How to install it, and the CLI it calls: [`skills/jsmind/INSTALL.md`](skills/jsmind/INSTALL.md).
 
 ## Development
 
