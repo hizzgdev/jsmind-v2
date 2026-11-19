@@ -437,6 +437,9 @@ describe('pages site assembly', () => {
             assert.ok(install.includes('npm i jsmind@2'));
             assert.ok(install.includes('npx jsmind <command>'));
             assert.ok(install.includes('No Chromium found'));
+            // npx resolves from the tree it runs in, so installing elsewhere is the
+            // second route to 0.9.1 and to the same "executable" error.
+            assert.ok(install.includes('the directory you will work in'));
             assert.ok(install.includes('Done means'));
             assert.ok(!existsSync(join(ROOT, 'skills', 'jsmind', 'SKILL.zh.md')));
 

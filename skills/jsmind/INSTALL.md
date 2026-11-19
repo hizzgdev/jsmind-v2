@@ -10,7 +10,8 @@ You have been asked to install the jsMind skill into the harness you are running
 The 2.x line is on a preview channel: `latest` on npm is still 0.9.1 (v1), which has no `bin` field and no `jsmind` command at all.
 
 - Install it with `npm i jsmind@2`, then call it as `npx jsmind <command>`.
-- Do not run plain `npm i jsmind`: that installs 0.9.1, and `npx jsmind` then fails with `could not determine executable to run`, which reads like a broken skill when the version is what is wrong.
+- Install it in the directory you will work in, or in a parent of it. `npx` resolves `jsmind` from the tree it runs in and otherwise falls back to the registry `latest`, so installing in one directory and working in another lands back on 0.9.1.
+- Do not run plain `npm i jsmind`: that installs 0.9.1, which ships no executable, and `npx jsmind` then fails with `could not determine executable to run`. Running `npx jsmind` outside the tree where 2.x was installed produces the same message for the same reason: the version being resolved is wrong, not the skill.
 - The skill writes its commands as `jsmind <command>`; on this install route you actually type `npx jsmind <command>`.
 - Node.js >= 22.12.
 
