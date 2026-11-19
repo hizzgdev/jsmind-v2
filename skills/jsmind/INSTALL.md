@@ -2,7 +2,7 @@
 
 You have been asked to install the jsMind skill into the harness you are running in. Two separate things have to be in place, and the skill does not install the other one for you:
 
-- **The skill** is [SKILL.md](SKILL.md) in this directory. It is documentation only: guardrails, checkpoints, and what to look for in the exported picture. It ships no commands.
+- **The skill** is `SKILL.md`, in the same directory as this file: https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md. It is documentation only: guardrails, checkpoints, and what to look for in the exported picture. It ships no commands.
 - **The CLI** is the `jsmind` package on npm. Every map you build or edit goes through it.
 
 ## The CLI
@@ -22,7 +22,7 @@ The 2.x line is on a preview channel: `latest` on npm is still 0.9.1 (v1), which
 The directory name is the skill name, so `SKILL.md` has to sit one level below the skills root.
 
 - **In a clone of this repository**: load `skills/jsmind/` in place and copy nothing. The clone's own CLI is `npx jsmind` as well, once `npm install && npm run build` has run.
-- **Anywhere else**: copy the whole `skills/jsmind/` directory to `<skills>/jsmind/`, where `<skills>` is the directory your harness loads skills from. Keep the `jsmind/` level: `SKILL.md` dropped straight into `<skills>/` has no name to load under and collides with other skills.
+- **Anywhere else**: copy the whole `skills/jsmind/` directory from https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind to `<skills>/jsmind/`, where `<skills>` is the directory your harness loads skills from. `INSTALL.md` is this file; `SKILL.md` is the one the harness needs. Keep the `jsmind/` level: `SKILL.md` dropped straight into `<skills>/` has no name to load under and collides with other skills.
 
 ## Done means
 

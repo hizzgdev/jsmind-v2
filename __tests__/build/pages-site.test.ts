@@ -434,6 +434,12 @@ describe('pages site assembly', () => {
 
             // INSTALL.md is the instrument the guide hands to an agent.
             const install = readFileSync(join(ROOT, 'skills', 'jsmind', 'INSTALL.md'), 'utf8');
+            // The guide hands over a URL, not a clone, and a relative link does not
+            // survive a raw read of the file: every reference to the skill inside it has
+            // to be a path that works from that URL alone.
+            assert.ok(install.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md'));
+            assert.ok(install.includes('https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind'));
+            assert.ok(!install.includes('](SKILL.md)'));
             assert.ok(install.includes('npm i jsmind@2'));
             assert.ok(install.includes('npx jsmind <command>'));
             assert.ok(install.includes('No Chromium found'));
