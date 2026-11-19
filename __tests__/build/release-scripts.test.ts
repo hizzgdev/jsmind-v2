@@ -241,6 +241,11 @@ function sandboxRepository(scripts: Record<string, string>) {
 
     execFileSync('git', ['init', '-q', '--bare', origin], { env });
     git('init', '-q', '-b', 'master');
+    // Repository-local identity: the script runs git commands of its own, and
+    // without this the commit fails on a machine with no global identity before
+    // the failure this test is about is even reached.
+    git('config', 'user.name', 'sandbox');
+    git('config', 'user.email', 'sandbox@example.com');
     writeFileSync(
         join(work, 'package.json'),
         `${JSON.stringify({ name: 'sandbox', version: '2.0.1', private: true, scripts }, null, 4)}\n`,
@@ -278,7 +283,7 @@ function sandboxRepository(scripts: Record<string, string>) {
     return { root, work, bin, env, git };
 }
 
-/** Run `release:prepare patch` in the sandbox until it fails, and collect the commands it printed. */
+/** Run `release:prepare patch` in the sandbox until it fails. */
 function failedPrepare(options: { scripts?: Record<string, string>; rejectCommit?: boolean } = {}) {
     const sandbox = sandboxRepository(options.scripts ?? PASSING_CHECKS);
     if (options.rejectCommit) {
@@ -291,16 +296,25 @@ function failedPrepare(options: { scripts?: Record<string, string>; rejectCommit
         encoding: 'utf8',
         env: { ...sandbox.env, PATH: `${sandbox.bin}:${process.env.PATH ?? ''}` },
     });
-    const printed = result.stderr
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.startsWith('git '));
-    return { ...sandbox, result, printed };
+    return { ...sandbox, result };
+}
+
+/**
+ * The recipe has to be on stderr as three consecutive lines, whatever the
+ * indentation - matching only the commands the fix expects keeps git's own
+ * advice ("git config --global user.email ...") from passing for a recipe.
+ */
+function printedRecipe(stderr: string): string[] {
+    const recipe: string[] = lib.undoBumpHint('chore/release-2.0.2');
+    const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const block = new RegExp(recipe.map(line => `^[ \t]*${escape(line)}$`).join('\n'), 'm');
+    assert.match(stderr, block);
+    return recipe;
 }
 
 /** Follow the printed recipe and assert it leaves master exactly where it started. */
-function assertRecovered(sandbox: ReturnType<typeof failedPrepare>) {
-    for (const line of sandbox.printed) {
+function assertRecovered(sandbox: ReturnType<typeof failedPrepare>, recipe: string[]) {
+    for (const line of recipe) {
         const [command, ...args] = line.split(' ');
         execFileSync(command, args, { cwd: sandbox.work, env: sandbox.env });
     }
@@ -317,12 +331,11 @@ describe('the way out of a failed prepare', () => {
         try {
             assert.equal(sandbox.result.status, 1, `${sandbox.result.stdout}\n${sandbox.result.stderr}`);
             assert.match(sandbox.result.stderr, /git commit failed/);
-            assert.deepEqual(sandbox.printed, lib.undoBumpHint('chore/release-2.0.2'));
 
             // `git checkout -- <paths>` reads from the index, and the index
             // already held the bump, so it undid nothing and the next
             // `git checkout master` carried the new version onto master.
-            assertRecovered(sandbox);
+            assertRecovered(sandbox, printedRecipe(sandbox.result.stderr));
         }
         finally {
             rmSync(sandbox.root, { recursive: true, force: true });
@@ -336,9 +349,8 @@ describe('the way out of a failed prepare', () => {
         try {
             assert.equal(sandbox.result.status, 1, `${sandbox.result.stdout}\n${sandbox.result.stderr}`);
             assert.match(sandbox.result.stderr, /format-check or pack:check failed/);
-            assert.deepEqual(sandbox.printed, lib.undoBumpHint('chore/release-2.0.2'));
 
-            assertRecovered(sandbox);
+            assertRecovered(sandbox, printedRecipe(sandbox.result.stderr));
         }
         finally {
             rmSync(sandbox.root, { recursive: true, force: true });
