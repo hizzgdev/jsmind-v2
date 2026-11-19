@@ -222,6 +222,15 @@ jobs:
       - name: Format check
         run: npm run format-check
 
+      # Prose must not pin a patch version. `package.json` is the only source
+      # of the version - the docs read it at build time and the README reads
+      # npm - so a literal `2.0.x` in a page goes stale on the next release and
+      # leaves the tagged tree describing the previous one. Its own step rather
+      # than part of format-check: a violation here is a content mistake, not a
+      # whitespace one, and the report is `file:line: content`.
+      - name: Version references
+        run: npm run version-check
+
       # Everything below compiles or exercises the TypeScript library sources.
       # Changes that only touch docs/ or other markdown cannot change those
       # answers, so these steps are skipped. Docs-site checks live in the
