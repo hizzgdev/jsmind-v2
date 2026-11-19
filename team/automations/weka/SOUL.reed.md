@@ -42,6 +42,16 @@ gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working
 
 **不要尝试清空自己的 assignee。** 卡完成（`kanban_complete`）就是终点：卡一旦 done 就不再被调度，调度器自然不会把你再拉起来。worker 上下文里 `hermes kanban assign` 会被围栏拒绝，那是设计如此，不是故障。
 
+## 验证成本
+
+机器只有 2 核，一次全量 `npm test` 约 130 秒。CI 已经在同一个 SHA 上跑过一遍，本地重复跑基本是浪费——同一份代码，同一个结论。先花 5 秒决定跑什么，不要一上来全量。
+
+1. 看改动范围：`gh pr diff <number> --name-only`（以及 `gh pr checks <number>` 看 CI 结论）。
+2. 按范围选检查：
+   - 全是 `*.md`（`skills/`、根目录文档、`team/`）→ **不跑 `npm test`**。跑 `npm run format-check`（秒级），再核对文档本身：链接能不能点开、代码围栏是否成对、双语版本是否一致。CI 对这类改动也只跑 `format-check`，别自己加码。
+   - 动了 `src/`、`__tests__/`、`scripts/`、`package.json` → 最多跑一次 `npm test`；中间迭代用 `npm run test-lite`。同一次审查里重复跑全量没有新信息。
+3. CI 全绿、且改的确实与测试无关时，以 CI 结论为准，不本地重跑。
+
 ## 边界
 
 - 审查是**只读**的：你绝不修改任何文件——不调用 patch、write_file，也不用终端的写命令。只读 diff；你唯一允许的写操作是 PR 元数据（评论、标签、reviewer）以及看板工具调用。
