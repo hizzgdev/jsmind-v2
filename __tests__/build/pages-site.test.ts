@@ -252,6 +252,56 @@ describe('pages site assembly', () => {
         assert.ok(!workflow.includes('assemble-pages'));
     });
 
+    it('uploads the site and deploys it from separate jobs', () => {
+        // Sharing a job makes deploy-pages ask the artifacts API a few hundred
+        // milliseconds after the upload finalizes, and that list is eventually
+        // consistent: it intermittently answers "Found 0 artifact(s)" for an
+        // artifact that does exist (actions/deploy-pages#451). Re-running a
+        // failed deploy then reuses the artifact already in the run instead of
+        // uploading a second `github-pages` and failing on the duplicate
+        // (actions/deploy-pages#338). Both need the job boundary.
+        const workflow = readFileSync(join(ROOT, '.github/workflows/static.yml'), 'utf8');
+        const lines = workflow.split('\n');
+        const jobsStart = lines.indexOf('jobs:');
+        assert.ok(jobsStart >= 0, 'the workflow should have a jobs section');
+
+        // Job names are the only keys at two-space indentation inside `jobs:`;
+        // steps, their inputs and the environment sit deeper.
+        const jobs = new Map<string, string>();
+        let current: string | null = null;
+        for (const line of lines.slice(jobsStart + 1)) {
+            const job = /^ {2}([a-z][a-z-]*):\s*$/.exec(line);
+            if (job) {
+                current = job[1];
+                jobs.set(current, '');
+                continue;
+            }
+            if (current !== null) {
+                jobs.set(current, `${jobs.get(current) ?? ''}${line}\n`);
+            }
+        }
+
+        const jobRunning = (action: string): string => {
+            const found = Array.from(jobs.entries()).filter(([, body]) => body.includes(action));
+            assert.strictEqual(found.length, 1, `${action} should run in exactly one job`);
+            return found[0][0];
+        };
+
+        const uploadJob = jobRunning('actions/upload-pages-artifact@');
+        const deployJob = jobRunning('actions/deploy-pages@');
+        assert.notStrictEqual(uploadJob, deployJob, 'the upload and the deploy should not share a job');
+        assert.match(
+            jobs.get(deployJob) ?? '',
+            new RegExp(`^ {4}needs: ${uploadJob}$`, 'm'),
+            'the deploy job should wait for the job that uploads the artifact'
+        );
+        assert.doesNotMatch(
+            jobs.get(deployJob) ?? '',
+            /\n {6}- name: (Checkout|Setup Node|Build the library|Assemble the site)$/m,
+            'the deploy job should not redo the build'
+        );
+    });
+
     it('writes retired docs path redirects for both locales', () => {
         const dir = mkdtempSync(join(tmpdir(), 'jsmind-docs-redirects-'));
         try {

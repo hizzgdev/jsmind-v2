@@ -25,11 +25,21 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
+# Build and deploy are separate jobs, and both reasons are about the artifact
+# the deploy job reads back by name:
+#
+# - `actions/deploy-pages` resolves `github-pages` through the artifacts API a
+#   fraction of a second after the upload finalizes when both steps share a
+#   job. That list is eventually consistent, so the lookup intermittently
+#   answers `Found 0 artifact(s)` for an artifact that does exist (see
+#   actions/deploy-pages#451). A job boundary puts a runner allocation between
+#   the upload and the lookup, which is why the official Pages starters split
+#   them this way.
+# - Re-running a failed deploy reuses the artifact that is already in the run.
+#   Re-running a combined job uploads a second `github-pages` instead, and the
+#   lookup then fails the other way, on a duplicate (actions/deploy-pages#338).
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     # Generous: npm ci on this repository takes a couple of minutes, and a
     # cancelled install leaves nothing useful behind anyway.
     timeout-minutes: 15
@@ -67,6 +77,19 @@ jobs:
         with:
           path: ./_site
 
+  deploy:
+    needs: build
+    # No checkout, no Node, no build: the artifact is the only input, and
+    # deploy-pages fetches it from this run itself.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # deploy-pages waits up to ten minutes for the deployment to go live; the
+    # job budget is slightly larger so the action's own error is the one that
+    # gets reported.
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
