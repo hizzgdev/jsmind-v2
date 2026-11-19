@@ -15,7 +15,7 @@ See [Getting Started](./getting-started) for installation and a first map.
 
 ## What you can do today
 
-The current 2.0.0 preview already includes:
+The current 2.0.1 preview already includes:
 
 - Creating, validating, editing, and exporting maps with the CLI
 - A skill that helps an agent draw or edit a map with that CLI
@@ -28,6 +28,6 @@ The [API](/en/reference/api) is documented as a preview. The on-disk data format
 - [Getting Started](./getting-started) — install jsMind V2 and create a first map
 - [Skill](./skill) — point an agent at the repository skill
 - [CLI](./cli) — current commands and usage (preview)
-- [API](/en/reference/api) — how to call the published 2.0.0 programming interface (preview)
+- [API](/en/reference/api) — how to call the published 2.0.1 programming interface (preview)
 - [Reference](/en/reference/) — node content, moving nodes, image export, serialization, and the data format
 - [Design](/en/design/) — why the library is structured this way
