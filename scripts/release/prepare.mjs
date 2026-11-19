@@ -32,7 +32,7 @@ import {
     releaseKind,
     tagName,
 } from './checks.mjs';
-import { capture, fail, git, note, readPackage, repoRoot, run, step } from './lib.mjs';
+import { capture, fail, git, note, readPackage, repoRoot, run, step, undoBumpHint } from './lib.mjs';
 import { parseLog, renderNotes } from './notes.mjs';
 
 const USAGE = 'usage: npm run release:prepare -- <patch|minor> [--dry-run]';
@@ -145,6 +145,7 @@ function main(argv) {
     note(`${version} -> ${target}; tag ${tag} is unused`);
 
     const releaseBranch = `chore/release-${target}`;
+    const undo = () => undoBumpHint(releaseBranch).join('\n  ');
     const existingBranch = git(['ls-remote', '--heads', 'origin', `refs/heads/${releaseBranch}`])
         .split('\n')
         .filter(Boolean);
@@ -200,7 +201,7 @@ function main(argv) {
     catch {
         fail(
             `npm version ${target} --no-git-tag-version failed.`,
-            `Nothing was committed. Undo with:\n  git checkout -- package.json package-lock.json\n  git checkout master\n  git branch -d ${releaseBranch}`,
+            `Nothing was committed. Undo with:\n  ${undo()}`,
         );
     }
 
@@ -212,7 +213,7 @@ function main(argv) {
     catch {
         fail(
             'format-check or pack:check failed on the bumped tree.',
-            `package.json and package-lock.json are bumped on ${releaseBranch} and nothing is committed.\nFix the failure and commit by hand, or undo with:\n  git checkout -- package.json package-lock.json\n  git checkout master\n  git branch -d ${releaseBranch}`,
+            `package.json and package-lock.json are bumped on ${releaseBranch} and nothing is committed.\nFix the failure and commit by hand, or undo with:\n  ${undo()}`,
         );
     }
 
@@ -224,7 +225,7 @@ function main(argv) {
     catch (error) {
         fail(
             `git commit failed on ${releaseBranch}.`,
-            `${error.message}\npackage.json and package-lock.json are bumped and staged. Commit by hand, or undo with:\n  git checkout -- package.json package-lock.json\n  git checkout master\n  git branch -d ${releaseBranch}`,
+            `${error.message}\npackage.json and package-lock.json are bumped and staged. Commit by hand, or undo with:\n  ${undo()}`,
         );
     }
     try {

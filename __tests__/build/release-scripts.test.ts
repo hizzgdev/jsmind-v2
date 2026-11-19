@@ -13,6 +13,9 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -26,6 +29,7 @@ async function load(name: string) {
 
 const checks = await load('checks.mjs');
 const notes = await load('notes.mjs');
+const lib = await load('lib.mjs');
 
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
@@ -195,5 +199,149 @@ describe('release notes', () => {
             nodeRange: '>=22.12.0',
         });
         assert.match(text, /Minor release on the 2\.x preview line/);
+    });
+});
+
+/**
+ * `release:prepare` checks the whole world before it writes: a clean tree, on
+ * master, master in sync with origin, green CI from gh, an unused tag. A
+ * throwaway repository with a bare origin and a stub `gh` satisfies all five
+ * without the network, so the failure paths can be run for real instead of
+ * being asserted as strings in the source.
+ */
+function cleanEnvironment(): NodeJS.ProcessEnv {
+    const env = { ...process.env };
+    for (const key of Object.keys(env)) {
+        if (key.startsWith('GIT_')) {
+            delete env[key];
+        }
+    }
+    return env;
+}
+
+const PASSING_CHECKS = {
+    'format-check': 'node -e "process.exit(0)"',
+    'pack:check': 'node -e "process.exit(0)"',
+};
+
+function sandboxRepository(scripts: Record<string, string>) {
+    const root = mkdtempSync(join(tmpdir(), 'jsmind-release-'));
+    const work = join(root, 'work');
+    const origin = join(root, 'origin.git');
+    const bin = join(root, 'bin');
+    mkdirSync(work);
+    mkdirSync(bin);
+    const env = cleanEnvironment();
+    const git = (...args: string[]): string =>
+        execFileSync(
+            'git',
+            ['-c', 'user.name=sandbox', '-c', 'user.email=sandbox@example.com', ...args],
+            { cwd: work, env, encoding: 'utf8' },
+        );
+
+    execFileSync('git', ['init', '-q', '--bare', origin], { env });
+    git('init', '-q', '-b', 'master');
+    writeFileSync(
+        join(work, 'package.json'),
+        `${JSON.stringify({ name: 'sandbox', version: '2.0.1', private: true, scripts }, null, 4)}\n`,
+    );
+    writeFileSync(
+        join(work, 'package-lock.json'),
+        `${JSON.stringify({
+            name: 'sandbox',
+            version: '2.0.1',
+            lockfileVersion: 3,
+            requires: true,
+            packages: { '': { name: 'sandbox', version: '2.0.1' } },
+        }, null, 4)}\n`,
+    );
+    git('add', 'package.json', 'package-lock.json');
+    git('commit', '-q', '-m', 'chore: initial');
+    git('remote', 'add', 'origin', origin);
+    git('push', '-q', '-u', 'origin', 'master');
+
+    // The CI and repository facts, answered from the sandbox instead of GitHub.
+    writeFileSync(
+        join(bin, 'gh'),
+        [
+            '#!/bin/sh',
+            'case "$1" in',
+            '  run) printf \'[{"headSha":"%s","status":"completed","conclusion":"success"}]\\n\' "$(git rev-parse HEAD)" ;;',
+            '  repo) echo sandbox/example ;;',
+            '  *) echo "unexpected gh $*" >&2; exit 1 ;;',
+            'esac',
+            '',
+        ].join('\n'),
+    );
+    chmodSync(join(bin, 'gh'), 0o755);
+
+    return { root, work, bin, env, git };
+}
+
+/** Run `release:prepare patch` in the sandbox until it fails, and collect the commands it printed. */
+function failedPrepare(options: { scripts?: Record<string, string>; rejectCommit?: boolean } = {}) {
+    const sandbox = sandboxRepository(options.scripts ?? PASSING_CHECKS);
+    if (options.rejectCommit) {
+        const hook = join(sandbox.work, '.git/hooks/pre-commit');
+        writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+        chmodSync(hook, 0o755);
+    }
+    const result = spawnSync(process.execPath, [join(ROOT, 'scripts/release/prepare.mjs'), 'patch'], {
+        cwd: sandbox.work,
+        encoding: 'utf8',
+        env: { ...sandbox.env, PATH: `${sandbox.bin}:${process.env.PATH ?? ''}` },
+    });
+    const printed = result.stderr
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.startsWith('git '));
+    return { ...sandbox, result, printed };
+}
+
+/** Follow the printed recipe and assert it leaves master exactly where it started. */
+function assertRecovered(sandbox: ReturnType<typeof failedPrepare>) {
+    for (const line of sandbox.printed) {
+        const [command, ...args] = line.split(' ');
+        execFileSync(command, args, { cwd: sandbox.work, env: sandbox.env });
+    }
+
+    assert.equal(sandbox.git('rev-parse', '--abbrev-ref', 'HEAD').trim(), 'master');
+    assert.equal(sandbox.git('status', '--porcelain'), '');
+    assert.equal(JSON.parse(readFileSync(join(sandbox.work, 'package.json'), 'utf8')).version, '2.0.1');
+    assert.equal(sandbox.git('branch', '--list', 'chore/release-2.0.2').trim(), '');
+}
+
+describe('the way out of a failed prepare', () => {
+    it('prints a recipe that really undoes a bump left staged by a failed commit', () => {
+        const sandbox = failedPrepare({ rejectCommit: true });
+        try {
+            assert.equal(sandbox.result.status, 1, `${sandbox.result.stdout}\n${sandbox.result.stderr}`);
+            assert.match(sandbox.result.stderr, /git commit failed/);
+            assert.deepEqual(sandbox.printed, lib.undoBumpHint('chore/release-2.0.2'));
+
+            // `git checkout -- <paths>` reads from the index, and the index
+            // already held the bump, so it undid nothing and the next
+            // `git checkout master` carried the new version onto master.
+            assertRecovered(sandbox);
+        }
+        finally {
+            rmSync(sandbox.root, { recursive: true, force: true });
+        }
+    });
+
+    it('prints the same recipe when the bump never reached the index', () => {
+        const sandbox = failedPrepare({
+            scripts: { ...PASSING_CHECKS, 'format-check': 'node -e "process.exit(1)"' },
+        });
+        try {
+            assert.equal(sandbox.result.status, 1, `${sandbox.result.stdout}\n${sandbox.result.stderr}`);
+            assert.match(sandbox.result.stderr, /format-check or pack:check failed/);
+            assert.deepEqual(sandbox.printed, lib.undoBumpHint('chore/release-2.0.2'));
+
+            assertRecovered(sandbox);
+        }
+        finally {
+            rmSync(sandbox.root, { recursive: true, force: true });
+        }
     });
 });

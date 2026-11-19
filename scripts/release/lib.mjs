@@ -74,6 +74,24 @@ export function note(message) {
     console.log(`   ${message}`);
 }
 
+/**
+ * The way out of a half-finished `release:prepare`: the version bump lives in
+ * `package.json` and `package-lock.json`, and by the time a step fails they may
+ * be in the working tree only (npm version, format-check) or already staged
+ * (the commit itself). `git checkout -- <paths>` restores from the index, so it
+ * silently does nothing in the staged case and the bump then follows you onto
+ * master. `git restore --staged --worktree` covers both, so this is the recipe
+ * every failure path prints - one recipe, tested against real git, not three
+ * hand-written copies that can drift apart.
+ */
+export function undoBumpHint(branch) {
+    return [
+        'git restore --staged --worktree package.json package-lock.json',
+        'git checkout master',
+        `git branch -d ${branch}`,
+    ];
+}
+
 /** Stop the whole command: a failed preflight check is not a warning. */
 export function fail(message, hint) {
     console.error(`\nrelease: ${message}`);
