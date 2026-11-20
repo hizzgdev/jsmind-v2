@@ -117,7 +117,7 @@ Any item below fails: `context` again, edit, `validate`, `export`. Do not keep u
 Open the png. Each of the four gets a pass or a fail. "Looks fine" and "overall ok" do not count.
 
 1. **Crushed text** — Fail: glyphs overlap, or text draws outside the node box. Fix: `node set-style` with a smaller `--font-size` on that node, or split the long label into shorter nodes (change text, remove, add — all through the CLI).
-2. **One side overloaded** — Fail: one side is crowded and deep, the other is almost empty. Fix: `node set-side` moves some nodes to the lighter side (`left` or `right`), or `mind add-child --side left` places the next one there.
+2. **One side overloaded** — Fail: one side is crowded and deep, the other is almost empty. Fix: `node set-side` moves one of the root's direct children to the lighter side (`left` or `right`), and that whole branch follows; `mind add-child --side left` places the next child there.
 3. **Folded when this task needs it open** — Fail: a branch this task has to show is collapsed (only the parent is on the picture, or the `context` line ends with `folded`). Fix: `node set-folded --folded false`.
 4. **Lines cross** — Fail: lines pass through each other or knot, instead of leaving the parent toward the children. Fix: only the root's direct children have a side that moves anything, so find the root-level child the crossing branch hangs off and move that one with `node set-side`. Under any other parent `--side` is a usage error (exit 2) naming the first-level branch, so a deeper node cannot take a side that quietly does nothing. Not enough: `mind move` changes the parent and child instead. Do not edit coordinates.
 
@@ -156,7 +156,7 @@ mind move <file> --node-id <id> --parent-id <id> [--position <n>]
 
 ## Example
 
-A short build, end to end. The ids and the file size come from one real run: yours will differ, so take them from your own `context`.
+A short build, end to end. The ids and the file size come from one real run: yours will differ, so take them from your own `context`. The transcript calls `jsmind` directly; if you installed it as a project dependency, read each line as `npx jsmind@2` followed by the same arguments — nothing else changes.
 
 **Request:** "draw me a map of the three storage tiers." **Intent:** `BUILD`. No path given, so the files are `storage-tiers.json` and `storage-tiers.png` in the working directory.
 
