@@ -646,6 +646,39 @@ test('cli - node set-side rejects an unknown word as a usage error', () => {
     rmSync(dir, { recursive: true, force: true });
 });
 
+test('cli - an unknown --side word is offered only the placement words', () => {
+    // `center` stays in the lookup table so `--side center` can be answered with
+    // its own reason, but it is not a placement: listing it among the accepted
+    // values would send the caller into a second rejection straight away.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+
+    const attempts: Array<() => void> = [
+        () => runMind(file, 'add-child', { 'parent-id': 'root', 'text': 'x', 'side': 'middle' }, WRITE),
+        () => runNode(file, 'set-side', { 'node-id': 'jm-a1', 'side': 'middle' }, WRITE),
+    ];
+
+    for (const attempt of attempts) {
+        assert.throws(
+            () => {
+                capture(attempt);
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                assert.match(err.message, /must be one of left, right/);
+                assert.ok(
+                    !err.message.includes('center'),
+                    `the candidate list must not offer center: ${err.message}`
+                );
+                return true;
+            }
+        );
+    }
+    rmSync(dir, { recursive: true, force: true });
+});
+
 test('cli - dry-run leaves the file byte-identical', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');

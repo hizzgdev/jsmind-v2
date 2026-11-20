@@ -46,31 +46,21 @@ const SIDE_SYNONYMS: Record<string, JmNodeSide> = {
 };
 
 /**
- * Every spelling the `--side` option accepts.
+ * Every word a placement option accepts — every side except `center`.
  *
  * @remarks
  * Derived from the table rather than restated, so an error message cannot drift
- * away from what the parser actually accepts.
+ * away from what the parser actually accepts. `center` is left out on purpose:
+ * it names the root's own state, not a placement, and `--side center` is
+ * answered with its own message rather than lumped in with a typo.
  */
-const SIDE_WORDS = Object.keys(SIDE_SYNONYMS).join(', ');
+const PLACEMENT_WORDS = Object.entries(SIDE_SYNONYMS)
+    .filter(([, value]) => value !== JmNodeSide.Center)
+    .map(([word]) => word)
+    .join(', ');
 
 /**
- * Converts a `--side` value to the numeric enum.
- *
- * @param raw - Value from the command line.
- * @returns The normalised side.
- * @throws {@link CliError} With `Usage` for an unknown name.
- */
-export function parseSide(raw: string): JmNodeSide {
-    const value = SIDE_SYNONYMS[raw];
-    if (value === undefined) {
-        throw usageError(`--side must be one of ${SIDE_WORDS}, got "${raw}"`);
-    }
-    return value;
-}
-
-/**
- * Converts a numeric side to its display word — the inverse of {@link parseSide}.
+ * Converts a numeric side to its display word.
  *
  * @param side - The raw value from a node.
  * @returns `"left"`, `"center"`, or `"right"`.
@@ -97,11 +87,15 @@ export function formatSide(side: JmNodeSide): string {
  * `center` is a state, not a choice: only the root is center, and nothing on the
  * command line can create a second one. Accepting it would write a value the
  * arranger never reads, which is exactly the "the file and the picture disagree"
- * failure these commands are built to avoid. `parseSide` still knows the word,
- * because reading a node's side has to be able to name it.
+ * failure these commands are built to avoid. The table still holds the word so
+ * this function can tell `--side center` apart from a typo and name which
+ * mistake it was — the command line only ever accepts the placement words.
  */
 export function parsePlacementSide(raw: string): JmNodeSide {
-    const side = parseSide(raw);
+    const side = SIDE_SYNONYMS[raw];
+    if (side === undefined) {
+        throw usageError(`--side must be one of ${PLACEMENT_WORDS}, got "${raw}"`);
+    }
     if (side === JmNodeSide.Center) {
         throw usageError(
             '--side center is not a placement: the root is the only center node. Use --side left or --side right.'
@@ -169,9 +163,9 @@ export function describeStyle(style: JmNodeStyle | undefined): Record<string, un
  * node as-is walks straight back into the tree and blows the stack, so every id
  * crossing this boundary is extracted explicitly.
  *
- * `side` is emitted as the word that `parseSide()` accepts (`"left"` / `"center"`
- * / `"right"`), not the internal number, so an agent can copy the value straight
- * into `jsmind node set-side`.
+ * `side` is emitted as the word `formatSide()` produces (`"left"` / `"center"` /
+ * `"right"`), not the internal number. `center` describes the root and is not a
+ * placement, so the words a caller can write back are `"left"` and `"right"`.
  *
  * `folded` appears only when `true` — every node defaults to unfolded, and
  * reporting a key the caller never set would add noise to every response.

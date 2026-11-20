@@ -115,7 +115,7 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 | `JmNode` 字段 | CLI 命令 |
 |---|---|
 | `content` | `jsmind node set-text <file> --node-id <id> --text <text>` |
-| `folded` | `jsmind node set-folded <file> --node-id <id> [--folded \| --no-folded]` |
+| `folded` | `jsmind node set-folded <file> --node-id <id> --folded true\|false` |
 | `side` | `jsmind node set-side <file> --node-id <id> --side left\|right`（仅限根的直接子节点） |
 | `style` | `jsmind node set-style <file> --node-id <id> [--tone ...] [--font-size ...] ... [--clear ...] [--reset]` |
 

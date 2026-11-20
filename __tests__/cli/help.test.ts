@@ -155,6 +155,11 @@ test('help - the add-child and set-side option strings match both guide tables',
 
     for (const relative of ['../../docs/en/guide/cli.md', '../../docs/zh/guide/cli.md']) {
         const text = readFileSync(join(HERE, relative), 'utf8');
+        // The tables have to stop mentioning it too, not just the help: the
+        // drift this test exists for was `add-node` living on in both tables
+        // after it stopped being a subcommand, and the rows above only pin the
+        // two surviving commands.
+        assert.ok(!text.includes('add-node'), `${relative} must not mention add-node`);
         for (const { name, segments } of cases) {
             const row = text.split('\n').find(line => line.startsWith(`| \`${name}\` |`));
             assert.ok(row, `${relative} should have a ${name} row`);
