@@ -22,7 +22,7 @@ import { validateHelp } from '../../src/cli/commands/validate.ts';
 import { contextHelp } from '../../src/cli/commands/context.ts';
 import { exportHelp } from '../../src/cli/commands/export.ts';
 import { mindHelp } from '../../src/cli/commands/mind.ts';
-import { styleHelp, styleActionHelp } from '../../src/cli/commands/style.ts';
+import { mindSetStyleHelp } from '../../src/cli/commands/style.ts';
 import { nodeHelp, setStyleHelp } from '../../src/cli/commands/node.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -98,9 +98,9 @@ test('help - `help <topic>` is the same request as `<topic> --help`', () => {
 });
 
 test('help - a mind subcommand other than set-style still gets the group block', () => {
-    // Only set-style has a third level, so anything else under `mind` stops at
-    // the group. Pinned here so the ladder cannot silently collapse back to the
-    // index for an unrecognised subcommand.
+    // Only `set-style` has a block of its own in this group, because only its
+    // field table would swamp the group list. Pinned here so the ladder cannot
+    // silently collapse back to the index for an unrecognised subcommand.
     const run = runCli(['mind', 'move', '--help']);
 
     assert.strictEqual(run.code, 0);
@@ -177,24 +177,57 @@ test('help - the add-child and set-side option strings match both guide tables',
     }
 });
 
-test('help - `mind style --help` prints the document-style block', () => {
-    const run = runCli(['mind', 'style', '--help']);
+test('help - `mind set-style --help` prints the document-style field table', () => {
+    // The same reason `node set-style` has one: the field table is longer than
+    // the line that introduces it in the group block.
+    const run = runCli(['mind', 'set-style', '--help']);
 
     assert.strictEqual(run.code, 0);
-    assert.strictEqual(run.stdout, `${styleHelp}\n`);
+    assert.strictEqual(run.stdout, `${mindSetStyleHelp}\n`);
     assert.ok(run.stdout.includes('--default-tone'), 'the block names the field it writes');
+    assert.ok(
+        !run.stdout.includes('add-child'),
+        'the other mind subcommands belong to the group help'
+    );
 });
 
-test('help - `mind style set --help` prints the field table instead of the group', () => {
-    // The same reason `node set-style` has a third level: the field table is
-    // longer than the list that introduces it.
-    const run = runCli(['mind', 'style', 'set', '--help']);
-
-    assert.strictEqual(run.code, 0);
-    assert.strictEqual(run.stdout, `${styleActionHelp('set')}\n`);
+test('help - the document-style row reads the same in both guides and the mind block', () => {
+    // The row this rename added is one option string in three places: the mind
+    // block an agent reads, and the two published tables. A drift there sends
+    // the caller to a flag the command does not accept.
+    const segments = ['--default-tone <tone>'];
     assert.ok(
-        !run.stdout.includes('Document-level style: one declaration'),
-        'the group block belongs to the previous level'
+        mindHelp.replace(/[ \t]+/g, ' ').includes(segments.join(' ')),
+        'the mind block should carry the document-style options'
+    );
+
+    for (const relative of ['../../docs/en/guide/cli.md', '../../docs/zh/guide/cli.md']) {
+        const text = readFileSync(join(HERE, relative), 'utf8');
+        // The first `set-style` row is the mind one: that table comes first.
+        const row = text.split('\n').find(line => line.startsWith('| `set-style` |'));
+        assert.ok(row, `${relative} should have a mind set-style row`);
+        const cells = row
+            .split(/(?<!\\)\|/)
+            .map(cell => cell.replace(/\\\|/g, '|').trim());
+        assert.strictEqual(
+            cells[2]!.replace(/`/g, ''),
+            segments.join(' '),
+            `${relative} should print set-style's options verbatim`
+        );
+    }
+});
+
+test('help - both set-style blocks say which style they write', () => {
+    // The two commands share a name, so the group is the only thing telling them
+    // apart and each block has to name its scope outright.
+    assert.match(mindSetStyleHelp, /mind\.style/, 'the mind block names mind.style');
+    assert.match(mindSetStyleHelp, /node set-style/, 'and points at the per-node command');
+    assert.match(setStyleHelp, /override the theme for one node/i, 'the node block says what it overrides');
+    assert.match(setStyleHelp, /node\.style/, 'and names node.style');
+    assert.ok(nodeHelp.includes('Override the theme for one node'), 'node --help states the scope too');
+    assert.ok(
+        mindHelp.includes('The document\'s style (mind.style)'),
+        'mind --help states the scope too'
     );
 });
 

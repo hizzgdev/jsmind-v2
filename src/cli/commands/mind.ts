@@ -29,6 +29,7 @@ import {
     type WriteOptions,
 } from '../io.ts';
 import { CliExit, usageError, dataError } from '../exit.ts';
+import { runSetStyle, STYLE_OPTIONS } from './style.ts';
 import {
     formatSide,
     ignoredSideBranchUnder,
@@ -48,6 +49,7 @@ const SUBCOMMANDS = [
     'add-edge',
     'remove-edge',
     'list-edges',
+    'set-style',
 ] as const;
 
 /** One of the words that selects a `mind` subcommand. */
@@ -73,6 +75,9 @@ export const MIND_OPTIONS: Record<MindSubcommand, readonly string[]> = {
     'remove-node': ['node-id'],
     'add-edge': ['source-id', 'target-id', 'type', 'label'],
     'remove-edge': ['edge-id'],
+    // The document-style fields, owned by `./style.ts`: one list, joined to the
+    // `mind` group here, so `mind set-style` is keyed like every sibling.
+    'set-style': STYLE_OPTIONS,
 };
 
 /**
@@ -105,6 +110,26 @@ function requireNode(mind: JmMind, nodeId: string, file: string, role = 'node'):
 }
 
 /**
+ * Refuses a subcommand this group does not have.
+ *
+ * @param subcommand - Word taken from the command line.
+ * @throws {@link CliError} With `Usage` when the group has no such subcommand.
+ * @remarks
+ * Exported because the dispatcher has to run it before it judges the words that
+ * follow. `mind style set f.json` supplies three words, and the plain
+ * "unexpected arguments" complaint would name the file instead of the
+ * subcommand that no longer exists — the caller needs to be told that `style`
+ * is not a subcommand, not that `f.json` is surplus.
+ */
+export function assertMindSubcommand(subcommand: string): void {
+    if (!(SUBCOMMANDS as readonly string[]).includes(subcommand)) {
+        throw usageError(
+            `Unknown mind subcommand: ${subcommand}\nKnown: ${SUBCOMMANDS.join(', ')}`
+        );
+    }
+}
+
+/**
  * Runs a `mind` subcommand.
  *
  * @param file - Mind map file.
@@ -119,10 +144,13 @@ export function runMind(
     values: Record<string, unknown>,
     options: WriteOptions
 ): number {
-    if (!(SUBCOMMANDS as readonly string[]).includes(subcommand)) {
-        throw usageError(
-            `Unknown mind subcommand: ${subcommand}\nKnown: ${SUBCOMMANDS.join(', ')}`
-        );
+    assertMindSubcommand(subcommand);
+
+    // `mind.style` is a field of the mind rather than a tree edit, so it lives
+    // in its own module — but it dispatches like any other subcommand, with no
+    // third word and no nested level of its own.
+    if (subcommand === 'set-style') {
+        return runSetStyle(file, values, options);
     }
 
     const asJson = values.json === true;
@@ -297,7 +325,8 @@ export function runMind(
  */
 export const mindHelp = `jsmind mind <subcommand> <file> [options]
 
-Structure and edges (mirrors JmMind methods). Locators are ids only.
+Structure and edges (mirrors JmMind methods), and the document's style. Locators
+are ids only.
 
   find          --node-id <id>                       Show one node
   list-edges    --node-id <id>                       Edges touching a node
@@ -310,6 +339,7 @@ Structure and edges (mirrors JmMind methods). Locators are ids only.
   add-edge      --source-id <id> --target-id <id>    Add a relation (JmMind.addEdge)
                 [--type link] [--label <text>]
   remove-edge   --edge-id <id>                       Remove a relation
+  set-style     --default-tone <tone>                The document's style (mind.style)
 
 --side applies only when the parent is the root node. A side is the placement of
 a root child, and every node below one inherits it, so a side written anywhere
@@ -326,7 +356,6 @@ children array, not one side's list.
 
 Every mutating subcommand validates the result and rolls back on failure.
 
-Document-level style keeps its own field table, because it writes one
-declaration for the whole map rather than a field on one node:
-
-  jsmind mind style set <file> --default-tone <tone>   (see: jsmind mind style --help)`;
+set-style writes the document's style (mind.style), not a node's: one declaration
+every node without an override inherits. Its field table gets a block of its own
+— jsmind mind set-style --help — the same way node set-style keeps one.`;

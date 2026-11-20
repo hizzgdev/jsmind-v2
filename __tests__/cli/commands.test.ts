@@ -18,8 +18,8 @@ import { fileURLToPath } from 'node:url';
 
 import { runValidate } from '../../src/cli/commands/validate.ts';
 import { runContext } from '../../src/cli/commands/context.ts';
-import { runMind } from '../../src/cli/commands/mind.ts';
-import { runStyle } from '../../src/cli/commands/style.ts';
+import { runMind, assertMindSubcommand } from '../../src/cli/commands/mind.ts';
+import { runSetStyle } from '../../src/cli/commands/style.ts';
 import { runNode } from '../../src/cli/commands/node.ts';
 import {
     JmFontWeight,
@@ -1426,21 +1426,21 @@ test('cli - mind move rejects a negative position', () => {
 });
 
 // ---------------------------------------------------------------------------
-// mind style set — the document-level defaultTone
+// mind set-style — the document-level defaultTone
 //
 // The fixture declares a style block but no defaultTone, so every case below
 // starts from a document that predates the field. That is the interesting
 // state: the feature has to leave those files alone until asked.
 // ---------------------------------------------------------------------------
 
-test('cli - mind style set writes defaultTone and keeps the rest of the style block', () => {
+test('cli - mind set-style writes defaultTone and keeps the rest of the style block', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
     try {
         const before = JSON.parse(readFileSync(file, 'utf8')).style;
         capture(() => {
-            runStyle(file, 'set', { 'default-tone': 'primary' }, WRITE);
+            runSetStyle(file, { 'default-tone': 'primary' }, WRITE);
         });
 
         const after = JSON.parse(readFileSync(file, 'utf8')).style;
@@ -1450,7 +1450,7 @@ test('cli - mind style set writes defaultTone and keeps the rest of the style bl
     }
 });
 
-test('cli - mind style set creates the style block on a document that has none', () => {
+test('cli - mind set-style creates the style block on a document that has none', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
@@ -1460,7 +1460,7 @@ test('cli - mind style set creates the style block on a document that has none',
         writeFileSync(file, JSON.stringify(doc, null, 2));
 
         capture(() => {
-            runStyle(file, 'set', { 'default-tone': 'warning' }, WRITE);
+            runSetStyle(file, { 'default-tone': 'warning' }, WRITE);
         });
 
         assert.deepStrictEqual(JSON.parse(readFileSync(file, 'utf8')).style, {
@@ -1471,19 +1471,14 @@ test('cli - mind style set creates the style block on a document that has none',
     }
 });
 
-test('cli - mind style set does not touch the file under --dry-run', () => {
+test('cli - mind set-style does not touch the file under --dry-run', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
     try {
         const before = readFileSync(file, 'utf8');
         const { out } = capture(() => {
-            runStyle(
-                file,
-                'set',
-                { 'default-tone': 'danger', 'json': true },
-                { dryRun: true, backup: false }
-            );
+            runSetStyle(file, { 'default-tone': 'danger', 'json': true }, { dryRun: true, backup: false });
         });
 
         assert.strictEqual(readFileSync(file, 'utf8'), before, 'dry-run must not write');
@@ -1496,14 +1491,14 @@ test('cli - mind style set does not touch the file under --dry-run', () => {
     }
 });
 
-test('cli - mind style set keeps a backup when asked', () => {
+test('cli - mind set-style keeps a backup when asked', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
     try {
         const before = readFileSync(file, 'utf8');
         capture(() => {
-            runStyle(file, 'set', { 'default-tone': 'info' }, { dryRun: false, backup: true });
+            runSetStyle(file, { 'default-tone': 'info' }, { dryRun: false, backup: true });
         });
 
         assert.strictEqual(readFileSync(`${file}.bak`, 'utf8'), before, 'the backup is the original');
@@ -1517,7 +1512,7 @@ test('cli - mind style set keeps a backup when asked', () => {
     }
 });
 
-test('cli - mind style set rejects an unknown tone as a usage error naming the flag', () => {
+test('cli - mind set-style rejects an unknown tone as a usage error naming the flag', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
@@ -1525,7 +1520,7 @@ test('cli - mind style set rejects an unknown tone as a usage error naming the f
         assert.throws(
             () => {
                 capture(() => {
-                    runStyle(file, 'set', { 'default-tone': 'banana' }, WRITE);
+                    runSetStyle(file, { 'default-tone': 'banana' }, WRITE);
                 });
             },
             (err: unknown) => {
@@ -1540,7 +1535,7 @@ test('cli - mind style set rejects an unknown tone as a usage error naming the f
     }
 });
 
-test('cli - mind style set needs at least one field', () => {
+test('cli - mind set-style needs at least one field', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
@@ -1548,7 +1543,7 @@ test('cli - mind style set needs at least one field', () => {
         assert.throws(
             () => {
                 capture(() => {
-                    runStyle(file, 'set', {}, WRITE);
+                    runSetStyle(file, {}, WRITE);
                 });
             },
             (err: unknown) => {
@@ -1563,27 +1558,20 @@ test('cli - mind style set needs at least one field', () => {
     }
 });
 
-test('cli - mind style set rejects an unknown action', () => {
-    const dir = scratch();
-    const file = join(dir, 'm.json');
-    copyFileSync(FIXTURE, file);
-    try {
-        assert.throws(
-            () => {
-                capture(() => {
-                    runStyle(file, 'unset', { 'default-tone': 'primary' }, WRITE);
-                });
-            },
-            (err: unknown) => {
-                assert.ok(err instanceof CliError);
-                assert.strictEqual(err.exit, CliExit.Usage);
-                assert.match(err.message, /Unknown style action: unset/);
-                return true;
-            }
-        );
-    } finally {
-        rmSync(dir, { recursive: true, force: true });
-    }
+test('cli - mind has no `style` subcommand left to nest an action under', () => {
+    // The rename leaves no alias behind: the document style is `set-style`, one
+    // word like every sibling, and `mind style set` fails on `style`.
+    assert.throws(
+        () => {
+            assertMindSubcommand('style');
+        },
+        (err: unknown) => {
+            assert.ok(err instanceof CliError);
+            assert.strictEqual(err.exit, CliExit.Usage);
+            assert.match(err.message, /Unknown mind subcommand: style/);
+            return true;
+        }
+    );
 });
 
 // ---------------------------------------------------------------------------
@@ -1657,7 +1645,7 @@ test('cli - context --json reads back the defaultTone the CLI wrote', () => {
     copyFileSync(FIXTURE, file);
     try {
         capture(() => {
-            runStyle(file, 'set', { 'default-tone': 'accent' }, WRITE);
+            runSetStyle(file, { 'default-tone': 'accent' }, WRITE);
         });
 
         const { out } = capture(() => {

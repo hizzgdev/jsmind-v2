@@ -45,7 +45,7 @@ const FIXTURE = join(HERE, '../e2e/fixtures/valid-styled.json');
  * Written out rather than derived from the table, because the thing worth
  * checking is that the table covers the commands that exist. Deriving it would
  * make the test agree with the table by construction, including when a key is
- * misspelt — `mind style set` is assembled from three words by
+ * misspelt — `mind set-style` is assembled from two words by
  * {@link commandKey} and a typo there would silently skip the check instead of
  * failing.
  */
@@ -62,7 +62,7 @@ const EXPECTED_KEYS = [
     'mind remove-node',
     'mind add-edge',
     'mind remove-edge',
-    'mind style set',
+    'mind set-style',
     'node set-text',
     'node set-folded',
     'node set-side',
@@ -136,8 +136,8 @@ test('options - the global set is legal everywhere, a sibling subcommand\'s flag
     assert.deepStrictEqual(unknownOptions(['mind', 'move'], ['side']), ['side']);
     // `--tone` is a `node set-style` field, not a document-level one.
     assert.deepStrictEqual(unknownOptions(['node', 'set-style'], ['tone']), []);
-    assert.deepStrictEqual(unknownOptions(['mind', 'style', 'set'], ['tone']), ['tone']);
-    assert.deepStrictEqual(unknownOptions(['mind', 'style', 'set'], ['default-tone']), []);
+    assert.deepStrictEqual(unknownOptions(['mind', 'set-style'], ['tone']), ['tone']);
+    assert.deepStrictEqual(unknownOptions(['mind', 'set-style'], ['default-tone']), []);
 });
 
 test('options - `commandKey` reads only the words that select a command', () => {
@@ -150,9 +150,11 @@ test('options - `commandKey` reads only the words that select a command', () => 
     assert.strictEqual(commandKey(['context', 'm.json']), 'context');
     assert.strictEqual(commandKey(['node', 'set-text', 'm.json']), 'node set-text');
 
-    // The one nested group is three words deep.
-    assert.strictEqual(commandKey(['mind', 'style']), 'mind style');
-    assert.strictEqual(commandKey(['mind', 'style', 'set', 'm.json']), 'mind style set');
+    // Both groups are one level deep, so the second word is the whole
+    // subcommand and the file path after it is never read as a command word.
+    assert.strictEqual(commandKey(['mind', 'set-style']), 'mind set-style');
+    assert.strictEqual(commandKey(['mind', 'set-style', 'm.json']), 'mind set-style');
+    assert.strictEqual(commandKey(['mind', 'move', 'm.json']), 'mind move');
 });
 
 test('options - an invocation with no command is judged against the global set', () => {

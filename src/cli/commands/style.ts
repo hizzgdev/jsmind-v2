@@ -1,20 +1,27 @@
 /**
- * `jsmind mind style *` — document-level style commands.
+ * `jsmind mind set-style` — the document's style.
  *
  * @remarks
  * `mind.style` is the layer between the preset and the individual node: one
  * declaration that every node without an override inherits. The alternative —
- * writing the same override onto every node — is what this group exists to
+ * writing the same override onto every node — is what this command exists to
  * prevent, because it pins the values into the document (a later theme change
  * no longer reaches those nodes) and spends the semantic tones one node at a
  * time.
+ *
+ * It is a plain `mind` subcommand, not a group of its own: `mind.style` is a
+ * field of the mind, so the command that writes it mirrors `node set-style`,
+ * which writes `node.style`. One subcommand word, one allow-list entry, and
+ * `--help` on the same ladder as every other subcommand — nothing here needs a
+ * nested level to explain itself.
  *
  * Every field is declared in one table. {@link STYLE_FIELDS} is the list the
  * command accepts, the list `--help` prints and the list the flag parser is
  * built from, so a field cannot be reachable in one and missing from another.
  * The remaining sections (`tones` / `background` / `node` / `line` /
- * `expander`) join that table when they get a writer; until then they are
- * readable through `context` only.
+ * `expander`) join that table when they get a writer, in the dotted shape
+ * `node set-style` already uses; until then they are readable through
+ * `context` only.
  *
  * @packageDocumentation
  */
@@ -26,9 +33,6 @@ import { enumOption, type WriteOptions } from '../io.ts';
 import { report } from '../shared.ts';
 import { flagToPath, setAtPath } from '../field-path.ts';
 import { CliExit, usageError } from '../exit.ts';
-
-/** Actions this group understands. */
-const ACTIONS = ['set'] as const;
 
 /**
  * Accepted tone names, read from the model's own enum.
@@ -45,7 +49,8 @@ const TONE_WORDS = Object.values(JmTone);
  * @remarks
  * The flag name is the only place the field's location is written down; its
  * path into {@link JmStyle} is derived by {@link flagToPath}, so the two cannot
- * disagree.
+ * disagree. A future nested field is written as a dotted flag
+ * (`--node.font-size`), which is why nothing here assumes a depth.
  */
 interface StyleField {
     /** Flag name without leading dashes. Dots mark a level. */
@@ -62,20 +67,16 @@ const STYLE_FIELDS: StyleField[] = [
     },
 ];
 
-/** One of the words that selects a `mind style` action. */
-type StyleAction = (typeof ACTIONS)[number];
-
 /**
- * Options each `mind style` action reads, beyond the global ones.
+ * Options the command reads, beyond the global ones.
  *
  * @remarks
  * Read off {@link STYLE_FIELDS} rather than restated, so a field the command
- * accepts is automatically an option it allows. This is what `../options.ts`
- * consults before reporting a flag as unknown.
+ * accepts is automatically an option it allows. `../options.ts` reaches this
+ * list through `MIND_OPTIONS`, the same table every other `mind` subcommand
+ * uses.
  */
-export const STYLE_OPTIONS: Record<StyleAction, readonly string[]> = {
-    set: STYLE_FIELDS.map(field => field.flag),
-};
+export const STYLE_OPTIONS: readonly string[] = STYLE_FIELDS.map(field => field.flag);
 
 /**
  * Reads the field flags into a list of values to write.
@@ -99,7 +100,7 @@ function parseStyleArgs(values: Record<string, unknown>): { flag: string; value:
 
     if (set.length === 0) {
         throw usageError(
-            `style set needs at least one field.\nFields: ${STYLE_FIELDS.map(f => `--${f.flag}`).join(', ')}`
+            `set-style needs at least one field.\nFields: ${STYLE_FIELDS.map(f => `--${f.flag}`).join(', ')}`
         );
     }
 
@@ -129,24 +130,18 @@ function applyStyle(current: JmStyle | undefined, set: { flag: string; value: un
 }
 
 /**
- * Runs a `mind style` subcommand.
+ * Runs `mind set-style`.
  *
  * @param file - Mind map file.
- * @param action - Which action.
  * @param values - Parsed options.
  * @param options - Dry-run / backup / output settings.
  * @returns Exit code.
  */
-export function runStyle(
+export function runSetStyle(
     file: string,
-    action: string,
     values: Record<string, unknown>,
     options: WriteOptions
 ): number {
-    if (!(ACTIONS as readonly string[]).includes(action)) {
-        throw usageError(`Unknown style action: ${action}\nKnown: ${ACTIONS.join(', ')}`);
-    }
-
     const asJson = values.json === true;
     const set = parseStyleArgs(values);
 
@@ -164,55 +159,41 @@ export function runStyle(
 }
 
 /**
- * The field table, printed by both the group help and the `set` help.
+ * The field table, printed by `mind set-style --help`.
  *
  * @remarks
  * One copy, for the same reason `node set-style` keeps one: two hand-written
  * copies is how a flag goes missing from one of them.
  */
-const STYLE_FIELDS_HELP = `set fields (any combination, applied in one write). Accepted tone names are read
-from the model's own enum, so this list cannot fall behind it:
+const STYLE_FIELDS_HELP = `mind.style fields (any combination, applied in one write). Accepted tone names
+are read from the model's own enum, so this list cannot fall behind it:
 
   --default-tone <tone>       ${TONE_WORDS.join(' | ')}
 
-The nested sections (tones / background / node / line / expander) have no writer
-yet — read them through \`context\`. Each gets a dotted flag (\`--node.radius\`) in
-this table when it gets one.
+The other sections of \`mind.style\` (tones / background / node / line / expander)
+have no writer yet — read them through \`context\`. Each joins this table as a
+dotted flag when it gets one (\`--node.font-size\`, \`--line.color\`), and brings
+\`--clear <fields>\` / \`--reset\` with it, the shape \`node set-style\` already uses.
 
 A node's own \`style.tone\` still wins over \`defaultTone\`; use it to single out one
 node, and this command to change what the rest of the map looks like.`;
 
 /**
- * Describes the `mind style` command group for `--help`.
- */
-export const styleHelp = `jsmind mind style <action> <file> [options]
-
-Document-level style: one declaration every node without an override inherits.
-
-  set <file> --default-tone <tone>   Choose the tone untoned nodes wear
-
-${STYLE_FIELDS_HELP}
-
-Every action validates the result and rolls back on failure, and honours
---dry-run / --backup / --output like the other mutating commands.`;
-
-/**
- * Resolves the action's own help text.
+ * Describes `mind set-style` for `--help`.
  *
- * @param action - Action as typed, if one was given.
- * @returns The `set` block, or the group block for anything else.
  * @remarks
- * The third level of the help ladder, for the same reason `node set-style` has
- * one: the field table is longer than the action list that introduces it.
+ * A block of its own, at the same height as `node set-style` — the third word
+ * of the command line — because the field table is longer than the line that
+ * introduces it in the group block, so the caller gets the table instead of the
+ * group list. Both blocks open with their scope, because the two commands share
+ * a name and the group is the only thing telling them apart.
  */
-export function styleActionHelp(action: string | undefined): string {
-    if (action !== 'set') {
-        return styleHelp;
-    }
-    return `jsmind mind style set <file> --default-tone <tone>
+export const mindSetStyleHelp = `jsmind mind set-style <file> --default-tone <tone>
+
+The document's style (mind.style): one declaration every node without an
+override inherits. Overriding the theme for one node is \`node set-style\`.
 
 ${STYLE_FIELDS_HELP}
 
-The value is written once and every node without an explicit tone follows it,
-lines included. Pass \`default\` to go back to the built-in look.`;
-}
+Every node without an explicit tone follows this one, lines included. Pass
+\`default\` to go back to the built-in look.`;

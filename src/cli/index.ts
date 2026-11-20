@@ -8,9 +8,9 @@
  *
  * Commands are grouped by what they operate on:
  *
- *   cross-boundary  validate, context        — whole-document operations
- *   mind            structure and edges      — JmMind methods
- *   node            node attributes          — JmNode writable fields
+ *   cross-boundary  create, validate, export, context — whole-document operations
+ *   mind            structure, edges and mind.style    — JmMind methods and fields
+ *   node            node attributes                    — JmNode writable fields
  *
  * @packageDocumentation
  */
@@ -34,8 +34,8 @@ import {
 } from './commands/export.ts';
 import { JmImageType } from '../view/export.ts';
 import { runValidate, validateHelp, assertValidateArgs } from './commands/validate.ts';
-import { runMind, mindHelp } from './commands/mind.ts';
-import { runStyle, styleHelp, styleActionHelp } from './commands/style.ts';
+import { runMind, mindHelp, assertMindSubcommand } from './commands/mind.ts';
+import { mindSetStyleHelp } from './commands/style.ts';
 import { runNode, nodeHelp, setStyleHelp } from './commands/node.ts';
 import { runContext, contextHelp, DEFAULT_DEPTH, DEFAULT_MAX_TEXT } from './commands/context.ts';
 import { runCreate, createHelp } from './commands/create.ts';
@@ -54,9 +54,8 @@ Cross-boundary commands:
   export <file> <out.png>         Render to an image  (needs a browser)
   context <file> [options]        Discovery: show the tree and its ids
 
-Structure and edges:
-  mind <sub> <file> [options]     JmMind methods        (see: jsmind mind --help)
-  mind style set <file> [options] Document-level style  (see: jsmind mind style --help)
+Structure, edges and the document's style:
+  mind <sub> <file> [options]     JmMind methods and fields  (see: jsmind mind --help)
 
 Node attributes:
   node <sub> <file> [options]     JmNode writable fields (see: jsmind node --help)
@@ -183,8 +182,8 @@ function writeOptions(values: Record<string, unknown>): WriteOptions {
  * `--help` used to print the root block before the command was looked at, so
  * `jsmind mind --help` handed back the same 134 lines the root help points
  * away from. The ladder is written out rather than derived from a registry:
- * `set-style` is the only third level, because its field table is the only one
- * long enough to swamp the group block it sits in.
+ * `set-style` is the only subcommand whose field table is long enough to swamp
+ * the group block it sits in, and it has that block in both groups.
  *
  * Every command has its own block at the first level, so `--help` never has to
  * fall back to the index: `create`, `validate`, `context` and `export` are
@@ -193,7 +192,7 @@ function writeOptions(values: Record<string, unknown>): WriteOptions {
  * find the one part that answers their question inside 134 lines.
  */
 function focusedHelp(positionals: string[]): string | undefined {
-    const [command, subcommand, action] = positionals;
+    const [command, subcommand] = positionals;
     switch (command) {
         case 'create':
             return createHelp;
@@ -204,9 +203,9 @@ function focusedHelp(positionals: string[]): string | undefined {
         case 'export':
             return exportHelp;
         case 'mind':
-            // `mind style` owns the deepest block in this group; the rest of
-            // `mind` is one list that fits in mindHelp.
-            return subcommand === 'style' ? styleActionHelp(action) : mindHelp;
+            // Three words deep, same as `node set-style`: `set-style` carries a
+            // field table, everything else in the group fits in mindHelp.
+            return subcommand === 'set-style' ? mindSetStyleHelp : mindHelp;
         case 'node':
             return subcommand === 'set-style' ? setStyleHelp : nodeHelp;
         default:
@@ -321,29 +320,16 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
             return runContext(options);
         }
         case 'mind': {
-            const [subcommand, second, third, ...extra] = rest;
-            if (subcommand === undefined) {
+            const [subcommand, file, ...extra] = rest;
+            if (subcommand === undefined || file === undefined) {
                 throw usageError(`mind requires a subcommand and a file\n\n${mindHelp}`);
             }
-            // `mind style` is the one nested group: a document has one style
-            // block, so the action lives under it rather than as eight more
-            // entries in the flat `mind` list.
-            if (subcommand === 'style') {
-                const [action, styleFile] = [second, third];
-                if (action === undefined || styleFile === undefined) {
-                    throw usageError(`mind style requires an action and a file\n\n${styleHelp}`);
-                }
-                if (extra.length > 0) {
-                    throw usageError(`Unexpected arguments: ${extra.join(' ')}`);
-                }
-                return runStyle(styleFile, action, parsed.values, writeOptions(parsed.values));
-            }
-            const file = second;
-            if (file === undefined) {
-                throw usageError(`mind requires a subcommand and a file\n\n${mindHelp}`);
-            }
-            if (extra.length > 0 || third !== undefined) {
-                throw usageError(`Unexpected arguments: ${[third, ...extra].join(' ')}`);
+            // The subcommand is judged before the words after it, so the retired
+            // three-word form (`mind style set f.json`) is told which word is
+            // wrong instead of being told the file is surplus.
+            assertMindSubcommand(subcommand);
+            if (extra.length > 0) {
+                throw usageError(`Unexpected arguments: ${extra.join(' ')}`);
             }
             return runMind(file, subcommand, parsed.values, writeOptions(parsed.values));
         }
