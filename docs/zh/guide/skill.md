@@ -4,28 +4,34 @@ jsmind skill 位于本仓库的 `skills/jsmind/`。它是一套禁令和检查�
 
 它**不是** CLI 手册，也不能代替 `jsmind --help` 或 [CLI](./cli) 页面。当 agent 需要生成或修改思维导图时，请让它按这份 skill 的检查点做；具体的命令和参数，请查阅 CLI 帮助或本站的 CLI 页面。
 
-## 怎么用
+## 安装
 
-把 skill 交给 agent 即可。例如：
+以下两种方式任选其一，不是先后步骤。
 
-- 如果正在本仓库的克隆里工作，告诉 agent：生成或修改思维导图时按 `skills/jsmind/SKILL.md` 里的检查点做。
-- 如果在别处工作，把整个 `skills/jsmind/` 目录复制到 agent 会加载 skill 的位置，保留 `jsmind/` 这一层。
-
-Skill 规定了哪些事不能做、哪些步骤不能跳过，以及该如何检查导出的图片。导图的结构仍由使用者（或 agent）自己决定。
-
-skill 只有英文版一份。它是给 agent 读的、不是给人读的，导图的文字语言由你的 prompt 决定，再存一份中文译文只会和这一份越走越远。
-
-## 可直接复制的 prompt
+### 自动安装
 
 你可以把下面的 prompt 直接交给自己的 agent。
-
-### 安装 skill
 
 ```
 请从 https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md 安装 jsMind skill：读这份文件并照做。里面同时讲 skill 目录和 jsmind CLI，后者是另一个 npm 包。
 
 装完按文件末尾的 “Done means” 逐条核对，把每一条的结果告诉我。如果 skill 在你的 harness 里加载不了，停下来说清楚，不要绕过去。
 ```
+
+### 手动安装
+
+把 skill 交给 agent 即可。例如：
+
+- 如果正在本仓库的克隆里工作，告诉 agent：生成或修改思维导图时按 `skills/jsmind/SKILL.md` 里的检查点做。
+- 如果在别处工作，把整个 `skills/jsmind/` 目录复制到 agent 会加载 skill 的位置，保留 `jsmind/` 这一层。
+
+## 使用
+
+Skill 规定了哪些事不能做、哪些步骤不能跳过，以及该如何检查导出的图片。导图的结构仍由使用者（或 agent）自己决定。
+
+skill 只有英文版一份。它是给 agent 读的、不是给人读的，导图的文字语言由你的 prompt 决定，再存一份中文译文只会和这一份越走越远。
+
+你可以把下面的 prompt 直接交给自己的 agent。
 
 ### 示例：生成一张导图并导出 PNG
 
