@@ -43,12 +43,15 @@ jobs:
       # 'true' when every changed file is under docs/. File type (markdown,
       # VitePress config, ts/js/vue, ...) is not classified here.
       docs_only: ${{ steps.paths.outputs.docs_only }}
-      # 'true' when at least one changed file is under docs/. The docs site
-      # job uses this to decide whether to run; it then looks at which
-      # docs files moved.
+      # 'true' when something the published site carries changed: any file
+      # under docs/, or any file under skills/ - the site build copies that
+      # directory to the site root. The docs site job uses this to decide
+      # whether to run; it then looks at which of those files moved.
       docs: ${{ steps.paths.outputs.docs }}
       # 'true' when a non-markdown file outside docs/ changed, so the
       # library type-check, unit tests, build and UI tests should run.
+      # skills/ counts: a script or fixture shipped beside a skill is
+      # non-markdown too, so only the markdown of a skill skips these checks.
       # Root README and other *.md files are prose: they do not set this,
       # and they also do not run or skip the docs site job.
       library: ${{ steps.paths.outputs.library }}
@@ -111,9 +114,11 @@ jobs:
           #   sets it too: the site build publishes that directory, so a change
           #   to a skill is a change to the published site.
           #
-          # library: did a non-markdown file outside docs/ and skills/ change?
-          #   Root README and other *.md files are prose: they do not require
-          #   library checks, and they do not run or skip the docs site job.
+          # library: did a non-markdown file outside docs/ change? `skills/`
+          #   does not opt out of this: a script or fixture beside a skill is
+          #   non-markdown, so it sets library too. Root README and other *.md
+          #   files are prose: they do not require library checks, and they do
+          #   not run or skip the docs site job.
           #
           # These answers are not complements: a change only under docs/ is
           # docs_only and docs, not library; a README-only change is none of
@@ -191,7 +196,7 @@ jobs:
             echo "no library source changed; skipping type-check, unit tests, build and UI tests"
           fi
           if [ "$docs" = "true" ]; then
-            echo "docs/ changed; the docs site job will decide which checks to run"
+            echo "docs/ or skills/ changed; the docs site job will decide which checks to run"
           fi
           if [ "$docs_only" = "true" ]; then
             echo "all changes are under docs/"
@@ -287,15 +292,16 @@ jobs:
 
 
   # ---------------------------------------------------------------------------
-  # Docs site. Runs when anything under docs/ changed. It does not repeat the
-  # library type-check, coverage tests, or UI tests.
+  # Docs site. Runs when anything under docs/ or skills/ changed. It does not
+  # repeat the library type-check, coverage tests, or UI tests.
   #
-  # This job looks at which docs files moved, then decides whether the
+  # This job looks at which of those files moved, then decides whether the
   # published VitePress site could have changed. docs/architecture/,
   # docs/features/, docs/requirements/, docs/images/, and docs/README.md
-  # are excluded from the site. Changes under docs/.vitepress/ or any
-  # non-markdown file in docs/ always run the site checks, as do changes
-  # to the published en/ and zh/ trees.
+  # are excluded from the site. Changes under docs/.vitepress/, any
+  # non-markdown file in docs/, any file under skills/ (the build copies that
+  # directory to the site root), and changes to the published en/ and zh/
+  # trees always run the site checks.
   # ---------------------------------------------------------------------------
   docs-site:
     name: Docs site
