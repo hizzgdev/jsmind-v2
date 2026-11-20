@@ -135,14 +135,17 @@ Structure and edges. Locators are ids only. Use ids from a current `context` out
 | --- | --- | --- |
 | `find` | `--node-id <id>` | Show one node |
 | `list-edges` | `--node-id <id>` | Edges touching a node |
-| `add-child` | `--parent-id <id> --text <text>` | Add a leaf |
-| `add-node` | `--parent-id <id> --text <text> [--position <n>] [--side left\|center\|right]` | Add a node with placement |
+| `add-child` | `--parent-id <id> --text <text> [--side left\|right] [--position <n>] [--folded true\|false]` | Add a child node |
 | `move` | `--node-id <id> --parent-id <id> [--position <n>]` | Reparent a node |
 | `remove-node` | `--node-id <id>` | Remove the node, its whole subtree, and every edge touching any of them |
 | `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | Add a relation |
 | `remove-edge` | `--edge-id <id>` | Remove a relation |
 
-`add-child` does not accept `--side`. A direct child of the root defaults to the right side (`addChildNode` defaults to `SideA` when side is not specified). Use `jsmind node set-side` to change it.
+`--side` applies only when the parent is the root node. A side is the placement of a root child, and every node below one inherits it, so a side written deeper would change the file and not the picture — that is a usage error naming the first-level branch, not a silent no-op. Only the root is center, so `--side` takes `left` or `right`.
+
+`--position` is an index into the parent's children array. A value at or past the end appends, and omitting it appends too. The root's children are counted across both sides: the index addresses that one array, not one side's list.
+
+`--folded true` creates the node collapsed.
 
 Every mutating subcommand validates the result and rolls back on failure. `--dry-run`, `--output`, and `--backup` are available on these writes.
 
@@ -174,8 +177,10 @@ Node attributes. Structure changes go through `jsmind mind`.
 | --- | --- | --- |
 | `set-text` | `--node-id <id> --text <text>` | Change the label |
 | `set-folded` | `--node-id <id> --folded true\|false` | Collapse or expand |
-| `set-side` | `--node-id <id> --side left\|center\|right` | Set the node's side |
+| `set-side` | `--node-id <id> --side left\|right` | Set the node's side |
 | `set-style` | `--node-id <id> [style fields]` | Override the theme for one node |
+
+`set-side` applies only to a direct child of the root, for the same reason as `add-child --side`: those are the only nodes whose side moves anything. The root itself is always center, so `--side` takes `left` or `right`; on any deeper node it is a usage error naming the first-level branch, not a write the picture ignores.
 
 `set-style` fields can be combined in one write. A dot marks a level, so `--incoming.color` addresses `style.incoming.color`.
 

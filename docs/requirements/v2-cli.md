@@ -50,7 +50,6 @@ jsmind
 ├── convert          ← 跨边界：格式转换（S13，随 adapter）
 ├── mind             ← 改树结构（谁的父是谁、有几个孩子）和边
 │   ├── add-child
-│   ├── add-node
 │   ├── move
 │   ├── remove-node
 │   ├── add-edge
@@ -103,8 +102,8 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 | `JmMind` 方法 | CLI 命令 |
 |---|---|
 | `findNodeById(nodeId)` | `jsmind mind find <file> --node-id <id>` |
-| `addChildNode(content, parentId)` | `jsmind mind add-child <file> --parent-id <id> --text <text>` |
-| `addNode(content, dest, nodeOptions?)` | `jsmind mind add-node <file> --parent-id <id> --text <text> [--side ...] [--folded] [--data <json>]` |
+| `addChildNode(content, parentId)` | `jsmind mind add-child <file> --parent-id <id> --text <text> [--side left\|right] [--position <n>] [--folded true\|false]` |
+| `addNode(content, dest, nodeOptions?)` | CLI 不单独提供：`add-child` 的 `--side` / `--position` / `--folded` 就是它的 dest 与 nodeOptions；`--data` 和自定义 `--node-id` 不在 CLI 支持范围内，也不打算支持 |
 | `moveNode(nodeId, dest)` | `jsmind mind move <file> --node-id <id> --to-parent-id <id>` |
 | `removeNode(nodeId)` | `jsmind mind remove-node <file> --node-id <id>` |
 | `addEdge(source, target, type, options?)` | `jsmind mind add-edge <file> --source-id <id> --target-id <id> [--type <t>] [--label <text>]` |
@@ -117,12 +116,12 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 |---|---|
 | `content` | `jsmind node set-text <file> --node-id <id> --text <text>` |
 | `folded` | `jsmind node set-folded <file> --node-id <id> [--folded \| --no-folded]` |
-| `side` | `jsmind node set-side <file> --node-id <id> --side left\|right\|center` |
+| `side` | `jsmind node set-side <file> --node-id <id> --side left\|right`（仅限根的直接子节点） |
 | `style` | `jsmind node set-style <file> --node-id <id> [--tone ...] [--font-size ...] ... [--clear ...] [--reset]` |
 
 **`JmNode` 没有 setter 方法**，所以这一组对应的是**字段赋值**（经 `NodeManager.setterTrap`），跟 `mind` 组的方法调用不同。
 
-**`set-side` 在 CLI 层接受 `left` / `right` / `center`，写入磁盘时转成 `JmNodeSide` 的数字**（`-1` / `0` / `1`）。磁盘格式的可读性让给 JSON，命令行的可读性留给人 —— 详见 `v2-data-format.md` 4.2。
+**`side` 只对根的直接子节点有意义**：侧向是根的直接子节点的位置，它下面整棵子树继承这个侧向。所以 `set-side` 打在根节点或更深的节点上是用例错误（退出码 2），报错点名该节点所属的一级分支 —— 只有根节点是 center，CLI 因此不接受 `--side center`。写入磁盘时转成 `JmNodeSide` 的数字（`-1` / `0` / `1`）。磁盘格式的可读性让给 JSON，命令行的可读性留给人 —— 详见 `v2-data-format.md` 4.2。
 
 ### 3.3 `jsmind node set-style` —— 覆盖主题
 

@@ -21,30 +21,24 @@ import {
     type JmNodeStyle,
 } from '../../model/data/style.ts';
 import { runMutation } from '../mutate.ts';
-import { enumOption, numberOption, requireOption, type WriteOptions } from '../io.ts';
-import { describeStyle, parseSide, report } from '../shared.ts';
+import {
+    enumOption,
+    numberOption,
+    requireBooleanOption,
+    requireOption,
+    type WriteOptions,
+} from '../io.ts';
+import {
+    describeStyle,
+    ignoredSideBranchUnder,
+    parsePlacementSide,
+    report,
+} from '../shared.ts';
 import { deleteAtPath, flagToPath, setAtPath } from '../field-path.ts';
 import { CliExit, usageError, dataError } from '../exit.ts';
 
 /** Subcommands this group understands. */
 const SUBCOMMANDS = ['set-text', 'set-folded', 'set-side', 'set-style'] as const;
-
-/**
- * Parses a boolean flag value written as a word.
- *
- * @param raw - `true` / `false` as given on the command line.
- * @returns The boolean.
- * @throws {@link CliError} With `Usage` for anything else.
- */
-function parseBoolean(raw: string): boolean {
-    if (raw === 'true') {
-        return true;
-    }
-    if (raw === 'false') {
-        return false;
-    }
-    throw usageError(`Expected true or false, got "${raw}"`);
-}
 
 /**
  * Accepted values, read from the model's own enums.
@@ -275,8 +269,7 @@ export function runNode(
         }
 
         case 'set-folded': {
-            const raw = requireOption(values, 'folded');
-            const folded = parseBoolean(raw);
+            const folded = requireBooleanOption(values, 'folded');
             runMutation(file, options, (mind: JmMind) => {
                 const node = mind.findNodeById(nodeId);
                 if (node === null) {
@@ -291,11 +284,29 @@ export function runNode(
 
         case 'set-side': {
             const raw = requireOption(values, 'side');
-            const side = parseSide(raw);
+            // Argument errors surface before the file is read; the placement
+            // judgement needs the node, so it runs inside the mutation.
+            const side = parsePlacementSide(raw);
             runMutation(file, options, (mind: JmMind) => {
                 const node = mind.findNodeById(nodeId);
                 if (node === null) {
                     throw dataError(`No node with id "${nodeId}" in ${file}`);
+                }
+                if (node.isRoot()) {
+                    throw usageError(
+                        `--side does not apply to the root node "${nodeId}": the root is always center.`
+                    );
+                }
+                if (node.parent !== null) {
+                    const ignored = ignoredSideBranchUnder(node.parent);
+                    if (ignored !== null) {
+                        throw usageError(
+                            `--side applies only to a direct child of the root. The node "${nodeId}" ` +
+                                `is in the "${ignored.content.value}" branch (first-level node ` +
+                                `"${ignored.id}"), where a side is inherited instead of set. ` +
+                                `Set the side on "${ignored.id}" instead.`
+                        );
+                    }
                 }
                 node.side = side;
                 return nodeId;
@@ -384,8 +395,13 @@ Node attributes (JmNode writable fields). Structure goes through \`jsmind mind\`
 
   set-text     --node-id <id> --text <text>       Change the label
   set-folded   --node-id <id> --folded true|false Collapse or expand
-  set-side     --node-id <id> --side left|center|right
+  set-side     --node-id <id> --side left|right   Place a root child
   set-style    --node-id <id> [style fields]      Override the theme for one node
+
+--side applies only to a direct child of the root: those are the only nodes whose
+side moves anything, and every node below one inherits it. Passing it for the
+root (always center) or for a deeper node is a usage error naming the first-level
+branch, not a write the picture ignores.
 
 ${STYLE_FIELDS_HELP}
 

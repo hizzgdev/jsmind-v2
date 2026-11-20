@@ -87,6 +87,55 @@ export function formatSide(side: JmNodeSide): string {
 }
 
 /**
+ * Converts an explicit side to the numeric enum, rejecting the one value that
+ * is not a placement.
+ *
+ * @param raw - Value from the command line.
+ * @returns `left` or `right`.
+ * @throws {@link CliError} With `Usage` for an unknown name or for `center`.
+ * @remarks
+ * `center` is a state, not a choice: only the root is center, and nothing on the
+ * command line can create a second one. Accepting it would write a value the
+ * arranger never reads, which is exactly the "the file and the picture disagree"
+ * failure these commands are built to avoid. `parseSide` still knows the word,
+ * because reading a node's side has to be able to name it.
+ */
+export function parsePlacementSide(raw: string): JmNodeSide {
+    const side = parseSide(raw);
+    if (side === JmNodeSide.Center) {
+        throw usageError(
+            '--side center is not a placement: the root is the only center node. Use --side left or --side right.'
+        );
+    }
+    return side;
+}
+
+/**
+ * Finds the first-level branch a side would be ignored in.
+ *
+ * @param parent - Parent of the node that would carry the side (for a node that
+ *                 does not exist yet, the parent it is being added under).
+ * @returns `null` when `parent` is the root, so a side here is the placement the
+ *          arranger reads; otherwise the root's direct child on that path.
+ * @remarks
+ * A side is the placement of a root child; everything below one inherits it.
+ * That is the single judgement both side-writing commands share
+ * (`mind add-child --side` and `node set-side`) — the callers differ only in how
+ * they phrase it, because their fixes differ: one drops the flag, the other
+ * retargets it.
+ */
+export function ignoredSideBranchUnder(parent: JmNode): JmNode | null {
+    if (parent.isRoot()) {
+        return null;
+    }
+    let branch = parent;
+    while (branch.parent !== null && !branch.parent.isRoot()) {
+        branch = branch.parent;
+    }
+    return branch;
+}
+
+/**
  * Writes a command result in the shape the caller asked for.
  *
  * @param asJson - Emit JSON instead of prose.

@@ -293,6 +293,222 @@ test('cli - mind add-child writes and validates', () => {
     rmSync(dir, { recursive: true, force: true });
 });
 
+test('cli - mind add-child places by --side and --position and can create a folded node', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+
+    const { out } = capture(() => {
+        runMind(
+            file,
+            'add-child',
+            {
+                'parent-id': 'root',
+                'text': '左分支',
+                'side': 'left',
+                'position': '1',
+                'folded': 'true',
+                'json': true,
+            },
+            WRITE
+        );
+    });
+
+    const reported = JSON.parse(out) as { id: string; side: string; folded: boolean };
+    assert.strictEqual(reported.side, 'left', 'the echo must name the side it wrote');
+    assert.strictEqual(reported.folded, true, 'the echo must name the fold it wrote');
+
+    const after = JSON.parse(readFileSync(file, 'utf8'));
+    assert.deepStrictEqual(
+        after.nodes.root.children,
+        ['jm-a1', reported.id, 'jm-a2'],
+        '--position is an index into the root children array, across both sides'
+    );
+    assert.strictEqual(after.nodes[reported.id].side, -1, 'left should serialise as -1');
+    assert.strictEqual(after.nodes[reported.id].folded, true);
+
+    const context = capture(() => {
+        runContext({
+            file,
+            depth: 3,
+            maxText: 40,
+            fullText: false,
+            idsOnly: false,
+            asJson: false,
+        });
+    });
+    const line = context.out.split('\n').find(item => item.startsWith(reported.id))!;
+    assert.match(line, /\{side=left folded\}/, `context must show the placement: ${line}`);
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('cli - mind add-child appends when --position is past the end', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+
+    const { out } = capture(() => {
+        runMind(
+            file,
+            'add-child',
+            { 'parent-id': 'root', 'text': '尾巴', 'position': '99', 'json': true },
+            WRITE
+        );
+    });
+    const created = (JSON.parse(out) as { id: string }).id;
+
+    const after = JSON.parse(readFileSync(file, 'utf8'));
+    assert.strictEqual(after.nodes.root.children.at(-1), created, 'a position past the end appends');
+    assert.strictEqual(after.nodes.root.children.length, 3, 'the fixture had two root children');
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('cli - mind add-child --side rejects a parent below the root and names the branch', () => {
+    for (const parentId of ['jm-a1', 'jm-b1']) {
+        const dir = scratch();
+        const file = join(dir, 'm.json');
+        copyFileSync(FIXTURE, file);
+        const before = readFileSync(file, 'utf8');
+
+        assert.throws(
+            () => {
+                capture(() => {
+                    runMind(
+                        file,
+                        'add-child',
+                        { 'parent-id': parentId, 'text': 'x', 'side': 'left' },
+                        WRITE
+                    );
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage, 'an impossible placement is a usage error');
+                assert.ok(
+                    err.message.includes('数据准备') && err.message.includes('"jm-a1"'),
+                    `the error must name the first-level branch: ${err.message}`
+                );
+                return true;
+            }
+        );
+
+        assert.strictEqual(readFileSync(file, 'utf8'), before, 'the refused write must not land');
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - mind add-child --side rejects center', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    const before = readFileSync(file, 'utf8');
+
+    assert.throws(
+        () => {
+            capture(() => {
+                runMind(file, 'add-child', { 'parent-id': 'root', 'text': 'x', 'side': 'center' }, WRITE);
+            });
+        },
+        (err: unknown) => {
+            assert.ok(err instanceof CliError);
+            assert.strictEqual(err.exit, CliExit.Usage);
+            assert.ok(err.message.includes('center'), 'the error must say why center is refused');
+            return true;
+        }
+    );
+
+    assert.strictEqual(readFileSync(file, 'utf8'), before);
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('cli - mind add-child --folded accepts only the two words', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+
+    assert.throws(
+        () => {
+            capture(() => {
+                runMind(file, 'add-child', { 'parent-id': 'root', 'text': 'x', 'folded': 'yes' }, WRITE);
+            });
+        },
+        (err: unknown) => {
+            assert.ok(err instanceof CliError);
+            assert.strictEqual(err.exit, CliExit.Usage);
+            assert.ok(err.message.includes('true or false'));
+            return true;
+        }
+    );
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('cli - mind add-node no longer exists', () => {
+    // Merged into add-child; the preview release keeps no alias, so the name has
+    // to fail as an unknown subcommand rather than quietly doing the old thing.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+
+    assert.throws(
+        () => {
+            capture(() => {
+                runMind(file, 'add-node', { 'parent-id': 'root', 'text': 'x' }, WRITE);
+            });
+        },
+        (err: unknown) => {
+            assert.ok(err instanceof CliError);
+            assert.strictEqual(err.exit, CliExit.Usage);
+            assert.ok(err.message.includes('Unknown mind subcommand: add-node'));
+            return true;
+        }
+    );
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('cli - node set-side refuses the root and deeper nodes', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    const before = readFileSync(file, 'utf8');
+
+    // A deeper node: the write used to succeed and print a confirmation while
+    // the picture stayed exactly as it was.
+    assert.throws(
+        () => {
+            capture(() => {
+                runNode(file, 'set-side', { 'node-id': 'jm-b1', 'side': 'left' }, WRITE);
+            });
+        },
+        (err: unknown) => {
+            assert.ok(err instanceof CliError);
+            assert.strictEqual(err.exit, CliExit.Usage);
+            assert.ok(
+                err.message.includes('数据准备') && err.message.includes('Set the side on "jm-a1"'),
+                `the error must name the branch to act on: ${err.message}`
+            );
+            return true;
+        }
+    );
+
+    // The root has no side to set: it is center by definition.
+    assert.throws(
+        () => {
+            capture(() => {
+                runNode(file, 'set-side', { 'node-id': 'root', 'side': 'left' }, WRITE);
+            });
+        },
+        (err: unknown) => {
+            assert.ok(err instanceof CliError);
+            assert.strictEqual(err.exit, CliExit.Usage);
+            assert.ok(err.message.includes('always center'));
+            return true;
+        }
+    );
+
+    assert.strictEqual(readFileSync(file, 'utf8'), before, 'neither refusal may write');
+    rmSync(dir, { recursive: true, force: true });
+});
+
 test('cli - mind commands refuse to touch an already-broken file', () => {
     const dir = scratch();
     const file = join(dir, 'm.json');
