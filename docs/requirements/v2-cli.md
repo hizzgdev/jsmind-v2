@@ -11,7 +11,9 @@
 
 > **版本标注约定**：未标注版本的 API 和子命令从 2.0 起可用；只有 2.1 及之后新增的功能才标 `Since:`。
 >
-> 标注格式为 `Since: 2.<minor>.0`，`<minor>` 是引入该功能的 minor 版本号。minor 版本新增 API / 子命令时补标注，patch 版本不标；已有功能始终不标 —— 不标即表示 2.0 起就有。
+> 标注写成 `Since: 2.<minor>`，`<minor>` 是引入该功能的 minor 版本号（例：2.1 新增的子命令标 `Since: 2.1`）。minor 版本新增 API / 子命令时补标注，patch 版本不标；已有功能始终不标 —— 不标即表示 2.0 起就有。
+>
+> 标注只写到 minor，不写带 patch 号的三段版本号：`2.x.y` 这种字面量在 `docs/` 下会被 `scripts/check-version-refs.mjs`（CI 的 `version-check` 步）拒绝，版本号只存在于 `package.json`。
 
 ---
 
