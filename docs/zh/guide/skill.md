@@ -4,16 +4,6 @@ jsmind skill 位于本仓库的 `skills/jsmind/`。它是一套禁令和检查�
 
 它**不是** CLI 手册，也不能代替 `jsmind --help` 或 [CLI](./cli) 页面。当 agent 需要生成或修改思维导图时，请让它按这份 skill 的检查点做；具体的命令和参数，请查阅 CLI 帮助或本站的 CLI 页面。
 
-## 在哪里找到它
-
-`master` 上的文件：
-
-- 目录：[skills/jsmind/](https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind)
-- Skill：[skills/jsmind/SKILL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md)
-- 安装说明：[skills/jsmind/INSTALL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md)
-
-在本地克隆中，同样的文件位于 `skills/jsmind/SKILL.md` 和 `skills/jsmind/INSTALL.md`。
-
 ## 怎么用
 
 把 skill 交给 agent 即可。例如：
@@ -57,4 +47,14 @@ skill 只有英文版一份。它是给 agent 读的、不是给人读的，导�
 - **禁令。** 不要手写 JSON 文件；不要绕过 `jsmind` CLI；`validate` 不通过就必须停，不要继续改、也不要导出。
 - **检查点（按顺序）。** 改动前先运行 `context` 并读懂其中的 id；一轮修改之后运行 `validate`，再检查一次树结构；结构完成后 `export` 出图并查看。
 
-完整的检查清单和示例见上面的 skill 文件。命令和参数请使用 `jsmind --help`，或查阅 [CLI](./cli) 页面。
+完整的检查清单和示例见下面的 skill 文件。命令和参数请使用 `jsmind --help`，或查阅 [CLI](./cli) 页面。
+
+## 在哪里找到它
+
+`master` 上的文件：
+
+- 目录：[skills/jsmind/](https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind)
+- Skill：[skills/jsmind/SKILL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md)
+- 安装说明：[skills/jsmind/INSTALL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md)
+
+在本地克隆中，同样的文件位于 `skills/jsmind/SKILL.md` 和 `skills/jsmind/INSTALL.md`。

@@ -2,7 +2,7 @@
 
 A mind-map kernel for people and agents — people can view, edit, and export maps; agents can reliably create, read, and modify structured maps.
 
-[Documentation](https://hizzgdev.github.io/jsmind-v2/docs/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.md)
+[Documentation](https://hizzgdev.github.io/jsmind-v2/docs/) ([Quick start](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/getting-started) / [Skill](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/skill) / [CLI](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/cli)) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html)
 
 [![npm v2-preview](https://img.shields.io/npm/v/jsmind/v2-preview)](https://www.npmjs.com/package/jsmind?activeTab=versions)
 

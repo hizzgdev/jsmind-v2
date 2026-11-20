@@ -2,7 +2,7 @@
 
 面向人与 agent 的思维导图内核 —— 人能查看、编辑、导出导图，agent 能可靠地生成、读取、修改结构化的脑图数据。
 
-[文档](https://hizzgdev.github.io/jsmind-v2/docs/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) · [Skill](skills/jsmind/SKILL.md)
+[文档](https://hizzgdev.github.io/jsmind-v2/docs/)（[快速上手](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/getting-started) / [Skill](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/skill) / [CLI](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/cli)） · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html)
 
 [![npm v2-preview](https://img.shields.io/npm/v/jsmind/v2-preview)](https://www.npmjs.com/package/jsmind?activeTab=versions)
 
