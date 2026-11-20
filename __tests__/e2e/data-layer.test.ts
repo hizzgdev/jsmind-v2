@@ -99,7 +99,7 @@ test('e2e - the styled fixture keeps its styling through a round trip', () => {
     // Spot-check the parts that carry styling, since a round trip that quietly
     // dropped them would still be "byte-identical" if the input lacked them.
     assert.ok(text.includes('"format": "jsmind_v2"'));
-    assert.ok(text.includes('"theme": "default"'), 'mind style theme survives');
+    assert.ok(text.includes('"theme": "default"'), 'mind.style theme survives');
     assert.ok(text.includes('"fillColor": "#dbeafe"'), 'tone palette survives');
     assert.ok(text.includes('"incoming"'), 'incoming line style survives');
     assert.ok(text.includes('"pattern": "dashed"'), 'line pattern survives');

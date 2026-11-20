@@ -40,7 +40,7 @@
 jsmind <命令组> <子命令> [参数]
 ```
 
-**三层结构，三类命令。**
+**每个组一层子命令，没有嵌套层。** 一个子命令就是一个词，命令行永远是 `<命令组> <子命令> <文件> [选项]`。
 
 ```
 jsmind
@@ -48,14 +48,15 @@ jsmind
 ├── validate         ← 跨边界：校验
 ├── render           ← 跨边界：渲染
 ├── convert          ← 跨边界：格式转换（S13，随 adapter）
-├── mind             ← 改树结构（谁的父是谁、有几个孩子）和边
+├── mind             ← 改树结构（谁的父是谁、有几个孩子）、边，以及 mind 自己的样式
 │   ├── add-child
 │   ├── move
 │   ├── remove-node
 │   ├── add-edge
 │   ├── remove-edge
 │   ├── edges
-│   └── find
+│   ├── find
+│   └── set-style
 └── node             ← 改单个节点自身的属性（文本、折叠、方向、样式）
     ├── set-text
     ├── set-folded
@@ -68,10 +69,12 @@ jsmind
 | 类型 | 特征 | 命令 |
 |---|---|---|
 | **跨边界** | 不是单纯的数据操作，涉及文件 IO / 渲染 / 校验，或跨越数据结构 | `context` `validate` `render` `convert` |
-| **改结构** | 改变节点之间的父子关系或边；对应 `JmMind` 的方法 | `jsmind mind *` |
-| **改属性** | 只改某一个节点自身的字段，不动树结构；对应 `JmNode` 的字段赋值 | `jsmind node *` |
+| **`JmMind`** | 改树结构（父子关系、边），或改 mind 自身的属性字段（`mind.style`） | `jsmind mind *` |
+| **`JmNode`** | 只改某一个节点自身的属性字段，不动树结构 | `jsmind node *` |
 
-### 2.2 `mind` 与 `node` 的分界来自代码
+**组名说的是「改哪个对象」，不是「方法还是字段」。** 两个组里都同时有方法和字段写入：`mind style` 曾想按「mind 组 = 方法、node 组 = 字段」来划，但它自己就是给 mind 的字段赋值（`mind.style`），而同组还有 `mind move` 这类方法调用；`node set-style` 也一样是字段赋值。所以正确的分界在字段本身上 —— 见 2.2，结构字段锁死、只能走方法，属性字段开放赋值，`mind.style` 和 `node.style` 都属于后者。
+
+### 2.2 结构字段与属性字段的分界来自代码
 
 **这条分界不是凭感觉划的，现有代码里已经存在：**
 
@@ -85,9 +88,9 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 | `id` / `parent` / `children` | ❌ 只读 | 只能走 `JmMind` 的方法（`addChildNode` / `moveNode` / `removeNode`） |
 | `content` / `folded` / `side` | ✅ 可写 | 直接赋值，经 `NodeManager.setterTrap` 触发 `_onNodeUpdated` |
 
-**也就是说：结构字段在语言层面就锁死了，只能由 `JmMind` 维护一致性；属性字段开放赋值，由节点自己承担。** CLI 按同一条线分成 `mind` 和 `node`，是对现有模型的映射，不是新发明的区分。
+**也就是说：结构字段在语言层面就锁死了，只能由 `JmMind` 维护一致性；属性字段开放赋值，由节点自己承担。** CLI 的 `mind` / `node` 两个组按对象分，组内再按这条线分：结构字段只能走方法，属性字段直接赋值。这是对现有模型的映射，不是新发明的区分。
 
-**`JmNode` 没有任何 setter 方法**（只有 `getAllSubnodeIds` / `equals` / `isDescendant` / `isRoot` 这类查询），所以 `node` 组的命令对应的是**字段赋值**，不是方法调用 —— 这一点跟 `mind` 组不同。
+**`JmNode` 没有任何 setter 方法**（只有 `getAllSubnodeIds` / `equals` / `isDescendant` / `isRoot` 这类查询），所以 `node` 组的命令对应的是**字段赋值**，不是方法调用。`mind` 组里大部分是方法调用，但 `mind set-style` 写的是 `mind.style`，同样是一次字段赋值 —— 差别在对象，不在方法还是字段。
 
 ---
 
@@ -166,6 +169,16 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 **`--reset` 不能与字段或 `--clear` 同时出现** —— 它说的是「这个节点不要任何覆盖」，和「设成某个值」互相矛盾，同时给会直接报用法错误而不是猜意图。
 
 **参数校验发生在读文件之前**：非法 tone、非正数、未知的 `--clear` 字段都在打开文件前就报 `Usage`（退出码 2），不会因为文件恰好不存在而变成别的错误。颜色只检查是不是字符串 —— 主题接受任意 CSS 颜色，枚举值才在 CLI 层拦（为了报错时点名是哪个 flag，而不是给一个 JSON 路径）。
+
+### 3.4 `jsmind mind set-style` —— 文档级样式
+
+`mind` 组里唯一给属性字段赋值的子命令：它写 `mind.style`，不碰树结构。`node set-style` 写 `node.style`，两者是对称的两个命令，作用域靠组名区分 —— help 里也各自写明了这一点。
+
+| 字段 | CLI 命令 |
+|---|---|
+| `mind.style` | `jsmind mind set-style <file> --default-tone <tone>` |
+
+字段写法与 3.3 相同：点号分层（`--node.font-size`、`--line.color`）、连字符分词，配 `--clear <字段列表>` 与 `--reset`。目前只有 `--default-tone` 有写入器；`mind.style` 的其余分节（`tones` / `background` / `node` / `line` / `expander`）暂时只能通过 `context` 读，拿到写入器时按同一张 flag 表加进这个命令，不再开新的子命令。
 
 ---
 
@@ -439,6 +452,7 @@ File unchanged.
 |---|---|
 | 命令名用 `add-child` 还是 `addChild` | 倾向 `add-child`（CLI 惯例是 kebab-case，但跟 JS API 的对应关系会变模糊） |
 | ~~`set-style` 的参数怎么展开~~ | **已定并实现**：`--tone` / `--font-size` / `--border-width` 直接映射字段名，不做缩写 |
+| ~~文档级样式命令叫什么~~ | **已定**：`mind set-style`（曾叫 `mind style set`）。一个词的子命令，与 `node set-style` 对称，不留旧名别名；CLI 里不再有嵌套层 |
 | `context --focus` 的匹配算法 | 子串 + 简单模糊（编辑距离），具体算法待实现时定 |
 | 是否要 `jsmind mind list` 之类只读命令 | 倾向不加，`context` 已经覆盖 |
 | 退出码 `3` 是否再细分 | 暂不细分，先观察实际需要 |

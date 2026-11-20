@@ -32,7 +32,6 @@ import { VALIDATE_OPTIONS } from './commands/validate.ts';
 import { CONTEXT_OPTIONS } from './commands/context.ts';
 import { EXPORT_OPTIONS } from './commands/export.ts';
 import { MIND_OPTIONS } from './commands/mind.ts';
-import { STYLE_OPTIONS } from './commands/style.ts';
 import { NODE_OPTIONS } from './commands/node.ts';
 import { usageError } from './exit.ts';
 
@@ -88,7 +87,7 @@ export const OPTION_SPEC: ParseArgsOptionsConfig = {
     'incoming.curve': { type: 'string' },
     'clear': { type: 'string' },
     'reset': { type: 'boolean', default: false },
-    // document style (mind style set)
+    // document style (mind set-style)
     'default-tone': { type: 'string' },
     // context
     'focus': { type: 'string' },
@@ -133,7 +132,7 @@ export const GLOBAL_OPTIONS = [
 /**
  * Adds the group name to every key of a subcommand table.
  *
- * @param prefix - The words that select the group, e.g. `mind` or `mind style`.
+ * @param prefix - The words that select the group, e.g. `mind` or `node`.
  * @param table - Subcommand → allowed options.
  * @returns The same entries, keyed by the words a caller types.
  */
@@ -165,37 +164,33 @@ export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
     export: EXPORT_OPTIONS,
     help: [],
     ...prefixed('mind', MIND_OPTIONS),
-    ...prefixed('mind style', STYLE_OPTIONS),
     ...prefixed('node', NODE_OPTIONS),
 };
 
 /**
  * The table key an invocation is filed under.
  *
- * @param positionals - Everything that was not an option: command, subcommand,
- *                      action and the file paths.
+ * @param positionals - Everything that was not an option: command, subcommand
+ *                      and the file paths.
  * @returns The key to look up in {@link COMMAND_OPTIONS}, or `undefined` when
  *          the command line does not name a command at all.
  * @remarks
- * Only the words that select a command are read. A file path sits where this
- * function would look next, so it stops at the third word — `mind style` is the
- * deepest group, and its action is the third.
+ * Only the words that select a command are read. Both groups are one level
+ * deep — `mind set-style`, `node set-text` — so the word after the group is the
+ * whole subcommand and a file path sits where this function stops looking.
+ *
+ * There is no depth case to keep in step with the dispatcher any more. When
+ * `mind style set` wrote the document style, `style` was a level of its own and
+ * this function had to know that; now the same command is one word, and a
+ * subcommand added to either group needs no change here.
  */
 export function commandKey(positionals: readonly string[]): string | undefined {
-    const [command, second, third] = positionals;
+    const [command, second] = positionals;
     if (command === undefined) {
         return undefined;
     }
-    if (command === 'mind') {
-        if (second === undefined) {
-            return undefined;
-        }
-        return second === 'style'
-            ? (third === undefined ? 'mind style' : `mind style ${third}`)
-            : `mind ${second}`;
-    }
-    if (command === 'node') {
-        return second === undefined ? undefined : `node ${second}`;
+    if (command === 'mind' || command === 'node') {
+        return second === undefined ? undefined : `${command} ${second}`;
     }
     return command;
 }

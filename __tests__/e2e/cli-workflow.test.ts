@@ -513,15 +513,15 @@ test('e2e - a style written through the API is read back by the CLI', () => {
 // The document-level style crosses the process boundary too
 // ---------------------------------------------------------------------------
 
-test('e2e - mind style set is reachable from the command line and reports what it wrote', () => {
+test('e2e - mind set-style is reachable from the command line and reports what it wrote', () => {
     // The function-level tests cover the decision; this covers the argument
-    // shape an agent actually types: `mind style set <file> --default-tone`.
+    // shape an agent actually types: `mind set-style <file> --default-tone`.
     const dir = mkdtempSync(join(tmpdir(), 'jsmind-e2e-doc-style-'));
     const file = join(dir, 'doc.json');
     try {
         assert.strictEqual(runCli(['create', file, '--title', 'Doc', '--name', 't', '--author', 'a']).code, 0);
 
-        const set = runCli(['mind', 'style', 'set', file, '--default-tone', 'primary', '--json']);
+        const set = runCli(['mind', 'set-style', file, '--default-tone', 'primary', '--json']);
         assert.strictEqual(set.code, 0, set.stderr);
         assert.deepStrictEqual(JSON.parse(set.stdout).style, { defaultTone: 'primary' });
 
@@ -540,19 +540,25 @@ test('e2e - mind style set is reachable from the command line and reports what i
 
         // --dry-run prints and writes nothing.
         const before = readFileSync(file, 'utf8');
-        const dry = runCli(['mind', 'style', 'set', file, '--default-tone', 'danger', '--dry-run']);
+        const dry = runCli(['mind', 'set-style', file, '--default-tone', 'danger', '--dry-run']);
         assert.strictEqual(dry.code, 0, dry.stderr);
         assert.strictEqual(readFileSync(file, 'utf8'), before, 'dry-run must not write');
 
         // A bad tone is a usage error, not a data error: the file is fine.
-        const bad = runCli(['mind', 'style', 'set', file, '--default-tone', 'banana']);
+        const bad = runCli(['mind', 'set-style', file, '--default-tone', 'banana']);
         assert.strictEqual(bad.code, 2, bad.stderr);
         assert.match(bad.stderr, /--default-tone must be one of/);
 
         // And the field reaches the help the agent reads before trying.
-        const help = runCli(['mind', 'style', 'set', '--help']);
+        const help = runCli(['mind', 'set-style', '--help']);
         assert.strictEqual(help.code, 0);
         assert.match(help.stdout, /--default-tone/);
+
+        // The retired three-word form is gone, not aliased: `style` is not a
+        // subcommand, and the usage error says so instead of blaming the file.
+        const retired = runCli(['mind', 'style', 'set', file, '--default-tone', 'primary']);
+        assert.strictEqual(retired.code, 2, retired.stderr);
+        assert.match(retired.stderr, /Unknown mind subcommand: style/);
 
         // The file the CLI wrote still validates with the API's own checker.
         assert.strictEqual(validateMindData(JSON.parse(readFileSync(file, 'utf8'))).valid, true);

@@ -429,7 +429,9 @@ branch, not a write the picture ignores.
 ${STYLE_FIELDS_HELP}
 
 Why the split: id, parent and children are readonly on the model, so they are only
-reachable through JmMind methods (\`jsmind mind\`). These fields are plain assignments.
+reachable through JmMind methods (\`jsmind mind\`). These fields are plain assignments,
+and so is the document's \`mind.style\` written by \`mind set-style\` — the group name
+says which object owns the field, not whether it is a method.
 
 Every subcommand validates the result and rolls back on failure.`;
 
@@ -443,6 +445,9 @@ Every subcommand validates the result and rolls back on failure.`;
  * which is the failure focused help is meant to prevent.
  */
 export const setStyleHelp = `jsmind node set-style <file> --node-id <id> [style fields]
+
+Override the theme for one node (node.style). The document-wide default that
+these fields fall back to is \`mind set-style\`.
 
 ${STYLE_FIELDS_HELP}
 
