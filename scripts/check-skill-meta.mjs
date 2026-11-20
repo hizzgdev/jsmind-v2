@@ -19,13 +19,34 @@
  *
  * The range is evaluated here rather than with the `semver` package, because
  * the repository has no runtime dependencies and this check is allowed to be
- * small. It supports the comparators a deliberate range needs — `>=`, `>`,
- * `<=`, `<`, `=`, `^`, `~`, x-ranges, and space-separated intersections — and
- * refuses anything else loudly instead of passing it. An unsupported range is a
- * broken assertion, not a green build.
+ * small. Supported, exactly:
+ *
+ *   1.2.3, =1.2.3          exactly that version
+ *   >1.2.3 >=1.2.3 <1.2.3 <=1.2.3
+ *   ^1.2.3                 up to the next major, with semver's 0.x rules
+ *   ~1.2.3                 up to the next minor
+ *   1.2, 1.2.x, 1.2.*      any 1.2.*: a bare partial version is an x-range
+ *   1, 1.x, 1.*            any 1.*
+ *   >=1.2.3 <2             space-separated: every comparator must hold
+ *
+ * Everything else is refused with exit 1 rather than read as if it meant
+ * something: `||`, hyphen ranges, a bare `*`, a malformed token such as
+ * `2.x.3`. An x-range is the trap — `2.3.x` widened to "any 2.x" is a quiet
+ * wrong answer, and a green build on a wrong answer is worse than a red build
+ * on a right one.
+ *
+ * Prereleases (`2.0.2-rc.1`) are ordered by semver precedence but are not
+ * excluded the way npm's default range semantics exclude them. The question
+ * here is whether the tree the page describes is the tree in `package.json`,
+ * and a prerelease of a covered version is that tree.
  *
  * Usage:
- *     node scripts/check-skill-meta.mjs          # report problems, exit 1
+ *     node scripts/check-skill-meta.mjs               # report problems, exit 1
+ *     node scripts/check-skill-meta.mjs --root <dir>  # check a different tree
+ *
+ * `--root` exists for `__tests__/build/skill-meta.test.ts`. The default root is
+ * the repository this script lives in, not the caller's working directory, so
+ * the check answers the same question wherever it is run from.
  *
  * Wired into CI as its own step, unconditional: `skills/` is prose, so a
  * documentation-only change skips the library checks — and this is exactly the
@@ -36,9 +57,16 @@ import { readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(join(dirname(fileURLToPath(import.meta.url)), '..'));
+const DEFAULT_ROOT = resolve(join(dirname(fileURLToPath(import.meta.url)), '..'));
 const SKILL_FILE = join('skills', 'jsmind', 'SKILL.md');
 const SKILL_DIR_NAME = basename(dirname(SKILL_FILE));
+
+/** A version: three numbers plus optional prerelease identifiers. */
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+/** The same, with the minor and patch digits optional: a partial version. */
+const PARTIAL_SEMVER = /^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+/** A token whose missing parts are wildcards rather than zeroes. */
+const X_RANGE = /^(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?$/;
 
 /**
  * Splits a `SKILL.md` into its frontmatter lines and body.
@@ -124,90 +152,241 @@ function parseFrontmatter(lines) {
 }
 
 /**
- * Parses `x.y.z` into comparable parts, filling a missing minor or patch.
+ * Turns prerelease text into identifiers, empty text into null.
  *
- * @param text - Version string.
- * @returns Parts, or null when the text is not a version.
+ * @param text - The `-rc.1` part without its dash, when present.
+ * @returns Identifiers, or null for a release.
  */
-function parseVersion(text) {
-    const match = /^(\d+)(?:\.(\d+))?(?:\.(\d+))?$/.exec(text.trim());
-    if (match === null) {
-        return null;
-    }
-    return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)];
+function prereleaseOf(text) {
+    return text === undefined ? null : text.split('.');
 }
 
 /**
- * Compares two parsed versions.
+ * Reads a partial version: `1`, `1.2`, or `1.2.3`, with optional prerelease.
+ *
+ * @param text - Version text.
+ * @returns The numbers (missing parts filled with zero), how many digits were
+ *   given, and the prerelease; or null when the text is not a version.
+ */
+function parsePartialVersion(text) {
+    const match = PARTIAL_SEMVER.exec(text.trim());
+    if (match === null) {
+        return null;
+    }
+    const given = match[3] !== undefined ? 3 : match[2] !== undefined ? 2 : 1;
+    return {
+        numbers: [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)],
+        given,
+        prerelease: prereleaseOf(match[4]),
+    };
+}
+
+/**
+ * Reads a complete version, the shape `package.json` and the skill carry.
+ *
+ * @param text - Version text.
+ * @returns The version, or null when it is not `major.minor.patch`.
+ */
+function parseVersion(text) {
+    const match = SEMVER.exec(text.trim());
+    if (match === null) {
+        return null;
+    }
+    return {
+        numbers: [Number(match[1]), Number(match[2]), Number(match[3])],
+        given: 3,
+        prerelease: prereleaseOf(match[4]),
+    };
+}
+
+/**
+ * Builds a release version from its numbers.
+ *
+ * @returns A version with no prerelease.
+ */
+function release(major, minor, patch) {
+    return { numbers: [major, minor, patch], given: 3, prerelease: null };
+}
+
+/**
+ * Compares prerelease identifier lists by semver precedence.
+ *
+ * @returns Negative, zero, or positive, like any comparator.
+ * @remarks A release outranks any of its own prereleases; numeric identifiers
+ *   compare numerically and rank below alphanumeric ones.
+ */
+function comparePrerelease(left, right) {
+    if (left === null && right === null) {
+        return 0;
+    }
+    if (left === null) {
+        return 1;
+    }
+    if (right === null) {
+        return -1;
+    }
+    const shared = Math.min(left.length, right.length);
+    for (let index = 0; index < shared; index += 1) {
+        const leftNumeric = /^\d+$/.test(left[index]);
+        const rightNumeric = /^\d+$/.test(right[index]);
+        if (leftNumeric && rightNumeric) {
+            const difference = Number(left[index]) - Number(right[index]);
+            if (difference !== 0) {
+                return difference;
+            }
+            continue;
+        }
+        if (leftNumeric !== rightNumeric) {
+            return leftNumeric ? -1 : 1;
+        }
+        if (left[index] !== right[index]) {
+            return left[index] < right[index] ? -1 : 1;
+        }
+    }
+    return left.length - right.length;
+}
+
+/**
+ * Compares two versions.
  *
  * @returns Negative, zero, or positive, like any comparator.
  */
 function compare(left, right) {
     for (let index = 0; index < 3; index += 1) {
-        if (left[index] !== right[index]) {
-            return left[index] - right[index];
+        if (left.numbers[index] !== right.numbers[index]) {
+            return left.numbers[index] - right.numbers[index];
         }
     }
-    return 0;
+    return comparePrerelease(left.prerelease, right.prerelease);
+}
+
+/** A `>=` floor. */
+function atLeast(version) {
+    return { operator: '>=', version };
+}
+
+/** A `<` cap: the half-open upper end every expanded range needs. */
+function below(version) {
+    return { operator: '<', version };
 }
 
 /**
- * Expands one range token into half-open comparator pairs.
+ * The exclusive upper end of a caret range.
+ *
+ * @param floor - The version `^` was written on.
+ * @returns The first version the caret does not allow.
+ * @remarks The 0.x rules are semver's: `^0.2.3` stops at 0.3.0, `^0.0.3` at
+ *   0.0.4, and a bare `^0` allows the whole 0.x line.
+ */
+function caretUpperBound(floor) {
+    const [major, minor, patch] = floor.numbers;
+    if (major > 0 || floor.given === 1) {
+        return release(major + 1, 0, 0);
+    }
+    if (minor > 0 || floor.given === 2) {
+        return release(0, minor + 1, 0);
+    }
+    return release(0, 0, patch + 1);
+}
+
+/**
+ * The exclusive upper end of a tilde range.
+ *
+ * @param floor - The version `~` was written on.
+ * @returns The first version the tilde does not allow.
+ */
+function tildeUpperBound(floor) {
+    const [major, minor] = floor.numbers;
+    return floor.given === 1 ? release(major + 1, 0, 0) : release(major, minor + 1, 0);
+}
+
+/**
+ * Expands a token with no operator: an exact version or an x-range.
  *
  * @param token - One space-separated part of the range.
- * @returns Comparator functions (version → boolean), or null when unsupported.
+ * @returns Comparators, or null when the token is not this shape.
+ * @remarks `1.2.3` is exact; `1.2` and `1.2.x` are `>=1.2.0 <1.3.0`. Missing
+ *   parts are wildcards here, not zeroes — that difference is the whole reason
+ *   this function exists.
  */
-function tokenComparators(token) {
-    const caret = /^\^(\d+(?:\.\d+){0,2})$/.exec(token);
-    if (caret !== null) {
-        const floor = parseVersion(caret[1]);
-        // A caret on major 0 would need the 0.x rules; nothing here asks for it,
-        // and guessing is worse than refusing.
-        if (floor === null || floor[0] === 0) {
-            return null;
-        }
-        return [version => compare(version, floor) >= 0, version => version[0] === floor[0]];
+function bareComparators(token) {
+    const exact = parseVersion(token);
+    if (exact !== null) {
+        return [{ operator: '=', version: exact }];
     }
 
-    const tilde = /^~(\d+(?:\.\d+){0,2})$/.exec(token);
-    if (tilde !== null) {
-        const floor = parseVersion(tilde[1]);
+    const match = X_RANGE.exec(token);
+    if (match === null) {
+        return null;
+    }
+    const major = Number(match[1]);
+    const minor = match[2];
+    const patch = match[3];
+    // `2.x.3` names two incompatible shapes at once; refuse rather than pick one.
+    if (isWildcard(minor) && !isWildcard(patch)) {
+        return null;
+    }
+    if (isWildcard(minor)) {
+        return [atLeast(release(major, 0, 0)), below(release(major + 1, 0, 0))];
+    }
+    if (isWildcard(patch)) {
+        return [atLeast(release(major, Number(minor), 0)), below(release(major, Number(minor) + 1, 0))];
+    }
+    return [{ operator: '=', version: release(major, Number(minor), Number(patch)) }];
+}
+
+/**
+ * Reports whether an x-range part is a wildcard.
+ *
+ * @param part - A captured regex group, or undefined when the part is absent.
+ */
+function isWildcard(part) {
+    return part === undefined || /^[xX*]$/.test(part);
+}
+
+/**
+ * Expands one range token into comparators.
+ *
+ * @param token - One space-separated part of the range.
+ * @returns Comparators, or null when the token is not supported.
+ */
+function tokenComparators(token) {
+    const caret = /^\^(.+)$/.exec(token);
+    if (caret !== null) {
+        const floor = parsePartialVersion(caret[1]);
         if (floor === null) {
             return null;
         }
-        return [
-            version => compare(version, floor) >= 0,
-            version => version[0] === floor[0] && version[1] === floor[1],
-        ];
+        return [atLeast(floor), below(caretUpperBound(floor))];
     }
 
-    // x-ranges: `2`, `2.x`, `2.*` mean "any 2.x", which is a floor plus a cap.
-    const xRange = /^(\d+)(?:\.(?:\d+|[xX*]))?(?:\.(?:[xX*]))?$/.exec(token);
-    if (xRange !== null) {
-        const major = Number(xRange[1]);
-        return [version => version[0] >= major, version => version[0] === major];
+    const tilde = /^~(.+)$/.exec(token);
+    if (tilde !== null) {
+        const floor = parsePartialVersion(tilde[1]);
+        if (floor === null) {
+            return null;
+        }
+        return [atLeast(floor), below(tildeUpperBound(floor))];
     }
 
-    const operator = /^(>=|<=|>|<|=)?(.+)$/.exec(token);
-    if (operator === null) {
-        return null;
+    const operator = /^(>=|<=|>|<|=)(\S+)$/.exec(token);
+    if (operator !== null) {
+        if (operator[1] === '=') {
+            // `=2.3.x` is the same claim as `2.3.x`.
+            return bareComparators(operator[2]);
+        }
+        if (/[xX*]/.test(operator[2])) {
+            // `>=2.3.x` has no half-open reading anyone agrees on.
+            return null;
+        }
+        const bound = parsePartialVersion(operator[2]);
+        if (bound === null) {
+            return null;
+        }
+        return [{ operator: operator[1], version: bound }];
     }
-    const bound = parseVersion(operator[2]);
-    if (bound === null) {
-        return null;
-    }
-    switch (operator[1] ?? '=') {
-        case '>=':
-            return [version => compare(version, bound) >= 0];
-        case '>':
-            return [version => compare(version, bound) > 0];
-        case '<=':
-            return [version => compare(version, bound) <= 0];
-        case '<':
-            return [version => compare(version, bound) < 0];
-        default:
-            return [version => compare(version, bound) === 0];
-    }
+
+    return bareComparators(token);
 }
 
 /**
@@ -216,15 +395,20 @@ function tokenComparators(token) {
  * @param version - Version string from `package.json`.
  * @param range - Range expression from the frontmatter.
  * @returns True when the version satisfies every comparator.
- * @throws When the range uses syntax this checker does not implement.
+ * @throws When the version is not semver or the range uses unsupported syntax.
  */
 function satisfies(version, range) {
     const parsed = parseVersion(version);
     if (parsed === null) {
-        throw new Error(`package.json version is not a version: ${version}`);
+        throw new Error(
+            `package.json version is not a semantic version: ${version} (expected something like 2.0.1)`
+        );
     }
     if (range.includes('||')) {
-        throw new Error(`unsupported range syntax (||): ${range}`);
+        throw new Error(`unsupported range syntax (|| alternatives): ${range}`);
+    }
+    if (/\s-\s/.test(range.trim())) {
+        throw new Error(`unsupported range syntax (hyphen range): ${range}`);
     }
 
     const tokens = range
@@ -239,20 +423,77 @@ function satisfies(version, range) {
     for (const token of tokens) {
         const expanded = tokenComparators(token);
         if (expanded === null) {
-            throw new Error(`unsupported range syntax: ${token}`);
+            throw new Error(
+                `unsupported range syntax: ${token} ` +
+                    '(supported: =, <, <=, >, >=, ^, ~, x-ranges, and space-separated intersections)'
+            );
         }
         comparators.push(...expanded);
     }
-    return comparators.every(predicate => predicate(parsed));
+
+    return comparators.every(comparator => {
+        const order = compare(parsed, comparator.version);
+        switch (comparator.operator) {
+            case '>':
+                return order > 0;
+            case '>=':
+                return order >= 0;
+            case '<':
+                return order < 0;
+            case '<=':
+                return order <= 0;
+            default:
+                return order === 0;
+        }
+    });
 }
 
-function main() {
+/**
+ * Reads the command line.
+ *
+ * @param argv - Arguments after the script name.
+ * @returns The root directory to check.
+ * @throws When an argument is not one this script knows.
+ */
+function parseArguments(argv) {
+    let root = DEFAULT_ROOT;
+    for (let index = 0; index < argv.length; index += 1) {
+        const argument = argv[index];
+        if (argument === '--root') {
+            const value = argv[index + 1];
+            if (value === undefined) {
+                throw new Error('--root needs a directory');
+            }
+            root = resolve(value);
+            index += 1;
+            continue;
+        }
+        throw new Error(`unknown argument: ${argument}`);
+    }
+    return root;
+}
+
+/**
+ * Checks one tree.
+ *
+ * @param root - Repository root to read `skills/jsmind/SKILL.md` and
+ *   `package.json` from.
+ */
+function check(root) {
     const problems = [];
     const add = (file, line, message) => {
         problems.push(`${file}${line === null ? '' : `:${line}`}: ${message}`);
     };
 
-    const skillText = readFileSync(join(ROOT, SKILL_FILE), 'utf8');
+    let skillText;
+    try {
+        skillText = readFileSync(join(root, SKILL_FILE), 'utf8');
+    } catch (error) {
+        add(SKILL_FILE, null, `cannot read: ${error.code ?? error.message}`);
+        report(problems);
+        return;
+    }
+
     const lines = frontmatterLines(skillText);
     if (lines === null) {
         add(SKILL_FILE, 1, 'no YAML frontmatter (expected a `---` block at the top)');
@@ -293,7 +534,14 @@ function main() {
         return;
     }
 
-    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+    let pkg;
+    try {
+        pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    } catch (error) {
+        add('package.json', null, `cannot read: ${error.code ?? error.message}`);
+        report(problems);
+        return;
+    }
     if (typeof pkg.version !== 'string') {
         add('package.json', null, 'missing version');
         report(problems);
@@ -341,6 +589,19 @@ function report(problems) {
     console.error('parted ways: re-read the page against `jsmind --help` and widen the');
     console.error('range deliberately, rather than letting it drift.');
     process.exitCode = 1;
+}
+
+function main() {
+    let root;
+    try {
+        root = parseArguments(process.argv.slice(2));
+    } catch (error) {
+        console.error(error.message);
+        console.error('usage: node scripts/check-skill-meta.mjs [--root <dir>]');
+        process.exitCode = 2;
+        return;
+    }
+    check(root);
 }
 
 main();

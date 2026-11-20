@@ -24,7 +24,9 @@
  * `version:` and `cli:`. They are checked against `package.json` by
  * `scripts/check-skill-meta.mjs` on every run, so a stale one fails the build
  * instead of quietly reading as current. Only those two keys are exempt, and
- * only inside a `skills/<name>/SKILL.md` frontmatter block.
+ * only in the frontmatter block of the one skill that check reads,
+ * `skills/jsmind/SKILL.md`. A second skill's `version:` is unverified prose
+ * until something compares it, so it stays in the scan.
  *
  * Watched trees: `docs/`, `skills/`, `src/`, and any top-level `README*.md`.
  * The scan starts from `git ls-files`, so untracked scratch files never fail
@@ -65,7 +67,7 @@ const SINCE_ANNOTATION = /Since:\s*\d+\.\d+\.\d+/g;
 // package.json on every run — a second source of truth that is checked cannot
 // go stale the way a sentence can. Only those two keys are exempt; the prose in
 // the same block is scanned as usual.
-const SKILL_FILE_PATTERN = /^skills\/.*\/SKILL\.md$/;
+const SKILL_FILE_PATTERN = /^skills\/jsmind\/SKILL\.md$/;
 const FRONTMATTER_FIELD = /^\s*(version|cli):/;
 
 /**
