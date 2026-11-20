@@ -17,6 +17,10 @@
  * called, not that a browser produces an image. The UI suite runs the real
  * thing against the built bundle; that bundle is why the coverage tool cannot
  * attribute the lines back here.
+ *
+ * Everything around the spawn that can be reasoned about on its own - how long
+ * to wait for DevTools, which port to take, how much stderr to quote - lives in
+ * `browser-start.ts`, where it is covered by tests that need no browser.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -26,6 +30,14 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { CliExit, CliError } from './exit.ts';
+import {
+    DEVTOOLS_POLL_MS,
+    DEVTOOLS_POLL_TIMEOUT_MS,
+    STDERR_BUFFER_LIMIT,
+    describeStartFailure,
+    pickFreePort,
+    resolveBrowserStartMs,
+} from './browser-start.ts';
 
 /** Where a Chromium binary is normally installed. */
 const BROWSER_CANDIDATES = [
@@ -146,7 +158,11 @@ function bundleImportExpression(source: string): string {
 export async function openBrowser(width: number, height: number): Promise<JmBrowserSession> {
     const binary = findBrowser();
     const bundle = readFileSync(resolveBundlePath(), 'utf8');
-    const port = 9222 + Math.floor(Math.random() * 2000);
+    // Probe before using: `9222 + random` used to collide with whatever else the
+    // machine was running, and the poll then waited out the whole timeout on a
+    // port this browser never listened on.
+    const port = await pickFreePort();
+    const startMs = resolveBrowserStartMs();
     const profile = mkdtempSync(join(tmpdir(), 'jsmind-cli-'));
 
     const chrome = spawn(
@@ -170,6 +186,20 @@ export async function openBrowser(width: number, height: number): Promise<JmBrow
         exited = code ?? -1;
     });
 
+    // Consumed for two reasons. Chrome's stderr is where a sandbox refusal, a
+    // locked profile or a "cannot bind" lands, and nothing ever read it - so
+    // "the process is alive but silent" and "the process is dead" looked the
+    // same from outside. Not reading it also let the pipe buffer fill and block
+    // the child, so it is a bug fix as much as a diagnostic.
+    let stderr = '';
+    chrome.stderr?.setEncoding('utf8');
+    chrome.stderr?.on('data', (chunk: string) => {
+        stderr += chunk;
+        if (stderr.length > STDERR_BUFFER_LIMIT) {
+            stderr = stderr.slice(-STDERR_BUFFER_LIMIT);
+        }
+    });
+
     let socket: WebSocket | null = null;
     const cleanup = async (): Promise<void> => {
         socket?.close();
@@ -185,11 +215,22 @@ export async function openBrowser(width: number, height: number): Promise<JmBrow
     };
 
     try {
-        const version = await waitForDevTools(port, () => exited);
+        const version = await waitForDevTools(port, () => exited, startMs, () => stderr);
         socket = new WebSocket(version.webSocketDebuggerUrl);
         await new Promise<void>((ok, fail) => {
             socket!.onopen = () => ok();
-            socket!.onerror = () => fail(new CliError('Cannot connect to the browser.', CliExit.IoError));
+            socket!.onerror = () =>
+                fail(
+                    new CliError(
+                        describeStartFailure({
+                            kind: 'socket',
+                            port,
+                            timeoutMs: startMs,
+                            stderr,
+                        }),
+                        CliExit.IoError
+                    )
+                );
         });
 
         let nextId = 0;
@@ -280,27 +321,70 @@ export async function openBrowser(width: number, height: number): Promise<JmBrow
     }
 }
 
-/** Polls the DevTools endpoint until the browser answers. */
+/**
+ * Polls the DevTools endpoint until the browser answers.
+ *
+ * @param port - Port passed to `--remote-debugging-port`.
+ * @param hasExited - Exit code once the process is gone, `null` while it runs.
+ * @param timeoutMs - How long the start is given.
+ * @param readStderr - Chrome's stderr so far; quoted in whichever failure is raised.
+ * @returns The DevTools endpoint description once it answers.
+ * @throws {@link CliError} Reporting which of the two failure shapes happened.
+ * @remarks
+ * Both branches end in an error, and they used to end in the same sentence. They
+ * are not the same bug: a process that died needs its stderr read (sandbox,
+ * profile, a flag it rejected), while a process that is still running and simply
+ * never listened needs the port and the wait looked at. The message says which.
+ */
 async function waitForDevTools(
     port: number,
-    hasExited: () => number | null
+    hasExited: () => number | null,
+    timeoutMs: number,
+    readStderr: () => string
 ): Promise<{ webSocketDebuggerUrl: string }> {
-    for (let attempt = 0; attempt < 150; attempt++) {
+    const deadline = Date.now() + timeoutMs;
+    let lastError = '';
+    /** The report for a process that is gone; used before and after the polls. */
+    const exitedError = (code: number): CliError =>
+        new CliError(
+            describeStartFailure({ kind: 'exited', port, timeoutMs, exitCode: code, stderr: readStderr() }),
+            CliExit.IoError
+        );
+
+    for (;;) {
         const code = hasExited();
         if (code !== null) {
-            throw new CliError(`The browser exited while starting (code ${code}).`, CliExit.IoError);
+            throw exitedError(code);
         }
         try {
-            const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+            const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+                // A listener that accepts and then says nothing would otherwise
+                // hold this poll past the deadline.
+                signal: AbortSignal.timeout(DEVTOOLS_POLL_TIMEOUT_MS),
+            });
             if (response.ok) {
                 return (await response.json()) as { webSocketDebuggerUrl: string };
             }
-        } catch {
-            // Not listening yet.
+            lastError = `HTTP ${response.status}`;
+        } catch (error) {
+            lastError = error instanceof Error ? error.message : String(error);
         }
-        await new Promise(done => setTimeout(done, 200));
+        if (Date.now() >= deadline) {
+            break;
+        }
+        await new Promise(done => setTimeout(done, DEVTOOLS_POLL_MS));
     }
-    throw new CliError('The browser did not start in time.', CliExit.IoError);
+
+    // One last look: the process may have died during the final poll, and that
+    // failure deserves its own report rather than the timeout wording.
+    const code = hasExited();
+    if (code !== null) {
+        throw exitedError(code);
+    }
+    throw new CliError(
+        describeStartFailure({ kind: 'silent', port, timeoutMs, lastError, stderr: readStderr() }),
+        CliExit.IoError
+    );
 }
 
 /** True when an error came from the page rather than the harness. */

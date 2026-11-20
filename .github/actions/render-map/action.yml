@@ -42,6 +42,14 @@ runs:
         # Through the public export path, not a private script: whatever the API
         # produces is what gets reviewed, so a regression here is the same one a
         # caller would hit.
-        node dist/cli.js export "${{ inputs.data-file }}" "${{ inputs.output }}" \
+        #
+        # The wrapper runs that same command and adds one retry, and only for a
+        # browser that failed to start (exit 3 with "Browser startup failed" on
+        # stderr). That is the one failure here that is about the runner rather
+        # than about the code - the same image has taken 3s and 10s to launch
+        # Chrome on consecutive runs. Everything else fails once, as it should.
+        node scripts/render-preview.ts \
+          "${{ inputs.data-file }}" \
+          "${{ inputs.output }}" \
           --width "${{ inputs.width }}" \
           --height "${{ inputs.height }}"

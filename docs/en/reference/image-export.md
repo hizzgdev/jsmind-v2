@@ -81,6 +81,17 @@ small.png: 2095x1032 (145.0 KB)      # the viewport cannot hold it, so the image
 
 Exit codes follow the CLI contract: `0` success, `1` illegal data (validate first, do not start the browser), `2` argument error, `3` I/O or runtime failure.
 
+### When the browser is slow to start
+
+Starting Chromium is the only part of export that depends on the machine rather than on the map. The command waits up to **60 seconds** for the browser to open its DevTools endpoint; set `JSMIND_BROWSER_START_MS` (milliseconds) to change that. A value that is not a positive number is ignored and the default applies, so a typo in CI does not turn every export into an error.
+
+The wait is not one blind sleep, and a failure is not one sentence:
+
+- A port is chosen by **binding it first**. A port already in use costs one probe instead of a whole timeout spent polling a port this browser never listened on.
+- The failure says which of two very different things happened. Either **the process exited while starting** — the message carries the exit code, plus the last lines of Chromium's stderr (a sandbox refusal, a profile it cannot write) — or **the process is still running but never opened DevTools**, where the message names the port, the wait, the last transport error, and Chromium's stderr.
+
+Both are exit code `3`, which is what lets the repository's `Render preview` job retry once — and only then; a bad file or a page that threw is not retried, because it would fail again.
+
 ## 4. How it is implemented
 
 ### Why foreignObject
