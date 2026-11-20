@@ -1,0 +1,12 @@
+{
+  "action": "closed",
+  "pull_request": {
+    "number": 132,
+    "title": "feat(export): add opt-in transparent PNG background",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/pull/132",
+    "user": { "login": "zzgbot" },
+    "merged": true,
+    "merge_commit_sha": "4f2e259a706860e8f02bb5517f55659df5c8109f",
+    "labels": [{ "name": "documentation" }, { "name": "hubie" }]
+  }
+}

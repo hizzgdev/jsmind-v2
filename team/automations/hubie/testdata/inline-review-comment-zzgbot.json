@@ -1,0 +1,18 @@
+{
+  "action": "created",
+  "comment": {
+    "id": 4644321607,
+    "user": { "login": "zzgbot" },
+    "body": "please warn instead of failing",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/pull/132#discussion_r4644321607",
+    "path": "src/view/export.ts",
+    "line": 115
+  },
+  "pull_request": {
+    "number": 132,
+    "title": "feat(export): add opt-in transparent PNG background",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/pull/132",
+    "user": { "login": "zzgbot" },
+    "labels": [{ "name": "hubie" }]
+  }
+}

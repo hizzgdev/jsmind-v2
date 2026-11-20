@@ -1,0 +1,11 @@
+{
+  "action": "assigned",
+  "assignee": { "login": "zzgbot" },
+  "issue": {
+    "number": 125,
+    "title": "an issue without the hubie label",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/issues/125",
+    "user": { "login": "zzgbot" },
+    "labels": [{ "name": "enhancement" }]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "action": "assigned",
+  "assignee": { "login": "zzgbot" },
+  "issue": {
+    "number": 132,
+    "title": "feat(export): add opt-in transparent PNG background",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/issues/132",
+    "user": { "login": "zzgbot" },
+    "labels": [{ "name": "hubie" }],
+    "pull_request": {
+      "html_url": "https://github.com/hizzgdev/jsmind-v2/pull/132"
+    }
+  }
+}
