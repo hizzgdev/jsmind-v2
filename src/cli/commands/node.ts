@@ -97,6 +97,29 @@ const STYLE_FIELDS: StyleField[] = [
     },
 ];
 
+/** One of the words that selects a `node` subcommand. */
+type NodeSubcommand = (typeof SUBCOMMANDS)[number];
+
+/**
+ * Options each `node` subcommand reads, beyond the global ones.
+ *
+ * @remarks
+ * Typed against {@link NodeSubcommand}, so a subcommand added above without a
+ * line here does not compile. This is what `../options.ts` consults before
+ * reporting a flag as unknown.
+ *
+ * `set-style`'s fields are read off {@link STYLE_FIELDS} rather than restated:
+ * `--tone` is an option of this subcommand exactly because the table above
+ * parses it. `--clear` and `--reset` are not fields — they remove fields — so
+ * they are named here instead.
+ */
+export const NODE_OPTIONS: Record<NodeSubcommand, readonly string[]> = {
+    'set-text': ['node-id', 'text'],
+    'set-folded': ['node-id', 'folded'],
+    'set-side': ['node-id', 'side'],
+    'set-style': ['node-id', ...STYLE_FIELDS.map(field => field.flag), 'clear', 'reset'],
+};
+
 /**
  * Normalises a field name given to `--clear`.
  *

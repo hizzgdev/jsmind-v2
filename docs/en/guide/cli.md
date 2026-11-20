@@ -20,7 +20,7 @@ jsmind <command> [options]
 
 ## Global options
 
-These options are accepted on the command line. Not every command uses every option.
+These options are accepted by every command and subcommand.
 
 | Option | Meaning |
 | --- | --- |
@@ -28,9 +28,41 @@ These options are accepted on the command line. Not every command uses every opt
 | `--dry-run` | Show what would change, write nothing |
 | `--output <path>` | Write somewhere other than the input file |
 | `--backup` | Keep a `.bak` copy before overwriting |
+| `--strict` | Treat an unknown option as a usage error |
+| `--version` | Print the version and exit |
 | `-h`, `--help` | Show the built-in help |
 
 `--dry-run`, `--output`, and `--backup` apply to the mutating `mind` and `node` subcommands. `create` supports `--dry-run` and `--backup`, but the output path is the positional file argument, so `--output` is not used there.
+
+Every other option belongs to a specific subcommand; the sections below list them. An option a command does not take is reported instead of being ignored — see [Unknown options](#unknown-options).
+
+`--version` prints the version string from `package.json`, on its own line and with nothing else, and needs no command. The version is defined in one place only, so it cannot fall behind a release.
+
+## Unknown options
+
+Each subcommand accepts a fixed set of options: the global ones above plus its own. An option outside that set — a misspelt flag, or one that belongs to a different subcommand — is reported on stderr, and the command still runs.
+
+```
+$ jsmind mind find map.json --node-id root --sdie
+jsmind: warning: unknown option for "mind find": --sdie (--strict makes this an error)
+{
+  "id": "root",
+  ...
+}
+```
+
+The warning never goes to stdout, so `--json` output stays parseable. The other side of that choice: **a consumer that reads only stdout and the exit code does not see the warning**. That is the cost of warning instead of failing, not a defect to be fixed later. When that blind spot matters, add `--strict`, which turns the same call into a usage error with exit code `2`:
+
+```
+$ jsmind mind find map.json --node-id root --sdie --strict
+Unknown option for "mind find": --sdie
+$ echo $?
+2
+```
+
+Pass `--strict` in scripts and agent workflows, where a silently ignored flag is worse than a failed run.
+
+There is no spelling suggestion. Deciding that `--sdie` "looks like" `--side` means guessing at intent, and a wrong guess sends you to fix a flag you never typed.
 
 ## Exit codes
 
