@@ -39,6 +39,7 @@
         "format": "node scripts/check-eof-newline.mjs --fix && eslint --fix --config .config/eslint.config.js",
         "format-check": "node scripts/check-eof-newline.mjs && eslint --config .config/eslint.config.js",
         "version-check": "node scripts/check-version-refs.mjs",
+        "skill-meta-check": "node scripts/check-skill-meta.mjs",
         "type-check": "tsc --noEmit -p tsconfig.json",
         "compile": "tsc --help",
         "ci": "npm run format-check && npm run type-check && npm run test-lite && npm run build",

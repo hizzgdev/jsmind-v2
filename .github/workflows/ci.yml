@@ -231,6 +231,15 @@ jobs:
       - name: Version references
         run: npm run version-check
 
+      # The skill's frontmatter declares the CLI range it describes, and the
+      # repository's own version has to be inside it. A second source of truth
+      # is only acceptable when something compares it — this is that something,
+      # and it runs on every change for the same reason version-check does:
+      # `skills/` is watched, and a docs-only change is the change most likely
+      # to leave the range behind.
+      - name: Skill metadata
+        run: npm run skill-meta-check
+
       # Everything below compiles or exercises the TypeScript library sources.
       # Changes that only touch docs/ or other markdown cannot change those
       # answers, so these steps are skipped. Docs-site checks live in the

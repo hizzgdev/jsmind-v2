@@ -1,0 +1,13 @@
+{
+    "name": "build",
+    "prompt": "Draw me a mind map of the three cache tiers. Hot splits into In-memory and On-disk, Warm splits into In-memory and On-disk, and Cold keeps things in an Object store. Just those three branches.",
+    "expect": {
+        "root": "cache tiers",
+        "tree": [
+            { "text": "Hot", "children": ["In-memory", "On-disk"] },
+            { "text": "Warm", "children": ["In-memory", "On-disk"] },
+            { "text": "Cold", "children": ["Object store"] }
+        ],
+        "both_sides": true
+    }
+}

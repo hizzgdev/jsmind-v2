@@ -20,6 +20,14 @@
  * say. Those markers are therefore stripped before the scan; every other
  * occurrence of a `2.x.y` literal is still reported.
  *
+ * The second exception is the machine-readable frontmatter of a skill:
+ * `version:` and `cli:`. They are checked against `package.json` by
+ * `scripts/check-skill-meta.mjs` on every run, so a stale one fails the build
+ * instead of quietly reading as current. Only those two keys are exempt, and
+ * only in the frontmatter block of the one skill that check reads,
+ * `skills/jsmind/SKILL.md`. A second skill's `version:` is unverified prose
+ * until something compares it, so it stays in the scan.
+ *
  * Watched trees: `docs/`, `skills/`, `src/`, and any top-level `README*.md`.
  * The scan starts from `git ls-files`, so untracked scratch files never fail
  * the check and a file is checked the moment it is staged.
@@ -54,6 +62,35 @@ const VERSION_LITERAL = /\b2\.\d+\.\d+\b/g;
 // `Since: 2.1.0` is when a feature appeared, not which release is current, so
 // it is the one place a full triple belongs. Stripped before the scan.
 const SINCE_ANNOTATION = /Since:\s*\d+\.\d+\.\d+/g;
+// Frontmatter's machine-readable fields. `version` and the `cli` range are
+// claims about the program, and scripts/check-skill-meta.mjs compares them with
+// package.json on every run — a second source of truth that is checked cannot
+// go stale the way a sentence can. Only those two keys are exempt; the prose in
+// the same block is scanned as usual.
+const SKILL_FILE_PATTERN = /^skills\/jsmind\/SKILL\.md$/;
+const FRONTMATTER_FIELD = /^\s*(version|cli):/;
+
+/**
+ * Finds the closing delimiter of a leading frontmatter block.
+ *
+ * @param file - Path as git reports it.
+ * @param lines - The file's lines.
+ * @returns Index of the closing `---`, or -1 when this file has no frontmatter.
+ */
+function frontmatterEnd(file, lines) {
+    if (!SKILL_FILE_PATTERN.test(file)) {
+        return -1;
+    }
+    if (lines.length === 0 || lines[0].trimEnd() !== '---') {
+        return -1;
+    }
+    for (let index = 1; index < lines.length; index += 1) {
+        if (lines[index].trimEnd() === '---') {
+            return index;
+        }
+    }
+    return -1;
+}
 
 /**
  * git exports GIT_DIR and friends to hooks. Trusting them would let a hook
@@ -105,8 +142,13 @@ function isBinary(data) {
 function violationsIn(file, text) {
     const found = [];
     const lines = text.split('\n');
+    const frontmatterStop = frontmatterEnd(file, lines);
     for (let index = 0; index < lines.length; index += 1) {
         const raw = lines[index].replace(/\r$/, '');
+        // Frontmatter declarations, not prose: checked by check-skill-meta.mjs.
+        if (index > 0 && index < frontmatterStop && FRONTMATTER_FIELD.test(raw)) {
+            continue;
+        }
         // Drop the `Since:` markers first: a triple there is a date, not a
         // claim about the current release. The report quotes the line as
         // written, so it can be found in the file it names.

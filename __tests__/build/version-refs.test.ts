@@ -145,6 +145,38 @@ describe('check-version-refs', () => {
         });
     });
 
+    it('exempts only the skill frontmatter that check-skill-meta reads', () => {
+        withRepository({
+            'skills/jsmind/SKILL.md': [
+                '---',
+                'name: jsmind',
+                'version: 2.0.1',
+                'metadata:',
+                '  jsmind:',
+                '    cli: ">=2.0.1 <3"',
+                '---',
+                '',
+                '# jsmind',
+                '',
+                'Matches 2.0.1.',
+                '',
+            ].join('\n'),
+            'skills/other/SKILL.md': '---\nname: other\nversion: 2.0.1\n---\n\n# other\n',
+        }, (dir) => {
+            const result = run(dir);
+            assert.equal(result.status, 1);
+            // The two machine-readable claims are compared with package.json by
+            // check-skill-meta, so naming them here is not a second source of
+            // truth left unchecked.
+            assert.doesNotMatch(result.stderr, /skills\/jsmind\/SKILL\.md:3:/);
+            assert.doesNotMatch(result.stderr, /skills\/jsmind\/SKILL\.md:6:/);
+            // The prose in the same frontmatter block, and in the body, still is.
+            assert.match(result.stderr, /skills\/jsmind\/SKILL\.md:11: Matches 2\.0\.1\./);
+            // A skill nothing compares against package.json gets no exemption.
+            assert.match(result.stderr, /skills\/other\/SKILL\.md:3:/);
+        });
+    });
+
     it('ignores untracked files', () => {
         withRepository({'docs/index.md': '# docs\n'}, (dir) => {
             writeFileSync(join(dir, 'docs/draft.local.md'), 'thoughts about 2.0.1\n');

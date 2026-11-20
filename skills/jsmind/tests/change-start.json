@@ -1,0 +1,145 @@
+{
+  "format": "jsmind_v2",
+  "meta": {
+    "author": "jsmind skill fixture",
+    "name": "jsMind v2 architecture",
+    "version": "1.0"
+  },
+  "root": "root",
+  "nodes": {
+    "root": {
+      "id": "root",
+      "content": {
+        "type": "text",
+        "value": "jsMind v2 architecture"
+      },
+      "parent": null,
+      "children": [
+        "jm-mwpb0t1z",
+        "jm-mwpb0t5z",
+        "jm-mwpb0ta7"
+      ],
+      "folded": false,
+      "side": 0,
+      "data": {}
+    },
+    "jm-mwpb0t1z": {
+      "id": "jm-mwpb0t1z",
+      "content": {
+        "type": "text",
+        "value": "Model"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mwpb0tee",
+        "jm-mwpb0tgf"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mwpb0t5z": {
+      "id": "jm-mwpb0t5z",
+      "content": {
+        "type": "text",
+        "value": "View"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mwpb0tih",
+        "jm-mwpb0tkl"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mwpb0ta7": {
+      "id": "jm-mwpb0ta7",
+      "content": {
+        "type": "text",
+        "value": "CLI"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mwpb0tn0",
+        "jm-mwpb0tp2"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwpb0tee": {
+      "id": "jm-mwpb0tee",
+      "content": {
+        "type": "text",
+        "value": "Nodes and edges"
+      },
+      "parent": "jm-mwpb0t1z",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwpb0tgf": {
+      "id": "jm-mwpb0tgf",
+      "content": {
+        "type": "text",
+        "value": "Validation"
+      },
+      "parent": "jm-mwpb0t1z",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwpb0tih": {
+      "id": "jm-mwpb0tih",
+      "content": {
+        "type": "text",
+        "value": "Layout"
+      },
+      "parent": "jm-mwpb0t5z",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwpb0tkl": {
+      "id": "jm-mwpb0tkl",
+      "content": {
+        "type": "text",
+        "value": "Rendering"
+      },
+      "parent": "jm-mwpb0t5z",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwpb0tn0": {
+      "id": "jm-mwpb0tn0",
+      "content": {
+        "type": "text",
+        "value": "context"
+      },
+      "parent": "jm-mwpb0ta7",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwpb0tp2": {
+      "id": "jm-mwpb0tp2",
+      "content": {
+        "type": "text",
+        "value": "export"
+      },
+      "parent": "jm-mwpb0ta7",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    }
+  },
+  "edges": {}
+}
