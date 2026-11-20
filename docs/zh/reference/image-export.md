@@ -38,6 +38,7 @@ const { blob, width, height, cssWidth, cssHeight } = await jm.exportImage({
     scale: 2,             // 输出倍率，默认 2
     type: 'image/png',    // image/png | image/jpeg | image/webp
     quality: 0.9,         // 仅对 jpeg / webp 有效，png 会被忽略
+    transparent: true,    // 需显式打开；默认保持主题背景；用于 JPEG 时会被忽略
 });
 
 // blob 可以直接 createObjectURL、写进 FormData、或交给剪贴板
@@ -65,6 +66,7 @@ jsmind export <file> <out.png> [options]
 | `--height <px>` | 800 | 布局用的视口高度 |
 | `--scale <n>` | 2 | 输出倍率 |
 | `--type <format>` | image/png | 输出格式 |
+| `--transparent` | — | 透明背景（PNG 和 WebP；需显式打开）。用于 JPEG 时会忽略该选项并给出警告。 |
 | `--json` | — | 机器可读输出 |
 
 ```bash

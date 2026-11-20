@@ -536,6 +536,13 @@ test('ui - a straight incoming curve produces a line command, not a bezier', asy
 });
 
 /** One exported image as reported from the page. */
+interface ExportedPixel {
+    r: number;
+    g: number;
+    b: number;
+    a: number;
+}
+
 interface ExportedImage {
     type: string;
     bytes: number;
@@ -545,6 +552,10 @@ interface ExportedImage {
     cssHeight: number;
     /** First bytes of the file, hex, for checking the container magic. */
     magic: string;
+    /** RGBA of the four image corners, used to inspect the background. */
+    corners: ExportedPixel[];
+    /** Messages passed to `console.warn` during `exportImage`. */
+    warnings: string[];
 }
 
 /**
@@ -578,12 +589,39 @@ async function exportMap(
             await jm.open(mind);
             await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-            const result = await jm.exportImage(${JSON.stringify(options)});
+            const warnings = [];
+            const originalWarn = console.warn;
+            console.warn = (...args) => {
+                warnings.push(args.map(String).join(' '));
+                originalWarn.apply(console, args);
+            };
+            let result;
+            try {
+                result = await jm.exportImage(${JSON.stringify(options)});
+            } finally {
+                console.warn = originalWarn;
+            }
 
             // Only the first bytes matter: enough to see the container magic
             // without shipping the whole file back as a string.
             const head = new Uint8Array(await result.blob.slice(0, 8).arrayBuffer());
             const magic = [...head].map(b => b.toString(16).padStart(2, '0')).join(' ');
+
+            const bitmap = await createImageBitmap(result.blob);
+            const canvas = document.createElement('canvas');
+            canvas.width = result.width;
+            canvas.height = result.height;
+            const context = canvas.getContext('2d');
+            context.drawImage(bitmap, 0, 0);
+            const corners = [
+                [0, 0],
+                [result.width - 1, 0],
+                [0, result.height - 1],
+                [result.width - 1, result.height - 1],
+            ].map(([x, y]) => {
+                const data = context.getImageData(x, y, 1, 1).data;
+                return { r: data[0], g: data[1], b: data[2], a: data[3] };
+            });
 
             return {
                 type: result.blob.type,
@@ -593,6 +631,8 @@ async function exportMap(
                 cssWidth: result.cssWidth,
                 cssHeight: result.cssHeight,
                 magic,
+                corners,
+                warnings,
             };
         })()
     `,
@@ -649,4 +689,63 @@ test('ui - exportImage honours the requested format', async () => {
     assert.strictEqual(jpeg.type, 'image/jpeg');
     // JPEG starts with the SOI marker, FF D8.
     assert.strictEqual(jpeg.magic.slice(0, 5), 'ff d8', 'JPEG signature');
+});
+
+test('ui - exportImage keeps an opaque background by default', async () => {
+    // A viewport this large leaves the corners empty, so they are the canvas
+    // color rather than a node or an edge.
+    const image = await exportMap({ width: 1400, height: 900 }, { scale: 1 });
+
+    assert.ok(image.corners.length === 4, 'four corners were sampled');
+    for (const corner of image.corners) {
+        assert.strictEqual(corner.a, 255, `default background should be opaque, got ${JSON.stringify(corner)}`);
+        assert.strictEqual(corner.r, 255, `default theme canvas is white, got ${JSON.stringify(corner)}`);
+        assert.strictEqual(corner.g, 255, `default theme canvas is white, got ${JSON.stringify(corner)}`);
+        assert.strictEqual(corner.b, 255, `default theme canvas is white, got ${JSON.stringify(corner)}`);
+    }
+});
+
+test('ui - exportImage can emit a transparent background', async () => {
+    const image = await exportMap({ width: 1400, height: 900 }, { scale: 1, transparent: true });
+
+    assert.strictEqual(image.type, 'image/png');
+    assert.strictEqual(image.magic, '89 50 4e 47 0d 0a 1a 0a', 'PNG signature');
+    for (const corner of image.corners) {
+        assert.strictEqual(corner.a, 0, `transparent export should have an empty background, got ${JSON.stringify(corner)}`);
+    }
+});
+
+test('ui - exportImage warns and still emits an opaque JPEG when transparent is requested', async () => {
+    const image = await exportMap(
+        { width: 1400, height: 900 },
+        { scale: 1, type: 'image/jpeg', transparent: true }
+    );
+
+    assert.strictEqual(image.type, 'image/jpeg');
+    assert.strictEqual(image.magic.slice(0, 5), 'ff d8', 'JPEG signature');
+    assert.ok(
+        image.warnings.some(message =>
+            message.includes('JPEG has no alpha channel, so the transparent option is ignored')
+        ),
+        `expected a warning that transparency was ignored, got: ${JSON.stringify(image.warnings)}`
+    );
+    // JPEG has no alpha, so the ignored flag must still produce a filled
+    // background rather than failing the export.
+    for (const corner of image.corners) {
+        assert.strictEqual(corner.a, 255, `JPEG background should stay opaque, got ${JSON.stringify(corner)}`);
+    }
+});
+
+test('ui - exportImage can emit a transparent WebP background', async () => {
+    const image = await exportMap(
+        { width: 1400, height: 900 },
+        { scale: 1, type: 'image/webp', transparent: true }
+    );
+
+    assert.strictEqual(image.type, 'image/webp');
+    assert.strictEqual(image.magic.slice(0, 11), '52 49 46 46', 'RIFF signature');
+    assert.deepStrictEqual(image.warnings, [], 'WebP should accept a transparent background without a warning');
+    for (const corner of image.corners) {
+        assert.strictEqual(corner.a, 0, `transparent WebP should have an empty background, got ${JSON.stringify(corner)}`);
+    }
 });

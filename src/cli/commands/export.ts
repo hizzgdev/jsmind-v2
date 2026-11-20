@@ -15,7 +15,7 @@ import { validateMindData } from '../../serialization/validation.ts';
 import { readJsonFile } from '../io.ts';
 import { CliExit, CliError } from '../exit.ts';
 import { openBrowser, isPageError } from '../browser.ts';
-import { JmImageType } from '../../view/export.ts';
+import { JmImageType, shouldExportTransparent } from '../../view/export.ts';
 
 /** Viewport the map is laid out in when the caller does not say. */
 export const DEFAULT_WIDTH = 1200;
@@ -42,6 +42,12 @@ export interface ExportOptions {
     type: string;
     /** Emit machine-readable output. */
     asJson: boolean;
+    /**
+     * Leave the image background transparent. Opt-in; the default fills the
+     * theme canvas color. Ignored with a warning when {@link type} is
+     * `image/jpeg`.
+     */
+    transparent: boolean;
 }
 
 /** What the page reports back. */
@@ -62,6 +68,10 @@ interface PageResult {
  * @throws {@link CliError} For usage, data, IO and browser failures.
  */
 export async function runExport(options: ExportOptions): Promise<number> {
+    const transparent = shouldExportTransparent(options.type, options.transparent, message => {
+        process.stderr.write(`${message}\n`);
+    });
+
     const data = readJsonFile(options.file);
 
     // Validate before starting a browser: a bad file should fail in
@@ -100,6 +110,7 @@ export async function runExport(options: ExportOptions): Promise<number> {
                 const result = await jm.exportImage({
                     scale: ${JSON.stringify(options.scale)},
                     type: ${JSON.stringify(options.type)},
+                    transparent: ${JSON.stringify(transparent)},
                 });
 
                 const base64 = await new Promise((resolve, reject) => {
@@ -187,6 +198,7 @@ viewport is not cropped.
   --height <px>     Viewport height                        (default ${DEFAULT_HEIGHT})
   --scale <n>       Output pixel ratio                     (default ${DEFAULT_SCALE})
   --type <format>   ${EXPORT_TYPES.join(', ')}      (default image/png)
+  --transparent     Transparent background (PNG and WebP; opt-in; ignored for JPEG)
   --json            Machine-readable output
 
 Requires a Chromium binary. Set CHROME_PATH if it is not in a

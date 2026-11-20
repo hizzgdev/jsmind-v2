@@ -110,7 +110,7 @@ exportImage(options?: JmExportImageOptions): Promise<JmExportImageResult>
 
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
-| `options` (可选) | [JmExportImageOptions](/zh/reference/api/export#JmExportImageOptions) | 缩放、格式和质量。默认是 2 倍的 PNG。 |
+| `options` (可选) | [JmExportImageOptions](/zh/reference/api/export#JmExportImageOptions) | 缩放、格式、质量和背景透明度。默认是 2 倍的 PNG。 |
 
 ### open {#JsMind.open}
 

@@ -119,6 +119,7 @@ jsmind export <file> <out.png> [options]
 | `--height <px>` | 视口高度（默认 `800`） |
 | `--scale <n>` | 输出像素比（默认 `2`） |
 | `--type <format>` | `image/png`、`image/jpeg` 或 `image/webp`（默认 `image/png`） |
+| `--transparent` | 透明背景（PNG 和 WebP；需显式打开，默认保持当前的不透明背景）。用于 JPEG 时会忽略该选项并给出警告。 |
 | `--json` | 以机器可读格式输出 |
 
 按默认的宽度、高度和缩放，常见导出尺寸是 2400×1600 像素。

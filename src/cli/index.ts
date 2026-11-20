@@ -157,6 +157,7 @@ function parse(argv: string[]): ParsedArgs {
                 'width': { type: 'string' },
                 'height': { type: 'string' },
                 'scale': { type: 'string' },
+                'transparent': { type: 'boolean', default: false },
             },
         });
         return { values: values as Record<string, unknown>, positionals };
@@ -263,6 +264,7 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
                 scale: numberOption(parsed.values.scale, DEFAULT_SCALE, 'scale'),
                 type: enumOption(parsed.values.type, JmImageType.Png, EXPORT_TYPES, 'type'),
                 asJson,
+                transparent: parsed.values.transparent === true,
             });
         }
         case 'validate': {
