@@ -111,7 +111,7 @@ test('agent workflow - a topic becomes a validated file and an image, CLI only',
         const outline = step('context', runCli([
             'context', file, '--json', '--depth', '0',
         ]));
-        const rootId = (JSON.parse(outline.stdout) as { id: string }[])[0].id;
+        const rootId = (JSON.parse(outline.stdout) as { nodes: { id: string }[] }).nodes[0].id;
         assert.ok(rootId, 'the outline must report a root id');
 
         // ---- 3. Build down several levels -----------------------------------
@@ -188,9 +188,10 @@ test('agent workflow - a topic becomes a validated file and an image, CLI only',
         // ---- 4. Mark the important one --------------------------------------
         // Style is the only way the map says "start here". A leaf gets a line
         // style too, which reaches into the nested half of JmNodeStyle.
-        const overview = json('context', ['context', file, '--json', '--depth', '2']);
-        const entries = overview as { id: string; text?: string }[];
-        const mcpEntry = entries.find((e) => e.text === 'MCP server');
+        const overview = json('context', ['context', file, '--json', '--depth', '2']) as {
+            nodes: { id: string; text?: string }[];
+        };
+        const mcpEntry = overview.nodes.find((e) => e.text === 'MCP server');
         assert.ok(mcpEntry, 'the MCP branch should be in the outline');
         step('set-style-nested', runCli([
             'node', 'set-style', file,
@@ -210,7 +211,7 @@ test('agent workflow - a topic becomes a validated file and an image, CLI only',
         // The node count the agent built is the count that ended up on disk.
         const finalOutline = json('context-final', ['context', file, '--json', '--depth', '10']);
         assert.strictEqual(
-            (finalOutline as unknown[]).length,
+            (finalOutline as { nodes: unknown[] }).nodes.length,
             nodeCount,
             'every node the agent added should be in the file'
         );

@@ -567,3 +567,31 @@ test('validation - reports every issue, not just the first', () => {
     assert.ok(result.errors.length >= 4, `expected several issues, got ${result.errors.length}`);
     assert.ok(result.valid === false);
 });
+
+test('validation - a valid defaultTone passes', () => {
+    const doc = validDoc({ style: { defaultTone: 'primary' } });
+
+    assert.deepStrictEqual(codes(validateMindData(doc)), []);
+});
+
+test('validation - E_TONE when the document defaultTone is unknown', () => {
+    const doc = validDoc({ style: { defaultTone: 'puce' } });
+    const result = validateMindData(doc);
+
+    assert.deepStrictEqual(codes(result), [JmValidationCode.Tone]);
+    assert.strictEqual(
+        result.errors[0].path,
+        'style/defaultTone',
+        'the path must say which field to fix'
+    );
+});
+
+test('validation - E_TONE when the document defaultTone is not a string', () => {
+    // Same code as an unknown name: from the caller's side "not a tone" is one
+    // problem, and the path is what says where.
+    const doc = validDoc({ style: { defaultTone: 42 } });
+    const result = validateMindData(doc);
+
+    assert.deepStrictEqual(codes(result), [JmValidationCode.Tone]);
+    assert.strictEqual(result.errors[0].path, 'style/defaultTone');
+});

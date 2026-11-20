@@ -2,8 +2,35 @@ import type { JmNode } from '../model/data/node.ts';
 import { JmDomUtility, type JmElement } from '../common/dom.ts';
 import { JmSize, type JmPoint } from '../common/index.ts';
 import { ViewExpanderStyle, type ViewOptions } from '../common/option.ts';
-import { JmTone, type JmTheme } from '../model/data/style.ts';
+import { JmTone, type JmNodeStyle, type JmTheme } from '../model/data/style.ts';
 import { applyTonePalette } from './shadow.ts';
+
+/**
+ * Picks the tone a node is painted with.
+ *
+ * @remarks
+ * The precedence chain, most specific first:
+ *
+ * 1. `node.style.tone` — this node states its own tone.
+ * 2. `theme.defaultTone` — the document's `style.defaultTone`, already resolved
+ *    by `resolveJmStyle`, so a file that declares none arrives as `"default"`.
+ * 3. `"default"` — reachable only before a theme has been applied, when there
+ *    is nothing to read the fallback from.
+ *
+ * One function for both painters on purpose: the node's fill and the line that
+ * leads to it have to agree. Two copies of this chain is how a map ends up with
+ * recoloured nodes and unchanged lines.
+ *
+ * @param style - The node's own overrides, if it has any.
+ * @param theme - The resolved theme, or null before one is applied.
+ * @returns A tone name.
+ */
+export function resolveNodeTone(
+    style: JmNodeStyle | undefined,
+    theme: JmTheme | null | undefined
+): string {
+    return style?.tone ?? theme?.defaultTone ?? JmTone.Default;
+}
 
 /**
  * View operator for nodes.
@@ -175,9 +202,12 @@ export class JmNodeView {
      */
     private _applyTone(element: JmElement, node: JmNode): void {
         const style = node.style;
-        const tone = style?.tone ?? JmTone.Default;
+        const tone = resolveNodeTone(style, this.theme);
 
-        applyTonePalette(element, this.theme?.tones?.[tone]);
+        // The field is a string on disk, so the tone that lands here is typed
+        // `string`; validation restricts it to a known name, which is what the
+        // narrower index type wants.
+        applyTonePalette(element, this.theme?.tones?.[tone as JmTone]);
 
         if (!style) {
             return;

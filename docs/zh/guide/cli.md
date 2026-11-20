@@ -93,6 +93,14 @@ jsmind context <file> [options]
 
 id 会打印在左对齐的一列中，便于复制到下一条命令。多行标签会被展平，截断处以省略号结束。行尾可能带有 `{…}` 块。`side` 只出现在根节点及其直接子节点上；节点折叠时会出现 `folded`；若节点样式与主题不同，也会显示相应覆盖项。
 
+文件如果声明了文档级样式，树的上方会多一行摘要，这样在任何节点被读到之前就能发现主题：
+
+```
+style: theme=default defaultTone=primary overrides=defaultTone,tones,node
+```
+
+`--json` 返回一个带 `nodes` 数组的对象；文件带样式时，会额外给出同一个摘要作为 `style` 块（`theme`、`defaultTone`、`overrides`）。文件没有文档级样式时两者都不出现，文本那一行在 `--ids-only` 下会被省略。
+
 当 `--focus` 没有匹配到任何节点时，会改为列出最接近的候选项。
 
 ## `export`
@@ -137,6 +145,22 @@ jsmind mind <subcommand> <file> [options]
 `add-child` 不接受 `--side`。根的直接子节点默认在右侧（`addChildNode` 未指定 side 时默认 `SideA`）。要用 `jsmind node set-side` 再改。
 
 所有会改写数据的子命令都会在完成后校验结果，失败则回滚。这些写入可以使用 `--dry-run`、`--output` 和 `--backup`。
+
+### `mind style`
+
+```
+jsmind mind style set <file> [style fields]
+```
+
+文档级样式：写一次，所有没有单独覆盖的节点都继承。它写的是 `mind.style` 而不是某个节点的样式，所以「整张图换个配色」仍然是一次写入，语义色也就留给真正需要突出的节点。
+
+| 字段 | 可选值 |
+| --- | --- |
+| `--default-tone <tone>` | `default` \| `primary` \| `success` \| `warning` \| `danger` \| `info` \| `accent` |
+
+`defaultTone` 是没有自己 tone 的节点所用的语气。优先级为 `node.style.tone` > `mind.style.defaultTone` > `"default"`，连线颜色走同一个回落。这个字段存的是语气**名字**而不是调色板，所以 `tones` 覆盖仍然作用在它上面。
+
+`--dry-run`、`--output`、`--backup` 与其他改写命令一致。
 
 ## `node`
 

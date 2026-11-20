@@ -8,6 +8,7 @@ import { JmSize, JmPoint } from '../../src/common/index.ts';
 import { JmElement, DomUtility, JmDomUtility } from '../../src/common/dom.ts';
 import { initDom } from '../setup/jsdom.ts';
 import { ViewExpanderStyle } from '../../src/common/option.ts';
+import { JSMIND_THEME_DEFAULT, JmTone, resolveJmStyle } from '../../src/model/data/style.ts';
 
 const TestData = {
     viewOptions: {
@@ -192,6 +193,71 @@ describe('JmNodeView', () => {
             assert.strictEqual(element.style.visibility, 'hidden');
             assert.strictEqual(element.style.top, '0px');
             assert.strictEqual(element.style.left, '0px');
+        });
+    });
+
+    describe('tone resolution', () => {
+        // The document's defaultTone is the tone an untoned node wears. These
+        // cases pin the paint, not the theme: a resolved theme that carried the
+        // field but was never read would pass a data-layer test and still render
+        // every node in the default palette.
+
+        it('paints an untoned node with the document defaultTone', async () => {
+            nodeView.setTheme(resolveJmStyle({ defaultTone: JmTone.Primary }));
+            const mind = new JmMind();
+            const node = mind.addNode(JmNodeContent.createText('Follows the map'), {
+                parentId: mind.root.id,
+                side: JmNodeSide.SideA,
+            });
+
+            await nodeView.createAndMeasure(node);
+
+            const element = node._data.view.element!.element;
+            assert.strictEqual(
+                element.style.getPropertyValue('--jm-node-fill'),
+                JSMIND_THEME_DEFAULT.tones![JmTone.Primary]!.fillColor
+            );
+            assert.strictEqual(
+                element.style.getPropertyValue('--jm-node-text'),
+                JSMIND_THEME_DEFAULT.tones![JmTone.Primary]!.textColor
+            );
+        });
+
+        it('lets a node state its own tone over the document defaultTone', async () => {
+            nodeView.setTheme(resolveJmStyle({ defaultTone: JmTone.Primary }));
+            const mind = new JmMind();
+            const node = mind.addNode(JmNodeContent.createText('States its own'), {
+                parentId: mind.root.id,
+                side: JmNodeSide.SideA,
+            });
+            node.style = { tone: JmTone.Danger };
+
+            await nodeView.createAndMeasure(node);
+
+            const element = node._data.view.element!.element;
+            assert.strictEqual(
+                element.style.getPropertyValue('--jm-node-fill'),
+                JSMIND_THEME_DEFAULT.tones![JmTone.Danger]!.fillColor
+            );
+        });
+
+        it('paints an untoned node with the default palette when no defaultTone is declared', async () => {
+            // The behaviour before this field existed: nothing declared means
+            // the built-in default tone, not whatever theme this view saw last.
+            nodeView.setTheme(resolveJmStyle());
+            const mind = new JmMind();
+            const node = mind.addNode(JmNodeContent.createText('Plain'), {
+                parentId: mind.root.id,
+                side: JmNodeSide.SideA,
+            });
+
+            await nodeView.createAndMeasure(node);
+
+            const element = node._data.view.element!.element;
+            assert.strictEqual(
+                element.style.getPropertyValue('--jm-node-fill'),
+                JSMIND_THEME_DEFAULT.tones![JmTone.Default]!.fillColor
+            );
         });
     });
 });

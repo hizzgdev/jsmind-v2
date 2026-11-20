@@ -35,6 +35,7 @@ import {
 import { JmImageType } from '../view/export.ts';
 import { runValidate, validateHelp, assertValidateArgs } from './commands/validate.ts';
 import { runMind, mindHelp } from './commands/mind.ts';
+import { runStyle, styleHelp, styleActionHelp } from './commands/style.ts';
 import { runNode, nodeHelp, setStyleHelp } from './commands/node.ts';
 import { runContext, contextHelp, DEFAULT_DEPTH, DEFAULT_MAX_TEXT } from './commands/context.ts';
 import { runCreate, createHelp } from './commands/create.ts';
@@ -53,6 +54,7 @@ Cross-boundary commands:
 
 Structure and edges:
   mind <sub> <file> [options]     JmMind methods        (see: jsmind mind --help)
+  mind style set <file> [options] Document-level style  (see: jsmind mind style --help)
 
 Node attributes:
   node <sub> <file> [options]     JmNode writable fields (see: jsmind node --help)
@@ -138,6 +140,8 @@ function parse(argv: string[]): ParsedArgs {
                 'incoming.curve': { type: 'string' },
                 'clear': { type: 'string' },
                 'reset': { type: 'boolean', default: false },
+                // document style (mind style set)
+                'default-tone': { type: 'string' },
                 // context
                 'focus': { type: 'string' },
                 'depth': { type: 'string' },
@@ -201,7 +205,7 @@ function writeOptions(values: Record<string, unknown>): WriteOptions {
  * find the one part that answers their question inside 134 lines.
  */
 function focusedHelp(positionals: string[]): string | undefined {
-    const [command, subcommand] = positionals;
+    const [command, subcommand, action] = positionals;
     switch (command) {
         case 'create':
             return createHelp;
@@ -212,7 +216,9 @@ function focusedHelp(positionals: string[]): string | undefined {
         case 'export':
             return exportHelp;
         case 'mind':
-            return mindHelp;
+            // `mind style` owns the deepest block in this group; the rest of
+            // `mind` is one list that fits in mindHelp.
+            return subcommand === 'style' ? styleActionHelp(action) : mindHelp;
         case 'node':
             return subcommand === 'set-style' ? setStyleHelp : nodeHelp;
         default:
@@ -311,12 +317,29 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
             return runContext(options);
         }
         case 'mind': {
-            const [subcommand, file, ...extra] = rest;
-            if (subcommand === undefined || file === undefined) {
+            const [subcommand, second, third, ...extra] = rest;
+            if (subcommand === undefined) {
                 throw usageError(`mind requires a subcommand and a file\n\n${mindHelp}`);
             }
-            if (extra.length > 0) {
-                throw usageError(`Unexpected arguments: ${extra.join(' ')}`);
+            // `mind style` is the one nested group: a document has one style
+            // block, so the action lives under it rather than as eight more
+            // entries in the flat `mind` list.
+            if (subcommand === 'style') {
+                const [action, styleFile] = [second, third];
+                if (action === undefined || styleFile === undefined) {
+                    throw usageError(`mind style requires an action and a file\n\n${styleHelp}`);
+                }
+                if (extra.length > 0) {
+                    throw usageError(`Unexpected arguments: ${extra.join(' ')}`);
+                }
+                return runStyle(styleFile, action, parsed.values, writeOptions(parsed.values));
+            }
+            const file = second;
+            if (file === undefined) {
+                throw usageError(`mind requires a subcommand and a file\n\n${mindHelp}`);
+            }
+            if (extra.length > 0 || third !== undefined) {
+                throw usageError(`Unexpected arguments: ${[third, ...extra].join(' ')}`);
             }
             return runMind(file, subcommand, parsed.values, writeOptions(parsed.values));
         }

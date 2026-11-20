@@ -79,9 +79,10 @@ test('e2e - build a 20+ node map through the CLI and read it back with the API',
 
     // ---- 2. Discover the root id the way an agent would ------------------
     // No hardcoded 'root': the point is that context tells you the id.
-    const outline = runCliJson(['context', file, '--json', '--depth', '0']);
-    assert.ok(Array.isArray(outline));
-    const rootEntry = (outline as { id: string; level: number; text: string }[])[0];
+    const outline = runCliJson(['context', file, '--json', '--depth', '0']) as {
+        nodes: { id: string; level: number; text: string }[];
+    };
+    const rootEntry = outline.nodes[0];
     assert.strictEqual(rootEntry.text, '项目计划');
     const rootId = rootEntry.id;
 
@@ -280,13 +281,11 @@ test('e2e - a map built by the API is readable and editable by the CLI', () => {
 
     // ---- 3. The CLI must see the same tree the API built ----------------
     const outline = runCliJson(['context', file, '--json', '--depth', '3']) as {
-        id: string;
-        level: number;
-        text: string;
-    }[];
+        nodes: { id: string; level: number; text: string }[];
+    };
 
-    assert.strictEqual(outline.length, 6, `expected 6 nodes, saw ${outline.length}`);
-    const texts = outline.map(entry => entry.text);
+    assert.strictEqual(outline.nodes.length, 6, `expected 6 nodes, saw ${outline.nodes.length}`);
+    const texts = outline.nodes.map(entry => entry.text);
     for (const expected of ['API 根节点', '后端', '前端', '建表', '写接口', '写页面']) {
         assert.ok(texts.includes(expected), `the CLI should see "${expected}"`);
     }
@@ -294,7 +293,7 @@ test('e2e - a map built by the API is readable and editable by the CLI', () => {
     // Same ids — the CLI must not be re-deriving them.
     const apiIds = [mind.root.id, backend.id, frontend.id, dbTask.id, apiTask.id, pageTask.id];
     for (const id of apiIds) {
-        assert.ok(outline.some(entry => entry.id === id), `the CLI should report id ${id}`);
+        assert.ok(outline.nodes.some(entry => entry.id === id), `the CLI should report id ${id}`);
     }
 
     // ---- 4. The CLI must find the edge the API created ------------------
@@ -481,10 +480,10 @@ test('e2e - a style written through the API is read back by the CLI', () => {
         writeFileSync(file, JSON.stringify(written, null, 4));
 
         // Now the CLI has to see it.
-        const outline = runCliJson(['context', file, '--json', '--depth', '3']);
-        const entry = (outline as { id: string; style?: Record<string, unknown> }[]).find(
-            (e) => e.id === nodeId
-        );
+        const outline = runCliJson(['context', file, '--json', '--depth', '3']) as {
+            nodes: { id: string; style?: Record<string, unknown> }[];
+        };
+        const entry = outline.nodes.find((e) => e.id === nodeId);
         assert.ok(entry, 'node should appear in the outline');
         assert.deepStrictEqual(entry.style, {
             tone: 'accent',
@@ -505,6 +504,58 @@ test('e2e - a style written through the API is read back by the CLI', () => {
                 'incoming\\.pattern=dotted incoming\\.curve=straight\\}'
             )
         );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// The document-level style crosses the process boundary too
+// ---------------------------------------------------------------------------
+
+test('e2e - mind style set is reachable from the command line and reports what it wrote', () => {
+    // The function-level tests cover the decision; this covers the argument
+    // shape an agent actually types: `mind style set <file> --default-tone`.
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-e2e-doc-style-'));
+    const file = join(dir, 'doc.json');
+    try {
+        assert.strictEqual(runCli(['create', file, '--title', 'Doc', '--name', 't', '--author', 'a']).code, 0);
+
+        const set = runCli(['mind', 'style', 'set', file, '--default-tone', 'primary', '--json']);
+        assert.strictEqual(set.code, 0, set.stderr);
+        assert.deepStrictEqual(JSON.parse(set.stdout).style, { defaultTone: 'primary' });
+
+        // Discovery: both forms report it, and the value is the resolved tone.
+        const outline = JSON.parse(runCli(['context', file, '--json']).stdout) as {
+            style?: { defaultTone: string; overrides: string[] };
+        };
+        assert.strictEqual(outline.style?.defaultTone, 'primary');
+        assert.deepStrictEqual(outline.style?.overrides, ['defaultTone']);
+
+        const text = runCli(['context', file]);
+        assert.match(
+            text.stdout,
+            /^style: theme=default defaultTone=primary overrides=defaultTone$/m
+        );
+
+        // --dry-run prints and writes nothing.
+        const before = readFileSync(file, 'utf8');
+        const dry = runCli(['mind', 'style', 'set', file, '--default-tone', 'danger', '--dry-run']);
+        assert.strictEqual(dry.code, 0, dry.stderr);
+        assert.strictEqual(readFileSync(file, 'utf8'), before, 'dry-run must not write');
+
+        // A bad tone is a usage error, not a data error: the file is fine.
+        const bad = runCli(['mind', 'style', 'set', file, '--default-tone', 'banana']);
+        assert.strictEqual(bad.code, 2, bad.stderr);
+        assert.match(bad.stderr, /--default-tone must be one of/);
+
+        // And the field reaches the help the agent reads before trying.
+        const help = runCli(['mind', 'style', 'set', '--help']);
+        assert.strictEqual(help.code, 0);
+        assert.match(help.stdout, /--default-tone/);
+
+        // The file the CLI wrote still validates with the API's own checker.
+        assert.strictEqual(validateMindData(JSON.parse(readFileSync(file, 'utf8'))).valid, true);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

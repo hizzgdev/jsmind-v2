@@ -21,6 +21,7 @@ import { validateHelp } from '../../src/cli/commands/validate.ts';
 import { contextHelp } from '../../src/cli/commands/context.ts';
 import { exportHelp } from '../../src/cli/commands/export.ts';
 import { mindHelp } from '../../src/cli/commands/mind.ts';
+import { styleHelp, styleActionHelp } from '../../src/cli/commands/style.ts';
 import { nodeHelp, setStyleHelp } from '../../src/cli/commands/node.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -103,6 +104,27 @@ test('help - a mind subcommand other than set-style still gets the group block',
 
     assert.strictEqual(run.code, 0);
     assert.strictEqual(run.stdout, `${mindHelp}\n`);
+});
+
+test('help - `mind style --help` prints the document-style block', () => {
+    const run = runCli(['mind', 'style', '--help']);
+
+    assert.strictEqual(run.code, 0);
+    assert.strictEqual(run.stdout, `${styleHelp}\n`);
+    assert.ok(run.stdout.includes('--default-tone'), 'the block names the field it writes');
+});
+
+test('help - `mind style set --help` prints the field table instead of the group', () => {
+    // The same reason `node set-style` has a third level: the field table is
+    // longer than the list that introduces it.
+    const run = runCli(['mind', 'style', 'set', '--help']);
+
+    assert.strictEqual(run.code, 0);
+    assert.strictEqual(run.stdout, `${styleActionHelp('set')}\n`);
+    assert.ok(
+        !run.stdout.includes('Document-level style: one declaration'),
+        'the group block belongs to the previous level'
+    );
 });
 
 test('help - every single-page command prints only its own block', () => {

@@ -274,3 +274,56 @@ test('style - mergeJmTheme composes shadow over an inherited preset', () => {
     assert.strictEqual(merged.node?.shadow.normal.offsetX, 1, 'rest of the layer kept');
     assert.strictEqual(merged.node?.shadow.hover.blur, 8, 'other states kept');
 });
+
+// ---------------------------------------------------------------------------
+// defaultTone — the document-level fallback
+// ---------------------------------------------------------------------------
+
+test('style - the default theme names the tone it falls back to', () => {
+    // Resolved themes always carry this field, which is what lets the render
+    // layer read one fallback instead of inventing a second.
+    assert.strictEqual(JSMIND_THEME_DEFAULT.defaultTone, JmTone.Default);
+    assert.strictEqual(resolveJmStyle().defaultTone, JmTone.Default);
+});
+
+test('style - mergeJmTheme carries a declared defaultTone onto the preset', () => {
+    const merged = mergeJmTheme(JSMIND_THEME_DEFAULT, { defaultTone: JmTone.Primary });
+
+    assert.strictEqual(merged.defaultTone, JmTone.Primary);
+    assert.strictEqual(merged.background, JSMIND_THEME_DEFAULT.background, 'other fields survive');
+});
+
+test('style - mergeJmTheme keeps the preset defaultTone when the override is silent', () => {
+    // A document that overrides only a color must not lose the fallback: the
+    // field is resolved, not declared, so "absent" has to mean "inherit".
+    const merged = mergeJmTheme(JSMIND_THEME_DEFAULT, { background: '#101010' });
+
+    assert.strictEqual(merged.defaultTone, JmTone.Default);
+});
+
+test('style - resolveJmStyle resolves defaultTone and leaves tones overrides on top', () => {
+    // The reason this field stores a name rather than a palette: the palette is
+    // looked up afterwards, so an override written next to defaultTone still
+    // reaches the nodes that rely on it.
+    const resolved = resolveJmStyle({
+        defaultTone: JmTone.Warning,
+        tones: { [JmTone.Warning]: { fillColor: '#fff000' } },
+    });
+
+    assert.strictEqual(resolved.defaultTone, JmTone.Warning);
+    const warning = resolved.tones?.[JmTone.Warning];
+    assert.strictEqual(warning?.fillColor, '#fff000', 'the override applies');
+    assert.strictEqual(
+        warning?.textColor,
+        JSMIND_THEME_DEFAULT.tones?.[JmTone.Warning]?.textColor,
+        'the rest of the palette survives, so the name still resolves to a full one'
+    );
+});
+
+test('style - resolveJmStyle does not inject defaultTone into a declaration', () => {
+    const declaration: JmStyle = { background: '#000000' };
+
+    resolveJmStyle(declaration);
+
+    assert.deepStrictEqual(declaration, { background: '#000000' }, 'the input is untouched');
+});

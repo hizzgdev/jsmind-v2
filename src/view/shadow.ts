@@ -6,7 +6,7 @@
  *   https://github.com/hizzgdev/jsmind-v2/
  */
 
-import type { JmTheme, JmThemeShadowLayer, JmTonePalette } from '../model/data/style.ts';
+import type { JmTheme, JmThemeShadowLayer, JmTone, JmTonePalette } from '../model/data/style.ts';
 
 /**
  * Styles installed into the shadow root.
@@ -208,8 +208,8 @@ function formatShadow(layer: JmThemeShadowLayer): string {
  * stylesheet interpolates them directly into positions where a bare number is
  * not a valid length.
  *
- * The `default` tone is applied here too, as the fallback for nodes that name
- * no tone of their own.
+ * The document's `defaultTone` is applied here too, as the fallback for nodes
+ * that name no tone of their own.
  *
  * @param root - The shadow root whose host should carry the values.
  * @param theme - The fully resolved theme.
@@ -258,9 +258,12 @@ export function applyThemeToHost(root: ShadowRoot, theme: JmTheme): void {
         set('--jm-expander-line-height', expander.lineHeight, 'px');
     }
 
-    // The default tone is the fallback for nodes that name no tone of their
-    // own; a node with a tone overrides all four on its own element.
-    const fallback = theme.tones?.default;
+    // The document's default tone is the fallback for nodes that name no tone
+    // of their own; a node with a tone overrides all four on its own element.
+    // Same rule the two painters apply, so the host never advertises a colour a
+    // node without a tone would not wear. An unknown name falls back to the
+    // default palette rather than to nothing.
+    const fallback = theme.tones?.[theme.defaultTone as JmTone] ?? theme.tones?.default;
     if (fallback) {
         // ShadowRoot.host is typed as Element; at runtime it is the host element
         // the view was opened on, so style is there.
