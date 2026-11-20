@@ -155,11 +155,14 @@ export function runStyle(
  * One copy, for the same reason `node set-style` keeps one: two hand-written
  * copies is how a flag goes missing from one of them.
  */
-const STYLE_FIELDS_HELP = `set fields (any combination, applied in one write). A dot marks a level, so
---node.radius addresses \`style.node.radius\`. Accepted tone names are read from
-the model's own enum, so this list cannot fall behind it:
+const STYLE_FIELDS_HELP = `set fields (any combination, applied in one write). Accepted tone names are read
+from the model's own enum, so this list cannot fall behind it:
 
   --default-tone <tone>       ${TONE_WORDS.join(' | ')}
+
+The nested sections (tones / background / node / line / expander) have no writer
+yet — read them through \`context\`. Each gets a dotted flag (\`--node.radius\`) in
+this table when it gets one.
 
 A node's own \`style.tone\` still wins over \`defaultTone\`; use it to single out one
 node, and this command to change what the rest of the map looks like.`;
