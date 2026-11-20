@@ -6,7 +6,9 @@ The `jsmind` CLI is currently a preview. Commands and options will change in lat
 
 The CLI is the command-line interface for jsMind V2 map data. You can create a map, inspect its tree and ids, change structure and node attributes, validate a file, and export an image.
 
-Install the 2.x version with `npm i jsmind@2`, then run `npx jsmind`. From a clone of this repository, build first and run `npx jsmind` or `node dist/cli.js`. See [Getting Started](/en/guide/getting-started) for install details.
+## Install
+
+Install the 2.x version with `npm i jsmind@2`, then run `npx jsmind`. From a clone of this repository, build first and run `npx jsmind` or `node dist/cli.js`. These are alternatives: pick one, not both. See [Getting Started](/en/guide/getting-started) for install details.
 
 For a one-shot reminder of the flags, `jsmind --help` prints the built-in help. This page is the documentation to consult for the commands that are current in the preview.
 

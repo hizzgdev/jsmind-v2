@@ -4,6 +4,10 @@ This page shows how to install jsMind V2 and create a first map with the CLI.
 
 ## Install
 
+Pick one of the following. They are alternatives, not sequential steps.
+
+### npm install
+
 Install the 2.x version with:
 
 ```bash
@@ -18,7 +22,7 @@ npm i jsmind@2
 
 After installing the package, you can run the CLI with `npx jsmind`.
 
-## Build from the repository
+### Build from the repository
 
 To build and run the CLI from this repository you need Node.js >= 22.12.0:
 

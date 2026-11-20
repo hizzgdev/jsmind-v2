@@ -4,28 +4,34 @@ The jsmind skill lives in this repository at `skills/jsmind/`. It is a set of gu
 
 It is **not** a CLI manual, and it does not replace `jsmind --help` or the [CLI](./cli) page. Use the skill when an agent should draw or edit a map; look up flags and subcommands in the CLI help or on the CLI page.
 
-## How to use it
+## Install
 
-Point your agent at the skill. For example:
+Pick one of the following. They are alternatives, not sequential steps.
 
-- If you are working in a clone of this repository, tell the agent to work through the checkpoints in `skills/jsmind/SKILL.md` when it draws or edits a map.
-- If you are working elsewhere, copy the whole `skills/jsmind/` directory into the place your agent loads skills from, keeping the `jsmind/` level.
+### Automatic install
 
-The skill tells the agent what not to do, which steps not to skip, and how to check the resulting picture. It does not choose the map's structure for you.
-
-There is one skill file, in English. It is read by the agent and not by you, and the map's language follows your prompt, so a translated second copy would only drift out of sync with this one.
-
-## Copy-paste prompts
-
-You can give the following prompts directly to your own agent.
-
-### Install the skill
+You can give the following prompt directly to your own agent.
 
 ```
 Install the jsMind skill from https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md — read that file and follow it. It covers the skill directory and the jsmind CLI, which is a separate npm package.
 
 When you are done, go through its "Done means" list item by item and tell me the result of each one. If the skill does not load in your harness, stop and say so.
 ```
+
+### Manual install
+
+Point your agent at the skill. For example:
+
+- If you are working in a clone of this repository, tell the agent to work through the checkpoints in `skills/jsmind/SKILL.md` when it draws or edits a map.
+- If you are working elsewhere, copy the whole `skills/jsmind/` directory into the place your agent loads skills from, keeping the `jsmind/` level.
+
+## Usage
+
+The skill tells the agent what not to do, which steps not to skip, and how to check the resulting picture. It does not choose the map's structure for you.
+
+There is one skill file, in English. It is read by the agent and not by you, and the map's language follows your prompt, so a translated second copy would only drift out of sync with this one.
+
+You can give the following prompt directly to your own agent.
 
 ### Example: generate a map and export a PNG
 
