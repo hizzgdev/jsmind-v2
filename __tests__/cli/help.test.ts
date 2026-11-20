@@ -12,6 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -100,10 +101,80 @@ test('help - a mind subcommand other than set-style still gets the group block',
     // Only set-style has a third level, so anything else under `mind` stops at
     // the group. Pinned here so the ladder cannot silently collapse back to the
     // index for an unrecognised subcommand.
-    const run = runCli(['mind', 'add-node', '--help']);
+    const run = runCli(['mind', 'move', '--help']);
 
     assert.strictEqual(run.code, 0);
     assert.strictEqual(run.stdout, `${mindHelp}\n`);
+});
+
+test('help - the retired add-node subcommand appears nowhere in the help', () => {
+    // `add-node` was merged into `add-child`; a preview release leaves no alias
+    // behind, so listing it would advertise a command that exits 2.
+    assert.ok(!HELP.includes('add-node'), 'the index must not list add-node');
+    assert.ok(!mindHelp.includes('add-node'), 'the mind block must not list add-node');
+    assert.ok(
+        runCli(['mind', 'add-node', '--help']).stdout.includes(mindHelp),
+        'asking for add-node help falls back to the group block, which no longer names it'
+    );
+});
+
+test('help - the add-child and set-side option strings match both guide tables', () => {
+    // The group help and the two published tables are three copies of one
+    // surface. They drifted before (`add-node` survived in both tables after it
+    // stopped being a subcommand), so the copies are compared here rather than
+    // left to whoever remembers to edit all three.
+    //
+    // `add-child` carries two segments because the help block wraps the option
+    // list: the table prints one line, the block prints it across two. The
+    // segments are what both must carry, in order and verbatim.
+    const cases = [
+        {
+            name: 'add-child',
+            help: mindHelp,
+            segments: [
+                '--parent-id <id> --text <text>',
+                '[--side left|right] [--position <n>] [--folded true|false]',
+            ],
+        },
+        {
+            name: 'set-side',
+            help: nodeHelp,
+            segments: ['--node-id <id> --side left|right'],
+        },
+    ];
+
+    for (const { name, help, segments } of cases) {
+        const collapsed = help.replace(/[ \t]+/g, ' ');
+        let from = 0;
+        for (const segment of segments) {
+            const at = collapsed.indexOf(segment, from);
+            assert.notStrictEqual(at, -1, `the ${name} block should carry: ${segment}`);
+            from = at + segment.length;
+        }
+    }
+
+    for (const relative of ['../../docs/en/guide/cli.md', '../../docs/zh/guide/cli.md']) {
+        const text = readFileSync(join(HERE, relative), 'utf8');
+        // The tables have to stop mentioning it too, not just the help: the
+        // drift this test exists for was `add-node` living on in both tables
+        // after it stopped being a subcommand, and the rows above only pin the
+        // two surviving commands.
+        assert.ok(!text.includes('add-node'), `${relative} must not mention add-node`);
+        for (const { name, segments } of cases) {
+            const row = text.split('\n').find(line => line.startsWith(`| \`${name}\` |`));
+            assert.ok(row, `${relative} should have a ${name} row`);
+            // Inside a markdown table `\|` escapes the cell separator, so cells
+            // are split on unescaped pipes only and the escape is then undone.
+            const cells = row
+                .split(/(?<!\\)\|/)
+                .map(cell => cell.replace(/\\\|/g, '|').trim());
+            assert.strictEqual(
+                cells[2]!.replace(/`/g, ''),
+                segments.join(' '),
+                `${relative} should print ${name}'s options verbatim`
+            );
+        }
+    }
 });
 
 test('help - `mind style --help` prints the document-style block', () => {

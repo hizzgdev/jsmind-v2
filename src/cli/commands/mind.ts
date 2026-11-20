@@ -10,12 +10,18 @@
  */
 
 import { JmMindJsonSerializer } from '../../serialization/json.ts';
-import type { JmNode, JmNodeSide } from '../../model/data/node.ts';
+import type {
+    JmNode,
+    JmNodeSide,
+    NodeCreationOptions,
+    NodeDestinationOptions,
+} from '../../model/data/node.ts';
 import { JmNodeContent } from '../../model/data/node-content.ts';
 import { JmEdgeType } from '../../model/data/edge.ts';
 import type { JmMind } from '../../model/mind.ts';
 import { runMutation } from '../mutate.ts';
 import {
+    booleanOption,
     optionalIntOption,
     optionalOption,
     readJsonFile,
@@ -23,13 +29,20 @@ import {
     type WriteOptions,
 } from '../io.ts';
 import { CliExit, usageError, dataError } from '../exit.ts';
-import { parseSide, report, describeNode, describeEdge, loadMindOrThrow } from '../shared.ts';
+import {
+    formatSide,
+    ignoredSideBranchUnder,
+    parsePlacementSide,
+    report,
+    describeNode,
+    describeEdge,
+    loadMindOrThrow,
+} from '../shared.ts';
 
 /** Subcommands this group understands. */
 const SUBCOMMANDS = [
     'find',
     'add-child',
-    'add-node',
     'move',
     'remove-node',
     'add-edge',
@@ -118,35 +131,58 @@ export function runMind(
         case 'add-child': {
             const parentId = requireOption(values, 'parent-id');
             const text = requireOption(values, 'text');
-            const created = runMutation(file, options, (mind: JmMind) => {
-                requireNode(mind, parentId, file, 'parent node');
-                const node = mind.addChildNode(text, parentId);
-                return node.id;
-            });
-            report(asJson, `added ${created} under ${parentId}`, { id: created });
-            return CliExit.Ok;
-        }
-
-        case 'add-node': {
-            const parentId = requireOption(values, 'parent-id');
-            const text = requireOption(values, 'text');
             const position = optionalIntOption(values, 'position');
             const sideRaw = optionalOption(values, 'side');
+            // Argument errors surface before the file is read: a bad flag should
+            // not depend on whether the document happens to load.
+            const side: JmNodeSide | undefined =
+                sideRaw === undefined ? undefined : parsePlacementSide(sideRaw);
+            const folded = booleanOption(values, 'folded');
             const created = runMutation(file, options, (mind: JmMind) => {
-                requireNode(mind, parentId, file, 'parent node');
-                const dest: { parentId: string; position?: number; side?: JmNodeSide } = {
-                    parentId,
-                };
+                const parent = requireNode(mind, parentId, file, 'parent node');
+                // Only a root child has a side the arranger reads; anywhere else
+                // the write would change the file and not the picture.
+                if (side !== undefined) {
+                    const ignored = ignoredSideBranchUnder(parent);
+                    if (ignored !== null) {
+                        throw usageError(
+                            '--side applies only when the parent is the root node. A node added ' +
+                                `under "${parentId}" would sit in the "${ignored.content.value}" ` +
+                                `branch (first-level node "${ignored.id}"), where a side is ` +
+                                'inherited instead of set. Drop --side.'
+                        );
+                    }
+                }
+                const dest: NodeDestinationOptions = { parentId };
                 if (position !== undefined) {
                     dest.position = position;
                 }
-                if (sideRaw !== undefined) {
-                    dest.side = parseSide(sideRaw);
+                if (side !== undefined) {
+                    dest.side = side;
                 }
-                const node = mind.addNode(JmNodeContent.createText(text), dest);
+                const creation: NodeCreationOptions = {};
+                if (folded !== undefined) {
+                    creation.folded = folded;
+                }
+                const node = mind.addNode(JmNodeContent.createText(text), dest, creation);
                 return node.id;
             });
-            report(asJson, `added ${created} under ${parentId}`, { id: created });
+            const placed: string[] = [];
+            if (side !== undefined) {
+                placed.push(`side=${formatSide(side)}`);
+            }
+            if (folded !== undefined) {
+                placed.push(`folded=${folded}`);
+            }
+            const note = placed.length === 0 ? '' : ` (${placed.join(', ')})`;
+            const payload: Record<string, unknown> = { id: created };
+            if (side !== undefined) {
+                payload.side = formatSide(side);
+            }
+            if (folded !== undefined) {
+                payload.folded = folded;
+            }
+            report(asJson, `added ${created} under ${parentId}${note}`, payload);
             return CliExit.Ok;
         }
 
@@ -240,9 +276,8 @@ Structure and edges (mirrors JmMind methods). Locators are ids only.
 
   find          --node-id <id>                       Show one node
   list-edges    --node-id <id>                       Edges touching a node
-  add-child     --parent-id <id> --text <text>       Add a leaf (JmMind.addChildNode)
-  add-node      --parent-id <id> --text <text>       Add with placement (JmMind.addNode)
-                [--position <n>] [--side left|center|right]
+  add-child     --parent-id <id> --text <text>       Add a child node
+                [--side left|right] [--position <n>] [--folded true|false]
   move          --node-id <id> --parent-id <id>      Reparent (JmMind.moveNode)
                 [--position <n>]
   remove-node   --node-id <id>                       Remove the node, its whole
@@ -251,8 +286,18 @@ Structure and edges (mirrors JmMind methods). Locators are ids only.
                 [--type link] [--label <text>]
   remove-edge   --edge-id <id>                       Remove a relation
 
+--side applies only when the parent is the root node. A side is the placement of
+a root child, and every node below one inherits it, so a side written anywhere
+else changes the file and not the picture. On any other parent --side is a usage
+error naming the first-level branch the new node would land in. Only the root is
+center, so --side takes left or right.
+
 --position is an index among the target parent's children. A value at or past
-the end appends (the model clamps it), and omitting --position appends too.
+the end appends (the model clamps it), and omitting --position appends too. The
+root's children are counted across both sides: the index addresses the root's
+children array, not one side's list.
+
+--folded creates the node collapsed.
 
 Every mutating subcommand validates the result and rolls back on failure.
 

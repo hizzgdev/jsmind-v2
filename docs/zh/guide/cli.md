@@ -136,14 +136,17 @@ jsmind mind <subcommand> <file> [options]
 | --- | --- | --- |
 | `find` | `--node-id <id>` | 显示一个节点 |
 | `list-edges` | `--node-id <id>` | 列出与该节点相连的边 |
-| `add-child` | `--parent-id <id> --text <text>` | 添加一个叶子节点 |
-| `add-node` | `--parent-id <id> --text <text> [--position <n>] [--side left\|center\|right]` | 按指定位置添加节点 |
+| `add-child` | `--parent-id <id> --text <text> [--side left\|right] [--position <n>] [--folded true\|false]` | 添加一个子节点 |
 | `move` | `--node-id <id> --parent-id <id> [--position <n>]` | 将节点移到新的父节点下 |
 | `remove-node` | `--node-id <id>` | 删除该节点、它的整棵子树，以及触及其中任一节点的所有边 |
 | `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | 添加一条关系边 |
 | `remove-edge` | `--edge-id <id>` | 删除一条关系边 |
 
-`add-child` 不接受 `--side`。根的直接子节点默认在右侧（`addChildNode` 未指定 side 时默认 `SideA`）。要用 `jsmind node set-side` 再改。
+`--side` 只在父节点是根节点时合法。侧向是根的直接子节点的位置，它下面整棵子树都继承这个侧向，所以在更深的地方写 side 只会改文件、不改画面 —— 这种情况是用例错误（退出码 2），报错会点名该节点所属的一级分支，不会静默通过。只有根节点是 center，所以 `--side` 只接受 `left` 或 `right`。
+
+`--position` 是父节点 children 数组的下标。越过末尾会追加，省略同样是追加。根节点的子节点跨两侧计数：下标对应的是这一个数组，不是某一侧的列表。
+
+`--folded true` 表示新建节点时就折叠。
 
 所有会改写数据的子命令都会在完成后校验结果，失败则回滚。这些写入可以使用 `--dry-run`、`--output` 和 `--backup`。
 
@@ -175,8 +178,10 @@ jsmind node <subcommand> <file> --node-id <id> [options]
 | --- | --- | --- |
 | `set-text` | `--node-id <id> --text <text>` | 修改标签 |
 | `set-folded` | `--node-id <id> --folded true\|false` | 折叠或展开 |
-| `set-side` | `--node-id <id> --side left\|center\|right` | 设置节点所在侧 |
+| `set-side` | `--node-id <id> --side left\|right` | 设置节点所在侧 |
 | `set-style` | `--node-id <id> [style fields]` | 为单个节点覆盖主题样式 |
+
+`set-side` 只对根的直接子节点合法，理由和 `add-child --side` 一样：只有这些节点的侧向会改变排版。根节点永远是 center，所以 `--side` 只接受 `left` 或 `right`；打在更深的节点上是用例错误，报错会点名它所属的一级分支，而不是一次画面看不见的写入。
 
 `set-style` 的字段可以在一次写入中组合使用。点号表示层级，因此 `--incoming.color` 对应 `style.incoming.color`。
 

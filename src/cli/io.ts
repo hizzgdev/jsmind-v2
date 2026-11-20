@@ -286,3 +286,48 @@ export function optionalOption(
     const value = values[name];
     return typeof value === 'string' ? value : undefined;
 }
+
+/**
+ * Reads an option written as the word `true` or `false`, or `undefined` when it
+ * is absent.
+ *
+ * @param values - Parsed option values.
+ * @param name - Option name without dashes.
+ * @returns The boolean, or undefined.
+ * @throws {@link CliError} With `Usage` when present but not one of the two words.
+ */
+export function booleanOption(
+    values: Record<string, unknown>,
+    name: string
+): boolean | undefined {
+    if (values[name] === undefined) {
+        return undefined;
+    }
+    return requireBooleanOption(values, name);
+}
+
+/**
+ * Reads a required option written as the word `true` or `false`.
+ *
+ * @param values - Parsed option values.
+ * @param name - Option name without dashes.
+ * @returns The boolean.
+ * @throws {@link CliError} With `Usage` when absent or not one of the two words.
+ * @remarks
+ * The CLI has no `--no-<flag>` negation: one flag taking both words keeps the
+ * accepted spellings in the error message, so a caller that guessed wrong is
+ * told what would have worked instead of being pointed at a second flag.
+ */
+export function requireBooleanOption(
+    values: Record<string, unknown>,
+    name: string
+): boolean {
+    const raw = requireOption(values, name);
+    if (raw === 'true') {
+        return true;
+    }
+    if (raw === 'false') {
+        return false;
+    }
+    throw usageError(`--${name} expects true or false, got "${raw}"`);
+}

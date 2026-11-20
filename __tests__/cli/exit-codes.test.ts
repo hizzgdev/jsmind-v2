@@ -48,19 +48,14 @@ interface UnknownIdCase {
  * Every id-taking write verb, against an id the fixture does not have.
  *
  * @remarks
- * `add-child` / `add-node` / `add-edge` take no node id of their own, so their
- * only absent-id case is the parent / endpoint they hang the new thing off.
- * `move` takes both kinds of id, and the two must read differently: a caller who
- * mistyped `--parent-id` should not be sent looking at `--node-id`.
+ * `add-child` / `add-edge` take no node id of their own, so their only absent-id
+ * case is the parent / endpoint they hang the new thing off. `move` takes both
+ * kinds of id, and the two must read differently: a caller who mistyped
+ * `--parent-id` should not be sent looking at `--node-id`.
  */
 const UNKNOWN_IDS: UnknownIdCase[] = [
     {
         sub: 'add-child',
-        values: { 'parent-id': 'ghost', 'text': 'x' },
-        message: 'No parent node with id "ghost" in <file>',
-    },
-    {
-        sub: 'add-node',
         values: { 'parent-id': 'ghost', 'text': 'x' },
         message: 'No parent node with id "ghost" in <file>',
     },

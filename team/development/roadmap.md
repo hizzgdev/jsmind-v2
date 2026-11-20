@@ -133,7 +133,7 @@
 
 #### S7a `feat(cli): context, validate and mind/node data commands` ✅
 
-CLI 骨架、`context`（唯一允许模糊匹配）、`validate`、`mind` 命令组（`find` / `add-child` / `add-node` / `move` / `remove-node` / `add-edge` / `remove-edge` / `edges`）、`node` 命令组（`set-text` / `set-folded` / `set-side`）、`create`。
+CLI 骨架、`context`（唯一允许模糊匹配）、`validate`、`mind` 命令组（`find` / `add-child` / `move` / `remove-node` / `add-edge` / `remove-edge` / `edges`；其中 `add-node` 已并入 `add-child`）、`node` 命令组（`set-text` / `set-folded` / `set-side`）、`create`。
 
 #### S7b `feat(cli): export command` ✅
 
