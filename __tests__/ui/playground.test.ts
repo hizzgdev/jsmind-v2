@@ -338,6 +338,32 @@ test('ui - playground header contains a visible link to the jsmind-v2 repository
     assert.ok(link.text.includes('jsmind-v2'), 'the link should visibly name the jsmind-v2 project');
 });
 
+test('ui - playground header contains a visible link to the project documentation', async () => {
+    const link = await browser.evaluate<{
+        href: string;
+        target: string;
+        rel: string;
+        text: string;
+        inHeader: boolean;
+    }>(`(() => {
+        const header = document.querySelector('.header');
+        const a = header && header.querySelector('a[href="https://hizzgdev.github.io/jsmind-v2/docs/"]');
+        return {
+            href: a ? a.getAttribute('href') || '' : '',
+            target: a ? a.getAttribute('target') || '' : '',
+            rel: a ? a.getAttribute('rel') || '' : '',
+            text: a ? a.textContent.replace(/\\s+/g, ' ').trim() : '',
+            inHeader: !!(header && a),
+        };
+    })()`);
+    assert.ok(link.inHeader, 'the documentation link should be inside the header');
+    assert.strictEqual(link.href, 'https://hizzgdev.github.io/jsmind-v2/docs/');
+    assert.strictEqual(link.target, '_blank');
+    assert.ok(link.rel.split(/\s+/).includes('noopener'), 'the link should use rel=noopener');
+    assert.ok(link.rel.split(/\s+/).includes('noreferrer'), 'the link should use rel=noreferrer');
+    assert.ok(/docs/i.test(link.text), 'the link should visibly indicate documentation');
+});
+
 test('ui - the right column shows the CDN setup line above the read-only code, all at one type size, highlighted', async (t: TestContext) => {
     const view = await browser.evaluate<ReadOnlyPanels>(
         `(async () => {
