@@ -373,6 +373,16 @@ export interface JmThemeExpander {
  * @public
  */
 export interface JmTheme {
+    /**
+     * Tone used by nodes that state none of their own.
+     *
+     * @remarks
+     * Always present after resolution: an absent `style.defaultTone` resolves
+     * to `"default"`, so the render layer never needs a second fallback of its
+     * own. It is a tone *name*, and the palette is looked up from `tones` at
+     * render time — that is what lets a `tones` override keep reaching it.
+     */
+    defaultTone: string;
     /** Canvas background color. */
     background?: string;
     /** Per-tone color palettes. */
@@ -405,6 +415,9 @@ export interface JmTheme {
  *
  * - `theme` names a built-in preset to inherit from. Omitted means `"default"`,
  *   so a file that only overrides a few colors does not have to name it.
+ * - `defaultTone` names the tone every node without one of its own wears. It is
+ *   a name rather than a palette so this declaration stays an inheritance
+ *   decision: restyle the tone once in `tones` and the whole map follows.
  * - Every other field is an override applied on top of that preset, merged
  *   deeply.
  *
@@ -413,6 +426,17 @@ export interface JmTheme {
 export interface JmStyle {
     /** Name of the built-in theme to inherit from. Defaults to `"default"`. */
     theme?: string;
+    /**
+     * Tone used by nodes that state none of their own.
+     *
+     * @remarks
+     * A tone *name*, not a palette snapshot. Storing resolved colors here would
+     * freeze them: a later `tones` override, or a different preset, would no
+     * longer reach the nodes that rely on this field. A name is resolved
+     * through the same palette lookup a node-level tone uses, so
+     * `style.tones` keeps working on top of it.
+     */
+    defaultTone?: string;
     /** Canvas background color. */
     background?: string;
     /** Per-tone color overrides. */
@@ -435,6 +459,8 @@ export interface JmStyle {
  * @public
  */
 export const JSMIND_THEME_DEFAULT: JmTheme = {
+    // The absence of a statement, which is what a node without a tone means.
+    defaultTone: JmTone.Default,
     background: '#ffffff',
     // Filled solids with white text, taken from v1 — a node carrying a tone
     // that only tints its background barely reads as "this one is different"
@@ -523,6 +549,13 @@ export function mergeJmTheme(base: JmTheme, override: JmStyle): JmTheme {
     // resolveJmStyle before this runs, so there is nothing to carry over here.
     if (override.background !== undefined) {
         result.background = override.background;
+    }
+
+    // Only the fallback for nodes without a tone of their own: a node-level
+    // tone still wins at render time. The name is stored as given - the palette
+    // it points at is resolved then, after every `tones` override is merged.
+    if (override.defaultTone !== undefined) {
+        result.defaultTone = override.defaultTone;
     }
 
     // node/line/expander each hold scalars, so they merge one level deep with

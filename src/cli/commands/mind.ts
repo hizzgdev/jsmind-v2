@@ -254,4 +254,9 @@ Structure and edges (mirrors JmMind methods). Locators are ids only.
 --position is an index among the target parent's children. A value at or past
 the end appends (the model clamps it), and omitting --position appends too.
 
-Every mutating subcommand validates the result and rolls back on failure.`;
+Every mutating subcommand validates the result and rolls back on failure.
+
+Document-level style keeps its own field table, because it writes one
+declaration for the whole map rather than a field on one node:
+
+  jsmind mind style set <file> --default-tone <tone>   (see: jsmind mind style --help)`;

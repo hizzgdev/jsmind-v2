@@ -1,7 +1,7 @@
 import type { JmMind } from '../model/mind.ts';
 import { JsMindError } from '../common/error.ts';
 import type { ViewOptions } from '../common/option.ts';
-import { JmNodeView } from './node.ts';
+import { JmNodeView, resolveNodeTone } from './node.ts';
 import { JmEdgeView } from './edge.ts';
 import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
@@ -189,11 +189,13 @@ export class JmView {
     private _resolveLineStyle(node: JmNode): JmResolvedLineStyle {
         const theme = this.theme;
         const incoming = node.style?.incoming;
-        const tone = node.style?.tone ?? JmTone.Default;
+        // Same fallback the node's own fill uses - a node without a tone wears
+        // the document's defaultTone, and the line leading to it follows.
+        const tone = resolveNodeTone(node.style, theme);
         // The default palette is the last resort for an unknown or unstyled
         // tone, and it comes from the same constant the theme was built from, so
         // an untoned node never falls through to a colour of its own.
-        const palette = theme.tones?.[tone] ?? JSMIND_THEME_DEFAULT.tones?.[JmTone.Default];
+        const palette = theme.tones?.[tone as JmTone] ?? JSMIND_THEME_DEFAULT.tones?.[JmTone.Default];
 
         // Every fallback reads the theme. The final literal is unreachable while
         // JSMIND_THEME_DEFAULT defines a default tone - it exists so the type is

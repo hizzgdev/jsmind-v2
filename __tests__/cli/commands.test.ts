@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { runValidate } from '../../src/cli/commands/validate.ts';
 import { runContext } from '../../src/cli/commands/context.ts';
 import { runMind } from '../../src/cli/commands/mind.ts';
+import { runStyle } from '../../src/cli/commands/style.ts';
 import { runNode } from '../../src/cli/commands/node.ts';
 import {
     JmFontWeight,
@@ -192,8 +193,11 @@ test('cli - context shows the tree with ids in a left column', () => {
 
     assert.strictEqual(code, CliExit.Ok);
     const lines = out.trim().split('\n');
-    assert.ok(lines.length >= 3, `expected at least root plus two children, got ${lines.length}`);
-    assert.ok(lines[0].startsWith('root'), `first line should lead with the root id: ${lines[0]}`);
+    // The fixture carries a document style, so the output opens with its
+    // summary line and the tree follows.
+    assert.match(lines[0], /^style: theme=default defaultTone=default overrides=/);
+    assert.ok(lines.length >= 4, `expected a style line plus root and children, got ${lines.length}`);
+    assert.ok(lines[1].startsWith('root'), `first tree line should lead with the root id: ${lines[1]}`);
     rmSync(dir, { recursive: true, force: true });
 });
 
@@ -798,7 +802,7 @@ test('cli - context reports the style of a node that overrides the theme', () =>
                 asJson: true,
             });
         });
-        const entries = JSON.parse(out);
+        const entries = JSON.parse(out).nodes;
         const a1 = entries.find((e: { id: string }) => e.id === 'jm-a1');
         assert.deepStrictEqual(a1.style, {
             tone: 'success',
@@ -830,7 +834,7 @@ test('cli - context omits style for a node that overrides nothing', () => {
                 asJson: true,
             });
         });
-        const a1 = JSON.parse(out).find((e: { id: string }) => e.id === 'jm-a1');
+        const a1 = JSON.parse(out).nodes.find((e: { id: string }) => e.id === 'jm-a1');
         assert.ok(!('style' in a1), 'a node without overrides carries no style key');
     } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -903,7 +907,7 @@ test('cli - context JSON includes folded only when true', () => {
                 asJson: true,
             });
         });
-        const entries: { id: string; folded?: boolean }[] = JSON.parse(out);
+        const entries: { id: string; folded?: boolean }[] = JSON.parse(out).nodes;
         const b1 = entries.find(e => e.id === 'jm-b1')!;
         assert.ok(b1, 'jm-b1 is present');
         assert.equal(b1.folded, true);
@@ -930,7 +934,7 @@ test('cli - context JSON side is a word, not a number', () => {
                 asJson: true,
             });
         });
-        const entries: { id: string; side?: string }[] = JSON.parse(out);
+        const entries: { id: string; side?: string }[] = JSON.parse(out).nodes;
         const root = entries.find(e => e.id === 'root')!;
         assert.ok(root, 'root is present');
         assert.equal(root.side, 'center');
@@ -1158,6 +1162,313 @@ test('cli - mind move rejects a negative position', () => {
                 assert.match(err.message, /non-negative integer/);
                 return true;
             }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// mind style set — the document-level defaultTone
+//
+// The fixture declares a style block but no defaultTone, so every case below
+// starts from a document that predates the field. That is the interesting
+// state: the feature has to leave those files alone until asked.
+// ---------------------------------------------------------------------------
+
+test('cli - mind style set writes defaultTone and keeps the rest of the style block', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const before = JSON.parse(readFileSync(file, 'utf8')).style;
+        capture(() => {
+            runStyle(file, 'set', { 'default-tone': 'primary' }, WRITE);
+        });
+
+        const after = JSON.parse(readFileSync(file, 'utf8')).style;
+        assert.deepStrictEqual(after, { ...before, defaultTone: 'primary' });
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - mind style set creates the style block on a document that has none', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const doc = JSON.parse(readFileSync(file, 'utf8'));
+        delete doc.style;
+        writeFileSync(file, JSON.stringify(doc, null, 2));
+
+        capture(() => {
+            runStyle(file, 'set', { 'default-tone': 'warning' }, WRITE);
+        });
+
+        assert.deepStrictEqual(JSON.parse(readFileSync(file, 'utf8')).style, {
+            defaultTone: 'warning',
+        });
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - mind style set does not touch the file under --dry-run', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const before = readFileSync(file, 'utf8');
+        const { out } = capture(() => {
+            runStyle(
+                file,
+                'set',
+                { 'default-tone': 'danger', 'json': true },
+                { dryRun: true, backup: false }
+            );
+        });
+
+        assert.strictEqual(readFileSync(file, 'utf8'), before, 'dry-run must not write');
+        // runMutation prints the document that would have been written, then the
+        // command reports. The report is the last document on the stream.
+        const report = out.slice(out.lastIndexOf('\n{') + 1);
+        assert.strictEqual(JSON.parse(report).style.defaultTone, 'danger');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - mind style set keeps a backup when asked', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const before = readFileSync(file, 'utf8');
+        capture(() => {
+            runStyle(file, 'set', { 'default-tone': 'info' }, { dryRun: false, backup: true });
+        });
+
+        assert.strictEqual(readFileSync(`${file}.bak`, 'utf8'), before, 'the backup is the original');
+        assert.strictEqual(
+            JSON.parse(readFileSync(file, 'utf8')).style.defaultTone,
+            'info',
+            'the file itself carries the change'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - mind style set rejects an unknown tone as a usage error naming the flag', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runStyle(file, 'set', { 'default-tone': 'banana' }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                assert.match(err.message, /--default-tone must be one of/);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - mind style set needs at least one field', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runStyle(file, 'set', {}, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                assert.match(err.message, /at least one field/);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - mind style set rejects an unknown action', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runStyle(file, 'unset', { 'default-tone': 'primary' }, WRITE);
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.Usage);
+                assert.match(err.message, /Unknown style action: unset/);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Discovery of the document-level style
+// ---------------------------------------------------------------------------
+
+test('cli - context announces the document style above the tree', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({ file, depth: 1, maxText: 40, fullText: false, idsOnly: false, asJson: false });
+        });
+
+        assert.match(
+            out.split('\n')[0],
+            /^style: theme=default defaultTone=default overrides=background,tones,node,line,expander$/,
+            'the summary names the preset, the resolved tone and what is overridden'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context stays quiet about a document that declares no style', () => {
+    // The summary is a report of what is in the file, not a restatement of the
+    // built-in theme: a file that says nothing prints nothing new.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const doc = JSON.parse(readFileSync(file, 'utf8'));
+        delete doc.style;
+        writeFileSync(file, JSON.stringify(doc, null, 2));
+
+        const text = capture(() => {
+            runContext({ file, depth: 1, maxText: 40, fullText: false, idsOnly: false, asJson: false });
+        });
+        assert.ok(
+            text.out.split('\n')[0].startsWith('root'),
+            'the tree starts on the first line when there is no document style'
+        );
+
+        const json = capture(() => {
+            runContext({ file, depth: 1, maxText: 40, fullText: false, idsOnly: false, asJson: true });
+        });
+        assert.ok(!('style' in JSON.parse(json.out)), 'no style block without a document style');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context --ids-only prints no style line', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({ file, depth: 1, maxText: 40, fullText: false, idsOnly: true, asJson: false });
+        });
+        assert.ok(!out.startsWith('style:'), '--ids-only answers with ids and nothing else');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context --json reads back the defaultTone the CLI wrote', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        capture(() => {
+            runStyle(file, 'set', { 'default-tone': 'accent' }, WRITE);
+        });
+
+        const { out } = capture(() => {
+            runContext({ file, depth: 1, maxText: 40, fullText: false, idsOnly: false, asJson: true });
+        });
+        const payload = JSON.parse(out);
+        assert.deepStrictEqual(payload.style, {
+            theme: 'default',
+            defaultTone: 'accent',
+            overrides: ['defaultTone', 'background', 'tones', 'node', 'line', 'expander'],
+        });
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context refuses a document whose defaultTone is unknown, naming the path', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const doc = JSON.parse(readFileSync(file, 'utf8'));
+        doc.style.defaultTone = 'banana';
+        writeFileSync(file, JSON.stringify(doc, null, 2));
+
+        assert.throws(
+            () => {
+                capture(() => {
+                    runContext({ file, depth: 1, maxText: 40, fullText: false, idsOnly: false, asJson: true });
+                });
+            },
+            (err: unknown) => {
+                assert.ok(err instanceof CliError);
+                assert.strictEqual(err.exit, CliExit.InvalidData);
+                assert.match(err.message, /E_TONE {2}style\/defaultTone/);
+                return true;
+            }
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - a document without defaultTone is written back byte-identically', () => {
+    // The feature must not graft `defaultTone: "default"` onto files that never
+    // asked for it. The fixture is hand-formatted, so the first write normalises
+    // it; the question is whether a second identical write changes anything.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const original = JSON.parse(readFileSync(file, 'utf8'));
+        const noop = (): void => {
+            capture(() => {
+                runNode(file, 'set-folded', { 'node-id': 'jm-b1', 'folded': 'true' }, WRITE);
+            });
+        };
+
+        noop();
+        const once = readFileSync(file, 'utf8');
+        noop();
+
+        assert.strictEqual(readFileSync(file, 'utf8'), once, 'the second write is byte-identical');
+        assert.ok(!once.includes('defaultTone'), 'no defaultTone may appear in a file that had none');
+        assert.deepStrictEqual(
+            JSON.parse(once).style,
+            original.style,
+            'the document style block survives the round trip unchanged'
         );
     } finally {
         rmSync(dir, { recursive: true, force: true });

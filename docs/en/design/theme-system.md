@@ -35,6 +35,7 @@ const JmTone = {
 Three fallbacks, from the most specific to the default:
 
 ```
+Tone:        node.style.tone                ??  mind.style.defaultTone   ??  "default"
 Color:       node.style.<explicit>           ??  theme.tones[effective tone].<corresponding color>
 Geometry:    node.style.<explicit>           ??  theme.node.<default>
 Line color:  node.style.incoming.color       ??  theme.tones[child tone].lineColor
@@ -42,6 +43,10 @@ Line width:  node.style.incoming.width       ??  theme.line.width
 Line style:  node.style.incoming.pattern     ??  theme.line.pattern
 Shape:       node.style.incoming.curve       ??  theme.line.curve
 ```
+
+**`defaultTone` is a field of the document, and it stores a tone name — not a palette.** Resolved, `JmTheme.defaultTone` always has a value, so the render layer reads one fallback instead of carrying a second one of its own. Storing a palette snapshot here would freeze the colors: a later `tones` override, or a different preset, would stop reaching the nodes that rely on the field. A name is looked up through the same palette as a node-level tone, so `style.tones` keeps composing with it.
+
+**Both painters call one resolver (`resolveNodeTone`).** The node's fill and the line leading into it are drawn by different modules, and they have to agree: change only one and the map grows recoloured nodes hanging from unchanged lines.
 
 **A line's color is taken from the child node's tone, not the parent's.** A line corresponds to exactly one child, and `incoming` hangs on the child. If the line inherited from the parent, changing the parent's color would recolor every line in the subtree.
 
@@ -74,6 +79,7 @@ interface JmThemeShadow {
 `JSMIND_THEME_DEFAULT` is the only preset. The values are taken from the v1 stylesheet:
 
 ```ts
+defaultTone: 'default'   // the tone a node without one of its own wears
 node:     { radius:5, padding:10, fontSize:16, rootFontSize:24,
             fontFamily:'Verdana,Arial,Helvetica,sans-serif', lineHeight:1.125,
             borderWidth:0, maxWidth:400, shadow:{...} }

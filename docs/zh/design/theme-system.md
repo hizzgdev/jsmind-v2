@@ -35,13 +35,18 @@ const JmTone = {
 三档回落，从具体到兜底：
 
 ```
-颜色：  node.style.<显式>          ??  theme.tones[有效 tone].<对应色>
-几何：  node.style.<显式>          ??  theme.node.<默认>
-线色：  node.style.incoming.color  ??  theme.tones[子节点 tone].lineColor
-线宽：  node.style.incoming.width  ??  theme.line.width
-线型：  node.style.incoming.pattern ??  theme.line.pattern
-形态：  node.style.incoming.curve   ??  theme.line.curve
+tone：  node.style.tone                ??  mind.style.defaultTone  ??  "default"
+颜色：  node.style.<显式>              ??  theme.tones[有效 tone].<对应色>
+几何：  node.style.<显式>              ??  theme.node.<默认>
+线色：  node.style.incoming.color      ??  theme.tones[子节点 tone].lineColor
+线宽：  node.style.incoming.width      ??  theme.line.width
+线型：  node.style.incoming.pattern    ??  theme.line.pattern
+形态：  node.style.incoming.curve      ??  theme.line.curve
 ```
+
+**`defaultTone` 是文档级字段，存的是 tone 名字，不是调色板。** 解析后的 `JmTheme.defaultTone` 恒有值，所以渲染层只读这一个回落，不必自己再备一份。存调色板快照会把颜色冻死：之后改 `tones` 覆盖、或换 preset，依赖这个字段的节点就不再跟着变。存名字则走跟节点级 tone 同一套查表，`style.tones` 仍然叠在它上面生效。
+
+**两处画笔调用同一个解析函数（`resolveNodeTone`）。** 节点填充和连到它的那条线由不同模块绘制，必须一致：只改一处，整张图就会出现「节点变色、连线仍旧」。
 
 **线的颜色取子节点 tone，不是父节点。** 一条线唯一对应一个子节点，`incoming` 挂在子节点上。让线继承父节点会导致父节点改色时整棵子树线全变。
 
@@ -74,6 +79,7 @@ interface JmThemeShadow {
 `JSMIND_THEME_DEFAULT` 是唯一的预设。数值取自 v1 的样式表：
 
 ```ts
+defaultTone: 'default'   // 没有自己 tone 的节点用它
 node:     { radius:5, padding:10, fontSize:16, rootFontSize:24,
             fontFamily:'Verdana,Arial,Helvetica,sans-serif', lineHeight:1.125,
             borderWidth:0, maxWidth:400, shadow:{...} }

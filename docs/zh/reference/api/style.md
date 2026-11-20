@@ -72,6 +72,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 把继承与覆盖放在一份扁平声明里，可以避免嵌套 `{ name, ...overrides }` 的歧义：那里的 `name` 既可能被读成「这个主题叫什么」，也可能被读成「继承哪个主题」。这里的 `theme` 只能是后者。
 
 - `theme` 指定要继承的内置预设。省略时表示 `"default"`，因此一份只覆盖几种颜色的文件不必写出主题名。
+- `defaultTone` 指定没有自己 tone 的节点用哪个语气。存名字而不是调色板，这份声明才仍然是一个继承决策：在 `tones` 里改一次，整张图跟着变。
 - 其余每个字段都是叠加在该预设之上的覆盖，并且会深合并。
 
 **属性**
@@ -79,6 +80,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
 | `background` (可选) | string | 画布背景色。 |
+| `defaultTone` (可选) | string | 没有自己 tone 的节点使用的语气。 |
 | `expander` (可选) | `Partial`<[JmThemeExpander](/zh/reference/api/style#JmThemeExpander)> | 展开/折叠控件的几何覆盖。 |
 | `line` (可选) | `Partial`<[JmThemeLine](/zh/reference/api/style#JmThemeLine)> | 线条几何覆盖。 |
 | `node` (可选) | [JmThemeNodeOverride](/zh/reference/api/style#JmThemeNodeOverride) | 节点几何覆盖。 |

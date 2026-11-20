@@ -93,6 +93,14 @@ Discovery step: shows the tree so you (or an agent) can find the ids needed for 
 
 Ids are printed in a left-aligned column so they can be copied into the next command. Multi-line labels are flattened, and truncation ends in an ellipsis. Each line may end with a `{…}` block. `side` is shown only for the root and the root's direct children. `folded` appears when the node is collapsed, and style overrides appear when the node differs from the theme.
 
+A file that declares its own document style is announced above the tree, so the theme is discoverable before any node is read:
+
+```
+style: theme=default defaultTone=primary overrides=defaultTone,tones,node
+```
+
+`--json` returns an object with a `nodes` array, and adds the same summary as a `style` block (`theme`, `defaultTone`, `overrides`) when the file carries one. Neither appears for a file with no document style, and the text line is suppressed under `--ids-only`.
+
 When `--focus` matches nothing, the closest candidates are listed instead.
 
 ## `export`
@@ -137,6 +145,22 @@ Structure and edges. Locators are ids only. Use ids from a current `context` out
 `add-child` does not accept `--side`. A direct child of the root defaults to the right side (`addChildNode` defaults to `SideA` when side is not specified). Use `jsmind node set-side` to change it.
 
 Every mutating subcommand validates the result and rolls back on failure. `--dry-run`, `--output`, and `--backup` are available on these writes.
+
+### `mind style`
+
+```
+jsmind mind style set <file> [style fields]
+```
+
+Document-level style: one declaration every node without an override inherits. It writes `mind.style`, not a node's style, so a whole-map recolour stays one write — and leaves the semantic tones free for the nodes that need to stand out.
+
+| Field | Accepted values |
+| --- | --- |
+| `--default-tone <tone>` | `default` \| `primary` \| `success` \| `warning` \| `danger` \| `info` \| `accent` |
+
+`defaultTone` is the tone an untoned node wears. Precedence is `node.style.tone` over `mind.style.defaultTone` over `"default"`, and lines follow the same fallback. The field stores a tone **name**, not a palette, so a `tones` override keeps applying to it.
+
+`--dry-run`, `--output`, and `--backup` work as on every other mutating command.
 
 ## `node`
 

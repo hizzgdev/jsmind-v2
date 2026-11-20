@@ -651,6 +651,18 @@ function validateMindStyle(style: unknown, errors: JmValidationIssue[]): void {
         }
     }
 
+    // `defaultTone` names the fallback tone, so it is checked against the same
+    // list a node's own `tone` is. An unrecognised name would resolve to no
+    // palette at render time and leave every untoned node colourless.
+    const defaultTone = style.defaultTone;
+    if (defaultTone !== undefined && (typeof defaultTone !== 'string' || !TONES.has(defaultTone))) {
+        errors.push({
+            code: JmValidationCode.Tone,
+            path: 'style/defaultTone',
+            message: `Unknown tone ${JSON.stringify(defaultTone)}. Expected one of ${[...TONES].join(', ')}.`,
+        });
+    }
+
     if (style.tones !== undefined) {
         if (!isRecord(style.tones)) {
             errors.push({

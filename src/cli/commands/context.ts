@@ -15,6 +15,7 @@
 import { JmMindJsonSerializer } from '../../serialization/json.ts';
 import type { JmNode } from '../../model/data/node.ts';
 import type { JmMind } from '../../model/mind.ts';
+import { JmTone, type JmStyle } from '../../model/data/style.ts';
 import { readJsonFile } from '../io.ts';
 import { describeStyle, formatSide, loadMindOrThrow } from '../shared.ts';
 import { CliExit, dataError } from '../exit.ts';
@@ -196,6 +197,49 @@ function flattenStyle(style: Record<string, unknown>, prefix = ''): Record<strin
 }
 
 /**
+ * Sections of `mind.style` that can carry a value, in the order the type
+ * declares them.
+ *
+ * @remarks
+ * Every field of the declaration except `theme`, which is reported separately
+ * as the preset this block inherits from. Listing them lets the summary say
+ * *what* the file sets without restating every value — the agent then knows
+ * which part of the theme to go and read.
+ */
+const STYLE_SECTIONS = ['defaultTone', 'background', 'tones', 'node', 'line', 'expander'] as const;
+
+/**
+ * A document style as the discovery output reports it.
+ */
+interface DocumentStyleSummary {
+    /** Preset the document inherits from, resolved (`"default"` when unnamed). */
+    theme: string;
+    /** Tone every node without one of its own wears, resolved. */
+    defaultTone: string;
+    /** Sections the document actually overrides. */
+    overrides: string[];
+}
+
+/**
+ * Reads the document-level style into the shape both outputs print.
+ *
+ * @param style - The document's style declaration.
+ * @returns Theme name, resolved default tone, and the overridden sections.
+ * @remarks
+ * `theme` and `defaultTone` are reported resolved rather than as stored: the
+ * question discovery answers is "what does this file look like", and a reader
+ * should not have to know that an absent `theme` means `"default"`. The
+ * overrides list stays as stored, because that is where the values are.
+ */
+function describeMindStyle(style: JmStyle): DocumentStyleSummary {
+    return {
+        theme: style.theme ?? 'default',
+        defaultTone: style.defaultTone ?? JmTone.Default,
+        overrides: STYLE_SECTIONS.filter(section => style[section] !== undefined),
+    };
+}
+
+/**
  * Summarises a node's state for the text output — side (when it is meaningful),
  * folded, and any style overrides.
  *
@@ -282,6 +326,10 @@ export function runContext(options: ContextOptions): number {
     }
 
     const every = allNodes(root);
+    // Read once, before the two output paths diverge: both report the same
+    // document style, and neither should be able to forget it.
+    const documentStyle =
+        mind.style === undefined ? undefined : describeMindStyle(mind.style);
 
     // --focus: show matches and their surrounding structure.
     if (options.focus !== undefined && options.focus.length > 0) {
@@ -341,11 +389,11 @@ export function runContext(options: ContextOptions): number {
             });
         }
 
-        emit(entries, options);
+        emit(entries, options, documentStyle);
         return CliExit.Ok;
     }
 
-    emit(outline(root, options.depth), options);
+    emit(outline(root, options.depth), options, documentStyle);
     return CliExit.Ok;
 }
 
@@ -354,39 +402,65 @@ export function runContext(options: ContextOptions): number {
  *
  * @param entries - Nodes with depth.
  * @param options - Output settings.
+ * @param documentStyle - The document-level style summary, when the file
+ *   declares one.
+ * @remarks
+ * The document style leads both outputs: it applies to the whole map, so it
+ * belongs above the tree rather than beside one node. A file that declares no
+ * `style` prints exactly what it printed before this existed — an unchanged
+ * document keeps an unchanged output.
  */
-function emit(entries: { node: JmNode; level: number }[], options: ContextOptions): void {
+function emit(
+    entries: { node: JmNode; level: number }[],
+    options: ContextOptions,
+    documentStyle: DocumentStyleSummary | undefined
+): void {
     if (options.asJson) {
-        const payload = entries.map(({ node, level }) => {
-            const entry: Record<string, unknown> = {
-                id: node.id,
-                level,
-                text: options.idsOnly
-                    ? undefined
-                    : clip(flatten(textOf(node)), options.maxText, options.fullText),
-            };
-            // Same rule as the text output: side only for the root and its
-            // direct children. Deeper nodes keep whatever side is stored; it
-            // is just not printed, and it is not rewritten when a parent moves.
-            if (level <= 1) {
-                entry.side = formatSide(node.side);
-            }
-            if (node.folded) {
-                entry.folded = true;
-            }
-            // Only when the node overrides something. A style block records the
-            // difference from the theme, so a node that overrode nothing would
-            // contribute the same absent entry every time - length for
-            // information the theme already implies, on an output an agent reads
-            // at every step.
-            const style = describeStyle(node.style);
-            if (style !== null) {
-                entry.style = style;
-            }
-            return entry;
-        });
+        const payload: Record<string, unknown> = {
+            nodes: entries.map(({ node, level }) => {
+                const entry: Record<string, unknown> = {
+                    id: node.id,
+                    level,
+                    text: options.idsOnly
+                        ? undefined
+                        : clip(flatten(textOf(node)), options.maxText, options.fullText),
+                };
+                // Same rule as the text output: side only for the root and its
+                // direct children. Deeper nodes keep whatever side is stored; it
+                // is just not printed, and it is not rewritten when a parent moves.
+                if (level <= 1) {
+                    entry.side = formatSide(node.side);
+                }
+                if (node.folded) {
+                    entry.folded = true;
+                }
+                // Only when the node overrides something. A style block records the
+                // difference from the theme, so a node that overrode nothing would
+                // contribute the same absent entry every time - length for
+                // information the theme already implies, on an output an agent reads
+                // at every step.
+                const style = describeStyle(node.style);
+                if (style !== null) {
+                    entry.style = style;
+                }
+                return entry;
+            }),
+        };
+        if (documentStyle !== undefined) {
+            payload.style = documentStyle;
+        }
         process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
         return;
+    }
+
+    // Not under --ids-only: that flag asks for ids and nothing else, and a
+    // header would break the one shape a script can consume without parsing.
+    if (documentStyle !== undefined && !options.idsOnly) {
+        const overrides =
+            documentStyle.overrides.length > 0 ? documentStyle.overrides.join(',') : 'none';
+        process.stdout.write(
+            `style: theme=${documentStyle.theme} defaultTone=${documentStyle.defaultTone} overrides=${overrides}\n`
+        );
     }
 
     for (const line of renderTree(entries, options)) {
@@ -416,5 +490,11 @@ command. Multi-line labels are flattened, and truncation ends in an ellipsis.
 Each line may end with a {…} block. side is shown only for the root and the
 root's direct children. folded appears when the node is collapsed, and style
 overrides appear when the node differs from the theme.
+
+A file that declares its own style is announced above the tree:
+  style: theme=default defaultTone=primary overrides=defaultTone,tones,node
+--json returns { nodes: [...] } instead of a bare array, and adds that same
+summary as a style block. Neither appears when the file carries no style, and
+the line is suppressed under --ids-only.
 
 When --focus matches nothing, the closest candidates are listed instead.`;
