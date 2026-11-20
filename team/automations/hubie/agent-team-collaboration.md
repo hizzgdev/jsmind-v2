@@ -46,11 +46,11 @@ GitHub 标签 `hubie` 是团队流程标识：只有带这个标签的 Issue 或
 
 | 标签 | 颜色 | 打在哪 | 何时打上 | 何时去掉 |
 | --- | --- | --- | --- | --- |
-| `hubie-working` | `FBCA04` | 有对应 Issue 就打在 Issue 上；没有对应 Issue 的文档 PR 打在 PR 上 | Holt 接手并开始安排工作 | 合并或关闭后的收尾 |
+| `hubie-working` | `FBCA04` | 有对应 Issue 就打在 Issue 上；没有对应 Issue 的文档 PR 打在 PR 上 | Holt 接手并开始安排工作 | 请终审时去掉；若终审后又要继续改，重新打上。合并或关闭后的收尾如有残留，一并去掉 |
 | `hubie-reviewing` | `FBCA04` | 只打在 PR 上 | 内部审查开始时（Holt 自审，以及需要时的 Reed、Mira） | 审查要求修改、交回 Cody 时先去掉，改完再审时重新打上；请终审时去掉并改打 `hubie-reviewed` |
 | `hubie-reviewed` | `0E8A16` | 只打在 PR 上 | Holt 正式请终审人审查时 | 收尾时与其它过程标签一并去掉 |
 
-没有对应 Issue 时，`hubie-working` 打在 PR 上，并一直留到收尾；`hubie-reviewing` 和 `hubie-reviewed` 按上表叠加或切换。`hubie-reviewed` 只用来标明「内部审查已完成，可以终审」。终审人在 PR 上的评论，仍按第 3 节和第 6 节的原有规则处理，不把 `hubie-reviewed` 当作是否介入评论的门槛。
+没有对应 Issue 时，`hubie-working` 打在 PR 上。`hubie-working` 只表示 Hubie 团队还在做这项工作。内部审查期间团队仍在工作，因此保留它，并在 PR 上叠加 `hubie-reviewing`。请终审时，内部工作已经结束、正在等终审人，所以去掉 `hubie-working`（打在 Issue 上就从 Issue 去掉，打在 PR 上就从 PR 去掉），PR 上的过程标签只保留 `hubie-reviewed`。`hubie-reviewed` 只用来标明「内部审查已完成，可以终审」。终审人在 PR 上的评论，仍按第 3 节和第 6 节的原有规则处理，不把 `hubie-reviewed` 当作是否介入评论的门槛。若终审后又要继续改，重新打上 `hubie-working`，并去掉 `hubie-reviewed`；再次进入内部审查时再打上 `hubie-reviewing`。
 
 ## 2. 两种开工路径
 
@@ -75,10 +75,10 @@ Holt 接手任务后，会给对应 Issue 打上 `hubie-working`（没有对应 
 5. **把审查结果写到 PR 上。** 由 Holt 在 PR 上留下书面记录，末尾单独一行署名 `— Holt`。这是给人看的记录，不是 bot 之间的开工信号。
    - 有修改意见时，Holt 先去掉 `hubie-reviewing`，把意见写上，再交给 Cody 修改。Cody 改完后更新同一个 PR，向 Holt 汇报改了什么；再次交给 Reed 前，重新打上 `hubie-reviewing`。
    - 没有必须修改的意见时，Holt 会写明「审查完成，没有修改意见」。若还有非阻塞的小问题，也会一并写在 PR 上，而不是只出现在聊天里。
-6. **请终审人审查。** Reed 回报审查结果后，由 Holt 判断是否可以终审。可以时，Holt 去掉 `hubie-reviewing`，给 PR 打上 `hubie-reviewed`，再通过 GitHub API 把 `hizzgdev` 加为 reviewer，并在自己的对话里通知终审人。这一步完成，才算正式发起终审请求。不要使用那些终审人看不到、也点不了的确认卡片。
+6. **请终审人审查。** Reed 回报审查结果后，由 Holt 判断是否可以终审。可以时，Holt 去掉 `hubie-reviewing`，给 PR 打上 `hubie-reviewed`，并去掉 `hubie-working`（打在 Issue 上就从 Issue 去掉，没有对应 Issue 则从 PR 上去掉）。然后再通过 GitHub API 把 `hizzgdev` 加为 reviewer，并在自己的对话里通知终审人。这一步完成，才算正式发起终审请求。不要使用那些终审人看不到、也点不了的确认卡片。若终审后又要继续改，重新打上 `hubie-working`，并去掉 `hubie-reviewed`，再安排修改。
 7. **终审人在 PR 上评论或直接审。** 只有「PR 作者是 `zzgbot`，且评论作者是 `hizzgdev`」时，Holt 才会介入评论。介入后先读评论内容，再决定交给谁处理，不是一律交给 Cody。`zzgbot` 或其它人的评论都会忽略。不要在 PR 上 @ 某个 bot 来开工。
 8. **终审人合并或关闭。** 终审人使用 `hizzgdev` 亲手合并或关闭。状态干净、可以直接合时，Holt 可以提醒，但不会代为合并。
-9. **收尾。** PR 合并或关闭后，Holt 去掉对应 Issue 上的 `hubie-working`（即使 Issue 已因 `Closes #编号` 自动关闭，也要去掉），并去掉该 PR 上残留的 `hubie-working`、`hubie-reviewing`、`hubie-reviewed`。不要去掉 `hubie`。然后让 Cody 删除对应分支（本地一定要清；远程若在合并时已被自动删除，确认即可）。Cody 回报后，Holt 再通知终审人：这条任务结束。
+9. **收尾。** PR 合并或关闭后，Holt 检查并去掉对应 Issue 上残留的 `hubie-working`（即使 Issue 已因 `Closes #编号` 自动关闭，也要检查），并去掉该 PR 上残留的 `hubie-working`、`hubie-reviewing`、`hubie-reviewed`。请终审时通常已经去掉 `hubie-working`；收尾时如有残留，一并去掉。不要去掉 `hubie`。然后让 Cody 删除对应分支（本地一定要清；远程若在合并时已被自动删除，确认即可）。Cody 回报后，Holt 再通知终审人：这条任务结束。
 
 纯文档工作另有一条并行路径，见第 4 节；不必走上面的 Issue、开发和内部审查循环。开发任务仍按本节进行。
 
@@ -98,7 +98,7 @@ Holt 接手任务后，会给对应 Issue 打上 `hubie-working`（没有对应 
 
 ### 纯文档工作怎么做
 
-纯文档工作不必建 Issue：由负责人自己撰写、开 PR，并打上 `documentation` 和 `hubie` 标签。`hubie` 不替代 `documentation`。这类 PR 由 Holt 自审后请终审，不走第 3 节的开发审查循环，也不交给 Reed。没有对应 Issue 时，过程标签都打在 PR 上：开始处理时打上 `hubie-working`（一直留到收尾），自审时再打上 `hubie-reviewing`，请终审时去掉 `hubie-reviewing` 并改打 `hubie-reviewed`。
+纯文档工作不必建 Issue：由负责人自己撰写、开 PR，并打上 `documentation` 和 `hubie` 标签。`hubie` 不替代 `documentation`。这类 PR 由 Holt 自审后请终审，不走第 3 节的开发审查循环，也不交给 Reed。没有对应 Issue 时，过程标签都打在 PR 上：开始处理时打上 `hubie-working`，自审时再打上 `hubie-reviewing`，请终审时去掉 `hubie-working` 和 `hubie-reviewing`，改打 `hubie-reviewed`。
 
 如果一项工作不只是文档（还要改代码或测试），文档部分先按上面的方式做完；开发部分再单独建 Issue，按第 3 节进行。
 
