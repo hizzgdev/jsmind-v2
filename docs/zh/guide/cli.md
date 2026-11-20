@@ -143,7 +143,7 @@ jsmind export <file> <out.png> [options]
 
 将思维导图渲染为图片。输出尺寸以导图自身大小为准：视口内的空白会保留，超出视口的部分也不会被裁切。
 
-`export` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`。
+`export` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`；浏览器启动比默认的 60 秒还慢，就设置 `JSMIND_BROWSER_START_MS`。
 
 | 选项 | 含义 |
 | --- | --- |

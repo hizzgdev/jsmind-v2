@@ -31,6 +31,7 @@
         "server": "http-server",
         "build": "rollup -c .config/rollup.config.js",
         "assemble-site": "node scripts/assemble-site.ts",
+        "render-preview": "node scripts/render-preview.ts",
         "docs:dev": "vitepress dev docs",
         "docs:build": "vitepress build docs",
         "docs:api": "npm run build && node scripts/docs/generate-api-docs.ts",

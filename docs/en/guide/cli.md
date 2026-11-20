@@ -143,7 +143,7 @@ jsmind export <file> <out.png> [options]
 
 Renders a mind map to an image. The size is the map's own size: whitespace inside the viewport is kept, and a map larger than the viewport is not cropped.
 
-`export` requires a Chromium browser. Set `CHROME_PATH` if it is not in a standard location.
+`export` requires a Chromium browser. Set `CHROME_PATH` if it is not in a standard location, and `JSMIND_BROWSER_START_MS` if the browser needs longer than the default 60 seconds to start.
 
 | Option | Meaning |
 | --- | --- |
