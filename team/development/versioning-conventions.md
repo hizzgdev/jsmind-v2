@@ -26,23 +26,25 @@
 
 ## 3. 示例
 
-CLI 子命令表（`docs/requirements/v2-cli.md`）：2.0 首批的项不标，2.1 新增的加一列。
+命令写在哪：`docs/requirements/v2-cli.md` §5 按小节逐个写（`5.0 create`、`5.1 context`、`5.2 validate`、`5.3 export`、`5.4 convert`），没有一张总的子命令表。新增命令就在 §5 对应小节里标 —— 散文里紧跟名称，列成表格时放版本列。下表只是形状示意，不是 `v2-cli.md` 里现有的表：
 
-| 子命令 | 作用 | 版本 |
+| 命令 | 作用 | 版本 |
 |---|---|---|
 | `jsmind validate <file>` | 校验 | — |
-| `jsmind render <file>` | 渲染出图 | — |
-| `jsmind tree <file>` | 转成嵌套树 | `Since: 2.1.0` |
+| `jsmind export <file> <out.png>` | 渲染出图 | — |
+| `jsmind convert <input> --from v1 --to v2` | 格式转换 | `Since: 2.1.0` |
+
+> 表里的版本号是示意；真实标注按该功能实际出现的版本写。`convert` 目前只有设计（`5.4`，不在 S7 实现），正属于「后补的项」这一类。
 
 散文里紧跟名称：
 
-> `JmNodeStyle.borderRadius` 控制节点圆角。`Since: 2.2.0`
+> `JmNodeStyle.fontSize` 控制节点文字大小。`Since: 2.2.0`
 
 被 `version-check` 拦下的写法：
 
 ```
-| `tree` | 转成树，当前 2.1.0 |            ← 写死了当前版本，应写 2.x
-未标注版本的子命令从 2.0.0 起可用。         ← 三段号不在 Since: 里，应写 2.0
+| add-edge | 加一条关系边，当前 2.1.0 |    ← 写死了当前版本，应写 2.x
+未标注版本的命令从 2.0.0 起可用。          ← 三段号不在 Since: 里，应写 2.0
 ```
 
 标注只服务「从哪个版本起有」这一个问题。谁需要知道当前版本，去读 `package.json`，或让文档在构建时读它。
