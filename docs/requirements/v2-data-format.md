@@ -332,6 +332,7 @@ interface JmThemeShadow {
 
 interface JmStyle {
     theme?: string;
+    defaultTone?: string;            // 无显式 tone 的节点回落到它；省略 = "default"
     background?: string;
     tones?: Partial<Record<JmTone, Partial<JmTonePalette>>>;
     node?: Partial<{
@@ -389,6 +390,7 @@ interface JmStyle {
 ### 5.4 覆盖链
 
 ```
+tone：  node.style.tone            ??  theme.defaultTone       ??  "default"
 颜色：  node.style.<显式>          ??  theme.tones[有效 tone].<对应色>
 几何：  node.style.<显式>          ??  theme.node.<默认>
 线色：  node.style.incoming.color  ??  theme.tones[子节点 tone].lineColor
@@ -396,6 +398,8 @@ interface JmStyle {
 线型：  node.style.incoming.pattern ??  theme.line.pattern
 形态：  node.style.incoming.curve   ??  theme.line.curve
 ```
+
+**`tone` 是第一行，因为它是后面「有效 tone」的来源。** 没有显式 tone 的节点用文档级 `style.defaultTone`，省略即 `default`。它存的是 tone 名字而不是调色板，所以 `tones` 覆盖仍然叠在它上面；连线颜色同样按子节点的有效 tone 取色。
 
 **线的颜色取子节点的 tone，不是父节点。** 一条线唯一对应一个子节点，所以子节点拥有它，这一点和「`incoming` 挂在子节点上」是同一个理由。v1 的 `show_lines` 也是从子节点的 `data["leading-line-color"]` 取色。
 
@@ -575,7 +579,7 @@ No node matches "粗暴". Closest:
 | `edge.type` ∈ `JmEdgeType` 已知值（当前只有 `"link"`） | `E_EDGE_TYPE` |
 | `side` ∈ `{-1, 0, 1}`（JSON 里是数字，见 4.2） | `E_SIDE` |
 | `side === 0` 的节点必须是根（见下） | `E_NON_ROOT_SIDE_CENTER` |
-| `style.tone` ∈ 已知 tone 值（见附录） | `E_TONE` |
+| `style.tone` / `style.defaultTone` ∈ 已知 tone 值（见附录） | `E_TONE` |
 | `style.borderStyle` / `incoming.pattern` ∈ `{solid,dashed,dotted}` | `E_LINE_STYLE` |
 | `style.fontSize` / `borderWidth` 为正数 | `E_STYLE_RANGE` |
 | `style.theme` 若是字符串，必须在内置预设表中 | `E_THEME_UNKNOWN` |
