@@ -9,7 +9,7 @@
 `team/automations/`、`team/development/`、`team/archive/` 已落地；`team/marketing/` 是约定位置，可能尚未创建。
 
 - `team/automations/`：自动化流程与团队协作约定，按流程分目录。从 [automations/README.md](automations/README.md) 进入，具体流程、标签和重建步骤都在各自目录里说明，这里不逐条展开。
-- `team/development/`：milestones、roadmap、对内需求和渲染测试计划。
+- `team/development/`：milestones、roadmap、对内需求和渲染测试计划；版本标注规则见 [development/versioning-conventions.md](development/versioning-conventions.md)。
 - `team/archive/`：不再维护但仍有参考价值的内容。
 - `team/marketing/`：营销草稿的约定位置，可能尚未创建。真正对外的文案再进入落地页或 `docs/`。
 
