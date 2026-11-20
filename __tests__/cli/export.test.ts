@@ -2,8 +2,9 @@
  * @fileoverview Usage checks for `jsmind export` that do not need a browser.
  *
  * Rendering itself is covered by the UI suite. What is left here is the
- * command-line contract around `--transparent`: it is advertised, and it is
- * rejected when the chosen format cannot carry an alpha channel.
+ * command-line contract around `--transparent`: it is advertised, and JPEG
+ * cannot carry an alpha channel so the flag is ignored with a warning rather
+ * than failing the export.
  */
 
 import { test } from 'node:test';
@@ -13,7 +14,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { runExport, exportHelp } from '../../src/cli/commands/export.ts';
-import { JmImageType, TRANSPARENT_JPEG_ERROR } from '../../src/view/export.ts';
+import {
+    JmImageType,
+    TRANSPARENT_JPEG_WARNING,
+    shouldExportTransparent,
+} from '../../src/view/export.ts';
 import { CliError, CliExit } from '../../src/cli/exit.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -42,29 +47,53 @@ test('cli - export --help lists --transparent', () => {
     assert.strictEqual(run.stdout, `${exportHelp}\n`);
 });
 
-test('cli - export --transparent is rejected for JPEG before a file is read', async () => {
-    await assert.rejects(
-        () =>
-            runExport({
-                file: 'missing.json',
-                output: 'out.jpg',
-                width: 1200,
-                height: 800,
-                scale: 1,
-                type: JmImageType.Jpeg,
-                asJson: false,
-                transparent: true,
-            }),
-        (error: unknown) => {
-            assert.ok(error instanceof CliError);
-            assert.strictEqual(error.exit, CliExit.Usage);
-            assert.strictEqual(error.message, TRANSPARENT_JPEG_ERROR);
-            return true;
-        }
+test('cli - shouldExportTransparent warns and returns false for JPEG', () => {
+    const warnings: string[] = [];
+
+    assert.strictEqual(shouldExportTransparent(JmImageType.Png, true), true);
+    assert.strictEqual(shouldExportTransparent(JmImageType.Webp, true), true);
+    assert.strictEqual(shouldExportTransparent(JmImageType.Png, false), false);
+    assert.strictEqual(shouldExportTransparent(JmImageType.Jpeg, false), false);
+    assert.strictEqual(
+        shouldExportTransparent(JmImageType.Jpeg, true, message => warnings.push(message)),
+        false
     );
+    assert.deepStrictEqual(warnings, [TRANSPARENT_JPEG_WARNING]);
 });
 
-test('cli - export --transparent --type image/jpeg exits 2', () => {
+test('cli - export --transparent with JPEG warns and does not fail as usage', async () => {
+    const writes: string[] = [];
+    const originalWrite = process.stderr.write;
+    process.stderr.write = function (chunk: string | Uint8Array, ...args: unknown[]): boolean {
+        writes.push(String(chunk));
+        return originalWrite.apply(this, [chunk, ...args] as Parameters<typeof originalWrite>);
+    };
+
+    let error: unknown;
+    try {
+        await runExport({
+            file: 'missing.json',
+            output: 'out.jpg',
+            width: 1200,
+            height: 800,
+            scale: 1,
+            type: JmImageType.Jpeg,
+            asJson: false,
+            transparent: true,
+        });
+    } catch (caught) {
+        error = caught;
+    } finally {
+        process.stderr.write = originalWrite;
+    }
+
+    const stderr = writes.join('');
+    assert.ok(error instanceof CliError);
+    assert.strictEqual(error.exit, CliExit.IoError, 'a missing file is still an IO error, not a usage error');
+    assert.ok(stderr.includes(TRANSPARENT_JPEG_WARNING), `stderr should warn, got: ${stderr}`);
+});
+
+test('cli - export --transparent --type image/jpeg warns and does not exit 2', () => {
     const run = runCli([
         'export',
         'missing.json',
@@ -74,6 +103,11 @@ test('cli - export --transparent --type image/jpeg exits 2', () => {
         'image/jpeg',
     ]);
 
-    assert.strictEqual(run.code, CliExit.Usage);
-    assert.ok(run.stderr.includes(TRANSPARENT_JPEG_ERROR), `stderr should explain the conflict, got: ${run.stderr}`);
+    assert.notStrictEqual(run.code, CliExit.Usage);
+    assert.strictEqual(run.code, CliExit.IoError);
+    assert.ok(
+        run.stderr.includes(TRANSPARENT_JPEG_WARNING),
+        `stderr should warn that transparency was ignored, got: ${run.stderr}`
+    );
+    assert.ok(run.stderr.includes('File not found'), `stderr should still report the missing file, got: ${run.stderr}`);
 });

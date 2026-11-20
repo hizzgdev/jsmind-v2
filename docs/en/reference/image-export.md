@@ -38,7 +38,7 @@ const { blob, width, height, cssWidth, cssHeight } = await jm.exportImage({
     scale: 2,             // output scale, default 2
     type: 'image/png',    // image/png | image/jpeg | image/webp
     quality: 0.9,         // only applies to jpeg / webp; ignored for png
-    transparent: true,    // opt-in; default keeps the theme background
+    transparent: true,    // opt-in; default keeps the theme background; ignored for JPEG
 });
 
 // The blob can be passed to createObjectURL, written into FormData, or given to the clipboard
@@ -66,7 +66,7 @@ jsmind export <file> <out.png> [options]
 | `--height <px>` | 800 | Viewport height used for layout |
 | `--scale <n>` | 2 | Output scale |
 | `--type <format>` | image/png | Output format |
-| `--transparent` | — | Transparent background (PNG and WebP; opt-in) |
+| `--transparent` | — | Transparent background (PNG and WebP; opt-in). For JPEG, the option is ignored and a warning is printed. |
 | `--json` | — | Machine-readable output |
 
 ```bash

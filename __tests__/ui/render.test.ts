@@ -554,6 +554,8 @@ interface ExportedImage {
     magic: string;
     /** RGBA of the four image corners, used to inspect the background. */
     corners: ExportedPixel[];
+    /** Messages passed to `console.warn` during `exportImage`. */
+    warnings: string[];
 }
 
 /**
@@ -587,7 +589,18 @@ async function exportMap(
             await jm.open(mind);
             await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-            const result = await jm.exportImage(${JSON.stringify(options)});
+            const warnings = [];
+            const originalWarn = console.warn;
+            console.warn = (...args) => {
+                warnings.push(args.map(String).join(' '));
+                originalWarn.apply(console, args);
+            };
+            let result;
+            try {
+                result = await jm.exportImage(${JSON.stringify(options)});
+            } finally {
+                console.warn = originalWarn;
+            }
 
             // Only the first bytes matter: enough to see the container magic
             // without shipping the whole file back as a string.
@@ -619,6 +632,7 @@ async function exportMap(
                 cssHeight: result.cssHeight,
                 magic,
                 corners,
+                warnings,
             };
         })()
     `,
@@ -701,13 +715,37 @@ test('ui - exportImage can emit a transparent background', async () => {
     }
 });
 
-test('ui - exportImage rejects a transparent JPEG', async () => {
-    await assert.rejects(
-        () => exportMap({ width: 800, height: 600 }, { scale: 1, type: 'image/jpeg', transparent: true }),
-        (error: Error) => {
-            assert.ok(error instanceof Error);
-            assert.match(error.message, /transparent background is only available for PNG and WebP/);
-            return true;
-        }
+test('ui - exportImage warns and still emits an opaque JPEG when transparent is requested', async () => {
+    const image = await exportMap(
+        { width: 1400, height: 900 },
+        { scale: 1, type: 'image/jpeg', transparent: true }
     );
+
+    assert.strictEqual(image.type, 'image/jpeg');
+    assert.strictEqual(image.magic.slice(0, 5), 'ff d8', 'JPEG signature');
+    assert.ok(
+        image.warnings.some(message =>
+            message.includes('JPEG has no alpha channel, so the transparent option is ignored')
+        ),
+        `expected a warning that transparency was ignored, got: ${JSON.stringify(image.warnings)}`
+    );
+    // JPEG has no alpha, so the ignored flag must still produce a filled
+    // background rather than failing the export.
+    for (const corner of image.corners) {
+        assert.strictEqual(corner.a, 255, `JPEG background should stay opaque, got ${JSON.stringify(corner)}`);
+    }
+});
+
+test('ui - exportImage can emit a transparent WebP background', async () => {
+    const image = await exportMap(
+        { width: 1400, height: 900 },
+        { scale: 1, type: 'image/webp', transparent: true }
+    );
+
+    assert.strictEqual(image.type, 'image/webp');
+    assert.strictEqual(image.magic.slice(0, 11), '52 49 46 46', 'RIFF signature');
+    assert.deepStrictEqual(image.warnings, [], 'WebP should accept a transparent background without a warning');
+    for (const corner of image.corners) {
+        assert.strictEqual(corner.a, 0, `transparent WebP should have an empty background, got ${JSON.stringify(corner)}`);
+    }
 });

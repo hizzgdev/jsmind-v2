@@ -50,7 +50,8 @@ export interface JmExportImageOptions {
     /**
      * Leave the canvas background transparent instead of filling it with the
      * theme color. Opt-in; the default export is unchanged. JPEG has no alpha
-     * channel, so this is rejected when `type` is `image/jpeg`.
+     * channel, so this option is ignored with a warning when `type` is
+     * `image/jpeg`.
      */
     transparent?: boolean;
 }
@@ -70,9 +71,36 @@ export interface JmExportImageResult {
 
 const DEFAULT_SCALE = 2;
 
-/** Why `transparent` cannot be combined with JPEG. */
-export const TRANSPARENT_JPEG_ERROR =
-    'A transparent background is only available for PNG and WebP. JPEG has no alpha channel.';
+/** Why `transparent` is ignored when the output format is JPEG. */
+export const TRANSPARENT_JPEG_WARNING =
+    'Warning: A transparent background is only available for PNG and WebP. JPEG has no alpha channel, so the transparent option is ignored.';
+
+/**
+ * Whether the export should use a transparent canvas background.
+ *
+ * JPEG has no alpha channel, so a request for transparency is ignored and
+ * {@link warn} is called instead of failing the export.
+ *
+ * @param type - Output format.
+ * @param transparent - The caller's opt-in flag.
+ * @param warn - Where to report that JPEG cannot be transparent. Defaults to
+ * `console.warn`.
+ * @returns `true` only when transparency was requested and the format can
+ * carry an alpha channel.
+ */
+export function shouldExportTransparent(
+    type: string,
+    transparent: boolean | undefined,
+    warn: (message: string) => void = message => {
+        console.warn(message);
+    }
+): boolean {
+    if (transparent === true && type === JmImageType.Jpeg) {
+        warn(TRANSPARENT_JPEG_WARNING);
+        return false;
+    }
+    return transparent === true;
+}
 
 /**
  * Reads the shadow root's stylesheet back out.
@@ -111,9 +139,7 @@ export async function captureShadowContent(
 ): Promise<JmExportImageResult> {
     const scale = options.scale ?? DEFAULT_SCALE;
     const type = options.type ?? JmImageType.Png;
-    if (options.transparent && type === JmImageType.Jpeg) {
-        throw new JsMindError(TRANSPARENT_JPEG_ERROR);
-    }
+    const transparent = shouldExportTransparent(type, options.transparent);
 
     const inner = root.querySelector<HTMLElement>('.jsmind-inner');
     if (!inner) {
@@ -158,7 +184,7 @@ export async function captureShadowContent(
             `height:${cssHeight}px`,
             'position:relative',
             'overflow:hidden',
-            `background:${options.transparent ? 'transparent' : hostStyle.backgroundColor}`,
+            `background:${transparent ? 'transparent' : hostStyle.backgroundColor}`,
             `font-family:${hostStyle.fontFamily}`,
             collectHostVariables(host.getAttribute('style')),
         ]
