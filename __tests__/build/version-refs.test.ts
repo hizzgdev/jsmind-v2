@@ -122,6 +122,26 @@ describe('check-version-refs', () => {
         });
     });
 
+    it('accepts a `Since:` marker without letting a bare triple through', () => {
+        withRepository({
+            'docs/requirements/v2-cli.md': '| `tree` | 转成树 | Since: 2.1.0 |\n| `mind write` | 写入节点 | Since: 2.1.0 |\n',
+            'docs/requirements/v2-data-format.md': '# 格式\n\n未标注版本的字段从 2.0 起可用；新增字段标 `Since: 2.2.0`。\n',
+        }, (dir) => {
+            assert.equal(run(dir).status, 0);
+        });
+    });
+
+    it('still reports a triple outside a `Since:` marker', () => {
+        withRepository({
+            'docs/requirements/v2-cli.md': '| `tree` | 转成树，Since: 2.1.0 |\n\n当前预览版是 2.0.1。\n',
+        }, (dir) => {
+            const result = run(dir);
+            assert.equal(result.status, 1);
+            assert.match(result.stderr, /v2-cli\.md:3: 当前预览版是 2\.0\.1。/);
+            assert.doesNotMatch(result.stderr, /v2-cli\.md:1:/);
+        });
+    });
+
     it('ignores untracked files', () => {
         withRepository({'docs/index.md': '# docs\n'}, (dir) => {
             writeFileSync(join(dir, 'docs/draft.local.md'), 'thoughts about 2.0.1\n');

@@ -120,7 +120,7 @@ npm deprecate jsmind@2.0.3 "Broken release, use 2.0.4"
 
 ### 1.8 版本号只有一个源头，顺序固定
 
-- 版本号只有一个源头：`package.json`（`package-lock.json` 由 `npm version` 同步）。文档不写补丁号 —— 正文写 `2.x`，README 用 npm badge，文档首页在构建时读 `package.json`。`npm run version-check` 守着这条规则。
+- 版本号只有一个源头：`package.json`（`package-lock.json` 由 `npm version` 同步）。文档不写补丁号 —— 正文写 `2.x`，README 用 npm badge，文档首页在构建时读 `package.json`。唯一例外是 `Since:` 标注：它记的是功能出现在哪个版本，属历史事实，不会过期，所以照实写 `Since: 2.1.0`。`npm run version-check` 守着这条边界。
 - 顺序：版本号改动走 PR → 合并 → 在已合并的 master 上打 tag → 建 release。tag 指向未合并提交的一律不发。
 - 两个阶段各一条命令，中间是人的审核点：`npm run release:prepare -- patch`（或 `minor`）改版本号、开 PR 并停下；合并后 `npm run release:publish` 在 master 上打 tag、建 Release。`release:publish` 会核对 `package.json` 的版本与 `origin/master` 上的一致，所以「tag 指向未合并提交」在结构上不可能发生。
 

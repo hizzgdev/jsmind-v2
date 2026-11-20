@@ -6,9 +6,9 @@
 
 > **版本标注约定**：未标注版本的 API 和格式字段从 2.0 起可用；只有 2.1 及之后新增的功能才标 `Since:`。
 >
-> 标注写成 `Since: 2.<minor>`，`<minor>` 是引入该功能的 minor 版本号（例：2.1 新增的格式字段标 `Since: 2.1`）。minor 版本新增 API / 格式字段时补标注，patch 版本不标；已有功能始终不标 —— 不标即表示 2.0 起就有。
+> 标注写成 `Since: 2.<minor>.0`，`<minor>` 是引入该功能的 minor 版本号（例：2.1 新增的格式字段标 `Since: 2.1.0`）。minor 版本新增 API / 格式字段时补标注，patch 版本不标；已有功能始终不标 —— 不标即表示 2.0 起就有。
 >
-> 标注只写到 minor，不写带 patch 号的三段版本号：`2.x.y` 这种字面量在 `docs/` 下会被 `scripts/check-version-refs.mjs`（CI 的 `version-check` 步）拒绝，版本号只存在于 `package.json`。
+> `Since:` 标注是文档里唯一该写三段版本号的地方：它记录功能出现在哪个版本，是历史事实，不会过期。`docs/` 其余位置不写补丁号（写 `2.x`），因为写死的版本号会和下一次发版对不上。`scripts/check-version-refs.mjs`（CI 的 `version-check` 步）按这条边界实现：放行 `Since:` 标注，拦下其他三段版本号。
 
 ---
 
