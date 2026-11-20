@@ -460,11 +460,17 @@ describe('pages site assembly', () => {
             assert.ok(install.includes('https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind'));
             assert.ok(!install.includes('](SKILL.md)'));
             assert.ok(install.includes('npm i jsmind@2'));
-            assert.ok(install.includes('npx jsmind <command>'));
+            assert.ok(install.includes('npx jsmind@2 <command>'));
+            // The version is part of the command, not an optional extra: bare npx
+            // resolves `latest`, which is 0.9.1, and 0.9.1 ships no bin at all, so
+            // the failure reads as a missing executable and says nothing about the
+            // version. That is the mistake this line exists to prevent.
+            assert.ok(install.includes('Never run bare `npx jsmind`'));
             assert.ok(install.includes('No Chromium found'));
-            // npx resolves from the tree it runs in, so installing elsewhere is the
-            // second route to 0.9.1 and to the same "executable" error.
-            assert.ok(install.includes('the directory you will work in'));
+            // An explicit range is what makes the install directory stop mattering:
+            // `npx jsmind@2` uses a local 2.x or fetches the range, so working in a
+            // different directory no longer lands back on 0.9.1.
+            assert.ok(install.includes('does not matter which directory you installed from'));
             assert.ok(install.includes('Done means'));
             assert.ok(!existsSync(join(ROOT, 'skills', 'jsmind', 'SKILL.zh.md')));
 

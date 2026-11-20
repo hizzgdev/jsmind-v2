@@ -1,12 +1,18 @@
 ---
 name: jsmind
+display_name: jsMind mind maps
 description: >-
   Guardrails and a checklist for drawing or editing a jsMind mind map with the
-  jsmind CLI. Use when the task is to draw or edit a mind map, including when
-  the user only says "draw me a picture of X" and gives no path and does not
-  say BUILD or CHANGE. Not a CLI manual — do not use it to look up flags that
-  --help already covers. `jsmind --help` prints every subcommand in one place,
-  so when you need one, read that subcommand's section of it.
+  jsmind CLI. Use whenever the task produces or changes a mind map: a new map
+  (BUILD), a change to an existing one (CHANGE), and a bare "draw me a picture
+  of X" that names no path and does not say BUILD or CHANGE. Not a CLI manual —
+  do not use it to look up flags that --help already covers. `jsmind --help`
+  prints every subcommand in one place, so when you need one, read that
+  subcommand's section of it.
+version: 2.0.1
+metadata:
+  jsmind:
+    cli: ">=2.0.1 <3"
 ---
 
 # jsmind — bans and a checklist
@@ -22,16 +28,17 @@ Installing this skill, and the CLI it calls, is in [INSTALL.md](INSTALL.md).
 - **Path**: one `.json`, and the corresponding `.png` for export.
 - **Intent**: `BUILD` (new structure on an empty map) or `CHANGE` (edit an existing map). If the user does not name either, pick the one that fits: no existing map, or they asked you to draw a new picture → `BUILD`; they asked you to change a map that already exists → `CHANGE`.
 
-The user gave a path: use it. A path given in the task description counts as the user's path — use it as given, and do not redirect it to the temporary directory. The user gave no path: request temporary files from the current system — one JSON and a corresponding PNG — and generate usable paths in the system temporary directory, for example with `mktemp` or the platform temporary directory.
+The user gave a path: use it. A path given in the task description counts as the user's path — use it as given, and do not redirect it.
+
+The user gave no path: write both files in the current working directory, named after the topic. "Draw me a map of the three storage tiers" becomes `storage-tiers.json` and `storage-tiers.png` — lower-case words joined by hyphens, one topic, one name. Do not reach for the system temporary directory, and do not invent a subdirectory for them.
 
 File does not exist, and the intent is `BUILD`: `create` that path. `create` does not make the parent directory, so a path whose directory is missing fails with `ENOENT` and exit code 3 — create the directory first. Do not write the JSON yourself. File already exists: do not `create --force`. That overwrites. It is not an edit.
-
-When all work is done, if the files are still in the temporary directory, ask the user whether to move those two files somewhere else. They give a new location: move them. They do not: leave them as temporary files.
 
 ## Structure (short)
 
 - Keep node text short. Avoid long sentences.
 - Do not give the root too many direct children. Suggest no more than 7.
+- A count or a depth the user asked for ("three branches", "two levels") wins over that 7: build what they asked for, not what you would have chosen.
 
 ## Bans
 
@@ -110,20 +117,23 @@ Any item below fails: `context` again, edit, `validate`, `export`. Do not keep u
 Open the png. Each of the four gets a pass or a fail. "Looks fine" and "overall ok" do not count.
 
 1. **Crushed text** — Fail: glyphs overlap, or text draws outside the node box. Fix: `node set-style` with a smaller `--font-size` on that node, or split the long label into shorter nodes (change text, remove, add — all through the CLI).
-2. **One side overloaded** — Fail: one side is crowded and deep, the other is almost empty. Fix: `node set-side` moves some nodes to the lighter side (`left` or `right`).
+2. **One side overloaded** — Fail: one side is crowded and deep, the other is almost empty. Fix: `node set-side` moves some nodes to the lighter side (`left` or `right`), or `mind add-child --side left` places the next one there.
 3. **Folded when this task needs it open** — Fail: a branch this task has to show is collapsed (only the parent is on the picture, or the `context` line ends with `folded`). Fix: `node set-folded --folded false`.
-4. **Lines cross** — Fail: lines pass through each other or knot, instead of leaving the parent toward the children. Fix: only the root's direct children have a side that moves anything, so find the root-level child the crossing branch hangs off and move that one with `node set-side`. Running `set-side` on a deeper node exits 0 and prints a confirmation, but the picture does not change. Not enough: `mind move` changes the parent and child instead. Do not edit coordinates.
+4. **Lines cross** — Fail: lines pass through each other or knot, instead of leaving the parent toward the children. Fix: only the root's direct children have a side that moves anything, so find the root-level child the crossing branch hangs off and move that one with `node set-side`. Under any other parent `--side` is a usage error (exit 2) naming the first-level branch, so a deeper node cannot take a side that quietly does nothing. Not enough: `mind move` changes the parent and child instead. Do not edit coordinates.
 
 All four pass, or this look is not done.
 
 ## Commands you are most likely to forget
 
+`jsmind` here is the CLI on your PATH. Installed as a project dependency instead: run every command on this page as `npx jsmind@2`. Never bare `npx jsmind` — it resolves to 1.x, and 1.x ships no `bin`, so the failure is about a missing executable and says nothing about the version.
+
 Not `jsmind --help`. Not a tutorial. One list, most-used first. Read every line. The lines after `export` are what you need when the picture fails — do not stop at `export`.
 
 ```
-context <file> [--focus <text>] [--depth <n>] [--full-text]
+context <file> [--focus <text>] [--depth <n>] [--full-text] [--json]
 mind find <file> --node-id <id>
-mind add-child <file> --parent-id <id> --text <label>
+mind add-child <file> --parent-id <id> --text <label> [--side left|right] [--position <n>] [--folded true|false]
+mind style set <file> --default-tone <tone>
 node set-style <file> --node-id <id> --tone <name>
 node set-folded <file> --node-id <id> --folded true|false
 validate <file>
@@ -133,271 +143,56 @@ node set-side <file> --node-id <id> --side left|right
 node set-style <file> --node-id <id> --font-size <n>
 node set-text <file> --node-id <id> --text <label>
 mind remove-node <file> --node-id <id>
-mind move <file> --node-id <id> --parent-id <id>
+mind move <file> --node-id <id> --parent-id <id> [--position <n>]
 ```
 
-`side` is only meaningful for the root's direct children. A new child of the root defaults to the right side. To change side, add the node first, then use `node set-side`. Do not pass `--side` to `add-child`: the flag is accepted and silently ignored, so the command exits 0 and the node still lands on the right. `add-child --side` is exactly the case the bans warn about — the echo says nothing, and only `side=` at the end of the `context` line says whether a side actually changed (root and root children only).
+`add-child` places the node in the same command. `--side left|right` works only when the parent is the root — a side is the placement of a first-level node and everything under it inherits — and on any other parent it is a usage error naming the branch the new node would land in. `--position <n>` is an index among the parent's children, appended when omitted. `--folded true|false` creates the node collapsed. All three change the picture, and none of them is visible in the tree you sketched before you started.
+
+`context --json` reads the document-level style too: `{ nodes, style? }`, where `style` carries `theme`, the resolved `defaultTone`, and the sections the file overrides. A file with a `defaultTone` wears it on every node that has no tone of its own, so an untoned node is not necessarily `default`. `mind style set <file> --default-tone <tone>` is the command that writes it.
+
+`side` is only meaningful for the root's direct children. A new child of the root defaults to the right side. The check is `side=` at the end of that node's `context` line, which the text output prints for the root and its direct children only — the command echo says nothing about it.
 
 `--backup` keeps a `.bak` copy of the file before overwriting it, and `--dry-run` prints the document it would write and writes nothing. Both apply to the commands that write the mind map — `create`, `mind`, `node` — and not to `export`, which writes only the image. In a `CHANGE` task they are the cheap way to see a round's result before trusting it: `--dry-run` for the next command, `--backup` before the round.
 
-## Example session
+## Example
 
-The ids and file sizes in the examples below come from one real run. When you execute, you must use the ids from the current `context` output. Do not copy example ids.
+A short build, end to end. The ids and the file size come from one real run: yours will differ, so take them from your own `context`.
 
-**Request:** Draw an architecture mind map of jsMind v2.  
-**Intent:** `BUILD`  
-**File:** `tmp/jsmind-arch.json`  
-**Image:** `tmp/jsmind-arch.png`
-
-Target tree:
+**Request:** "draw me a map of the three storage tiers." **Intent:** `BUILD`. No path given, so the files are `storage-tiers.json` and `storage-tiers.png` in the working directory.
 
 ```
-jsMind v2 architecture
-├── Model
-│   ├── Nodes and edges
-│   └── Validation
-├── View
-│   ├── Layout
-│   └── Rendering
-└── CLI          ← emphasis, tone=primary
-    ├── context
-    ├── edit commands
-    ├── validate
-    └── export
+$ jsmind create storage-tiers.json --title "Storage tiers"
+created storage-tiers.json
+
+# checkpoint 1: context first, then copy the id
+$ jsmind context storage-tiers.json
+root   Storage tiers {side=center}
+
+$ jsmind mind add-child storage-tiers.json --parent-id root --text "Hot" --side left
+added jm-mwpaz4zu under root (side=left)
+$ jsmind mind add-child storage-tiers.json --parent-id root --text "Warm"
+added jm-mwpaz51x under root
+$ jsmind mind add-child storage-tiers.json --parent-id root --text "Cold" --side left
+added jm-mwpaz53v under root (side=left)
+$ jsmind mind add-child storage-tiers.json --parent-id jm-mwpaz4zu --text "In-memory"
+added jm-mwpaz6c8 under jm-mwpaz4zu
+
+# checkpoint 2: validate, then context again for the indent
+$ jsmind validate storage-tiers.json
+storage-tiers.json: valid
+
+$ jsmind context storage-tiers.json
+root          Storage tiers {side=center}
+jm-mwpaz4zu     Hot {side=left}
+jm-mwpaz6c8       In-memory
+jm-mwpaz51x     Warm {side=right}
+jm-mwpaz53v     Cold {side=left}
+
+# checkpoint 3: export and open the png
+$ jsmind export storage-tiers.json storage-tiers.png
+storage-tiers.png: 2400x1600 (92.7 KB)
 ```
 
-### 1. Create the file; do not write JSON by hand
+Score the four checks above. All four pass, or back to checkpoint 1.
 
-```
-$ jsmind create tmp/jsmind-arch.json --title "jsMind v2 architecture"
-created tmp/jsmind-arch.json
-```
-
-### 2. Checkpoint 1: run `context` first, then copy the id
-
-```
-$ jsmind context tmp/jsmind-arch.json
-root   jsMind v2 architecture {side=center}
-```
-
-The root id is `root`. Do not guess an id.
-
-### 3. First round of edits: build the structure
-
-```
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id root --text "Model"
-added jm-mwgox1ig under root
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id root --text "View"
-added jm-mwgox1js under root
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id root --text "CLI"
-added jm-mwgox1l1 under root
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgox1ig --text "Nodes and edges"
-added jm-mwgox1o9 under jm-mwgox1ig
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgox1ig --text "Validation"
-added jm-mwgox1pe under jm-mwgox1ig
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgox1js --text "Layout"
-added jm-mwgox1qr under jm-mwgox1js
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgox1js --text "Rendering"
-added jm-mwgox1rv under jm-mwgox1js
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgox1l1 --text "context"
-added jm-mwgox1t3 under jm-mwgox1l1
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgox1l1 --text "edit commands"
-added jm-mwgox1uc under jm-mwgox1l1
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgox1l1 --text "validate"
-added jm-mwgox1vh under jm-mwgox1l1
-
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgox1l1 --text "export"
-added jm-mwgox1wl under jm-mwgox1l1
-```
-
-### 4. Checkpoint 2: `validate`, then `context` to check indent
-
-```
-$ jsmind validate tmp/jsmind-arch.json
-tmp/jsmind-arch.json: valid
-
-$ jsmind context tmp/jsmind-arch.json --depth 2
-root          jsMind v2 architecture {side=center}
-jm-mwgox1ig     Model {side=right}
-jm-mwgox1o9       Nodes and edges
-jm-mwgox1pe       Validation
-jm-mwgox1js     View {side=right}
-jm-mwgox1qr       Layout
-jm-mwgox1rv       Rendering
-jm-mwgox1l1     CLI {side=right}
-jm-mwgox1t3       context
-jm-mwgox1uc       edit commands
-jm-mwgox1vh       validate
-jm-mwgox1wl       export
-```
-
-Children are indented under the correct parents, so the structure is right. Every top-level branch is still `side=right`.
-
-### 5. Checkpoint 3: export and look
-
-```
-$ jsmind export tmp/jsmind-arch.json tmp/jsmind-arch.png
-tmp/jsmind-arch.png: 2400x1600 (166.9 KB)
-```
-
-Open the png. Each of the four checks gets a pass or a fail:
-
-1. Crushed text: pass
-2. One side overloaded: fail. All three top-level branches sit on the right; the left is almost empty
-3. Folded when this task needs it open: pass
-4. Lines cross: pass
-
-One check failed. Go back to checkpoint 1. Do not keep using conclusions remembered from the previous round.
-
-### 6. Second round: balance the sides and mark what matters
-
-```
-$ jsmind context tmp/jsmind-arch.json --depth 2
-(same tree as above; confirm the ids)
-
-$ jsmind node set-side tmp/jsmind-arch.json --node-id jm-mwgox1ig --side left
-set side of jm-mwgox1ig to left
-
-$ jsmind node set-side tmp/jsmind-arch.json --node-id jm-mwgox1js --side left
-set side of jm-mwgox1js to left
-
-$ jsmind node set-style tmp/jsmind-arch.json --node-id jm-mwgox1l1 --tone primary
-set style of jm-mwgox1l1: {"tone":"primary"}
-```
-
-CLI stays on the right and is marked as the emphasis.
-
-```
-$ jsmind validate tmp/jsmind-arch.json
-tmp/jsmind-arch.json: valid
-
-$ jsmind context tmp/jsmind-arch.json --depth 2
-root          jsMind v2 architecture {side=center}
-jm-mwgox1ig     Model {side=left}
-jm-mwgox1o9       Nodes and edges
-jm-mwgox1pe       Validation
-jm-mwgox1js     View {side=left}
-jm-mwgox1qr       Layout
-jm-mwgox1rv       Rendering
-jm-mwgox1l1     CLI {side=right tone=primary}
-jm-mwgox1t3       context
-jm-mwgox1uc       edit commands
-jm-mwgox1vh       validate
-jm-mwgox1wl       export
-```
-
-### 7. Export again
-
-```
-$ jsmind export tmp/jsmind-arch.json tmp/jsmind-arch.png
-tmp/jsmind-arch.png: 2400x1600 (154.2 KB)
-```
-
-All four checks pass: text is not crushed, both sides have content, nothing that should be open is folded, and lines do not cross. The final artifacts are `tmp/jsmind-arch.json` and `tmp/jsmind-arch.png`.
-
-## Example session (CHANGE)
-
-The ids and file sizes here also come from one real run. Use the ids from the current `context` output. Do not copy example ids. After a node is removed, do not use its old id again.
-
-**Request:** Under Model, add "Events"; rename "Rendering" to "Drawing"; remove "Validation"; then export again.  
-**Intent:** `CHANGE`  
-**File:** `tmp/jsmind-arch.json` (the completed BUILD example: Model and View on the left, CLI on the right with `tone=primary`)  
-**Image:** `tmp/jsmind-arch.png`
-
-Target tree:
-
-```
-jsMind v2 architecture
-├── Model
-│   ├── Nodes and edges
-│   └── Events
-├── View
-│   ├── Layout
-│   └── Drawing
-└── CLI          ← emphasis, tone=primary
-    ├── context
-    ├── edit commands
-    ├── validate
-    └── export
-```
-
-### 1. Do not `create --force` on the existing file
-
-Checkpoint 1: run `context` first, then copy the ids.
-
-```
-$ jsmind context tmp/jsmind-arch.json --depth 2
-root          jsMind v2 architecture {side=center}
-jm-mwgox1ig     Model {side=left}
-jm-mwgox1o9       Nodes and edges
-jm-mwgox1pe       Validation
-jm-mwgox1js     View {side=left}
-jm-mwgox1qr       Layout
-jm-mwgox1rv       Rendering
-jm-mwgox1l1     CLI {side=right tone=primary}
-jm-mwgox1t3       context
-jm-mwgox1uc       edit commands
-jm-mwgox1vh       validate
-jm-mwgox1wl       export
-```
-
-### 2. This round of edits
-
-```
-$ jsmind mind add-child tmp/jsmind-arch.json --parent-id jm-mwgox1ig --text "Events"
-added jm-mwgox3gs under jm-mwgox1ig
-
-$ jsmind node set-text tmp/jsmind-arch.json --node-id jm-mwgox1rv --text "Drawing"
-set text of jm-mwgox1rv
-
-$ jsmind mind remove-node tmp/jsmind-arch.json --node-id jm-mwgox1pe
-removed jm-mwgox1pe
-```
-
-### 3. Checkpoint 2: `validate`, then `context` to check indent
-
-```
-$ jsmind validate tmp/jsmind-arch.json
-tmp/jsmind-arch.json: valid
-
-$ jsmind context tmp/jsmind-arch.json --depth 2
-root          jsMind v2 architecture {side=center}
-jm-mwgox1ig     Model {side=left}
-jm-mwgox1o9       Nodes and edges
-jm-mwgox3gs       Events
-jm-mwgox1js     View {side=left}
-jm-mwgox1qr       Layout
-jm-mwgox1rv       Drawing
-jm-mwgox1l1     CLI {side=right tone=primary}
-jm-mwgox1t3       context
-jm-mwgox1uc       edit commands
-jm-mwgox1vh       validate
-jm-mwgox1wl       export
-```
-
-Children are indented under the correct parents. The tree is Model (Nodes and edges, Events), View (Layout, Drawing), CLI (context, edit commands, validate, export). The removed node id is not used again.
-
-### 4. Checkpoint 3: export and look
-
-```
-$ jsmind export tmp/jsmind-arch.json tmp/jsmind-arch.png
-tmp/jsmind-arch.png: 2400x1600 (152.6 KB)
-```
-
-Open the png. Each of the four checks gets a pass or a fail:
-
-1. Crushed text: pass
-2. One side overloaded: pass. Model and View stay on the left, CLI on the right
-3. Folded when this task needs it open: pass
-4. Lines cross: pass
-
-All four checks pass: text is not crushed, both sides have content, nothing that should be open is folded, and lines do not cross. The final artifacts are `tmp/jsmind-arch.json` and `tmp/jsmind-arch.png`.
+Two full sessions — a build that fails a picture check and repeats the round, and a change that adds, renames and removes — are in [references/build-session.md](references/build-session.md) and [references/change-session.md](references/change-session.md). This short one is here because some harnesses inject `SKILL.md` and cannot open another file.
