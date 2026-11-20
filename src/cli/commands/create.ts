@@ -23,6 +23,15 @@ import { formatIssues } from '../format.ts';
 import { renderJson, writeJsonFile } from '../io.ts';
 import { CliExit, dataError, usageError } from '../exit.ts';
 
+/**
+ * Options `create` reads, beyond the global ones.
+ *
+ * @remarks
+ * Declared for the allow-list in `../options.ts`: a flag that is not here is
+ * one this command would silently drop.
+ */
+export const CREATE_OPTIONS = ['title', 'name', 'author', 'force'] as const;
+
 /** Options accepted by the create command. */
 export interface CreateOptions {
     file: string;

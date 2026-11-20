@@ -9,6 +9,16 @@ import { readJsonFile } from '../io.ts';
 import { CliExit, usageError } from '../exit.ts';
 
 /**
+ * Options `validate` reads, beyond the global ones.
+ *
+ * @remarks
+ * Empty on purpose: the command takes a file and nothing else, and the one flag
+ * it honours (`--json`) is global. Declared so the allow-list in `../options.ts`
+ * says so instead of leaving the reader to infer it from an absent entry.
+ */
+export const VALIDATE_OPTIONS: readonly string[] = [];
+
+/**
  * Runs the validate command.
  *
  * @param file - Path to the mind map JSON.

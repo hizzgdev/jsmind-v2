@@ -16,7 +16,7 @@
  */
 
 import { parseArgs } from 'node:util';
-import { CliExit, describeFailure, usageError } from './exit.ts';
+import { CliExit, CliError, describeFailure, usageError } from './exit.ts';
 import {
     enumOption,
     intOption,
@@ -39,6 +39,8 @@ import { runStyle, styleHelp, styleActionHelp } from './commands/style.ts';
 import { runNode, nodeHelp, setStyleHelp } from './commands/node.ts';
 import { runContext, contextHelp, DEFAULT_DEPTH, DEFAULT_MAX_TEXT } from './commands/context.ts';
 import { runCreate, createHelp } from './commands/create.ts';
+import { checkOptions, assertOptionValues, OPTION_SPEC } from './options.ts';
+import { packageVersion } from './version.ts';
 
 const PROGRAM = 'jsmind';
 
@@ -64,7 +66,14 @@ Options:
   --dry-run                       Show what would change, write nothing
   --output <path>                 Write somewhere other than the input file
   --backup                        Keep a .bak copy before overwriting
+  --strict                        Treat an unknown option as a usage error
+  --version                       Print the version and exit
   -h, --help                      Show this help
+
+An option the named command does not take is reported on stderr and ignored, so
+a misspelt flag no longer looks like a successful run. The warning never goes to
+stdout, which keeps --json output parseable — and also means a consumer that
+reads only stdout does not see it. Pass --strict when that blind spot matters.
 
 Exit codes:
   0  success
@@ -88,82 +97,60 @@ ${nodeHelp}`;
 interface ParsedArgs {
     values: Record<string, unknown>;
     positionals: string[];
+    /**
+     * Every option name that appeared, in the order it appeared.
+     *
+     * @remarks
+     * `values` cannot answer "was this flag given?" for a flag the parser does
+     * not know — it lands there under its own name, but so would a default. The
+     * tokens are the only record of what the caller actually typed, and the
+     * allow-list check needs exactly that.
+     */
+    optionNames: string[];
 }
 
 /**
- * Parses argv into options and positionals.
+ * Parses argv into options, positionals and the option names used.
  *
  * @returns Parsed arguments, with the program and command stripped from
  *          positionals.
  * @throws {@link CliError} With `Usage` when the command line cannot be parsed.
+ * @remarks
+ * `strict` is off deliberately. Strict parsing rejects an unknown option
+ * immediately, which is the one thing this CLI must not do without saying so:
+ * the flag reaches the dispatcher, which knows which subcommand was named and
+ * can therefore report `--side` on `move` as well as a typo. The allow-lists in
+ * `options.ts` take over the job strict mode was doing, with a message that
+ * names the command.
+ *
+ * A known option given without its value still fails here, as it should: that
+ * is a malformed command line whatever the subcommand is.
  */
 function parse(argv: string[]): ParsedArgs {
     try {
-        const { values, positionals } = parseArgs({
+        const { values, positionals, tokens } = parseArgs({
             args: argv,
             allowPositionals: true,
-            strict: true,
-            options: {
-                'json': { type: 'boolean', default: false },
-                'dry-run': { type: 'boolean', default: false },
-                'output': { type: 'string' },
-                'backup': { type: 'boolean', default: false },
-                'help': { type: 'boolean', short: 'h', default: false },
-                // locators
-                'node-id': { type: 'string' },
-                'parent-id': { type: 'string' },
-                'edge-id': { type: 'string' },
-                'source-id': { type: 'string' },
-                'target-id': { type: 'string' },
-                // payloads
-                'text': { type: 'string' },
-                'folded': { type: 'string' },
-                'side': { type: 'string' },
-                'position': { type: 'string' },
-                'type': { type: 'string' },
-                'label': { type: 'string' },
-                // node style (set-style). Strings, including the numeric ones: the command
-                // parses and range-checks them itself so a bad value names the flag
-                // rather than a JSON path. Dots mark a level, matching the path each
-                // flag addresses.
-                'tone': { type: 'string' },
-                'background': { type: 'string' },
-                'color': { type: 'string' },
-                'border-color': { type: 'string' },
-                'border-width': { type: 'string' },
-                'border-style': { type: 'string' },
-                'font-size': { type: 'string' },
-                'font-weight': { type: 'string' },
-                'incoming.color': { type: 'string' },
-                'incoming.width': { type: 'string' },
-                'incoming.pattern': { type: 'string' },
-                'incoming.curve': { type: 'string' },
-                'clear': { type: 'string' },
-                'reset': { type: 'boolean', default: false },
-                // document style (mind style set)
-                'default-tone': { type: 'string' },
-                // context
-                'focus': { type: 'string' },
-                'depth': { type: 'string' },
-                'max-text': { type: 'string' },
-                'full-text': { type: 'boolean', default: false },
-                'ids-only': { type: 'boolean', default: false },
-                // create
-                'title': { type: 'string' },
-                'name': { type: 'string' },
-                'author': { type: 'string' },
-                'force': { type: 'boolean', default: false },
-                // export
-                'width': { type: 'string' },
-                'height': { type: 'string' },
-                'scale': { type: 'string' },
-                'transparent': { type: 'boolean', default: false },
-            },
+            strict: false,
+            tokens: true,
+            options: OPTION_SPEC,
         });
-        return { values: values as Record<string, unknown>, positionals };
+        // Lenient parsing drops two value checks that strict parsing made;
+        // put them back before anything reads a value.
+        assertOptionValues(tokens);
+        return {
+            values: values as Record<string, unknown>,
+            positionals,
+            optionNames: tokens.flatMap(token => (token.kind === 'option' ? [token.name] : [])),
+        };
     } catch (err) {
         // parseArgs throws a plain Error with a decent message; promote it so
-        // the caller gets exit code 2 instead of a stack trace.
+        // the caller gets exit code 2 instead of a stack trace. Errors raised
+        // by this module are already classified - re-wrapping them would only
+        // change their type.
+        if (err instanceof CliError) {
+            throw err;
+        }
         throw usageError((err as Error).message);
     }
 }
@@ -237,6 +224,21 @@ function focusedHelp(positionals: string[]): string | undefined {
 function dispatch(parsed: ParsedArgs): number | Promise<number> {
     const [command, ...rest] = parsed.positionals;
     const asJson = parsed.values.json === true;
+
+    // `--version` is an answer on its own: no command is needed, nothing may be
+    // printed beside it, and the flags around it are therefore not judged.
+    if (parsed.values.version === true) {
+        process.stdout.write(`${packageVersion()}\n`);
+        return CliExit.Ok;
+    }
+
+    // An option this invocation cannot use is reported rather than obeyed. The
+    // check runs before dispatch so the warning names the command the caller
+    // meant, and `--help` is exempt because it answers without running anything
+    // — the flags beside it have no command to be wrong for.
+    if (parsed.values.help !== true) {
+        checkOptions(parsed.positionals, parsed.optionNames, parsed.values.strict === true);
+    }
 
     // `help <command>` asks the same question as `<command> --help`, so both
     // resolve through the same ladder. With no topic at all, the full index is

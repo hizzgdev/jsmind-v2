@@ -26,6 +26,21 @@ const DEFAULT_DEPTH = 2;
 /** Default truncation width for node text. */
 const DEFAULT_MAX_TEXT = 40;
 
+/**
+ * Options `context` reads, beyond the global ones.
+ *
+ * @remarks
+ * Declared for the allow-list in `../options.ts`. `--json` is not here: it is
+ * global, like every output-format switch.
+ */
+export const CONTEXT_OPTIONS = [
+    'focus',
+    'depth',
+    'max-text',
+    'full-text',
+    'ids-only',
+] as const;
+
 /** Options accepted by the context command. */
 export interface ContextOptions {
     file: string;

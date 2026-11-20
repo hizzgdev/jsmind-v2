@@ -50,6 +50,31 @@ const SUBCOMMANDS = [
     'list-edges',
 ] as const;
 
+/** One of the words that selects a `mind` subcommand. */
+type MindSubcommand = (typeof SUBCOMMANDS)[number];
+
+/**
+ * Options each `mind` subcommand reads, beyond the global ones.
+ *
+ * @remarks
+ * Typed against {@link MindSubcommand}, so a subcommand added above without a
+ * line here does not compile. This is the table `../options.ts` builds its
+ * allow-list from: a flag named for a sibling subcommand (`--side` on `move`)
+ * is reported as unknown instead of being dropped in silence.
+ *
+ * `add-child` takes `--side`; `move` does not, because a side belongs to a
+ * first-level node and moving one under a different parent does not change it.
+ */
+export const MIND_OPTIONS: Record<MindSubcommand, readonly string[]> = {
+    'find': ['node-id'],
+    'list-edges': ['node-id'],
+    'add-child': ['parent-id', 'text', 'side', 'position', 'folded'],
+    'move': ['node-id', 'parent-id', 'position'],
+    'remove-node': ['node-id'],
+    'add-edge': ['source-id', 'target-id', 'type', 'label'],
+    'remove-edge': ['edge-id'],
+};
+
 /**
  * Resolves a node id, failing as invalid data when the document has no such node.
  *

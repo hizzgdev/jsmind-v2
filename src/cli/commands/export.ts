@@ -26,6 +26,15 @@ export const DEFAULT_HEIGHT = 800;
 /** Rendered at 2x by default: crisp on a dense screen, still cheap. */
 export const DEFAULT_SCALE = 2;
 
+/**
+ * Options `export` reads, beyond the global ones.
+ *
+ * @remarks
+ * Declared for the allow-list in `../options.ts`: a flag missing here is one
+ * this command would silently drop.
+ */
+export const EXPORT_OPTIONS = ['width', 'height', 'scale', 'type', 'transparent'] as const;
+
 /** Arguments accepted by {@link runExport}. */
 export interface ExportOptions {
     /** Path to the mind map JSON. */

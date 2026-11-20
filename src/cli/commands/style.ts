@@ -62,6 +62,21 @@ const STYLE_FIELDS: StyleField[] = [
     },
 ];
 
+/** One of the words that selects a `mind style` action. */
+type StyleAction = (typeof ACTIONS)[number];
+
+/**
+ * Options each `mind style` action reads, beyond the global ones.
+ *
+ * @remarks
+ * Read off {@link STYLE_FIELDS} rather than restated, so a field the command
+ * accepts is automatically an option it allows. This is what `../options.ts`
+ * consults before reporting a flag as unknown.
+ */
+export const STYLE_OPTIONS: Record<StyleAction, readonly string[]> = {
+    set: STYLE_FIELDS.map(field => field.flag),
+};
+
 /**
  * Reads the field flags into a list of values to write.
  *

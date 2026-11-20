@@ -20,7 +20,7 @@ jsmind <command> [options]
 
 ## 全局选项
 
-这些选项可以写在命令行上，但并非每个命令都会用到全部选项。
+这些选项对所有命令和子命令都合法。
 
 | 选项 | 含义 |
 | --- | --- |
@@ -28,9 +28,41 @@ jsmind <command> [options]
 | `--dry-run` | 只显示将要发生的改动，不写入文件 |
 | `--output <path>` | 写入到输入文件以外的路径 |
 | `--backup` | 覆盖前保留一份 `.bak` 备份 |
+| `--strict` | 把未知选项当作用法错误 |
+| `--version` | 打印版本号后退出 |
 | `-h`, `--help` | 显示内置帮助 |
 
 `--dry-run`、`--output` 和 `--backup` 适用于会改写文件的 `mind` 和 `node` 子命令。`create` 支持 `--dry-run` 和 `--backup`，但输出路径就是位置参数里的文件，因此不使用 `--output`。
+
+其余选项归属具体的子命令，见下面各节。某个命令不接受的选项会被报告出来，而不是默默忽略——见 [未知选项](#未知选项)。
+
+`--version` 打印 `package.json` 里的 version 字符串，单独一行，不带其他文字，也不需要子命令。版本号只有一处定义，所以不会和发布版本脱节。
+
+## 未知选项
+
+每个子命令都只接受固定的选项集合：上面这些全局选项，加上它自己的。集合之外的选项——拼错的 flag，或者属于另一个子命令的 flag——会打到 stderr，命令照常执行。
+
+```
+$ jsmind mind find map.json --node-id root --sdie
+jsmind: warning: unknown option for "mind find": --sdie (--strict makes this an error)
+{
+  "id": "root",
+  ...
+}
+```
+
+警告不会写进 stdout，所以 `--json` 的输出仍然可以直接解析。代价是另一面：**只看 stdout 和退出码的调用方看不到这条警告**。这是「只警告不报错」的固有成本，不是以后要修的 bug。不能接受这一点时，加上 `--strict`，同样的调用就变成用法错误，退出码 `2`：
+
+```
+$ jsmind mind find map.json --node-id root --sdie --strict
+Unknown option for "mind find": --sdie
+$ echo $?
+2
+```
+
+脚本和 agent 流程里建议打开 `--strict`：选项被默默忽略，比命令失败更糟。
+
+不做拼写建议。判断 `--sdie`「像是」`--side` 只能靠猜意图，猜错的代价是把调用方引去改一个它根本没打过的 flag。
 
 ## 退出码
 
