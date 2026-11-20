@@ -106,12 +106,14 @@ function violationsIn(file, text) {
     const found = [];
     const lines = text.split('\n');
     for (let index = 0; index < lines.length; index += 1) {
+        const raw = lines[index].replace(/\r$/, '');
         // Drop the `Since:` markers first: a triple there is a date, not a
-        // claim about the current release.
-        const line = lines[index].replace(/\r$/, '').replace(SINCE_ANNOTATION, 'Since:');
+        // claim about the current release. The report quotes the line as
+        // written, so it can be found in the file it names.
+        const scanned = raw.replace(SINCE_ANNOTATION, 'Since:');
         VERSION_LITERAL.lastIndex = 0;
-        if (VERSION_LITERAL.test(line)) {
-            found.push(`${file}:${index + 1}: ${line.trim()}`);
+        if (VERSION_LITERAL.test(scanned)) {
+            found.push(`${file}:${index + 1}: ${raw.trim()}`);
         }
     }
     return found;
