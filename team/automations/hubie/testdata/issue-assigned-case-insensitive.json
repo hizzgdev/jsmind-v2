@@ -1,0 +1,11 @@
+{
+  "action": "assigned",
+  "assignee": { "login": "ZZGBOT" },
+  "issue": {
+    "number": 130,
+    "title": "feat: export PNG with transparent background",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/issues/130",
+    "user": { "login": "zzgbot" },
+    "labels": [{ "name": "hubie" }]
+  }
+}

@@ -143,10 +143,17 @@ Action 处理并转发给例程的事件只有：
 
 过滤规则（全部满足才会转发）：
 
-- Issue（`issue-assigned`）或 PR（合并、关闭、评论）必须已经带有 `hubie` 标签，否则不转发。Holt 不会自己补上 `hubie`。过程标签由 Holt 按第 1.3 节维护，不是开工信号。
+- Issue（`issue-assigned`）或 PR（合并、关闭、评论）必须已经带有 `hubie` 标签，否则不转发。Holt 不会自己补上 `hubie`。过程标签由 Holt 按第 1.3 节维护，不是开工信号。只有 `hubie-working` 这类过程标签、没有 `hubie` 的，也不转发。
+- `issue-assigned` 还要满足：本次事件顶层的 `assignee` 是 `zzgbot`。只看这次被指派的人，不看 Issue 上已有的整个 `assignees` 列表，以免给已经指派过 `zzgbot` 的 Issue 再加其他人时重复唤醒。带有 `issue.pull_request` 的 `issues` 事件视为 PR 上的指派，不转发；开工信号只针对 Issue。
 - PR 讨论评论和行内评论还要满足：PR 作者是 `zzgbot`，评论作者是 `hizzgdev`。`zzgbot` 或其它人的评论一律不转发。
 
-Action 使用仓库密钥 `HUBIE_ROUTINE_WEBHOOK_URL` 和 `HUBIE_ROUTINE_WEBHOOK_KEY`，以 `Authorization: Bearer <key>` 调用例程 webhook。这两个密钥只能由仓库管理员添加；`zzgbot` 没有管理员权限，不能写入密钥。密钥尚未配置时，Action 会正常结束但不转发，不会把运行标为失败。
+Action 使用仓库密钥 `HUBIE_ROUTINE_WEBHOOK_URL` 和 `HUBIE_ROUTINE_WEBHOOK_KEY`，以 `Authorization: Bearer <key>` 调用例程 webhook。这两个密钥只能由仓库管理员添加；`zzgbot` 没有管理员权限，不能写入密钥。密钥尚未配置时，Action 会正常结束但不转发，不会把运行标为失败。例程 webhook 成功时返回 HTTP 200；Action 只把 200 视为成功。
+
+转发给例程的 JSON 契约如下。公共字段：`source`（固定为 `github-action`）、`event`（上面列出的五种之一）、`repo`、`number`、`title`、`html_url`、`labels`（标签名数组）、`author`（Issue 或 PR 的创建者，不是被指派人）。按事件类型额外带：
+
+- `issue-assigned`：`assignee`（本次被指派人的登录名）
+- `pr-merged` / `pr-closed`：`merged`（布尔值）；若是 `pr-merged` 且有合并提交，再带 `merge_commit_sha`
+- `pr-comment` / `inline-review-comment`：`comment`，其中有 `id`、`author`、`body`、`html_url`；行内评论再带 `path` 和 `line`（若事件里有这两个字段）
 
 合并本文件所在的变更之后，还需要完成一次切换，Action 才会真正唤醒例程：
 

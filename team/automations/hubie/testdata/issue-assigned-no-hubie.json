@@ -1,5 +1,6 @@
 {
   "action": "assigned",
+  "assignee": { "login": "zzgbot" },
   "issue": {
     "number": 125,
     "title": "an issue without the hubie label",

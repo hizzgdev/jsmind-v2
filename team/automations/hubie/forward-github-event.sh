@@ -58,16 +58,22 @@ merged="false"
 merge_commit_sha=""
 comment_json="null"
 comment_author=""
+assignee=""
 
 case "$EVENT_NAME" in
   issues)
     [[ "$action" == "assigned" ]] || skip "issues action is ${action:-empty}, not assigned"
+    if jq -e '.issue.pull_request != null' "$EVENT_PATH" >/dev/null; then
+      skip "issues assigned is on a pull request"
+    fi
     kind="issue-assigned"
     labels_json="$(jq -c '.issue.labels // []' "$EVENT_PATH")"
     number="$(jq -r '.issue.number' "$EVENT_PATH")"
     title="$(jq -r '.issue.title // empty' "$EVENT_PATH")"
     html_url="$(jq -r '.issue.html_url // empty' "$EVENT_PATH")"
     author="$(jq -r '.issue.user.login // empty' "$EVENT_PATH")"
+    # This event's assignee, not the full issue.assignees list.
+    assignee="$(jq -r '.assignee.login // empty' "$EVENT_PATH")"
     ;;
   pull_request)
     [[ "$action" == "closed" ]] || skip "pull_request action is ${action:-empty}, not closed"
@@ -116,6 +122,10 @@ esac
 
 has_hubie "$labels_json" || skip "no hubie label"
 
+if [[ "$kind" == "issue-assigned" ]]; then
+  login_eq "$assignee" "zzgbot" || skip "assignee is ${assignee:-empty}, not zzgbot"
+fi
+
 if [[ "$kind" == "pr-comment" || "$kind" == "inline-review-comment" ]]; then
   login_eq "$author" "zzgbot" || skip "PR author is ${author}, not zzgbot"
   login_eq "$comment_author" "hizzgdev" || skip "comment author is ${comment_author}, not hizzgdev"
@@ -134,6 +144,7 @@ payload="$(jq -n \
   --arg html_url "$html_url" \
   --argjson labels "$label_names" \
   --arg author "$author" \
+  --arg assignee "$assignee" \
   --argjson merged "$merged_json" \
   --arg merge_commit_sha "$merge_commit_sha" \
   --argjson comment "$comment_json" \
@@ -147,6 +158,7 @@ payload="$(jq -n \
       labels: $labels,
       author: $author
     }
+    + (if ($event == "issue-assigned" and $assignee != "") then {assignee: $assignee} else {} end)
     + (if ($event == "pr-merged" or $event == "pr-closed") then {merged: $merged} else {} end)
     + (if ($event == "pr-merged" and $merge_commit_sha != "") then {merge_commit_sha: $merge_commit_sha} else {} end)
     + (if $comment != null then {comment: $comment} else {} end)

@@ -52,10 +52,15 @@ run_case() {
 }
 
 run_case issue-assigned-hubie issues forward
+run_case issue-assigned-case-insensitive issues forward
 run_case issue-assigned-no-hubie issues skip "no hubie label"
+run_case issue-assigned-stage-label-only issues skip "no hubie label"
+run_case issue-assigned-other-assignee issues skip "not zzgbot"
+run_case issue-assigned-on-pr issues skip "on a pull request"
 run_case pr-merged-hubie pull_request forward
 run_case pr-merged-no-hubie pull_request skip "no hubie label"
 run_case pr-closed-hubie pull_request forward
+run_case pr-closed-no-hubie pull_request skip "no hubie label"
 run_case pull-request-opened pull_request skip "not closed"
 run_case pr-comment-hizzgdev-hubie issue_comment forward
 run_case pr-comment-case-insensitive issue_comment forward
@@ -65,10 +70,35 @@ run_case pr-comment-no-hubie issue_comment skip "no hubie label"
 run_case pr-comment-not-zzgbot-pr issue_comment skip "not zzgbot"
 run_case issue-comment-not-on-pr issue_comment skip "not on a pull request"
 run_case inline-review-comment-pass pull_request_review_comment forward
+run_case inline-review-comment-no-hubie pull_request_review_comment skip "no hubie label"
+run_case inline-review-comment-zzgbot pull_request_review_comment skip "not hizzgdev"
+run_case inline-review-comment-not-zzgbot-pr pull_request_review_comment skip "not zzgbot"
 
-# Payload shape for a merged PR and an inline comment.
+# Payload shape for issue-assigned, a merged PR, and an inline comment.
 payload="$(mktemp)"
 trap 'rm -f "$payload"' EXIT
+
+GITHUB_EVENT_NAME=issues \
+GITHUB_EVENT_PATH="$FIXTURES/issue-assigned-hubie.json" \
+HUBIE_DRY_RUN=1 \
+HUBIE_PAYLOAD_OUT="$payload" \
+  "$SCRIPT" >/dev/null
+
+jq -e '
+  .source == "github-action" and
+  .event == "issue-assigned" and
+  .repo == "hizzgdev/jsmind-v2" and
+  .number == 130 and
+  .author == "zzgbot" and
+  .assignee == "zzgbot" and
+  (.labels | index("hubie") != null) and
+  (.comment | not) and
+  (.merged | not)
+' "$payload" >/dev/null || {
+  echo "FAIL issue-assigned payload: $(cat "$payload")"
+  failed=1
+}
+echo "ok issue-assigned payload"
 
 GITHUB_EVENT_NAME=pull_request \
 GITHUB_EVENT_PATH="$FIXTURES/pr-merged-hubie.json" \

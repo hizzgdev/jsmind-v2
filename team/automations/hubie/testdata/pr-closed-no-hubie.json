@@ -1,0 +1,11 @@
+{
+  "action": "closed",
+  "pull_request": {
+    "number": 100,
+    "title": "a closed pull request without the hubie label",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/pull/100",
+    "user": { "login": "zzgbot" },
+    "merged": false,
+    "labels": [{ "name": "documentation" }]
+  }
+}
