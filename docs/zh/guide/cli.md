@@ -162,7 +162,7 @@ jsmind export <file> <out.png> [options]
 jsmind mind <subcommand> <file> [options]
 ```
 
-用于修改结构和关系边。定位一律使用 id。请使用当前这次 `context` 输出中的 id，不要沿用示例里的 id。
+用于修改结构和关系边，以及文档自身的样式。定位一律使用 id。请使用当前这次 `context` 输出中的 id，不要沿用示例里的 id。
 
 | 子命令 | 选项 | 含义 |
 | --- | --- | --- |
@@ -173,6 +173,7 @@ jsmind mind <subcommand> <file> [options]
 | `remove-node` | `--node-id <id>` | 删除该节点、它的整棵子树，以及触及其中任一节点的所有边 |
 | `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | 添加一条关系边 |
 | `remove-edge` | `--edge-id <id>` | 删除一条关系边 |
+| `set-style` | `--default-tone <tone>` | 文档级样式（`mind.style`）：没有自己 tone 的节点所用的语气 |
 
 `--side` 只在父节点是根节点时合法。侧向是根的直接子节点的位置，它下面整棵子树都继承这个侧向，所以在更深的地方写 side 只会改文件、不改画面 —— 这种情况是用例错误（退出码 2），报错会点名该节点所属的一级分支，不会静默通过。只有根节点是 center，所以 `--side` 只接受 `left` 或 `right`。
 
@@ -182,13 +183,13 @@ jsmind mind <subcommand> <file> [options]
 
 所有会改写数据的子命令都会在完成后校验结果，失败则回滚。这些写入可以使用 `--dry-run`、`--output` 和 `--backup`。
 
-### `mind style`
+### `mind set-style`
 
 ```
-jsmind mind style set <file> [style fields]
+jsmind mind set-style <file> [style fields]
 ```
 
-文档级样式：写一次，所有没有单独覆盖的节点都继承。它写的是 `mind.style` 而不是某个节点的样式，所以「整张图换个配色」仍然是一次写入，语义色也就留给真正需要突出的节点。
+文档级样式（`mind.style`）：写一次，所有没有单独覆盖的节点都继承。它写的是 `mind.style` 而不是某个节点的样式 —— 给单个节点覆盖主题是 `node set-style` —— 所以「整张图换个配色」仍然是一次写入，语义色也就留给真正需要突出的节点。
 
 | 字段 | 可选值 |
 | --- | --- |

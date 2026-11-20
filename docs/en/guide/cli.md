@@ -162,7 +162,7 @@ With the default width, height, and scale, a typical export is 2400×1600 pixels
 jsmind mind <subcommand> <file> [options]
 ```
 
-Structure and edges. Locators are ids only. Use ids from a current `context` output; do not reuse ids copied from examples.
+Structure, edges, and the document's style. Locators are ids only. Use ids from a current `context` output; do not reuse ids copied from examples.
 
 | Subcommand | Options | Meaning |
 | --- | --- | --- |
@@ -173,6 +173,7 @@ Structure and edges. Locators are ids only. Use ids from a current `context` out
 | `remove-node` | `--node-id <id>` | Remove the node, its whole subtree, and every edge touching any of them |
 | `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | Add a relation |
 | `remove-edge` | `--edge-id <id>` | Remove a relation |
+| `set-style` | `--default-tone <tone>` | The document's style (`mind.style`): the tone untoned nodes wear |
 
 `--side` applies only when the parent is the root node. A side is the placement of a root child, and every node below one inherits it, so a side written deeper would change the file and not the picture — that is a usage error naming the first-level branch, not a silent no-op. Only the root is center, so `--side` takes `left` or `right`.
 
@@ -182,13 +183,13 @@ Structure and edges. Locators are ids only. Use ids from a current `context` out
 
 Every mutating subcommand validates the result and rolls back on failure. `--dry-run`, `--output`, and `--backup` are available on these writes.
 
-### `mind style`
+### `mind set-style`
 
 ```
-jsmind mind style set <file> [style fields]
+jsmind mind set-style <file> [style fields]
 ```
 
-Document-level style: one declaration every node without an override inherits. It writes `mind.style`, not a node's style, so a whole-map recolour stays one write — and leaves the semantic tones free for the nodes that need to stand out.
+The document's style (`mind.style`): one declaration every node without an override inherits. It writes `mind.style`, not a node's style — overriding the theme for one node is `node set-style` — so a whole-map recolour stays one write, and leaves the semantic tones free for the nodes that need to stand out.
 
 | Field | Accepted values |
 | --- | --- |
