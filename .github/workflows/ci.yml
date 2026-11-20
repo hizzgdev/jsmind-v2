@@ -107,11 +107,13 @@ jobs:
           #   subdivide docs/ by .vitepress, markdown, or ts/js/vue.
           #
           # docs: did anything under docs/ change? The docs site job runs when
-          #   this is true, and then decides which checks to perform.
+          #   this is true, and then decides which checks to perform. `skills/`
+          #   sets it too: the site build publishes that directory, so a change
+          #   to a skill is a change to the published site.
           #
-          # library: did a non-markdown file outside docs/ change? Root README
-          #   and other *.md files are prose: they do not require library
-          #   checks, and they do not run or skip the docs site job.
+          # library: did a non-markdown file outside docs/ and skills/ change?
+          #   Root README and other *.md files are prose: they do not require
+          #   library checks, and they do not run or skip the docs site job.
           #
           # These answers are not complements: a change only under docs/ is
           # docs_only and docs, not library; a README-only change is none of
@@ -136,6 +138,22 @@ jobs:
               docs/*)
                 docs=true
                 echo "docs change: $file"
+                ;;
+              skills/*)
+                # Published by the site build, so the pages-site test is what
+                # has to see this change. The file type still decides whether
+                # the library checks are worth a runner.
+                docs=true
+                docs_only=false
+                case "$file" in
+                  *.md)
+                    echo "prose, published on the site: $file"
+                    ;;
+                  *)
+                    library=true
+                    echo "library checks needed (published on the site): $file"
+                    ;;
+                esac
                 ;;
               *)
                 docs_only=false
@@ -340,6 +358,12 @@ jobs:
                 ;;
               docs/architecture/*|docs/features/*|docs/requirements/*|docs/images/*|docs/README.md)
                 echo "excluded from the docs site: $file"
+                ;;
+              skills/*)
+                # The site publishes the skill directory at its root, and the
+                # pages-site test is the only thing that checks the copy.
+                affected=true
+                echo "the skill directory is published on the site: $file"
                 ;;
               docs/*)
                 case "$file" in

@@ -35,6 +35,8 @@ import {
     LANDING_REDIRECT_HTML,
     moduleScriptSrcs,
     rewritePlayground,
+    SKILL_DIR,
+    SKILL_SITE_FILE,
     writeDocsPageRedirects,
 } from '../../scripts/assemble-site.ts';
 
@@ -233,21 +235,27 @@ describe('pages site assembly', () => {
         );
     });
 
-    it('writes the redirect index, the playground and the bundle into the site root', () => {
+    it('writes the redirect index, the playground, the bundle and the skill into the site root', () => {
         const dir = mkdtempSync(join(tmpdir(), 'jsmind-site-'));
         try {
             mkdirSync(join(dir, 'example'), { recursive: true });
             mkdirSync(join(dir, 'dist'), { recursive: true });
+            mkdirSync(join(dir, 'skills', 'jsmind', 'references'), { recursive: true });
             writeFileSync(join(dir, 'dist', 'jsmind.js'), 'export {}\n');
             writeFileSync(
                 join(dir, 'example', 'playground.html'),
                 '<script src="../dist/jsmind.js" type="module"></script>\n'
             );
+            writeFileSync(join(dir, 'skills', 'jsmind', 'SKILL.md'), '# Skill\n');
+            // A file one level deeper than SKILL.md: the step copies the
+            // directory, so a fixture that only proves SKILL.md would not catch
+            // a rewrite that stopped copying references/.
+            writeFileSync(join(dir, 'skills', 'jsmind', 'references', 'build-session.md'), 'reference\n');
 
             assembleRootSite(dir, join(dir, '_site'));
 
-            // Nothing is read from the checkout but the playground and the
-            // bundle: the index is the redirect, byte for byte.
+            // Nothing is read from the checkout but the playground, the
+            // bundle and the skill: the index is the redirect, byte for byte.
             const index = readFileSync(join(dir, '_site', 'index.html'), 'utf8');
             assert.strictEqual(index, LANDING_REDIRECT_HTML);
             assert.ok(index.includes('docs/'));
@@ -257,6 +265,16 @@ describe('pages site assembly', () => {
                 readFileSync(join(dir, '_site', 'playground.html'), 'utf8'),
                 '<script src="jsmind.js" type="module"></script>\n'
             );
+            assert.strictEqual(
+                readFileSync(join(dir, '_site', SKILL_SITE_FILE), 'utf8'),
+                readFileSync(join(dir, SKILL_SITE_FILE), 'utf8'),
+                'the published skill file should be a copy, not a rendering'
+            );
+            assert.strictEqual(
+                readFileSync(join(dir, '_site', 'skills', 'jsmind', 'references', 'build-session.md'), 'utf8'),
+                'reference\n',
+                'the skill directory should be copied whole'
+            );
         }
         finally {
             rmSync(dir, { recursive: true, force: true });
@@ -264,9 +282,49 @@ describe('pages site assembly', () => {
 
         const workflow = readFileSync(join(ROOT, '.github/workflows/static.yml'), 'utf8');
         assert.match(workflow, /npm run assemble-site/);
+        // The whole `_site` is uploaded: narrowing this to the page and the
+        // bundle would drop `skills/` from the published site while the build
+        // wrote it.
+        assert.match(workflow, /^ {10}path: \.\/_site$/m);
         assert.ok(!workflow.includes('grep'));
         assert.ok(!workflow.includes('sed '));
         assert.ok(!workflow.includes('assemble-pages'));
+    });
+
+    it('publishes the skill at the documented URL, and stops the build without it', () => {
+        // docs/README.md and the skill guide quote this URL; it is the reason
+        // the directory is published at all. Pinning the literal keeps the
+        // published path and the documented one from drifting apart.
+        const skillUrl = 'https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md';
+        assert.strictEqual(new URL(SKILL_SITE_FILE, 'https://hizzgdev.github.io/jsmind-v2/').href, skillUrl);
+        assert.strictEqual(SKILL_SITE_FILE, `${SKILL_DIR}/jsmind/SKILL.md`);
+
+        // The copy only means something if its source is the real skill, with
+        // the frontmatter an agent's harness reads.
+        const skill = readFileSync(join(ROOT, SKILL_SITE_FILE), 'utf8');
+        assert.ok(skill.startsWith('---\n'), 'the published SKILL.md should be the file with its frontmatter');
+        assert.ok(skill.length > 1024, 'the published SKILL.md should be the full text');
+
+        // A skill directory that lost SKILL.md fails the build instead of
+        // publishing a site where the documented URL answers 404.
+        const dir = mkdtempSync(join(tmpdir(), 'jsmind-site-noskill-'));
+        try {
+            mkdirSync(join(dir, 'example'), { recursive: true });
+            mkdirSync(join(dir, 'dist'), { recursive: true });
+            mkdirSync(join(dir, SKILL_DIR), { recursive: true });
+            writeFileSync(join(dir, 'dist', 'jsmind.js'), 'export {}\n');
+            writeFileSync(
+                join(dir, 'example', 'playground.html'),
+                '<script src="../dist/jsmind.js" type="module"></script>\n'
+            );
+            assert.throws(
+                () => assembleRootSite(dir, join(dir, '_site')),
+                new RegExp(`missing or empty site file: ${SKILL_SITE_FILE}`)
+            );
+        }
+        finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it('uploads the site and deploys it from separate jobs', () => {

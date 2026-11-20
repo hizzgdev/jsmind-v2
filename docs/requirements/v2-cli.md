@@ -1,13 +1,13 @@
 # jsMind v2 CLI 设计
 
-> **本文件定义 CLI 的命令结构与行为约定。** S7 依此实现。
+> **本文件定义 CLI 的命令结构与行为约定。** `src/cli/` 按本文件实现：命令已随 2.x 发布，行为与本文件不一致时，要么改代码，要么改这里，不留第二种说法。
 >
 > 相关文档：
 > - `team/development/v2-requirements.md` 4.5 节 —— skill 与 CLI 的分工原则
 > - `v2-data-format.md` 第 8 节 —— 为什么只用 id 定位
 > - `v2-data-format.md` 第 9、10 节 —— 校验规则与 autofix 语义
 >
-> **状态**：草案，待确认后冻结。
+> **状态**：已实现并随 2.x 发布。对外仍称预览版（见文档站的 CLI 指南），语义按 minor 演进，破坏性改动进 minor 而不是 patch。
 
 > **版本标注约定**：未标注版本的 API 和子命令从 2.0 起可用；只有 2.1 及之后新增的功能才标 `Since:`。
 >
@@ -29,6 +29,8 @@
 | 格式转换（v1 ↔ v2） | **CLI** | 必须确定。LLM 现场转换可能漏、可能反，跑两次结果不一致 |
 | 渲染出图 | **CLI** | 确定性 |
 | 校验 | **CLI** | 确定性 |
+
+**技能本身随文档站发布。** `skills/jsmind/` 整目录发布在站点根下，`https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md` 打开就是仓库里那份原文，与仓库内文件逐字节一致，因此取技能不必 clone 仓库。技能不进 npm 包：这个目录后面会带脚本和素材，不该混进 npm 的产物。
 
 **CLI 的主要使用者是 AI agent，不是人。** 这个前提决定了下面所有的设计取舍：输出要稳定可解析、错误要能用代码区分、失败要能自动恢复。
 
@@ -96,9 +98,9 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 
 ## 3. 命令与 JS API 的对应
 
-> ⚠️ **下表是当前草案，命名在 S7 实现时可能调整。**
+> **命令名已定，不再随实现调整。**
 >
-> **方法名与命令名不是同名映射：** JS 用 camelCase（`addChildNode`），CLI 用 kebab-case（`add-child`），两者靠**语义**对应而非字面。不要假设 `addChildNode` 一定叫 `add-child`，以 S7 的实现为准。
+> **方法名与命令名不是同名映射：** JS 用 camelCase（`addChildNode`），CLI 用 kebab-case（`add-child`），两者靠**语义**对应而非字面。`add-child` 是 `addChildNode` 与 `addNode` 合并后的唯一入口，别按字面去反推一个 `add-node`。
 
 ### 3.1 `jsmind mind *` —— 对应 `JmMind` 的方法
 
@@ -450,9 +452,9 @@ File unchanged.
 
 | 项 | 当前倾向 |
 |---|---|
-| 命令名用 `add-child` 还是 `addChild` | 倾向 `add-child`（CLI 惯例是 kebab-case，但跟 JS API 的对应关系会变模糊） |
+| ~~命令名用 `add-child` 还是 `addChild`~~ | **已定并实现**：`add-child`。`add-node` 已并入它，`--side` / `--position` / `--folded` 就是原来 `addNode` 的 dest 与 nodeOptions |
 | ~~`set-style` 的参数怎么展开~~ | **已定并实现**：`--tone` / `--font-size` / `--border-width` 直接映射字段名，不做缩写 |
 | ~~文档级样式命令叫什么~~ | **已定**：`mind set-style`（曾叫 `mind style set`）。一个词的子命令，与 `node set-style` 对称，不留旧名别名；CLI 里不再有嵌套层 |
-| `context --focus` 的匹配算法 | 子串 + 简单模糊（编辑距离），具体算法待实现时定 |
+| ~~`context --focus` 的匹配算法~~ | **已定并实现**：匹配是大小写不敏感的**子串**查找；模糊只出现在没匹配上时的候选提示里，按「needle 的字符按序出现在文本中的个数」排序，不是编辑距离 |
 | 是否要 `jsmind mind list` 之类只读命令 | 倾向不加，`context` 已经覆盖 |
 | 退出码 `3` 是否再细分 | 暂不细分，先观察实际需要 |
