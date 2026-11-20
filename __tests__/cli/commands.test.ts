@@ -654,9 +654,17 @@ test('cli - an unknown --side word is offered only the placement words', () => {
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
 
+    // Prototype keys are unknown words too. They are the trap the table lookup
+    // used to fall into: `SIDE_SYNONYMS[raw]` answers with an inherited value
+    // instead of `undefined`, so without an own-property check these reach the
+    // data-error path (exit 1) instead of the usage error asserted here.
     const attempts: Array<() => void> = [
         () => runMind(file, 'add-child', { 'parent-id': 'root', 'text': 'x', 'side': 'middle' }, WRITE),
         () => runNode(file, 'set-side', { 'node-id': 'jm-a1', 'side': 'middle' }, WRITE),
+        () => runMind(file, 'add-child', { 'parent-id': 'root', 'text': 'x', 'side': 'constructor' }, WRITE),
+        () => runNode(file, 'set-side', { 'node-id': 'jm-a1', 'side': 'constructor' }, WRITE),
+        () => runMind(file, 'add-child', { 'parent-id': 'root', 'text': 'x', 'side': 'toString' }, WRITE),
+        () => runMind(file, 'add-child', { 'parent-id': 'root', 'text': 'x', 'side': '__proto__' }, WRITE),
     ];
 
     for (const attempt of attempts) {

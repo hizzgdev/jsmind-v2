@@ -90,12 +90,17 @@ export function formatSide(side: JmNodeSide): string {
  * failure these commands are built to avoid. The table still holds the word so
  * this function can tell `--side center` apart from a typo and name which
  * mistake it was — the command line only ever accepts the placement words.
+ *
+ * The lookup asks for an own property instead of trusting the value to be
+ * `undefined`: `SIDE_SYNONYMS["constructor"]` and its prototype-mates answer with
+ * something inherited, which would slip past the unknown-word check and surface
+ * later as a data error (exit 1) instead of a usage error (exit 2).
  */
 export function parsePlacementSide(raw: string): JmNodeSide {
-    const side = SIDE_SYNONYMS[raw];
-    if (side === undefined) {
+    if (!Object.prototype.hasOwnProperty.call(SIDE_SYNONYMS, raw)) {
         throw usageError(`--side must be one of ${PLACEMENT_WORDS}, got "${raw}"`);
     }
+    const side = SIDE_SYNONYMS[raw];
     if (side === JmNodeSide.Center) {
         throw usageError(
             '--side center is not a placement: the root is the only center node. Use --side left or --side right.'
