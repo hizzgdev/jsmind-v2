@@ -40,13 +40,27 @@
  * here is whether the tree the page describes is the tree in `package.json`,
  * and a prerelease of a covered version is that tree.
  *
+ * The body carries one machine-checkable claim of the same kind: the command
+ * list under `## Commands you are most likely to forget`. Those lines are what
+ * an agent retypes, so a rename that misses the page is an instruction to run
+ * a command that does not exist — a live defect, not stale prose. Every line
+ * in that block is read for its first two words and checked against
+ * `COMMAND_OPTIONS`, the table the CLI keys its own allow-lists by: a word
+ * after `mind` or `node` has to be one of that group's subcommands, and any
+ * other first word has to be a top-level command. Renaming a subcommand and
+ * forgetting this page is then a red build instead of a wrong instruction.
+ *
  * Usage:
  *     node scripts/check-skill-meta.mjs               # report problems, exit 1
  *     node scripts/check-skill-meta.mjs --root <dir>  # check a different tree
  *
  * `--root` exists for `__tests__/build/skill-meta.test.ts`. The default root is
  * the repository this script lives in, not the caller's working directory, so
- * the check answers the same question wherever it is run from.
+ * the check answers the same question wherever it is run from. `--root`
+ * overrides where the skill page is read from; the command vocabulary always
+ * comes from the CLI beside this script, because a fixture tree has no CLI to
+ * ask. That vocabulary is imported from `src/cli/options.ts` — Node's type
+ * stripping reads it, so the check needs no build and no dependencies.
  *
  * Wired into CI as its own step, unconditional: `skills/` is prose, so a
  * documentation-only change skips the library checks — and this is exactly the
@@ -55,11 +69,15 @@
 
 import { readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const DEFAULT_ROOT = resolve(join(dirname(fileURLToPath(import.meta.url)), '..'));
 const SKILL_FILE = join('skills', 'jsmind', 'SKILL.md');
 const SKILL_DIR_NAME = basename(dirname(SKILL_FILE));
+/** The table that declares which words select which command. */
+const COMMAND_MODULE = join('src', 'cli', 'options.ts');
+/** Heading the command list sits under, verbatim. */
+const COMMAND_LIST_HEADING = '## Commands you are most likely to forget';
 
 /** A version: three numbers plus optional prerelease identifiers. */
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -149,6 +167,152 @@ function parseFrontmatter(lines) {
     }
 
     return { values, locations };
+}
+
+/**
+ * Finds the skill's command list: the fenced block under its own heading.
+ *
+ * @param lines - `SKILL.md`, split into lines.
+ * @returns The command lines, each with its 1-based line number and its words;
+ *   or a message saying why there is no list to read.
+ * @remarks
+ * A missing heading is reported rather than ignored. The check has one thing
+ * to read, and a page that no longer has it has moved the claim out of reach —
+ * passing quietly there would be a green build on an unread page.
+ */
+function findCommandList(lines) {
+    const heading = lines.findIndex(line => line.trim() === COMMAND_LIST_HEADING);
+    if (heading === -1) {
+        return { error: `no "${COMMAND_LIST_HEADING}" heading, so the command list cannot be checked` };
+    }
+    const open = lines.findIndex((line, index) => index > heading && line.trimStart().startsWith('```'));
+    if (open === -1) {
+        return { error: `no fenced block under "${COMMAND_LIST_HEADING}"` };
+    }
+    const close = lines.findIndex((line, index) => index > open && line.trim() === '```');
+    if (close === -1) {
+        return { error: `the fenced block under "${COMMAND_LIST_HEADING}" is never closed` };
+    }
+
+    const commands = [];
+    for (let index = open + 1; index < close; index += 1) {
+        const text = lines[index].trim();
+        if (text !== '') {
+            commands.push({ line: index + 1, text, words: text.split(/\s+/) });
+        }
+    }
+    return { commands };
+}
+
+/**
+ * Reads the CLI's command vocabulary from the table that declares it.
+ *
+ * @returns Top-level commands, and the subcommands of each group.
+ * @throws When the module cannot be imported or its table is not the expected
+ *   shape.
+ * @remarks
+ * `COMMAND_OPTIONS` is not a copy of the vocabulary kept for this check: it is
+ * the table `unknownOptions()` looks an invocation up in, and `commandKey()`
+ * builds that key from the same two words this check reads. A rename has to
+ * change the table for the CLI to keep working, so the check cannot be the
+ * thing left behind by one.
+ *
+ * The import is of a `.ts` module, which Node reads by stripping types — that
+ * is how a documentation check can ask the real program without a build.
+ */
+async function commandVocabulary() {
+    const module = await import(pathToFileURL(join(DEFAULT_ROOT, COMMAND_MODULE)).href);
+    const table = module.COMMAND_OPTIONS;
+    if (table === null || typeof table !== 'object') {
+        throw new Error(`${COMMAND_MODULE} does not export COMMAND_OPTIONS`);
+    }
+
+    const topLevel = new Set();
+    const groups = new Map();
+    for (const key of Object.keys(table)) {
+        const words = key.split(' ');
+        // A key is one word for a top-level command and two for a group's
+        // subcommand; `commandKey()` stops at the file path. Anything deeper
+        // would be read as the wrong pair here, so refuse it instead.
+        if (words.length > 2) {
+            throw new Error(`"${key}" is deeper than a group and a subcommand, which this check cannot read`);
+        }
+        const [first, second] = words;
+        if (second === undefined) {
+            topLevel.add(first);
+            continue;
+        }
+        if (!groups.has(first)) {
+            groups.set(first, new Set());
+        }
+        groups.get(first).add(second);
+    }
+    return { topLevel, groups };
+}
+
+/**
+ * Checks that every command the skill teaches is a command the CLI has.
+ *
+ * @param skillText - Whole `SKILL.md`.
+ * @param add - Collects a problem as `file:line: message`.
+ * @returns True when at least one problem was reported.
+ * @remarks
+ * Only the first two words of a line are read: the rest is arguments, and a
+ * flag that has moved is `--help`'s job to report. The two words are enough to
+ * catch the failure this exists for — a renamed or retired command, which is
+ * taught here as if it still worked.
+ */
+async function checkCommandList(skillText, add) {
+    const found = findCommandList(skillText.split('\n'));
+    if (found.error !== undefined) {
+        add(SKILL_FILE, null, found.error);
+        return true;
+    }
+
+    let vocabulary;
+    try {
+        vocabulary = await commandVocabulary();
+    } catch (error) {
+        add(COMMAND_MODULE, null, `cannot read the command vocabulary: ${error.message}`);
+        return true;
+    }
+
+    let reported = false;
+    const fail = (line, message) => {
+        add(SKILL_FILE, line, message);
+        reported = true;
+    };
+
+    for (const command of found.commands) {
+        const [first, second] = command.words;
+        if (second === undefined) {
+            fail(command.line, `only one word here (${JSON.stringify(command.text)}): there is no command to read`);
+            continue;
+        }
+        const subcommands = vocabulary.groups.get(first);
+        if (subcommands !== undefined) {
+            if (!subcommands.has(second)) {
+                fail(
+                    command.line,
+                    `${JSON.stringify(`${first} ${second}`)} is not a ${first} subcommand ` +
+                        `(${first} takes: ${[...subcommands].join(', ')})`
+                );
+            }
+            continue;
+        }
+        if (!vocabulary.topLevel.has(first)) {
+            fail(
+                command.line,
+                `${JSON.stringify(first)} is not a top-level command ` +
+                    `(the CLI has: ${[...vocabulary.topLevel].join(', ')})`
+            );
+        }
+    }
+
+    if (!reported) {
+        console.log(`jsmind skill: all ${found.commands.length} command lines name a command the CLI has.`);
+    }
+    return reported;
 }
 
 /**
@@ -479,7 +643,7 @@ function parseArguments(argv) {
  * @param root - Repository root to read `skills/jsmind/SKILL.md` and
  *   `package.json` from.
  */
-function check(root) {
+async function check(root) {
     const problems = [];
     const add = (file, line, message) => {
         problems.push(`${file}${line === null ? '' : `:${line}`}: ${message}`);
@@ -493,6 +657,11 @@ function check(root) {
         report(problems);
         return;
     }
+
+    // The command list is text an agent retypes, so it is checked the same way
+    // the frontmatter is: read it, then ask the CLI what it has. Run before the
+    // frontmatter checks so one report covers both halves of the page.
+    await checkCommandList(skillText, add);
 
     const lines = frontmatterLines(skillText);
     if (lines === null) {
@@ -588,10 +757,15 @@ function report(problems) {
     console.error('When package.json moves outside it, the page and the program have');
     console.error('parted ways: re-read the page against `jsmind --help` and widen the');
     console.error('range deliberately, rather than letting it drift.');
+    console.error('');
+    console.error('The command list under "Commands you are most likely to forget" is what');
+    console.error('an agent retypes, so every line there has to name a command the CLI has:');
+    console.error('after a rename, re-read the list against `jsmind --help` and');
+    console.error('`jsmind <group> --help`, including the flags on the lines that move.');
     process.exitCode = 1;
 }
 
-function main() {
+async function main() {
     let root;
     try {
         root = parseArguments(process.argv.slice(2));
@@ -601,7 +775,7 @@ function main() {
         process.exitCode = 2;
         return;
     }
-    check(root);
+    await check(root);
 }
 
-main();
+void main();

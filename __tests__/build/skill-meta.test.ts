@@ -8,13 +8,19 @@
  * answer there is a green build on a stale page, which is exactly the failure
  * the check was added to prevent.
  *
+ * The command list is the second kind of claim, and the one an agent acts on:
+ * every line there is a command to retype, so a rename the page missed is an
+ * instruction to run something that does not exist. The tests below pin that
+ * too — the retired three-word form has to fail, the current one has to pass —
+ * against the real vocabulary the CLI declares, not a copy of it.
+ *
  * The tests below drive the script as a process against throwaway trees, one
  * claim per tree, so what is pinned is the answer a reader gets (exit status
  * and message) rather than an internal function's shape. They cover every
  * supported comparator, the x-range that used to widen silently, the syntax
- * that must be refused, and the structural frontmatter problems. The last test
- * runs the script against this repository, so the committed skill has to satisfy
- * its own check.
+ * that must be refused, the structural frontmatter problems, and the command
+ * list. The last tests run the script against this repository, so the committed
+ * skill has to satisfy its own check.
  */
 
 import assert from 'node:assert/strict';
@@ -30,6 +36,21 @@ const SCRIPT = join(ROOT, 'scripts/check-skill-meta.mjs');
 
 type Missing = 'frontmatter' | 'name' | 'display_name' | 'version' | 'cli';
 
+/**
+ * A command list the check must accept: one line per shape it reads.
+ *
+ * @remarks
+ * Kept to the shapes that matter — a top-level command, a `mind` subcommand, a
+ * `node` subcommand, and the document-style command under its current name.
+ */
+const COMMANDS = [
+    'context <file> [--json]',
+    'mind find <file> --node-id <id>',
+    'mind set-style <file> --default-tone <tone>',
+    'node set-style <file> --node-id <id> --tone <name>',
+    'validate <file>',
+];
+
 interface Tree {
     /** The `metadata.jsmind.cli` range under test. */
     cli?: string;
@@ -41,12 +62,17 @@ interface Tree {
     name?: string;
     /** Leave one part of the frontmatter out entirely. */
     missing?: Missing;
+    /**
+     * What the command list says: lines to write, `'missing'` for a page with
+     * no heading at all, `'unclosed'` for a block whose fence never closes.
+     */
+    commands?: string[] | 'missing' | 'unclosed';
 }
 
 /**
- * Builds a `SKILL.md` with the frontmatter shape the real one has.
+ * Builds a `SKILL.md` with the shape the real one has.
  *
- * @param tree - Which claim to put in it.
+ * @param tree - Which claims to put in it.
  * @returns File contents.
  */
 function skillText(tree: Tree): string {
@@ -68,6 +94,16 @@ function skillText(tree: Tree): string {
         lines.push(`    cli: "${tree.cli ?? '>=2.0.1 <3'}"`);
     }
     lines.push('---', '', '# jsmind', '');
+
+    const commands = tree.commands ?? COMMANDS;
+    if (commands !== 'missing') {
+        const block = commands === 'unclosed' ? COMMANDS : commands;
+        lines.push('## Commands you are most likely to forget', '', '```', ...block);
+        if (commands !== 'unclosed') {
+            lines.push('```');
+        }
+        lines.push('');
+    }
     return lines.join('\n');
 }
 
@@ -258,9 +294,72 @@ describe('check-skill-meta', () => {
         });
     });
 
+    it('passes a command list whose every line names a command the CLI has', () => {
+        withTree({}, root => {
+            const result = run(root);
+            assert.equal(result.status, 0, result.stderr);
+            assert.match(result.stdout, /all \d+ command lines name a command the CLI has/);
+        });
+    });
+
+    it('fails a command list that still teaches the retired three-word form', () => {
+        // The failure this check exists for. `mind style set` is gone from the
+        // CLI, so a page that still teaches it sends the agent into a usage
+        // error; the vocabulary is the CLI's own, so the old form cannot be
+        // right by accident.
+        const retired = COMMANDS.map(line => line.replace('mind set-style', 'mind style set'));
+        withTree({ commands: retired }, root => {
+            const result = run(root);
+            assert.equal(result.status, 1, result.stdout);
+            assert.match(result.stderr, /SKILL\.md:\d+: "mind style" is not a mind subcommand/);
+            assert.match(result.stderr, /mind takes: .*set-style/);
+        });
+    });
+
+    it('checks a line with no group against the top-level commands', () => {
+        withTree({ commands: ['contex <file>', 'validate <file>'] }, root => {
+            const result = run(root);
+            assert.equal(result.status, 1, result.stdout);
+            assert.match(result.stderr, /"contex" is not a top-level command/);
+            assert.match(result.stderr, /the CLI has: .*validate/);
+        });
+    });
+
+    it('reports a line with no second word instead of reading one', () => {
+        withTree({ commands: ['validate'] }, root => {
+            const result = run(root);
+            assert.equal(result.status, 1, result.stdout);
+            assert.match(result.stderr, /only one word here \("validate"\)/);
+        });
+    });
+
+    it('reports a command list it cannot read', () => {
+        const cases: Array<{ commands: 'missing' | 'unclosed'; message: RegExp }> = [
+            { commands: 'missing', message: /no "## Commands you are most likely to forget" heading/ },
+            { commands: 'unclosed', message: /is never closed/ },
+        ];
+        for (const { commands, message } of cases) {
+            withTree({ commands }, root => {
+                const result = run(root);
+                assert.equal(result.status, 1, `${commands}: ${result.stdout}`);
+                assert.match(result.stderr, message);
+                assert.doesNotMatch(result.stdout, /name a command the CLI has/);
+            });
+        }
+    });
+
     it('this repository satisfies its own frontmatter claim', () => {
         const result = run(null);
         assert.equal(result.status, 0, result.stderr);
         assert.match(result.stdout, /covers package\.json/);
+    });
+
+    it('this repository teaches only commands the CLI has', () => {
+        // The defect that added this check: `mind style set` became
+        // `mind set-style` in the CLI and in the guides, and the skill kept
+        // teaching the old three words for a whole release.
+        const result = run(null);
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(result.stdout, /command lines name a command the CLI has/);
     });
 });
