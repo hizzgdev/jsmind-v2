@@ -4,16 +4,6 @@ The jsmind skill lives in this repository at `skills/jsmind/`. It is a set of gu
 
 It is **not** a CLI manual, and it does not replace `jsmind --help` or the [CLI](./cli) page. Use the skill when an agent should draw or edit a map; look up flags and subcommands in the CLI help or on the CLI page.
 
-## Where to find it
-
-These are the files on `master`:
-
-- Directory: [skills/jsmind/](https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind)
-- Skill: [skills/jsmind/SKILL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md)
-- Install steps: [skills/jsmind/INSTALL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md)
-
-In a local clone, the same files are at `skills/jsmind/SKILL.md` and `skills/jsmind/INSTALL.md`.
-
 ## How to use it
 
 Point your agent at the skill. For example:
@@ -57,4 +47,14 @@ This is a short summary, not a substitute for the skill file:
 - **Bans.** Do not write the JSON file by hand. Do not bypass the `jsmind` CLI. If `validate` fails you must stop — no further edits and no export.
 - **Checkpoints, in order.** Run `context` and read the ids before editing. After a round of edits, run `validate` and inspect the tree again. Once the structure is done, `export` a picture and look at it.
 
-For the full checklist and examples, open the skill file linked above. For command flags, use `jsmind --help` or the [CLI](./cli) page.
+For the full checklist and examples, open the skill file linked below. For command flags, use `jsmind --help` or the [CLI](./cli) page.
+
+## Where to find it
+
+These are the files on `master`:
+
+- Directory: [skills/jsmind/](https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind)
+- Skill: [skills/jsmind/SKILL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md)
+- Install steps: [skills/jsmind/INSTALL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md)
+
+In a local clone, the same files are at `skills/jsmind/SKILL.md` and `skills/jsmind/INSTALL.md`.
