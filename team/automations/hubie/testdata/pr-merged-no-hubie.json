@@ -1,0 +1,12 @@
+{
+  "action": "closed",
+  "pull_request": {
+    "number": 131,
+    "title": "a merged pull request without the hubie label",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/pull/131",
+    "user": { "login": "zzgbot" },
+    "merged": true,
+    "merge_commit_sha": "35592fd000000000000000000000000000000000",
+    "labels": [{ "name": "enhancement" }]
+  }
+}

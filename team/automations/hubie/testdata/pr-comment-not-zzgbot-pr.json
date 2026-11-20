@@ -1,0 +1,19 @@
+{
+  "action": "created",
+  "comment": {
+    "id": 7043445286,
+    "user": { "login": "hizzgdev" },
+    "body": "please adjust this behavior",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/pull/132#issuecomment-7043445286"
+  },
+  "issue": {
+    "number": 132,
+    "title": "feat(export): add opt-in transparent PNG background",
+    "html_url": "https://github.com/hizzgdev/jsmind-v2/issues/132",
+    "user": { "login": "outsider" },
+    "labels": [{ "name": "hubie" }],
+    "pull_request": {
+      "html_url": "https://github.com/hizzgdev/jsmind-v2/pull/132"
+    }
+  }
+}

@@ -1,0 +1,62 @@
+# Filter GitHub events, then forward only Hubie-relevant ones to the
+# Coordinator routine webhook. Filter rules live in
+# team/automations/hubie/forward-github-event.sh and are described in
+# team/automations/hubie/agent-team-collaboration.md section 6.
+#
+# Secrets (set by a repository admin after the routine is switched to
+# a webhook trigger):
+#   HUBIE_ROUTINE_WEBHOOK_URL
+#   HUBIE_ROUTINE_WEBHOOK_KEY
+# If either secret is missing, matching events are skipped without failing.
+
+name: Forward Hubie events
+
+on:
+  issues:
+    types: [assigned]
+  pull_request:
+    # opened / synchronize / reopened run the unit tests on PRs.
+    # closed is the only pull_request action that may be forwarded.
+    types: [opened, synchronize, reopened, closed]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  test:
+    name: Filter tests
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run filter tests
+        run: bash team/automations/hubie/forward-github-event.test.sh
+
+  forward:
+    name: Filter and forward
+    if: >
+      github.event_name == 'issues' ||
+      github.event_name == 'issue_comment' ||
+      github.event_name == 'pull_request_review_comment' ||
+      (github.event_name == 'pull_request' && github.event.action == 'closed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Filter and forward
+        env:
+          HUBIE_ROUTINE_WEBHOOK_URL: ${{ secrets.HUBIE_ROUTINE_WEBHOOK_URL }}
+          HUBIE_ROUTINE_WEBHOOK_KEY: ${{ secrets.HUBIE_ROUTINE_WEBHOOK_KEY }}
+        run: bash team/automations/hubie/forward-github-event.sh
