@@ -63,6 +63,9 @@
   "JmExportImageOptions.type": {
     "summary": "输出格式。JPEG 和 WebP 是有损的，PNG 不是。"
   },
+  "JmExportImageOptions.transparent": {
+    "summary": "为 true 时导出透明背景，而不是填充主题画布色。这是 opt-in 选项，默认导出行为不变。JPEG 没有 Alpha 通道，因此 `type` 为 `image/jpeg` 时会拒绝该选项。"
+  },
   "JmExportImageResult": {
     "summary": "{@link JsMind.exportImage} 返回的已编码图片及其尺寸。"
   },

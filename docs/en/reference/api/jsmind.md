@@ -114,7 +114,7 @@ cannot encode the result.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `options` (optional) | [JmExportImageOptions](/en/reference/api/export#JmExportImageOptions) | Scale, format and quality. Defaults to PNG at 2x. |
+| `options` (optional) | [JmExportImageOptions](/en/reference/api/export#JmExportImageOptions) | Scale, format, quality and background transparency. Defaults to PNG at 2x. |
 
 ### open {#JsMind.open}
 

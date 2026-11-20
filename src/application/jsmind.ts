@@ -141,7 +141,7 @@ class JsMind {
      * container is part of the picture, and a map larger than its container is
      * not cropped.
      *
-     * @param options - Scale, format and quality. Defaults to PNG at 2x.
+     * @param options - Scale, format, quality and background transparency. Defaults to PNG at 2x.
      * @returns The encoded image, as a Blob, plus its pixel dimensions.
      * @throws {@link JsMindError} If no mind map is open, or if the browser
      * cannot encode the result.

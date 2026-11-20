@@ -47,6 +47,12 @@ export interface JmExportImageOptions {
      * rejects a quality argument.
      */
     quality?: number;
+    /**
+     * Leave the canvas background transparent instead of filling it with the
+     * theme color. Opt-in; the default export is unchanged. JPEG has no alpha
+     * channel, so this is rejected when `type` is `image/jpeg`.
+     */
+    transparent?: boolean;
 }
 
 /** The encoded image returned by {@link JsMind.exportImage}, plus its dimensions. */
@@ -63,6 +69,10 @@ export interface JmExportImageResult {
 }
 
 const DEFAULT_SCALE = 2;
+
+/** Why `transparent` cannot be combined with JPEG. */
+export const TRANSPARENT_JPEG_ERROR =
+    'A transparent background is only available for PNG and WebP. JPEG has no alpha channel.';
 
 /**
  * Reads the shadow root's stylesheet back out.
@@ -88,7 +98,7 @@ function collectStyles(root: ShadowRoot): string {
  * @param host - The element the shadow root is attached to.
  * @param root - The view's shadow root.
  * @param size - The content size in CSS pixels, from the view.
- * @param options - Scale, format and quality.
+ * @param options - Scale, format, quality and background transparency.
  * @returns The encoded image plus its dimensions.
  * @throws {@link JsMindError} If there is nothing to capture, if the generated
  * SVG does not parse, or if the browser refuses to encode the canvas.
@@ -101,6 +111,9 @@ export async function captureShadowContent(
 ): Promise<JmExportImageResult> {
     const scale = options.scale ?? DEFAULT_SCALE;
     const type = options.type ?? JmImageType.Png;
+    if (options.transparent && type === JmImageType.Jpeg) {
+        throw new JsMindError(TRANSPARENT_JPEG_ERROR);
+    }
 
     const inner = root.querySelector<HTMLElement>('.jsmind-inner');
     if (!inner) {
@@ -145,7 +158,7 @@ export async function captureShadowContent(
             `height:${cssHeight}px`,
             'position:relative',
             'overflow:hidden',
-            `background:${hostStyle.backgroundColor}`,
+            `background:${options.transparent ? 'transparent' : hostStyle.backgroundColor}`,
             `font-family:${hostStyle.fontFamily}`,
             collectHostVariables(host.getAttribute('style')),
         ]

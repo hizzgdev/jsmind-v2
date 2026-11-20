@@ -111,6 +111,7 @@ Renders a mind map to an image. The size is the map's own size: whitespace insid
 | `--height <px>` | Viewport height (default `800`) |
 | `--scale <n>` | Output pixel ratio (default `2`) |
 | `--type <format>` | `image/png`, `image/jpeg`, or `image/webp` (default `image/png`) |
+| `--transparent` | Transparent background (PNG and WebP; opt-in, default keeps the current opaque background) |
 | `--json` | Machine-readable output |
 
 With the default width, height, and scale, a typical export is 2400×1600 pixels.
