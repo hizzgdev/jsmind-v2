@@ -265,6 +265,72 @@ test('options - a known option with no value is refused, not read as `true`', ()
     assertOptionValues([{ kind: 'option', name: 'output', value: '--json', inlineValue: true }]);
 });
 
+test('options - every boolean option refuses a value instead of dropping the flag', () => {
+    // `--dry-run=true` arrives as the string 'true', which no command's
+    // `values['dry-run'] === true` matches, so the flag was dropped and the
+    // write it was meant to suppress went ahead. All three value checks strict
+    // mode made have to come back, not two of them.
+    const booleans = Object.entries(OPTION_SPEC as Record<string, { type?: string }>)
+        .filter(([, spec]) => spec.type === 'boolean')
+        .map(([name]) => name);
+    assert.ok(booleans.length > 0, 'the spec has boolean options to check');
+
+    for (const name of booleans) {
+        for (const value of ['1', 'true', '']) {
+            assert.throws(
+                () => {
+                    assertOptionValues([{ kind: 'option', name, value, inlineValue: true }]);
+                },
+                (err: unknown) => {
+                    if (!(err instanceof CliError)) {
+                        return false;
+                    }
+                    assert.strictEqual(err.exit, CliExit.Usage);
+                    assert.strictEqual(err.message, `Option '--${name}' does not take an argument`);
+                    return true;
+                },
+                `--${name}=${value} must be a usage error`
+            );
+        }
+        // Still legal without a value: that is the only shape it has.
+        assertOptionValues([{ kind: 'option', name }]);
+    }
+});
+
+test('cli - a boolean option with a value exits 2 and writes nothing', () => {
+    // The regression this covers mutated the input file: `--dry-run=true` read
+    // as "not dry", so the write went through. Through the real process, the
+    // file is the proof.
+    const { file, dir, before } = fixtureCopy();
+    const target = join(dir, 'out.json');
+
+    try {
+        const runs: string[][] = [
+            ['node', 'set-text', file, '--node-id', 'jm-a1', '--text', 'renamed', '--dry-run=true'],
+            ['node', 'set-text', file, '--node-id', 'jm-a1', '--text', 'renamed', '--dry-run=1'],
+            ['node', 'set-text', file, '--node-id', 'jm-a1', '--text', 'renamed', '--backup=1'],
+            ['node', 'set-text', file, '--node-id', 'jm-a1', '--text', 'renamed', '--output', target, '--dry-run=true'],
+            ['context', file, '--json=1'],
+            ['mind', 'find', file, '--node-id', 'root', '--strict=1'],
+            ['--version=1'],
+        ];
+
+        for (const args of runs) {
+            const run = runCli(args);
+            const spelled = args[args.length - 1] as string;
+            const option = spelled.slice(2, spelled.indexOf('='));
+
+            assert.strictEqual(run.code, CliExit.Usage, `jsmind ${args.join(' ')} must exit 2`);
+            assert.strictEqual(run.stdout, '', 'a refused command prints no result');
+            assert.strictEqual(run.stderr, `Option '--${option}' does not take an argument\n`);
+            assert.strictEqual(readFileSync(file, 'utf8'), before, 'the input stays untouched');
+            assert.strictEqual(existsSync(target), false, 'nothing is written to a redirect target');
+        }
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('cli - an unknown option warns, exits 0 and leaves the file alone', () => {
     const { file, dir, before } = fixtureCopy();
 

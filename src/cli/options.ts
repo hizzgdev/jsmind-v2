@@ -297,19 +297,25 @@ export interface OptionTokenFields {
  *
  * @remarks
  * Parsing leniently is what lets an unknown option reach the allow-list, but it
- * also turns a known option with no value into `true`: `--depth` on its own
- * would fall back to the default instead of failing, and `--output --json` would
- * take the next flag as a path and write to a file literally named `--json`.
- * Neither command line deserves to run, so both reproduce the parse error strict
- * mode raised, worded the same way.
+ * also drops the three value checks strict parsing made, and each drop turns a
+ * command line that used to fail into one that runs and does the wrong thing:
+ *
+ * - a string option with no value falls back to its default (`--depth`), or
+ *   takes the next flag as a path (`--output --json`);
+ * - a string option whose value is another flag takes that flag as its value;
+ * - a boolean option given a value is read as that string, and every command
+ *   compares `values.x === true`, so the flag is silently dropped — which is
+ *   how `--dry-run=true` came to perform the write it was asked to suppress.
+ *
+ * All three reproduce the parse error strict mode raised, worded the same way.
  *
  * This runs before the allow-list so a malformed value is reported as itself,
  * and only for options the spec knows: an unknown option with no value is not
  * missing a value, it is unknown, and that is the other message.
  *
  * @param tokens - Option tokens from the parser.
- * @throws {@link CliError} With `Usage` when a value is missing or looks like
- *         another option.
+ * @throws {@link CliError} With `Usage` when a value is missing, looks like
+ *         another option, or is given to an option that takes none.
  */
 export function assertOptionValues(tokens: readonly OptionTokenFields[]): void {
     for (const token of tokens) {
@@ -317,7 +323,13 @@ export function assertOptionValues(tokens: readonly OptionTokenFields[]): void {
             continue;
         }
         const spec = OPTION_SPEC[token.name];
-        if (spec === undefined || spec.type !== 'string') {
+        if (spec === undefined) {
+            continue;
+        }
+        if (spec.type === 'boolean') {
+            if (token.value !== undefined) {
+                throw usageError(`Option '--${token.name}' does not take an argument`);
+            }
             continue;
         }
         if (token.value === undefined) {
