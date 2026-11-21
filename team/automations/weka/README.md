@@ -397,7 +397,7 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
    python3 scripts/cleanup-worktrees.py             # 只清已完成的工作
    ```
 
-   只在三件事同时成立时删——分支已不在 origin、GitHub 说该分支的 PR 已合并、git 愿意删（有未提交改动的它自己就拒绝，只剩被忽略文件的它接受）。也就是说 `.gitignore` 就是这里的策略：某个构建产物没被忽略，它就会拦住自己的清理，该修的是忽略规则，不是再往白名单里加一条。`--all` 跳过合并检查。幂等，干净时输出 `0 worktree(s) removed`。
+   只在两件事同时成立时删——GitHub 说这个分支的 PR 已合并、git 愿意删（有未提交改动的它自己就拒绝，只剩被忽略文件的它接受）。也就是说 `.gitignore` 就是这里的策略：某个构建产物没被忽略，它就会拦住自己的清理，该修的是忽略规则，不是再往白名单里加一条。分支还在不在 origin 不参与判断——没合并就被删掉的分支是废弃的工作，不是垃圾。规则只写在 `scripts/cleanup-worktrees.py` 的 docstring 里一份，这里和部署 skill 都只做引用。`--all` 跳过合并检查。幂等，干净时输出 `0 worktree(s) removed`。
 
    支撑这个判断的三条机制，都不是推测：
 
