@@ -95,12 +95,32 @@ changed is the exact failure this step exists to catch.
 
 ### 5. Smoke test with a real event
 
-Listening is not working. Produce one event and read the journal line it should have created:
+Listening is not working. Two proofs, cheapest first.
 
-- Label cleanup / close handling: reopen and close an issue that still carries a flow label, then look
-  for the `[OK]` line the handler is supposed to print.
-- Rework gate: comment on a PR that carries `weka-reviewed` and confirm a card appears
-  (`hermes kanban --board jsmind-v2 list`), not a `[GATE]` line.
+**The flow's own tests**, when the PR added or changed any:
+
+```bash
+~/.hermes/venvs/weka/bin/python -m unittest discover -s team/automations/weka -p 'test_*.py'
+```
+
+They are stdlib-only and take milliseconds. A green run says the handlers behave; it does not say the
+running process is executing them, which is what the live event below is for.
+
+**One real event**, then read the journal line it should have produced:
+
+- Label cleanup / close handling: pick a **closed issue that is not assigned to the bot account**, add a
+  flow label to it, reopen, close. The close payload carries the label, so expect
+  `[OK] removed <label> from #<n>` out of `journalctl --user -u github-webhook`.
+
+  Not any closed issue. One still assigned to the bot account passes the create gate, so adding a label
+  to it calls `kanban create` again: the idempotency key (`gh-issue-<n>`) normally absorbs it because the
+  original card still exists, but the journal prints `[OK] ... create ...` and a card whose key has been
+  pruned would really be created. An unassigned issue fails that gate cleanly and still exercises the
+  strip.
+- Rework gate: a comment on a PR carrying `weka-reviewed` must produce a card
+  (`hermes kanban --board jsmind-v2 list`) or a comment on the PR explaining why not. Only the human
+  account can trigger this path — bot reviews and comments are ignored on purpose — so when the deploy
+  is being run as the bot, ask the user to leave it instead of working around the gate.
 - Card creation: file nothing new; reuse the above rather than polluting the board.
 
 Quote the journal line in the report. "Restarted and it is active" is not a smoke test.
