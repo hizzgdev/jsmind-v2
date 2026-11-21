@@ -9,7 +9,7 @@ description: >-
   do not use it to look up flags that --help already covers. `jsmind --help`
   prints every subcommand in one place, so when you need one, read that
   subcommand's section of it.
-version: 2.0.2
+version: 2.0.3
 metadata:
   jsmind:
     cli: ">=2.0.1 <3"
@@ -153,6 +153,8 @@ mind move <file> --node-id <id> --parent-id <id> [--position <n>]
 `side` is only meaningful for the root's direct children. A new child of the root defaults to the right side. The check is `side=` at the end of that node's `context` line, which the text output prints for the root and its direct children only — the command echo says nothing about it.
 
 `--backup` keeps a `.bak` copy of the file before overwriting it, and `--dry-run` prints the document it would write and writes nothing. Both apply to the commands that write the mind map — `create`, `mind`, `node` — and not to `export`, which writes only the image. In a `CHANGE` task they are the cheap way to see a round's result before trusting it: `--dry-run` for the next command, `--backup` before the round.
+
+A misspelt option is a warning, not a failure: an option the command does not take is reported on stderr and the command still runs, with exit code 0. `--json` on stdout stays clean, so a caller that reads only stdout and the exit code never learns the flag did nothing — the map is built, in the shape you did not ask for. Pass `--strict` to make an unknown option a usage error (exit 2) instead, and read that exit code as the signal.
 
 ## Example
 
