@@ -313,55 +313,105 @@ async function clickSetup(label = 'Node 1'): Promise<{
     })()`);
 }
 
-test('ui - playground header contains a visible link to the jsmind-v2 repository', async () => {
-    const link = await browser.evaluate<{
-        href: string;
-        target: string;
-        rel: string;
-        text: string;
-        inHeader: boolean;
-    }>(`(() => {
+/** A header anchor as the page currently renders it. */
+interface HeaderLink {
+    /** How many header anchors matched the visible text that was searched for. */
+    count: number;
+
+    href: string;
+
+    target: string;
+
+    rel: string;
+
+    text: string;
+
+    /** Whether the anchor was found inside `.header` at all. */
+    inHeader: boolean;
+
+    width: number;
+
+    height: number;
+
+    display: string;
+
+    visibility: string;
+}
+
+/**
+ * Reads the header anchor whose visible text matches `pattern`.
+ *
+ * @remarks
+ * The match is on text, never on `href`. A selector that spells the expected
+ * address makes the assertion after it a tautology: it can only ever report
+ * "no such element", never "the link points somewhere else". Matching on text
+ * keeps the two failures separate, and reporting the match count catches a
+ * header that grew a second link with the same wording.
+ *
+ * @param pattern - Visible-text pattern identifying the link.
+ * @returns Attributes, match count and layout of the first match.
+ */
+async function readHeaderLink(pattern: RegExp): Promise<HeaderLink> {
+    return browser.evaluate<HeaderLink>(`(() => {
         const header = document.querySelector('.header');
-        const a = header && header.querySelector('a[href="https://github.com/hizzgdev/jsmind-v2"]');
+        const wanted = new RegExp(${JSON.stringify(pattern.source)}, ${JSON.stringify(pattern.flags)});
+        const matches = header
+            ? Array.from(header.querySelectorAll('a')).filter(a => wanted.test(a.textContent || ''))
+            : [];
+        const a = matches[0];
+        const box = a ? a.getBoundingClientRect() : null;
+        const style = a ? getComputedStyle(a) : null;
         return {
+            count: matches.length,
             href: a ? a.getAttribute('href') || '' : '',
             target: a ? a.getAttribute('target') || '' : '',
             rel: a ? a.getAttribute('rel') || '' : '',
             text: a ? a.textContent.replace(/\\s+/g, ' ').trim() : '',
-            inHeader: !!(header && a),
+            inHeader: !!a,
+            width: box ? box.width : 0,
+            height: box ? box.height : 0,
+            display: style ? style.display : '',
+            visibility: style ? style.visibility : '',
         };
     })()`);
-    assert.ok(link.inHeader, 'the repository link should be inside the header');
+}
+
+/**
+ * Asserts the header link is not merely present but actually painted.
+ *
+ * @param link - Anchor read from the page.
+ * @param label - What to call the link in failure messages.
+ */
+function assertLinkVisible(link: HeaderLink, label: string): void {
+    assert.ok(link.inHeader, `${label} should be inside the header`);
+    assert.ok(
+        link.width > 0 && link.height > 0,
+        `${label} should paint a non-zero box, got ${link.width}x${link.height}`
+    );
+    assert.notStrictEqual(link.display, 'none', `${label} should not be display:none`);
+    assert.notStrictEqual(link.visibility, 'hidden', `${label} should not be visibility:hidden`);
+}
+
+test('ui - playground header contains a visible link to the jsmind-v2 repository', async () => {
+    const link = await readHeaderLink(/jsmind-v2/i);
+    assert.strictEqual(link.count, 1, 'exactly one header link should visibly name jsmind-v2');
     assert.strictEqual(link.href, 'https://github.com/hizzgdev/jsmind-v2');
     assert.strictEqual(link.target, '_blank');
     assert.ok(link.rel.split(/\s+/).includes('noopener'), 'the link should use rel=noopener');
-    assert.ok(link.text.includes('jsmind-v2'), 'the link should visibly name the jsmind-v2 project');
+    assert.ok(link.rel.split(/\s+/).includes('noreferrer'), 'the link should use rel=noreferrer');
+    assert.strictEqual(link.text, 'jsmind-v2', 'the link should visibly read jsmind-v2');
+    assertLinkVisible(link, 'the repository link');
 });
 
 test('ui - playground header contains a visible link to the project documentation', async () => {
-    const link = await browser.evaluate<{
-        href: string;
-        target: string;
-        rel: string;
-        text: string;
-        inHeader: boolean;
-    }>(`(() => {
-        const header = document.querySelector('.header');
-        const a = header && header.querySelector('a[href="https://hizzgdev.github.io/jsmind-v2/docs/"]');
-        return {
-            href: a ? a.getAttribute('href') || '' : '',
-            target: a ? a.getAttribute('target') || '' : '',
-            rel: a ? a.getAttribute('rel') || '' : '',
-            text: a ? a.textContent.replace(/\\s+/g, ' ').trim() : '',
-            inHeader: !!(header && a),
-        };
-    })()`);
-    assert.ok(link.inHeader, 'the documentation link should be inside the header');
+    const link = await readHeaderLink(/docs/i);
+    assert.strictEqual(link.count, 1, 'exactly one header link should visibly say docs');
     assert.strictEqual(link.href, 'https://hizzgdev.github.io/jsmind-v2/docs/');
     assert.strictEqual(link.target, '_blank');
     assert.ok(link.rel.split(/\s+/).includes('noopener'), 'the link should use rel=noopener');
     assert.ok(link.rel.split(/\s+/).includes('noreferrer'), 'the link should use rel=noreferrer');
-    assert.ok(/docs/i.test(link.text), 'the link should visibly indicate documentation');
+    assert.strictEqual(link.text, 'Docs', 'the link should visibly read Docs');
+    assertLinkVisible(link, 'the documentation link');
 });
 
 test('ui - the right column shows the CDN setup line above the read-only code, all at one type size, highlighted', async (t: TestContext) => {
