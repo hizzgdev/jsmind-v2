@@ -327,6 +327,9 @@ jobs:
           # The cleanup leans on what `git worktree remove` refuses; this probe
           # holds that rule down so a git release that changes it fails here.
           bash scripts/probe-worktree-removal.sh
+          # The review-pass transition is shell so its ordering rule is testable:
+          # `gh pr ready` must never run after a failed label cleanup.
+          bash scripts/weka/test-pass-review.sh
 
 
   # ---------------------------------------------------------------------------
