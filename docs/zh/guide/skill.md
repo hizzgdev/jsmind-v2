@@ -4,6 +4,8 @@ jsmind skill 位于本仓库的 `skills/jsmind/`。它是一套禁令和检查�
 
 它**不是** CLI 手册，也不能代替 `jsmind --help` 或 [CLI](./cli) 页面。当 agent 需要生成或修改思维导图时，请让它按这份 skill 的检查点做；具体的命令和参数，请查阅 CLI 帮助或本站的 CLI 页面。
 
+技能目录也随本站发布，不克隆仓库也能读：[skills/jsmind/SKILL.md](https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md) 与仓库里的那份是同一个文件，`skills/jsmind/` 的其余内容就在它旁边。
+
 ## 安装
 
 以下两种方式任选其一，不是先后步骤。
@@ -13,9 +15,7 @@ jsmind skill 位于本仓库的 `skills/jsmind/`。它是一套禁令和检查�
 你可以把下面的 prompt 直接交给自己的 agent。
 
 ```
-请从 https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md 安装 jsMind skill：读这份文件并照做。里面同时讲 skill 目录和 jsmind CLI，后者是另一个 npm 包。
-
-装完按文件末尾的 “Done means” 逐条核对，把每一条的结果告诉我。如果 skill 在你的 harness 里加载不了，停下来说清楚，不要绕过去。
+请从 https://hizzgdev.github.io/jsmind-v2/skills/jsmind/INSTALL.md 安装 jsMind skill：读这份文件并照做。
 ```
 
 ### 手动安装
@@ -24,6 +24,10 @@ jsmind skill 位于本仓库的 `skills/jsmind/`。它是一套禁令和检查�
 
 - 如果正在本仓库的克隆里工作，告诉 agent：生成或修改思维导图时按 `skills/jsmind/SKILL.md` 里的检查点做。
 - 如果在别处工作，把整个 `skills/jsmind/` 目录复制到 agent 会加载 skill 的位置，保留 `jsmind/` 这一层。
+
+### 两个文件各管什么
+
+`INSTALL.md` 面向安装者，就是上面的安装流程。`SKILL.md` 是 agent 生成或修改导图时读的那份。两者在同一目录，但没有任何 harness 会注入 `INSTALL.md`——所谓“装上 skill”，是 harness 读 `SKILL.md`，到此为止。改 `INSTALL.md`、把它翻成别的语言，都不影响运行期。
 
 ## 使用
 
@@ -57,10 +61,16 @@ skill 只有英文版一份。它是给 agent 读的、不是给人读的，导�
 
 ## 在哪里找到它
 
-`master` 上的文件：
+`master` 上的文件。每一个都给两次：先 GitHub，再同一路径的 Gitee 镜像。
 
-- 目录：[skills/jsmind/](https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind)
-- Skill：[skills/jsmind/SKILL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md)
-- 安装说明：[skills/jsmind/INSTALL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md)
+| | GitHub | Gitee 镜像 |
+|---|---|---|
+| 目录 | [skills/jsmind/](https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind) | [skills/jsmind/](https://gitee.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind) |
+| Skill 文件 | [SKILL.md](https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/SKILL.md) | [SKILL.md](https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/SKILL.md) |
+| 安装说明 | [INSTALL.md](https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/INSTALL.md) | [INSTALL.md](https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/INSTALL.md) |
+
+两条目录链接是给浏览器翻看用的。四条文件链接都是 raw，交给 agent 的就是这个形式：`tree` 或 `blob` 页面返回的是 HTML，照它复制，拿到的是一张网页而不是 skill 文件。
+
+本站也在自己的根目录下发布同一份目录，所以 [skills/jsmind/SKILL.md](https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md) 不依赖上面任何一个仓库。
 
 在本地克隆中，同样的文件位于 `skills/jsmind/SKILL.md` 和 `skills/jsmind/INSTALL.md`。

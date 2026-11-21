@@ -4,6 +4,8 @@ The jsmind skill lives in this repository at `skills/jsmind/`. It is a set of gu
 
 It is **not** a CLI manual, and it does not replace `jsmind --help` or the [CLI](./cli) page. Use the skill when an agent should draw or edit a map; look up flags and subcommands in the CLI help or on the CLI page.
 
+The directory ships with this site as well, so it can be read without cloning anything: [skills/jsmind/SKILL.md](https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md) is the same file the repository has, and the rest of `skills/jsmind/` sits beside it.
+
 ## Install
 
 Pick one of the following. They are alternatives, not sequential steps.
@@ -13,9 +15,7 @@ Pick one of the following. They are alternatives, not sequential steps.
 You can give the following prompt directly to your own agent.
 
 ```
-Install the jsMind skill from https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md — read that file and follow it. It covers the skill directory and the jsmind CLI, which is a separate npm package.
-
-When you are done, go through its "Done means" list item by item and tell me the result of each one. If the skill does not load in your harness, stop and say so.
+Install the jsMind skill from https://hizzgdev.github.io/jsmind-v2/skills/jsmind/INSTALL.md — read that file and follow it.
 ```
 
 ### Manual install
@@ -24,6 +24,10 @@ Point your agent at the skill. For example:
 
 - If you are working in a clone of this repository, tell the agent to work through the checkpoints in `skills/jsmind/SKILL.md` when it draws or edits a map.
 - If you are working elsewhere, copy the whole `skills/jsmind/` directory into the place your agent loads skills from, keeping the `jsmind/` level.
+
+### Which file is which
+
+`INSTALL.md` is written for whoever installs the skill: it is the runbook above. `SKILL.md` is what an agent reads while it draws or edits a map. The two sit in the same directory, but `INSTALL.md` is not injected by any harness — loading the skill means the harness reading `SKILL.md` and stopping there. Editing `INSTALL.md`, or translating it, changes nothing at run time.
 
 ## Usage
 
@@ -57,10 +61,16 @@ For the full checklist and examples, open the skill file linked below. For comma
 
 ## Where to find it
 
-These are the files on `master`:
+These are the files on `master`. Each one is given twice: GitHub first, the Gitee mirror of the same path after it.
 
-- Directory: [skills/jsmind/](https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind)
-- Skill: [skills/jsmind/SKILL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md)
-- Install steps: [skills/jsmind/INSTALL.md](https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/INSTALL.md)
+| | GitHub | Gitee mirror |
+|---|---|---|
+| Directory | [skills/jsmind/](https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind) | [skills/jsmind/](https://gitee.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind) |
+| Skill file | [SKILL.md](https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/SKILL.md) | [SKILL.md](https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/SKILL.md) |
+| Install steps | [INSTALL.md](https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/INSTALL.md) | [INSTALL.md](https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/INSTALL.md) |
+
+The two directory links open a listing to read in a browser. The four file links are raw, which is the form to hand to an agent: a `tree` or `blob` page returns HTML, so copying from one leaves you with a web page where a skill file should be.
+
+This site also serves the directory under its own root, so [skills/jsmind/SKILL.md](https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md) needs neither repository.
 
 In a local clone, the same files are at `skills/jsmind/SKILL.md` and `skills/jsmind/INSTALL.md`.
