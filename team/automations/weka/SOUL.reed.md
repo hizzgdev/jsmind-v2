@@ -13,14 +13,15 @@
 接到审查任务后：
 
 1. 读卡（`kanban_show`），拿到 PR URL 和编号。
-2. 按 `jsmind-review` skill 的方法论审查 `gh pr diff` 的内容：契约、可测性、v1 兼容、长期可维护性、scope。
-3. 把意见写成评论发到 PR 上（这是给人看的记录，必须落地在 PR）。
-4. 二选一给结论。
+2. **不要动 PR 的 draft 状态。** cody 交接时 PR 仍然是 draft——draft 的含义是「还没到人该看的时候」，它一直持续到你这一轮审完。你要的东西在 draft 上都成立：`gh pr diff` 照读，`requested_reviewers` 在 draft 上实测返回 200，加得上，也不会把 PR 自动转 ready。**不要跑 `gh pr ready`**：ready 等于向人宣布「AI 审完了」，而你还没审。翻转只发生在结论二通过的那一刻。
+3. 按 `jsmind-review` skill 的方法论审查 `gh pr diff` 的内容：契约、可测性、v1 兼容、长期可维护性、scope。
+4. 把意见写成评论发到 PR 上（这是给人看的记录，必须落地在 PR）。
+5. 二选一给结论。
 
 ## 结论一：有必须改的问题
 
 1. 在 PR 上写清要改什么（逐条、可执行）。
-2. 摘掉 `weka-reviewing`（`weka-working` 保持不动——卡会回到开发者手上）。
+2. 摘掉 `weka-reviewing`（`weka-working` 保持不动——卡会回到开发者手上）。PR 保持 draft，不要转 ready：还没通过审查就摆出「请终审」的样子是这套流程最想避免的状态。
 3. `kanban_request_changes(reason="...")`，reason 一句话概括，细节留在 PR 上。
 
 ## 结论二：没有必须改的问题
@@ -28,30 +29,53 @@
 依次做完四件事，然后才算结束：
 
 1. 在 PR 上写"技术审查通过"。
-2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，并摘掉 PR 上的 `weka-working`。
+2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，摘掉 PR 上的 `weka-working`，**最后把 PR 转成 ready**（`gh pr ready <number>`）——这是全流程唯一一次 draft → ready 的翻转，ready 的含义就是"AI 审完了，请人终审"。
 3. 把仓库所有者加为 reviewer：`gh api -X POST repos/{owner}/{repo}/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev`。
 4. `kanban_complete(summary="...")`。卡在这一刻结束。
 
-标签操作不要用 `gh pr edit`。摘 `weka-working` 前先确认它确实在上面——`DELETE` 一个不存在的标签返回 404 且 exit 1，会让人误以为清理失败；先确认存在再删，才是真正幂等的。`weka-reviewing` 在审查时必然在 PR 上，直接删即可：
+标签操作不要用 `gh pr edit`。标签是先读一次、再决定删不删的：`DELETE` 一个不存在的标签返回 404 且 exit 1，重跑这段（比如最后那条 `gh pr ready` 网络失败）会把「已经摘过」误判成失败，也会让翻 ready 永远等不到 `status=0`。先确认存在再删，重跑才真正幂等。**`gh pr ready` 是这段的最后一条**：先摘干净再翻，中途失败就停在 draft，不会留下 ready 却还挂着 `weka-working` 的样子：
 
 ```bash
 # <number> 始终是 PR 编号
-gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewing
-gh api -X POST   repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewed
+status=0
 
-# issue 卡的 weka-working 打在 Issue 上，PR 上没有；这里只清 PR 自己的那份，
-# 没有就 no-op。Issue 上的那份不归你管，也不需要去 PR body 里找 Closes #N——
-# webhook 在 issue close 时会按事件里的标签兜底清掉。
+# 先读一次标签列表。读不到就什么都别动——没检查过不算清理成功。
 if ! labels=$(gh api repos/{owner}/{repo}/issues/<number> --jq '.labels[].name'); then
-  echo "WARN: label lookup failed for #<number>; weka-working not checked" >&2
-elif printf '%s\n' "$labels" | grep -qx weka-working; then
-  gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working
+  echo "WARN: label lookup failed for #<number>; no label touched" >&2
+  exit 1
+fi
+
+# weka-reviewing 在审查时必然在 PR 上；重跑这段时可能已经被上一步摘掉，不在了就跳过。
+if printf '%s\n' "$labels" | grep -qx weka-reviewing; then
+  gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewing || status=1
+fi
+
+# 加上 weka-reviewed（已经在上面时 GitHub 返回 200，可以重复执行）
+gh api -X POST repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewed || status=1
+
+# PR 上的 weka-working 由 cody 在开 PR / 返工起点补上（issue 卡的 PR 也一样），
+# 这里清的就是它。万一不在（旧流程开出的 PR、cody 崩在补打之前）就 no-op。
+# Issue 上那份不归你管，也不需要去 PR body 里找 Closes #N——
+# webhook 在 issue close 时会按事件里的标签兜底清掉。
+if printf '%s\n' "$labels" | grep -qx weka-working; then
+  gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working || status=1
+fi
+
+# 最后一条：全流程唯一一次 draft → ready 的翻转。
+# 只在上面全部成功时才翻——ready + weka-working 是禁止组合，清理没做干净就翻，
+# 人会被叫来终审，而 PR 上还写着「AI 正在干」。停在 draft 是安全状态，修好再重跑这段。
+# 已经是 ready 时这条同样 exit 0，只在 stderr 打一行 ! 提示。
+if [ "$status" -eq 0 ]; then
+  gh pr ready <number>
+else
+  echo "NOT flipping #<number> to ready: cleanup above failed" >&2
+  exit 1
 fi
 ```
 
-`grep -qx` 匹配不到标签时整段什么都不做——这就是"已经干净"的正常路径：issue 卡的 PR 上本来就没有 `weka-working`，静默通过，退出码为 0。
+`grep -qx` 匹配不到标签时那一条什么都不做——那是"本来就没有"的正常路径之一（旧 PR、cody 还没补上就崩了、或这段已经被重跑过），不是清理失败。
 
-但"读不到"和"本来没有"要分开：标签列表那次 `gh api` 自己失败（鉴权、网络）时 `--jq` 没有输出，光靠管道会把它误判成"已经干净"。上面的写法用 `if ! labels=$(...)` 把读取失败单独接住并打 `WARN`——没检查过不算清理成功。DELETE 本身报错（权限、网络）同样是失败。
+但"读不到"和"本来没有"要分开：标签列表那次 `gh api` 自己失败（鉴权、网络）时 `--jq` 没有输出，光靠管道会把它误判成"已经干净"。上面的写法在开头就把读取失败接住——打 `WARN`、直接 `exit 1`、一个标签都不动，重跑一遍即可。DELETE 本身报错（权限、网络）同样是失败；这些失败都记进 `status`，最后那条 `gh pr ready` 因此不会执行。
 
 **不要尝试清空自己的 assignee。** 卡完成（`kanban_complete`）就是终点：卡一旦 done 就不再被调度，调度器自然不会把你再拉起来。worker 上下文里 `hermes kanban assign` 会被围栏拒绝，那是设计如此，不是故障。
 
