@@ -51,6 +51,48 @@ const DOCS_SITE_ENTRY = 'https://hizzgdev.github.io/jsmind-v2/docs/';
 const DOCS_README_BLOB = 'https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md';
 const FOOTER_TEXT = '本文档由 AI 协助生成 / This documentation was prepared with AI assistance';
 
+/**
+ * Every repository address in a page needs the Gitee mirror of the same path
+ * beside it.
+ *
+ * The GitHub URL is the primary one, but the reader who needs the mirror cannot
+ * reach github.com at all — that is the situation the mirror exists for, and a
+ * sentence that prints a GitHub URL alone sends that reader in a circle. The
+ * pairing is asserted rather than trusted to survive the next edit.
+ *
+ * Run this on the Markdown sources, not on built HTML: the theme adds its own
+ * repository links to every page, and those are not install instructions.
+ *
+ * @param body - A Markdown file read from the tree.
+ * @param label - What is being checked, for the failure message.
+ */
+function assertMirrored(body: string, label: string): void {
+    const PREFIXES: Array<[string, string]> = [
+        ['https://raw.githubusercontent.com/hizzgdev/jsmind-v2/', 'https://gitee.com/hizzgdev/jsmind-v2/raw/'],
+        ['https://github.com/hizzgdev/jsmind-v2/', 'https://gitee.com/hizzgdev/jsmind-v2/'],
+    ];
+    for (const [githubPrefix, giteePrefix] of PREFIXES) {
+        let from = 0;
+        for (;;) {
+            const start = body.indexOf(githubPrefix, from);
+            if (start === -1) {
+                break;
+            }
+            const rest = body.slice(start);
+            const end = rest.search(/[\s)"'<>]/);
+            // Prose puts a comma or a full stop right after an address; neither
+            // belongs to the URL, and a trailing one would look like a difference
+            // between the two sources.
+            const url = (end === -1 ? rest : rest.slice(0, end)).replace(/[.,;:]+$/, '');
+            assert.ok(
+                body.includes(`${giteePrefix}${url.slice(githubPrefix.length)}`),
+                `${label}: ${url} has no Gitee mirror`
+            );
+            from = start + url.length;
+        }
+    }
+}
+
 const DOCS_PAGES = [
     'index.html',
     'guide/index.html',
@@ -209,6 +251,30 @@ describe('landing page', () => {
 });
 
 describe('pages site assembly', () => {
+    it('refuses a GitHub address that has no Gitee mirror beside it', () => {
+        // The pairing check is the only thing standing between the next edit and
+        // a page that sends a blocked reader back to GitHub, so it is shown to
+        // fail on a single-sided address rather than assumed to.
+        assert.doesNotThrow(() =>
+            assertMirrored(
+                'browse https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind, or https://gitee.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind.',
+                'paired'
+            )
+        );
+        assert.throws(
+            () =>
+                assertMirrored(
+                    'see https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind.',
+                    'single sided'
+                ),
+            /has no Gitee mirror/
+        );
+        assert.throws(
+            () => assertMirrored('https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/SKILL.md', 'raw'),
+            /has no Gitee mirror/
+        );
+    });
+
     it('keeps the source playground on the local bundle path', () => {
         const html = readFileSync(join(ROOT, 'example/playground.html'), 'utf8');
         assert.deepStrictEqual(moduleScriptSrcs(html), ['../dist/jsmind.js']);
@@ -492,8 +558,31 @@ describe('pages site assembly', () => {
             // English only, plus the install steps as a separate file inside the skill
             // directory. The inline install prompt used to have to be kept in step with
             // the CLI by hand, and drifted.
-            assert.ok(enSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md'));
-            assert.ok(zhSkill.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md'));
+            // The guide hands an agent *raw* URLs: a blob page is a web page, so
+            // fetching one installs HTML instead of the file. Each address is
+            // paired with the Gitee mirror of the same path, GitHub first, because
+            // the reader who needs the mirror cannot reach the first one at all.
+            for (const [label, page] of [
+                ['en guide', enSkill],
+                ['zh guide', zhSkill],
+            ] as const) {
+                assert.ok(
+                    page.includes('https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/SKILL.md'),
+                    `${label}: the skill has to be handed over as a raw URL`
+                );
+                assert.ok(
+                    page.includes('https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/INSTALL.md'),
+                    `${label}: the install runbook needs its Gitee mirror in the prompt`
+                );
+                assert.ok(
+                    !page.includes('/blob/master/skills/jsmind/'),
+                    `${label}: a blob link returns HTML, not the file it names`
+                );
+            }
+            for (const lang of ['en', 'zh'] as const) {
+                const source = readFileSync(join(ROOT, 'docs', lang, 'guide', 'skill.md'), 'utf8');
+                assertMirrored(source, `${lang} skill guide`);
+            }
             assert.ok(enSkill.includes('skills/jsmind/INSTALL.md'));
             assert.ok(zhSkill.includes('skills/jsmind/INSTALL.md'));
             assert.ok(!enSkill.includes('SKILL.zh.md'));
@@ -514,8 +603,22 @@ describe('pages site assembly', () => {
             // The guide hands over a URL, not a clone, and a relative link does not
             // survive a raw read of the file: every reference to the skill inside it has
             // to be a path that works from that URL alone.
-            assert.ok(install.includes('https://github.com/hizzgdev/jsmind-v2/blob/master/skills/jsmind/SKILL.md'));
+            // Two addresses per file, GitHub first: the blob link this file used
+            // to print fetched a web page, and the mirror is only useful to a
+            // reader who cannot reach the first address at all.
+            assert.ok(
+                install.includes('https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/SKILL.md')
+            );
+            assert.ok(install.includes('https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/SKILL.md'));
             assert.ok(install.includes('https://github.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind'));
+            assert.ok(install.includes('https://gitee.com/hizzgdev/jsmind-v2/tree/master/skills/jsmind'));
+            assert.ok(!install.includes('/blob/master/skills/jsmind/'), 'a blob link returns HTML, not the file');
+            assertMirrored(install, 'skills/jsmind/INSTALL.md');
+            // The mirror syncs periodically, so the file it serves can be older
+            // than the CLI: the installer has to compare the version it got with
+            // the range the skill claims, not assume the two arrived together.
+            assert.ok(install.includes('--version'));
+            assert.ok(install.includes('metadata.jsmind.cli'));
             assert.ok(!install.includes('](SKILL.md)'));
             assert.ok(install.includes('npm i jsmind@2'));
             assert.ok(install.includes('npx jsmind@2 <command>'));
