@@ -1,6 +1,7 @@
 /**
  * @fileoverview `Render preview`'s preparation step: the tone it draws, the
- * file it writes, and the transparent background it asks the action for.
+ * file it writes, what it reports, and the transparent background it asks the
+ * action for.
  *
  * @remarks
  * The tone is random, and randomness in CI has one job here: never being the
@@ -12,6 +13,8 @@
  * varies, and a prepared file the render does not read is not a preparation.
  * The two paths are pinned to each other rather than each to a literal: the
  * point of the step is that the file it writes is the file that gets rendered.
+ * The file is also the only thing that crosses between the steps - the tone is
+ * a field inside it, not a step output to carry - and that is pinned too.
  *
  * The YAML is read as text rather than parsed: the repository has no YAML
  * dependency of its own (`js-yaml` arrives with a transitive package), and what
@@ -26,7 +29,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { pickTone, preparePreview } from '../../scripts/prepare-preview.ts';
+import { pickTone, writePrepared } from '../../scripts/prepare-preview.ts';
 import { JmTone } from '../../src/model/data/style.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -38,6 +41,7 @@ const TONES: readonly string[] = Object.values(JmTone);
 
 const ACTION = readFileSync(join(ROOT, '.github/actions/render-map/action.yml'), 'utf8');
 const WORKFLOW = readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+const SCRIPT_TEXT = readFileSync(SCRIPT, 'utf8');
 
 /** Runs a body against a temp directory, and removes it whatever the body did. */
 function withTempDir<T>(body: (dir: string) => T): T {
@@ -79,12 +83,13 @@ test('pickTone: a run can differ from the next one', () => {
     assert.notEqual(pickTone(() => 0), pickTone(() => 0.999));
 });
 
-test('preparePreview: writes the drawn tone to the output and leaves the input alone', () =>
+test('writePrepared: writes the drawn tone to the output and leaves the input alone', () =>
     withTempDir(dir => {
         const output = join(dir, 'preview-data.json');
         const before = readFileSync(EXAMPLE, 'utf8');
+        const tone = pickTone(() => 0.99);
 
-        const tone = preparePreview(EXAMPLE, output, () => 0.99);
+        writePrepared(EXAMPLE, output, tone);
 
         assert.equal(tone, TONES[TONES.length - 1], 'the draw picks the tone');
         assert.equal(readFileSync(EXAMPLE, 'utf8'), before, 'the tracked fixture must not be written');
@@ -95,7 +100,7 @@ test('preparePreview: writes the drawn tone to the output and leaves the input a
         assert.equal(prepared.style?.defaultTone, tone);
     }));
 
-test('preparePreview: keeps the rest of the document', () =>
+test('writePrepared: keeps the rest of the document', () =>
     withTempDir(dir => {
         const output = join(dir, 'preview-data.json');
         const source = JSON.parse(readFileSync(EXAMPLE, 'utf8')) as {
@@ -103,7 +108,7 @@ test('preparePreview: keeps the rest of the document', () =>
             root: string;
         };
 
-        preparePreview(EXAMPLE, output, () => 0.5);
+        writePrepared(EXAMPLE, output, pickTone(() => 0.5));
         const prepared = JSON.parse(readFileSync(output, 'utf8')) as {
             nodes: Record<string, { style?: { tone?: string } }>;
             root: string;
@@ -118,34 +123,37 @@ test('preparePreview: keeps the rest of the document', () =>
         assert.equal(prepared.nodes['jm-mw4ottqm']?.style?.tone, 'primary');
     }));
 
-test('preparePreview: a broken input fails before anything is written', () =>
+test('writePrepared: a broken input fails before anything is written', () =>
     withTempDir(dir => {
         const input = join(dir, 'broken.json');
         const output = join(dir, 'preview-data.json');
         writeFileSync(input, '{"format":"not_jsmind_v2"}\n', 'utf8');
 
-        assert.throws(() => preparePreview(input, output, () => 0.5), /does not validate/);
+        assert.throws(() => writePrepared(input, output, pickTone(() => 0.5)), /does not validate/);
         assert.ok(!existsSync(output), 'nothing should be written from data that failed to load');
     }));
 
-test('the script prints one tone name and nothing else', () =>
+test('the script writes the file, logs the tone, and prints nothing to stdout', () =>
     withTempDir(dir => {
-        // What the workflow relies on: `tone=$(node scripts/prepare-preview.ts
-        // in.json out.json)`. A second line would be pasted into the value, and
-        // a zero exit with no file would render whatever the last run left.
+        // What the workflow relies on: `node scripts/prepare-preview.ts in.json
+        // out.json`, with nothing captured. stdout stays empty so no caller is
+        // invited to read a value off it; stderr carries the one log line that
+        // names the tone, and the file is what the render reads.
         const output = join(dir, 'preview-data.json');
         const run = spawnSync(process.execPath, [SCRIPT, EXAMPLE, output], { encoding: 'utf8' });
 
         assert.equal(run.status, 0, run.stderr);
-        assert.equal(run.stderr, '');
-        assert.equal(run.stdout.trim(), run.stdout.trim().split('\n')[0]);
+        assert.equal(run.stdout, '', 'nothing is returned on stdout');
 
-        const printed = run.stdout.trim();
-        assert.ok(TONES.includes(printed), `unexpected stdout ${JSON.stringify(run.stdout)}`);
+        const logged = /defaultTone (\S+)/.exec(run.stderr);
+        assert.ok(logged, `stderr should name the tone, got ${JSON.stringify(run.stderr)}`);
+        const tone = logged?.[1] ?? '';
+        assert.ok(TONES.includes(tone), `${tone} is not one of ${TONES.join(', ')}`);
+
         const prepared = JSON.parse(readFileSync(output, 'utf8')) as {
             style: { defaultTone: string };
         };
-        assert.equal(prepared.style.defaultTone, printed, 'the logged tone is the tone in the file');
+        assert.equal(prepared.style.defaultTone, tone, 'the logged tone is the tone in the file');
     }));
 
 test('the script refuses a command line without both paths', () => {
@@ -179,12 +187,12 @@ test('the file the prepare step writes is the file the render step reads', () =>
     // Both paths are read off the workflow and compared with each other rather
     // than with a literal: preparation that writes somewhere the render does
     // not look is the failure this step exists to make unreadable-past.
-    const prepared = /tone=\$\(node scripts\/prepare-preview\.ts example\/v2-features\.json (\S+)\)/.exec(
+    const prepared = /node scripts\/prepare-preview\.ts example\/v2-features\.json (\S+)/.exec(
         WORKFLOW
     );
     const rendered = /data-file: (\S+)/.exec(WORKFLOW);
 
-    assert.ok(prepared, 'prepare should be `tone=$(node scripts/prepare-preview.ts <in> <out>)`');
+    assert.ok(prepared, 'prepare should run `node scripts/prepare-preview.ts <in> <out>`');
     assert.ok(rendered, 'the render step should name a data-file');
     assert.equal(prepared?.[1], rendered?.[1]);
 });
@@ -193,13 +201,15 @@ test('the preview job turns transparency on, for its own render only', () => {
     assert.match(WORKFLOW, /transparent: 'true'/);
 });
 
-test('the chosen tone reaches the job log and the comment', () => {
-    assert.match(WORKFLOW, /echo "default tone for this run: \$tone"/);
-    // One consumer: the step that posts the comment. A preview whose tone is
-    // not named in the comment leaves a reader unable to tell a theme problem
-    // from a rendering problem.
-    assert.equal(WORKFLOW.match(/TONE: \$\{\{ steps\.prepare\.outputs\.tone \}\}/g)?.length, 1);
-    assert.match(WORKFLOW, /defaultTone: \$TONE/);
+test('the tone travels inside the file, not between the steps', () => {
+    // One step writes the file, the next renders it; nothing else is carried.
+    // A step output would put the tone in two places - the document and the
+    // workflow - and the workflow copy is the one that can go stale.
+    assert.ok(!/tone=\$\(/.test(WORKFLOW), 'the prepare command is not captured into a shell variable');
+    assert.ok(!/steps\.prepare\.outputs/.test(WORKFLOW), 'the tone is not a step output');
+    assert.ok(!/\bTONE\b/.test(WORKFLOW), 'the comment is not built from a tone variable');
+    // The job log still names the tone, and the script is the one that says it.
+    assert.match(SCRIPT_TEXT, /with defaultTone/);
 });
 
 test('the tone is written by the preparation step, not by a second command', () => {

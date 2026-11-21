@@ -1,12 +1,19 @@
 /**
- * @fileoverview `Render preview`'s preparation step: writes the example map,
+ * @fileoverview `Prepare the render data`'s script: writes the example map,
  * with one randomly drawn `defaultTone`, to the file the render reads.
  *
  * @remarks
  * The preview renders a prepared copy, never the tracked fixture. This is the
- * step that makes the copy: read the input, draw a tone for this run, write the
- * document with `mind.style.defaultTone` set, and print the tone so the job can
- * name it in the comment.
+ * script that makes the copy: read the input, draw a tone for this run, write
+ * the document with `mind.style.defaultTone` set.
+ *
+ * The document is the whole product. Nothing is handed back to the caller for
+ * the next step to carry: no printed tone, no `$GITHUB_OUTPUT` line, no value
+ * passed between steps. The file this script was told to write is the only
+ * thing that crosses into the render, and the tone is one field inside it. The
+ * one thing the script does report is a single stderr line naming the file and
+ * the tone, so a job log still says which tone this run's picture used - a log
+ * line rather than a return value, because nothing should have to parse it.
  *
  * A tone per run, randomly, for two reasons: consecutive previews then differ,
  * so the picture on a pull request is not always the same one, and a palette
@@ -18,14 +25,12 @@
  * the run that discovered it would be one that drew a retired name and had the
  * write refuse it, which reads like a broken job rather than a broken copy.
  *
- * Input and output are both arguments, and the output is the render's
- * `data-file`. That is the whole shape of the step — one path in, the same path
- * out — so the workflow reads top to bottom without a path appearing under two
- * names. Anything else the preview needs before rendering is another thing this
- * preparation does, not a second one-purpose script beside it.
- *
- * Prints the tone and nothing else to stdout, so a caller can do
- * `tone=$(node scripts/prepare-preview.ts in.json out.json)`.
+ * Both paths are arguments: the input to read and the output to write, and the
+ * output is the render's `data-file`. That is the whole shape of the step - one
+ * path in, one path out - so the workflow reads top to bottom without a path
+ * appearing under two names. Anything else the preview needs before rendering
+ * is another thing this preparation does, not a second one-purpose script
+ * beside it.
  *
  * @packageDocumentation
  */
@@ -80,8 +85,7 @@ export function pickTone(random: () => number = Math.random): JmTone {
  *
  * @param input - The tracked fixture to prepare.
  * @param output - Where the prepared document goes; the render's `data-file`.
- * @param random - Source of randomness, forwarded to {@link pickTone}.
- * @returns The tone written into the document.
+ * @param tone - The document default to write, normally from {@link pickTone}.
  * @throws {@link CliError} With `InvalidData` when the input does not validate,
  * or `IoError` when either file cannot be read or written.
  * @remarks
@@ -92,19 +96,12 @@ export function pickTone(random: () => number = Math.random): JmTone {
  * file whose validity nothing had checked.
  *
  * The style block is spread rather than replaced: a document that already
- * declares a theme or its own `tones` keeps them, and only the tone this run
- * drew changes — the same thing `mind set-style` does through its own
- * `applyStyle`.
+ * declares a theme or its own `tones` keeps them, and only the tone passed in
+ * changes — the same thing `mind set-style` does through its own `applyStyle`.
  */
-export function preparePreview(
-    input: string,
-    output: string,
-    random: () => number = Math.random
-): JmTone {
-    const tone = pickTone(random);
-    return runMutation(input, { dryRun: false, output, backup: false }, (mind: JmMind) => {
+export function writePrepared(input: string, output: string, tone: JmTone): void {
+    runMutation(input, { dryRun: false, output, backup: false }, (mind: JmMind) => {
         mind.style = { ...mind.style, defaultTone: tone };
-        return tone;
     });
 }
 
@@ -113,6 +110,9 @@ export function preparePreview(
  *
  * @param argv - Arguments after the executable and script path.
  * @returns The exit code the process should end with.
+ * @remarks
+ * stderr carries the one line this script says out loud; stdout stays empty,
+ * so no caller is invited to capture a value from it.
  */
 export function main(argv: string[]): number {
     const [input, output, ...extra] = argv;
@@ -122,11 +122,9 @@ export function main(argv: string[]): number {
     }
 
     try {
-        const tone = preparePreview(input, output);
-        // stdout carries the tone and nothing else: the workflow captures the
-        // whole stream into `$tone`, so a second line would land inside that
-        // value rather than beside it.
-        process.stdout.write(`${tone}\n`);
+        const tone = pickTone();
+        writePrepared(input, output, tone);
+        process.stderr.write(`prepare-preview: wrote ${output} with defaultTone ${tone}\n`);
         return CliExit.Ok;
     } catch (err) {
         const failure = describeFailure(err);
