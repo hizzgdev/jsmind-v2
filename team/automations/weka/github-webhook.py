@@ -31,6 +31,12 @@ Design contract (see README.md for the full version):
 - `weka-reviewed` is the only label with flow-control meaning: a human event on
   a PR creates a card only while that label is present, and only when no card is
   already open for the same number.
+- A human event is never refused silently. Every path out of
+  `_create_rework_card()` leaves something visible on GitHub: a card, a comment
+  on the PR's open card, or a comment on the PR saying why neither happened.
+- Capacity is the dispatcher's call (`max_in_progress`,
+  `max_in_progress_per_profile`): a card waits in `ready` until a slot frees up.
+  The webhook does not refuse work because another card happens to be running.
 - There is no "waiting for a human" card state. The human gate lives on GitHub
   (review request + weka-reviewed), which is why a finished card simply ends.
 
@@ -40,8 +46,9 @@ holds the webhook secret and machine-specific paths). Pass a path as argv[1] to
 override the default location.
 
 Requires Python 3.10+ and the standard library only (plus `git`, and `gh` for
-best-effort label cleanup). Run it from a pinned virtualenv — see README.md for
-the version policy and setup command.
+label cleanup and for the comments that make a refusal visible on the PR). Run
+it from a pinned virtualenv — see README.md for the version policy and setup
+command.
 """
 import hashlib
 import hmac
@@ -68,6 +75,12 @@ LABEL_REVIEWED = "weka-reviewed"
 # Card statuses that mean "an agent is (or should be) working on it now".
 OPEN_STATUSES = ("todo", "ready", "running", "review", "blocked", "scheduled", "triage")
 BUSY_STATUSES = ("running", "review")
+
+# First line of every comment this script posts on GitHub. It is invisible in
+# the rendered page and, more importantly, the comment handlers skip it: `gh`
+# authenticates as the repository owner here, so without the marker weka would
+# read its own explanation back as a human request and trigger itself.
+TRACE_MARKER = "<!-- weka-webhook -->"
 
 
 def load_config(path: str) -> dict:
@@ -104,6 +117,14 @@ class Weka:
             self.kanban_db = os.path.expanduser("~/.hermes/kanban.db")
         # weka is scoped to jsMind-V2: always work in a worktree of the project.
         self.create_args = ["--workspace", "worktree", "--project", "jsmind-v2"]
+        # `owner/repo` for the gh API calls, looked up at most once per process.
+        self._slug: str | None = None
+        self._slug_known = False
+        # systemd's PATH lacks ~/.local/bin: fall back to the install shim, same
+        # story as hermes_bin. gh is flow-critical now — it carries the visible
+        # traces — so it is resolved once and reused.
+        local_gh = os.path.expanduser("~/.local/bin/gh")
+        self.gh = shutil.which("gh") or (local_gh if os.path.exists(local_gh) else "")
 
     # ---- hermes CLI helpers -------------------------------------------------
 
@@ -128,12 +149,14 @@ class Weka:
         finally:
             db.close()
 
-    def open_card_for(self, number: int) -> tuple[str, str] | None:
+    def open_card_for(self, number: int | None) -> tuple[str, str] | None:
         """`(task_id, status)` of the open card keyed on this number, else None.
 
         The key is the title prefix `#<number>:` — prefix-anchored so that a card
         mentioning `#86:` mid-title never shadows the card that owns the number.
         """
+        if number is None:
+            return None
         try:
             rows = self._query(
                 "SELECT id, status FROM tasks WHERE title LIKE ? "
@@ -147,7 +170,12 @@ class Weka:
         return (rows[0][0], rows[0][1]) if rows else None
 
     def busy_cards(self) -> list[tuple[str, str, str]]:
-        """Cards with an agent working them right now: `(id, status, title)`."""
+        """Cards with an agent working them right now: `(id, status, title)`.
+
+        Informational only, for the journal line: capacity belongs to the
+        dispatcher (`max_in_progress*`), which holds a new card in `ready` until
+        a slot frees up. Nothing here may decide that a human request is dropped.
+        """
         try:
             return self._query(
                 "SELECT id, status, title FROM tasks WHERE status IN ('running', 'review') "
@@ -163,6 +191,58 @@ class Weka:
     def _run(self, cmd: list[str]) -> tuple[int, str]:
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
         return result.returncode, (result.stderr or result.stdout or "").strip()
+
+    def repo_slug(self) -> str | None:
+        """`owner/repo` for the gh API, resolved once. None when gh cannot say.
+
+        Run from REPO_ROOT so gh picks the repository up from the working tree
+        instead of needing the slug in config.json, which follows the checkout.
+        """
+        if self._slug_known:
+            return self._slug
+        self._slug_known = True
+        if not self.gh:
+            print("[WARN] gh not found: cannot reach GitHub", file=sys.stderr)
+            return None
+        rc, out = self._run([self.gh, "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"])
+        if rc != 0:
+            print(f"[WARN] repo lookup failed: {out}", file=sys.stderr)
+            return None
+        slug = (out.splitlines() or [""])[-1].strip()
+        if slug.count("/") != 1:
+            print(f"[WARN] repo lookup returned {slug!r}: not owner/repo", file=sys.stderr)
+            return None
+        self._slug = slug
+        return slug
+
+    def comment_on_pr(self, number: int | None, body: str) -> bool:
+        """Post `body` under the PR so a refusal or a failure is visible there.
+
+        The journal answers "why did nothing happen" for the operator, not for
+        the human who left the comment on GitHub. So a gate that keeps refusing,
+        and a card whose creation failed, say why on the object itself.
+
+        The body starts with TRACE_MARKER, which the comment handlers skip: the
+        token here belongs to the repository owner, so without the marker weka
+        would treat its own explanation as a fresh human request.
+        """
+        if number is None:
+            print("[WARN] no PR number in payload: cannot leave a visible trace", file=sys.stderr)
+            return False
+        slug = self.repo_slug()
+        if slug is None:
+            return False
+        rc, out = self._run([
+            self.gh, "api", "-X", "POST", f"repos/{slug}/issues/{number}/comments",
+            "-f", f"body={TRACE_MARKER}\n{body.strip()}",
+        ])
+        if rc != 0:
+            # Nothing else can be done from here: this run's only record is the
+            # journal line, which is why the attempt is logged rather than raised.
+            print(f"[WARN] comment on #{number} failed: {out}", file=sys.stderr)
+            return False
+        print(f"[OK] commented on #{number}")
+        return True
 
     def cleanup_branch(self, branch: str, merged: bool) -> None:
         """Drop the worktree checked out on `branch`, then its local branch."""
@@ -240,17 +320,16 @@ class Weka:
         if not targets:
             print(f"[INFO] #{number} closed without flow labels: nothing to strip", file=sys.stderr)
             return
-        gh = shutil.which("gh")
-        if gh is None:
+        gh = self.gh
+        if not gh:
             print("[WARN] gh not found: leaving flow labels in place", file=sys.stderr)
             return
-        rc, out = self._run(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"])
-        if rc != 0 or not out:
-            print(f"[WARN] repo lookup failed: {out}", file=sys.stderr)
+        slug = self.repo_slug()
+        if slug is None:
             return
         for label in targets:
             rc, err = self._run(
-                ["gh", "api", "-X", "DELETE", f"repos/{out}/issues/{number}/labels/{label}"]
+                [gh, "api", "-X", "DELETE", f"repos/{slug}/issues/{number}/labels/{label}"]
             )
             if rc != 0:
                 # The list said it was there, so a 404 means someone removed it
@@ -356,13 +435,20 @@ class Weka:
         if not issue.get("pull_request"):
             return
         comment = payload.get("comment") or {}
+        body = comment.get("body") or ""
+        if body.lstrip().startswith(TRACE_MARKER):
+            # weka's own explanation of a refusal. gh posts it as the repository
+            # owner, so without this check the note would read back as a fresh
+            # human request and weka would answer its own answer.
+            print(f"[SKIP] PR #{issue.get('number')}: comment is weka's own trace", file=sys.stderr)
+            return
         if (comment.get("user") or {}).get("login", "") != self.human:
             return
         self._create_rework_card(
             payload,
             event="issue_comment.created",
             actor=(comment.get("user") or {}).get("login", ""),
-            text=comment.get("body") or "",
+            text=body,
             ref_url=comment.get("html_url") or "",
             idem_key=f"gh-pr-{self._pr_number(payload)}-comment-{comment.get('id', '')}",
         )
@@ -379,6 +465,11 @@ class Weka:
             return
         comment = payload.get("comment") or {}
         login = (comment.get("user") or {}).get("login", "")
+        body = comment.get("body") or ""
+        if body.lstrip().startswith(TRACE_MARKER):
+            # Same reason as issue_comment: do not answer our own trace.
+            print(f"[SKIP] PR #{self._pr_number(payload)}: inline comment is weka's own trace", file=sys.stderr)
+            return
         if login != self.human:
             return
         where = comment.get("path") or ""
@@ -389,17 +480,40 @@ class Weka:
             payload,
             event="pull_request_review_comment.created",
             actor=login,
-            text=f"{where}\n{comment.get('body') or ''}".strip(),
+            text=f"{where}\n{body}".strip(),
             ref_url=comment.get("html_url") or "",
             idem_key=f"gh-pr-{self._pr_number(payload)}-review-comment-{comment.get('id', '')}",
         )
 
     def _create_rework_card(self, payload: dict, *, event: str, actor: str, text: str,
                             ref_url: str, idem_key: str) -> None:
-        """Gate on weka-reviewed, then create (or annotate) the PR's card."""
+        """Annotate the PR's open card, or create one — never drop the request.
+
+        Every exit from here leaves something visible on GitHub: a new card, a
+        comment on the card that is already open, or a comment on the PR saying
+        why neither happened. Capacity is not a reason to refuse — a card waits
+        in `ready` until the dispatcher has a slot, while a webhook-side gate has
+        no queue behind it, so "board is busy" used to mean "discarded".
+        """
         pr = payload.get("pull_request") or (payload.get("issue") or {})
         number = pr.get("number")
         labels = [lbl.get("name", "") for lbl in (pr.get("labels") or [])]
+
+        # Checked before the label gate on purpose: cody strips weka-reviewed as
+        # its first move on a rework card, so gating on the label first would
+        # drop everything the human says while that rework is still running.
+        existing = self.open_card_for(number)
+        if existing:
+            note = f"{event} from {actor}: card already {existing[1]}"
+            if text.strip():
+                note += f"\n\n{text.strip()}"
+            if not self.kanban("comment", existing[0], note):
+                self.comment_on_pr(
+                    number,
+                    f"收到这条评论，但追加到卡片 `{existing[0]}` 失败（`hermes kanban comment` "
+                    "非零退出），请求没有记录进去。webhook journal 里有具体错误。",
+                )
+            return
 
         if LABEL_REVIEWED not in labels:
             print(
@@ -407,21 +521,26 @@ class Weka:
                 f"({', '.join(labels) or 'no labels'}): human event ignored",
                 file=sys.stderr,
             )
+            self._explain_refusal(
+                pr,
+                labels,
+                "这条评论没有触发返工：这个 PR 上现在没有 `weka-reviewed` 标签，"
+                "weka 只把该标签存在时的留言当作返工请求（AI 审查通过、等终审的阶段）。"
+                "标签出现之后再留一次言即可。",
+            )
             return
 
-        existing = self.open_card_for(number)
-        if existing:
-            self.kanban("comment", existing[0], f"{event} from {actor}: card already {existing[1]}")
-            return
-
+        # Context only, no longer a gate: the dispatcher owns capacity
+        # (max_in_progress / max_in_progress_per_profile) and holds a card in
+        # `ready` until a slot frees up. Refusing here had nothing behind it but
+        # a journal line the human on GitHub cannot see.
         busy = self.busy_cards()
         if busy:
             print(
-                f"[GATE] PR #{number}: board is busy ({', '.join(f'{t} {s}' for t, s, _ in busy)}), "
-                "deferring the rework card",
+                f"[INFO] PR #{number}: {len(busy)} card(s) already in progress "
+                f"({', '.join(f'{t} {s}' for t, s, _ in busy)}); queuing the rework card anyway",
                 file=sys.stderr,
             )
-            return
 
         branch = ((pr.get("head") or {}).get("ref")) or ""
         pr_url = pr.get("html_url") or ""
@@ -446,7 +565,7 @@ class Weka:
             f"> `gh api repos/{{owner}}/{{repo}}/pulls/{number}/comments`\n"
             f"> `gh pr diff {number}`\n"
         )
-        self.kanban(
+        created = self.kanban(
             "create",
             f"#{number}: Rework — {pr_title}"[:120],
             "--assignee", self.assignee,
@@ -454,6 +573,32 @@ class Weka:
             "--idempotency-key", idem_key,
             *self.create_args,
         )
+        if not created:
+            # A failed create used to be one journal line, and the human who
+            # asked for the change saw an ignored PR.
+            self.comment_on_pr(
+                number,
+                f"收到 `{event}`，但建返工卡失败（`hermes kanban create` 非零退出），"
+                "请求没有进队列。webhook journal 里有具体错误，也可以在 GitHub 的 webhook "
+                "投递记录里 redeliver 这一条。",
+            )
+
+    def _explain_refusal(self, pr: dict, labels: list[str], reason: str) -> None:
+        """Post `reason` on the PR — but only where a human can act on it.
+
+        Two refusals stay journal-only and neither leaves anyone waiting: a PR
+        without the `weka` label was never in this flow (weka does not comment on
+        unrelated pull requests), and a closed PR has no code left to rework.
+        Every other refusal is answered on the thread.
+        """
+        number = pr.get("number")
+        if self.label not in labels:
+            print(f"[GATE] PR #{number} is not a weka PR: no comment left", file=sys.stderr)
+            return
+        if (pr.get("state") or "open") != "open":
+            print(f"[GATE] PR #{number} is closed: no comment left", file=sys.stderr)
+            return
+        self.comment_on_pr(number, reason)
 
     def handle_pr(self, payload: dict) -> None:
         if payload.get("action") != "closed":

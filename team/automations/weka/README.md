@@ -9,6 +9,7 @@ weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签�
 - **卡只是触发器**，事实来源是 GitHub 上的 issue/PR。卡里只有对象 URL 和触发快照。
 - **卡标题以编号开头**（`#85: …`），编号是查卡的唯一键。
 - **看板上没有"等人审核"这个状态**：人审的门在 GitHub（reviewer 请求 + `weka-reviewed` 标签）。
+- **人的动作不会被静默丢掉**：要么建卡/追加评论，要么在 PR 上说清为什么不建。沉默只留给"这张 PR 不归 weka 管"和"PR 已关闭"。
 
 本目录自包含：流程说明、脚本、SOUL、部署步骤和重建清单都在这里，入口就是这份 README。
 
@@ -64,18 +65,41 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 
 ## 触发规则
 
-建卡的条件是"全部满足"，任何一条不满足都只记一条日志，不建卡。
+**人的动作不会静默消失**：每条人写的事件都有一个可见结果——建卡、追加到已有卡，或者在 PR 上留一句说明。
 
-| 方向 | 必须同时满足 |
-| --- | --- |
-| issue 建卡 | ① 标签里有 `weka`；② `zzgbot` 在 assignees 里（多个指派人也算，不要求它是唯一或第一个）；③ 事件是 `opened` / `labeled` / `assigned` 三者之一 |
-| PR 建卡 | ① `hizzgdev` 的三个入口之一：提交 review（非 `approved`）、PR 会话评论、diff 上的行内评论；② PR 带 `weka-reviewed`；③ 该编号没有 open 卡；④ 板上没有 `running` / `review` 的卡 |
+| 方向 | 必须同时满足 | 结果 |
+| --- | --- | --- |
+| issue 建卡 | ① 标签里有 `weka`；② `zzgbot` 在 assignees 里（多个指派人也算，不要求它是唯一或第一个）；③ 事件是 `opened` / `labeled` / `assigned` 三者之一 | 建卡；该编号已有 open 卡则把这次事件追加成那张卡的 comment |
+| PR 返工 | ① 该编号已有 open 卡 | 把评论正文追加到那张卡。**这一条不看标签**：cody 开工第一件事就是摘掉 `weka-reviewed`，返工进行中的留言不能被标签挡住 |
+| PR 返工 | ① 没有 open 卡；② PR 带 `weka-reviewed`；③ 入口是 `hizzgdev` 的提交 review（非 `approved`）或会话评论或行内评论 | 建返工卡，卡上带着评论原文 |
+| PR 返工 | ① 没有 open 卡；② PR 不带 `weka-reviewed` | 不建卡，在 PR 上留一句说明（见下一节） |
 
 `closed` 不在这张表里：它不建卡，只做标签兜底清理，见下文「关闭时的兜底清理」。
+
+**容量不在这里判断。** 板上有没有别的卡在跑，跟"要不要接这条返工请求"无关：卡建出来就进 `ready` 排队，什么时候跑由 dispatcher 按 `max_in_progress` / `max_in_progress_per_profile` 决定（见「并发与资源」）。webhook 里曾经有一道 `busy_cards()` 门在这里挡卡，而它没有队列可排——"板上忙"在实现里就等于"丢弃"。
 
 为什么 issue 方向要两道门：公开仓库上任何人都能给 issue 打标签，所以标签只说明"这是想交给 weka 的活"，真正决定要不要花 token 的是指派——只有仓库所有者能把 issue 指派给 bot 账号。
 
 为什么 PR 方向要限定作者：bot 自己也会在 PR 上写评论（reed 的审查意见），限定为仓库所有者才能保证"只有人的动作触发返工卡"，不会被自己的输出喂回去。
+
+## 拒绝与失败必须留痕
+
+journal 只有运维能看，提要求的人只看得见 GitHub。所以保留下来的拒绝、以及建卡/追加的失败，都要在 PR 上说一句：
+
+| 情况 | PR 上的痕迹 |
+| --- | --- |
+| 建返工卡失败（`hermes kanban create` 非零退出） | 说明请求没有进队列，指向 journal 和 webhook 投递记录里的 redeliver |
+| 追加到已有卡的评论失败（`hermes kanban comment` 非零退出） | 同上 |
+| PR 没有 `weka-reviewed`，也没有 open 卡 | 说明为什么没建卡：只有 AI 审查通过（`weka-reviewed` 在 PR 上）、等终审的阶段才接人的返工请求 |
+
+只有两种拒绝留在 journal 里，因为它们没有可执行的下文，在 PR 上留言只会是噪音：
+
+- **PR 上连 `weka` 标签都没有**：这张 PR 从来不在 weka 的流程里，weka 不去陌生 PR 的评论区插话。
+- **PR 已经关闭**：没有可返工的代码。
+
+两条规则：拒绝不静默；沉默必须有理由，而理由写在这里。
+
+脚本自动发的 comment 第一行是 HTML 注释 `<!-- weka-webhook -->`。`gh` 在这台机器上用的是仓库所有者的 token，留言看起来就是人写的——脚本靠这个标记跳过自己发的 comment，否则会把自己的说明当成新的返工请求，自己喂自己。
 
 ## 标签与人工审核门
 
@@ -85,7 +109,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 | `weka-reviewing` | 永远是 PR | cody 交接前 | 给人看：AI 正在审 |
 | `weka-reviewed` | 永远是 PR | reed 通过时 | **唯一控制流程的标签**：只有它存在时，你在 PR 上的动作才会触发返工卡 |
 
-规则只有一条：**人在 PR 上的动作（提交 review 或留言），只在 PR 带 `weka-reviewed` 时才建卡**。cody 拿到返工卡的第一件事就是摘掉它，所以不会重复触发。
+规则只有一条：**人在 PR 上的动作（提交 review 或留言），只在 PR 带 `weka-reviewed` 时才建新卡**。cody 拿到返工卡的第一件事就是摘掉它，所以不会重复触发；摘掉之后人再留言，走的是"追加到该 PR 的 open 卡"那条路，不看标签。
 
 副产品：`weka-working` 挂在对象上、但板上没有对应的卡在跑，就是"卡崩了"的可视信号——排查先看标签，比翻看板快。
 
@@ -135,7 +159,19 @@ webhook 脚本要求 Python 3.10+，只依赖标准库。不要用系统自带�
 
 下面 service 模板的 `ExecStart` 已经指向这个 venv；换机器时按实际 Python 路径调整。
 
+## 测试
+
+webhook 的回归测试用标准库 `unittest`，同样没有第三方依赖。任何版本的 Python 3.10+ 都能跑（不必是上面那个 venv）：
+
+```bash
+python3 -m unittest discover -s team/automations/weka -p 'test_*.py' -v
+```
+
+守的就是上文那条不变量——让 `busy_cards()` 返回一张 `running` 卡，再模拟人留言，断言"建了卡"或"在 PR 上留了痕"，而不是**什么都没发生**。CI 的 `checks` job 里跑同一条命令（见 `.github/workflows/ci.yml`），所以这条不变量不会只靠谁记得跑。
+
 ## 并发与资源
+
+**webhook 不判断容量。** 板上有没有卡在跑是 dispatcher 的事，webhook 只负责把人的动作用一张卡表达出来。曾经这里有一道 `busy_cards()` 门：板上只要有任何一张 `running` / `review` 的卡，就丢弃返工请求，只往 journal 写一行 `deferring`。它既不看是不是同一个 PR，也没有队列可排，于是别人在跑的时候，人在 GitHub 上看到的只是"没人理"。现在同一份查询只用来打一行 `[INFO]` 日志。
 
 同一时刻能跑几个 worker，由两个键决定，都在 `~/.hermes/config.yaml` 的 `kanban:` 段：
 
@@ -347,6 +383,6 @@ hermes kanban --board jsmind-v2 runs <task>     # 每次尝试的结果
 tail -n 40 ~/.hermes/profiles/<worker>/logs/managed-worker.log   # worker 真正的报错
 ```
 
-日志里出现 `[SKIP] unhandled event: xxx`，说明 GitHub 送来了这个脚本不认识的事件——多半是 Settings → Webhooks 里少勾了对应的 events，或者脚本来不及支持这个动作。出现 `[GATE]` 则是收到了但条件不满足，括号里会写清是哪一条（没有 `weka-reviewed`、不是仓库所有者、编号已有 open 卡）。
+日志里出现 `[SKIP] unhandled event: xxx`，说明 GitHub 送来了这个脚本不认识的事件——多半是 Settings → Webhooks 里少勾了对应的 events，或者脚本来不及支持这个动作。出现 `[GATE]` 则是收到了但条件不满足，括号里会写清是哪一条（没有 `weka-reviewed`、不是仓库所有者、PR 不归 weka 管、PR 已关闭）。其中"没有 `weka-reviewed`"这一条会在 PR 上留一句说明（见「拒绝与失败必须留痕」），所以这类问题现在不用翻 journal 也能看见。
 
 卡崩两次会被自动 block。先看 `weka-working` 是不是还挂在对象上——挂着但板上没卡在跑，说明 worker 起不来，直接看上面那个 `managed-worker.log`。
