@@ -74,6 +74,6 @@ gh api repos/hizzgdev/jsmind-v2/rulesets/27518846 \
   --jq '.rules[] | select(.type == "required_status_checks")'
 ```
 
-只改 `docs/` 的 PR 上，`UI tests`、`Optional tests` 是 skipped，`Docs site` **会跑**：分类器对 `docs/` 下任何文件都置 `docs=true`，剩下的交给这个 job 自己判断这批文件动不动发布出来的站点 —— 不影响时它内部的步骤跳过，结论仍是 success，不是 skipped。只改根目录 `*.md`（`README.md` 之类）的 PR 上三者才都是 skipped。两种都可合并。
+只改 `docs/` 的 PR 上，`UI tests`、`Optional tests` 是 skipped，`Docs site` **会跑**：分类器对 `docs/` 下任何文件都置 `docs=true`，剩下的交给这个 job 自己判断这批文件动不动发布出来的站点 —— 不影响时（只动了 `docs/architecture/`、`docs/images/` 之类）它内部的步骤跳过，结论仍是 success，不是 skipped。只改 `docs/`、`skills/` 之外的 `*.md`（根目录 `README.md`、`team/` 下的文档、`scripts/README.md` 之类）的 PR 上，三个 job 全是 skipped。两种都可合并。
 
 合并门的验证只能由管理员做：让一个 required 检查红，确认拦合并；让 `Optional tests` 红，确认不拦。
