@@ -119,6 +119,8 @@ cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起�
 
 命令顺序也是固定的：cody 返工起手先 `--undo` 回 draft，再摘 `weka-reviewed`、补 `weka-working`；reed 通过时先摘标签、清掉 `weka-working`，`gh pr ready` 是最后一条，而且清理没做全就不翻。这样任何一步崩掉都停在 draft——不会停在「ready 但 AI 的结论不在」，也不会停在「ready 却还挂着 `weka-working`」。
 
+标签操作不是原子的，所以判定按**稳态**看：返工起手退 draft 之后、摘 `weka-reviewed` 之前会短暂出现 draft + `weka-reviewed`，摘完到补回 `weka-working` 之间会短暂一个流程标签都没有。这两处是过渡，不是新加的合法状态——真停在那儿说明 worker 死在两步之间，卡还在板上。
+
 为什么把翻转放在 `weka-reviewed` 而不是交接：draft 表达的是「还没到人该看的时候」。reed 审的时候 AI 的结论还没出来，这时把 PR 摆成 ready，人会被叫去终审一份还没过 AI 预检的东西。ready 的唯一入口就是 `weka-reviewed`，两者必须同时出现。
 
 验收按这两条核：**PR 是 draft 时至少挂着一个「有人在场」的流程标签**（cody 手上是 `weka-working`，reed 手上是 `weka-working` + `weka-reviewing`，且不能有 `weka-reviewed`）；**PR 是 ready 时 `weka-reviewed` 必须在，且 `weka-working` / `weka-reviewing` 都不能在**，不能只剩 `weka`。draft + `weka-reviewing` 是正常状态——reed 审的时候 PR 还没到人手上。
