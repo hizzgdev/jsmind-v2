@@ -371,59 +371,6 @@ class Weka:
         print(f"[OK] removed worktree {path}")
         return "removed"
 
-    def sweep_worktrees(self) -> int:
-        """Remove worktrees whose pull request is already merged.
-
-        The close event is the primary path; this is the backstop for the cases
-        it cannot cover. The event path is at-most-once and its success signal is
-        not trustworthy: the handler catches every exception and still answers
-        200, so a cleanup that failed inside is acked to GitHub as delivered, and
-        GitHub does not redeliver failures anyway (a delivery is also failed if
-        the response takes over 10 s, which the synchronous handler can hit).
-
-        So this is the only thing that reconciles the host with what actually got
-        merged. Safe to run at any time, because a worktree is only removed when
-        all three hold:
-
-        - its branch is gone from origin (GitHub deletes the head branch on merge),
-        - GitHub reports a merged PR for that branch,
-        - it holds nothing but build output.
-
-        Returns the number of worktrees removed.
-        """
-        rc, out = self._run(["git", "worktree", "list", "--porcelain"])
-        if rc != 0:
-            print(f"[ERROR] git worktree list failed: {out}", file=sys.stderr)
-            return 0
-        removed = 0
-        for path, branch in parse_worktrees(out):
-            if branch is None or os.path.realpath(path) == os.path.realpath(REPO_ROOT):
-                continue
-            if self._run(["git", "ls-remote", "--exit-code", "--heads", "origin", branch])[0] == 0:
-                continue  # still on origin: open, or not merged
-            rc, merged_pr = self._run(
-                ["gh", "pr", "list", "--head", branch, "--state", "merged",
-                 "--json", "number", "--jq", ".[0].number // empty"]
-            )
-            if rc != 0:
-                print(f"[WARN] cannot ask GitHub about {branch}: {merged_pr}", file=sys.stderr)
-                continue
-            number = merged_pr.strip()
-            if not number:
-                print(f"[INFO] kept {path}: no merged PR for {branch}", file=sys.stderr)
-                continue
-            if self.remove_worktree(branch) != "removed":
-                continue
-            rc, out = self._run(["git", "branch", "-D", branch])
-            if rc != 0:
-                print(f"[WARN] branch delete failed for {branch}: {out}", file=sys.stderr)
-                continue
-            print(f"[OK] swept {path} (PR #{number})")
-            removed += 1
-        self._run(["git", "fetch", "--prune", "origin"])
-        print(f"[OK] sweep done: {removed} worktree(s) removed")
-        return removed
-
     def strip_labels(self, number: int | None, labels: list[str]) -> None:
         """Best-effort removal of the flow labels still carrying `number`.
 
@@ -800,16 +747,9 @@ def make_handler(weka: Weka):
 
 
 def main() -> None:
-    args = sys.argv[1:]
-    sweep = "--sweep" in args
-    args = [a for a in args if a != "--sweep"]
-    config_path = args[0] if args else DEFAULT_CONFIG
+    config_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONFIG
     config = load_config(config_path)
     weka = Weka(config)
-    if sweep:
-        # One-shot backstop for merges whose close event was missed. Run by hand
-        # (`--sweep`) or from the deploy procedure; it never blocks the service.
-        raise SystemExit(0 if weka.sweep_worktrees() >= 0 else 1)
     port = int(config.get("port", 9180))
     # Loopback only: nginx faces the public net and proxies /weka-webhook here.
     server = HTTPServer(("127.0.0.1", port), make_handler(weka))

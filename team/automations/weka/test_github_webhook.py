@@ -389,42 +389,15 @@ class WorktreeCleanupTests(unittest.TestCase):
 
 
 class SweepTests(unittest.TestCase):
-    """The backstop for close events the service never saw."""
+    """The backstop for close events the service never saw lives in
+    `scripts/cleanup-worktrees.py` — its own tests are next to it."""
 
-    def test_a_merged_branch_gone_from_origin_is_swept(self):
-        weka = ScriptedGitWeka(
-            [("/repo/.worktrees/t_x", "fix/x")],
-            {"/repo/.worktrees/t_x": "?? node_modules\n"},
-            merged_prs={"fix/x": 99},
-        )
-
-        self.assertEqual(weka.sweep_worktrees(), 1)
-        self.assertEqual(weka.removed, ["/repo/.worktrees/t_x"])
-        self.assertIn(["git", "branch", "-D", "fix/x"], weka.calls)
-
-    def test_a_branch_still_on_origin_is_left_alone(self):
-        weka = ScriptedGitWeka(
-            [("/repo/.worktrees/t_x", "fix/x")], origin_alive={"fix/x"}
-        )
-
-        self.assertEqual(weka.sweep_worktrees(), 0)
-        self.assertEqual(weka.removed, [])
-
-    def test_no_merged_pr_means_kept(self):
-        weka = ScriptedGitWeka([("/repo/.worktrees/t_x", "fix/x")])
-
-        self.assertEqual(weka.sweep_worktrees(), 0)
-        self.assertEqual(weka.removed, [])
-
-    def test_uncommitted_work_stops_the_sweep_too(self):
-        weka = ScriptedGitWeka(
-            [("/repo/.worktrees/t_x", "fix/x")],
-            {"/repo/.worktrees/t_x": "?? notes.txt\n"},
-            merged_prs={"fix/x": 99},
-        )
-
-        self.assertEqual(weka.sweep_worktrees(), 0)
-        self.assertEqual(weka.removed, [])
+    def test_the_webhook_has_no_sweep_mode_of_its_own(self):
+        # The service has one job: turn events into cards and clean up after the
+        # close event it was given. A maintenance pass of the whole checkout is a
+        # different purpose, and lives in its own script so this one stays a
+        # bridge rather than a toolbox.
+        self.assertFalse(hasattr(weka_webhook.Weka, "sweep_worktrees"))
 
 
 if __name__ == "__main__":

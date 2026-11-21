@@ -133,18 +133,18 @@ is a single-threaded `HTTPServer`, so a delivery arriving during the restart is 
 redeliver it. That is survivable because deploys are rare and chosen by a human at a quiet moment; it is
 not survivable as an unattended unit, which is why nothing here restarts on file change.
 
-Then sweep the worktrees — the same reset, applied to what the workers left behind:
+Then reconcile what the workers left behind — a separate tool, because the service has one job:
 
 ```bash
-~/.hermes/venvs/weka/bin/python team/automations/weka/github-webhook.py --sweep
+python3 scripts/cleanup-worktrees.py --dry-run   # decisions only
+python3 scripts/cleanup-worktrees.py             # merged work only
 ```
 
 It removes worktrees whose branch is gone from origin **and** whose pull request GitHub reports as merged
 **and** which hold nothing but build output; anything else is named and kept. This is the only step that
-reconciles the host with what actually got merged: the handler answers `200` even when the work inside it
+covers the events the service could not act on: the handler answers `200` even when the work inside it
 raised, and GitHub does not redeliver failed deliveries — so an event that went wrong leaves no queue to
-replay, just a line in the journal. It is idempotent, so running it on a clean host prints
-`0 worktree(s) removed`.
+replay, just a line in the journal. It is idempotent, so a clean host prints `0 worktree(s) removed`.
 
 ### 6. Smoke test: tests always, a real event only when behaviour could have changed
 
