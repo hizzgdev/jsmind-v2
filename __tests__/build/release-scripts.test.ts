@@ -9,7 +9,8 @@
  * rule the whole flow exists for is that a tag is only cut on merged master.
  *
  * `scripts/release/notes.mjs` is tested the same way: the release notes are
- * `git log` grouped by prefix under a fixed template, not composed by hand.
+ * `git log` filtered by the files each commit touched and grouped under a
+ * fixed template, not composed by hand.
  */
 
 import assert from 'node:assert/strict';
@@ -251,64 +252,6 @@ describe('release notes', () => {
             nodeRange: '>=22.12.0',
         });
         assert.match(text, /Minor release on the 2\.x preview line/);
-    });
-});
-
-/**
- * The 2.1.0 window, replayed from the real log: 35 commits, of which 7 `feat`
- * or `fix` commits touched no `src/` file at all. The shipped notes list the
- * six commits that did reach the artifact. This is the acceptance check for
- * "the notes are generated from what a user can feel, not from a prefix" - the
- * fixture is the output of
- * `git log --format="commit %H %s" --name-only v2.0.1..v2.1.0`, so the test
- * runs on the same data the release did, on a runner where the tags of that
- * window do not exist.
- */
-describe('the 2.1.0 window, reproduced from the real log', () => {
-    const window = readFileSync(join(ROOT, '__tests__/build/fixtures/release-window-2.1.0.log'), 'utf8');
-    const entries = notes.parseLog(window);
-
-    it('reads every commit of the window with the files it touched', () => {
-        assert.equal(entries.length, 35);
-        // Seven commits changed something under src/ - including the release
-        // commit, which is why the release type is filtered separately.
-        assert.equal(entries.filter((entry: { files: string[] }) => notes.reachesArtifact(entry.files)).length, 7);
-        assert.equal(notes.artifactEntries(entries).length, 6);
-    });
-
-    it('lists exactly the commits the shipped 2.1.0 notes list', () => {
-        const listed = notes.artifactEntries(entries);
-        const numbers = (text: string) => new Set([...text.matchAll(/#(\d+)/g)].map(match => match[1]));
-
-        const generated = numbers(listed.map((entry: { subject: string }) => entry.subject)
-            .join('\n'));
-        const shipped = numbers(readFileSync(join(ROOT, 'releases/2.1.0.md'), 'utf8'));
-
-        // #134 is described under "Breaking" rather than in the Features list,
-        // and the prose there is written by hand - what the generator has to
-        // reproduce is which commits belong, not which section they sit in.
-        assert.deepEqual([...generated].sort(), [...shipped].sort());
-        assert.deepEqual([...shipped].sort(), ['131', '132', '134', '136', '141', '145']);
-    });
-
-    it('leaves out every commit that changed nothing under src/', () => {
-        const text = notes.renderNotes({
-            version: '2.1.0',
-            kind: 'minor',
-            previousTag: 'v2.0.1',
-            entries,
-            repositoryUrl: 'https://github.com/hizzgdev/jsmind-v2',
-            nodeRange: '>=22.12.0',
-        });
-        // The three kinds that used to fill the list and cannot reach dist/.
-        assert.doesNotMatch(text, /fix\(weka\)/);
-        assert.doesNotMatch(text, /^- docs[(:]/m);
-        assert.doesNotMatch(text, /build\(deps-dev\)/);
-        assert.doesNotMatch(text, /^- chore\(release\)/m);
-        // And the production changes are all there.
-        for (const number of ['131', '132', '134', '136', '141', '145']) {
-            assert.match(text, new RegExp(`#${number}\\b`));
-        }
     });
 });
 

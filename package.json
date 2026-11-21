@@ -39,7 +39,6 @@
         "test-lite": "node --test --test-reporter=dot \"__tests__/!(ui)/**/*.test.ts\"",
         "format": "node scripts/check-eof-newline.mjs --fix && eslint --fix --config .config/eslint.config.js",
         "format-check": "node scripts/check-eof-newline.mjs && eslint --config .config/eslint.config.js",
-        "commit-type-check": "node scripts/check-commit-type.mjs",
         "version-check": "node scripts/check-version-refs.mjs",
         "skill-meta-check": "node scripts/check-skill-meta.mjs",
         "type-check": "tsc --noEmit -p tsconfig.json",

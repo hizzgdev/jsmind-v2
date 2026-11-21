@@ -25,7 +25,7 @@ dist/jsmind.js  dist/jsmind.cjs  dist/jsmind.umd.js  dist/cli.js  (+ .map, + .d.
 
 ## 2. 表
 
-这张表是唯一的真源，`scripts/check-commit-type.mjs` 在 CI 里直接读它。类型名在反引号里、路径也写在反引号里 —— 那不是排版，是这台机器要读的格式。
+**这张表是唯一的真源。** 别处（`AGENTS.md`、评审 skill、`SOUL.cody.md`）只写「按这张表选」，不复述内容；要改规则就只改这里。
 
 | type | 含义 | 路径 |
 |---|---|---|
@@ -45,27 +45,27 @@ dist/jsmind.js  dist/jsmind.cjs  dist/jsmind.umd.js  dist/cli.js  (+ .map, + .d.
 
 **scope 是可选的，不在这张表的管辖内。** 它说的是「改动落在哪个子系统」（`cli`、`view`、`model`、`weka` …），审查时用来核对 diff；拿不准就写清楚的那个，别为了凑格式生造。
 
-## 3. 机器怎么守
+## 3. 没有 CI 闸门，这是刻意的
 
-两处，都很便宜。
+这条规则**不由 CI 强制**，别在上面加一个「拿标题的类型对 diff 检查」的 job。
 
-**一、CI 拿标题的类型对 diff 检查。** `scripts/check-commit-type.mjs` 挂在 `ci.yml` 的 `changes` job 上，只对 pull request 生效（push 到 master 没有标题）：
+理由：一个命名约定不值得让 PR 因为和这次改动无关的理由变红；而闸门会诱导作者挑一个「能过检查」的类型，而不是说真话的那个 —— 混合改动、跨层改动尤其如此，而它们正是最需要一个诚实类型的地方。
 
-- 标题用了 `feat`/`fix`/`refactor`，diff 里没有 `src/` 文件 → 红。
-- 标题用了 `docs`，diff 里没有 `docs/{zh,en}/guide`、`docs/{zh,en}/reference` 下的文件 → 红。
-- 其余类型不做路径检查。这是刻意的：兜底的 `team` 必须能装下任何混合改动，一旦它也要求路径，混合 PR 就没有合法类型可用了。
-- 表里没有的类型（历史的 `build`、`ci`，以及依赖机器人写的前缀）只警告、不拦 —— 让它们为了一个和这次检查无关的理由变红，是把闸门装错了地方。想让依赖升级合规，把那边的前缀改成 `deps`。
-- 脚本读不出表（缺了这四行里的任何一行、或者表改了形状）就直接失败，不会静默放行 —— 表是唯一真源，它坏了要让 CI 说，而不是让闸门悄悄失效。
+执行方式是**评审**：`team/automations/skills/jsmind-review/SKILL.md` 要求评审者拿标题的类型对一遍 diff，对不上就打回；`SOUL.cody.md` 让写代码的 agent 先读这张表再定类型。两处都只指向本文，不复述规则。
 
-**二、发布说明按路径生成，不认前缀。** `scripts/release/notes.mjs` 用 `git log --name-only` 拿到每个提交碰过的文件，只留下有 `src/` 文件的那些，前缀只决定它落到 Features / Fixes / Internals 哪一组。2.1.0 的说明之所以要手改，就是因为旧版本信了前缀：`fix(weka): never drop a human comment on a PR` 和修导出图片的 `fix` 排在同一个列表里。
+## 4. 唯一自动化的地方：发布说明按路径生成
 
-## 4. `chore` 没有了
+`scripts/release/notes.mjs` 用 `git log --name-only` 拿到每个提交碰过的文件，只留下有 `src/` 文件的那些；前缀只决定它落到 Features / Fixes / Internals 哪一组。这一处读的是 diff，不是标题 —— 标题的类型写错了，说明还是对的，所以它和「没有 CI 闸门」并不冲突。
+
+2.1.0 的说明之所以要手改，就是因为旧版本信了前缀：`fix(weka): never drop a human comment on a PR` 和修导出图片的 `fix` 排在同一个列表里。
+
+## 5. `chore` 没有了
 
 它原来的用途拆开：脚本 → `tooling`，依赖 → `deps`，CI → `devops`，流程文档 → `team`，版本号 → `release`。**历史里的 `chore` / `build` / `ci` 提交不改**（不重写历史），只是新提交不要再用。
 
 `dev` 是 repo 脚本的另一个候选名，但它读起来像「开发」、又和 `devops` 撞车；`tooling` 说的是「哪些脚本」。`devops` 和 `tooling` 必须分开：一个改仓库怎么构建，一个改仓库发布什么。
 
-## 5. 已知缺口
+## 6. 已知缺口
 
-- `.config/` 下的构建配置（rollup 等）确实能改变产物内容，但表里还没有它的一行，按兜底算 `team`。真要给它一行，得同时决定 CI 要不要按路径检查它 —— 那是下一次的事，不是现在偷偷补一条。
+- `.config/` 下的构建配置（rollup 等）确实能改变产物内容，但表里还没有它的一行，按兜底算 `team`。真要给它一行，就只改这张表 —— 没有别的地方要跟着改。
 - `docs/{zh,en}/index.md`（文档站首页）和 `community/`、`design/` 不在 `docs` 的路径里。首页是给用户读的，但这条规则把它划在外面；真别扭，就改表里 `docs` 那一行，别在 PR 标题里各写各的。
