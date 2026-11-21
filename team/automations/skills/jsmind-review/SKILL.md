@@ -12,17 +12,20 @@ not sufficient.
 
 ## Project conventions
 
-- PR titles and commit messages use English Conventional Commits: `<type>(<scope>): <subject>`. Scopes:
-  model / arranger / view / serialization / docs / tests / build.
+- PR titles and commit messages use English Conventional Commits: `<type>(<scope>): <subject>`, and the
+  scope names the subsystem the commit actually touches (`cli`, `weka`, `team`, `playground`, `view`,
+  `model`, `build`, `skill`, `ci`, `release`). Do not invent a scope for a one-off; do not police the
+  scope name either — read it as a claim about where the change lives, and check it against the diff.
 - Code comments in English.
 - Cite locations in repo docs or source. When docs and code disagree, trust the code and say which
   document is wrong.
 - Squash merges take the **PR title** when the PR has more than one commit, so a stale title writes a
   false subject into history. Check the commit count before deciding whether the title is a must-fix.
 - A new on-disk field on `JmStyle` / `JmTheme` / `JmNodeStyle` must also land in
-  `docs/requirements/v2-data-format.md`: §5.3 owns the interface block, §5.4 the 覆盖链, §9.5 the
-  validation table. `docs/requirements/v2-cli.md` is the opposite case — a design doc that
-  implementation PRs do not update, so a missing command group there is a note, not a blocker.
+  `docs/requirements/v2-data-format.md`: §5.2 declares `JmNodeStyle`, §5.3 the `JmStyle` / `JmTheme`
+  block, §5.4 the 覆盖链, §9.5 the validation table. `docs/requirements/v2-cli.md` follows the same
+  rule — it is a design doc, but CLI feature PRs do land their command groups there, so a new command
+  missing from it is a gap in the PR, not a note.
 - The PR body is the public record even when it never reaches git history. A body that still describes a
   deleted flag, script or test is a must-fix; a body-only rework is legitimate and should say "no file
   changes this round".
@@ -92,6 +95,11 @@ review is not finished when the diff reads correctly.
 - **A recovery hint printed on failure.** Recovery instructions are deliverable code; replay them
   literally. A hint that restores from the index after the script already staged its changes undoes
   nothing.
+- **A green check called "Format, types, tests, build".** That job gates `type-check`, `test:coverage` and
+  `build` on the `library` output, so a PR touching only docs or `skills/` runs format-check alone and goes
+  green in seconds. A test count or coverage percentage quoted in such a PR's body is therefore not
+  CI-verified: run it once locally, or say in the review that CI cannot reproduce it. Decimal drift between
+  machines (96.43 vs 96.44) is a note, never a rework round.
 - **Rendering and export claims.** When the claim is about geometry, colour or placement, the proof is a
   measurement — pixel census, dimensions, byte comparison — not a screenshot someone says looks right.
 
