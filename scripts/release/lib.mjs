@@ -76,17 +76,23 @@ export function note(message) {
 
 /**
  * The way out of a half-finished `release:prepare`: the version bump lives in
- * `package.json` and `package-lock.json`, and by the time a step fails they may
- * be in the working tree only (npm version, format-check) or already staged
- * (the commit itself). `git checkout -- <paths>` restores from the index, so it
- * silently does nothing in the staged case and the bump then follows you onto
- * master. `git restore --staged --worktree` covers both, so this is the recipe
- * every failure path prints - one recipe, tested against real git, not three
- * hand-written copies that can drift apart.
+ * `package.json` and `package-lock.json`, the release notes in
+ * `releases/<version>.md`, and by the time a step fails they may be in the
+ * working tree only (npm version, format-check) or already staged (the commit
+ * itself). `git checkout -- <paths>` restores from the index, so it silently
+ * does nothing in the staged case and the bump then follows you onto master.
+ * `git restore --staged --worktree` covers both. The notes file needs its own
+ * two steps because it is a new path: `git rm --cached` unstages an addition
+ * that a failed commit left behind, and `rm -f` removes the copy on disk -
+ * `--ignore-unmatch` keeps both harmless when the file was never written. One
+ * recipe, tested against real git, not three hand-written copies that drift.
  */
-export function undoBumpHint(branch) {
+export function undoBumpHint(branch, version) {
+    const notes = `releases/${version}.md`;
     return [
         'git restore --staged --worktree package.json package-lock.json',
+        `git rm -q --cached --ignore-unmatch ${notes}`,
+        `rm -f ${notes}`,
         'git checkout master',
         `git branch -d ${branch}`,
     ];

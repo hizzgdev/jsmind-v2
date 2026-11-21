@@ -137,3 +137,49 @@ export function checkVersionReleased(localVersion, originMasterVersion) {
 export function isReleaseCommit(subject) {
     return RELEASE_COMMIT.test(subject);
 }
+
+/**
+ * The curated release notes live in the tree, one file per version, and
+ * `publish` sends that file to GitHub verbatim. The reason is that the notes
+ * are not a projection of `git log`: the entries are chosen by what a user of
+ * the shipped artifact can feel, and the breaking-change paragraphs are written
+ * from behaviour, not from a subject line. A projection can be regenerated at
+ * will; this file cannot, so it is the source and the release page is its copy.
+ */
+export function notesPathFor(version) {
+    return `releases/${version}.md`;
+}
+
+/**
+ * `prepare` must not write over notes somebody may already have curated: the
+ * file existing means this version was staged before, and a fresh draft would
+ * silently throw that judgement away.
+ */
+export function checkNotesAbsent(path, exists) {
+    if (!exists) {
+        return null;
+    }
+    return `${path} already exists, so ${path.replace(/^releases\//, '').replace(/\.md$/, '')} was staged before.\nDelete the file to start over, or release a different version.`;
+}
+
+/**
+ * The file `publish` sends is the one the release pull request carried: present,
+ * tracked (an untracked file is not in the commit the tag will name), and headed
+ * with the version it claims to describe. Anything else means the reviewed text
+ * and the shipped text would differ, which is the failure this whole file exists
+ * to prevent.
+ */
+export function checkNotesForPublish({ path, exists, tracked, content, version }) {
+    if (!exists) {
+        return `no release notes at ${path}.\nA release is described by a file in the tree, not by a regeneration at publish time: write ${notesPathFor(version)} (or pass --notes-file).`;
+    }
+    if (!tracked) {
+        return `${path} exists but is not committed, so the tag would not name it.\nCommit the notes before publishing; the release page is built from that file.`;
+    }
+    const heading = (content.split('\n').find(line => line.trim() !== '') ?? '').trim();
+    const expected = `# jsMind ${version}`;
+    if (heading !== expected) {
+        return `${path} starts with "${heading}", not "${expected}".\nThe file names the version it describes; publishing ${version} from notes for another version is how a release page ends up wrong.`;
+    }
+    return null;
+}
