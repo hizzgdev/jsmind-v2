@@ -390,6 +390,14 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
 4. 你在 PR 上提一条 `changes_requested` 的 review → 出现卡片 `#<pr>: Rework 1 — ...`，`weka-reviewed` 被摘掉；
 5. 你合并 PR → worktree 和本地分支被删掉，PR 上标签清空，不再有卡片；PR body 里带 `Closes #N` 时 issue 会自动关闭，issue 上的 `weka-working` 同时被清掉（手动关闭 issue 同理）。
 
+   删除由 `pull_request.closed` 事件触发，因此它只覆盖这条投递真的到达过的合并。投递丢了、或者当时删不掉（判据把构建产物误当成未提交的改动），worktree 就会留下：
+
+   ```
+   ~/.hermes/venvs/weka/bin/python team/automations/weka/github-webhook.py --sweep
+   ```
+
+   只在三件事同时成立时删——分支已不在 origin、GitHub 说该分支的 PR 已合并、里面只有构建产物（`node_modules` 之类）。其余情况会点名保留。部署流程每次都会跑它一遍，幂等。
+
 任何一环卡住，按顺序看：
 
 ```bash
