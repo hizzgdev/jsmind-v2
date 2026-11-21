@@ -45,7 +45,7 @@ File does not exist, and the intent is `BUILD`: `create` that path. `create` doe
 - **Do not write the JSON file directly.** No editor, redirect, script, or read-modify-write. That bypasses `write → validate → rollback`.
 - **Do not bypass `jsmind`.** Add or remove nodes, change text, change side, fold, change style: all through `jsmind` subcommands.
 - **Do not continue while `validate` is failing.** Exit code is not 0: stop. Do not `export`. Do not start the next round of edits. Get `validate` to pass first.
-- **Read the exit code before you decide what is broken.** Non-zero does not always mean the data is bad, and guessing wrong sends you to edit a file that was never the problem. `1` is invalid data: the report names the nodes, fix those. `2` is a usage error — missing argument, unknown flag, value out of range — so the command is wrong, fix the command and leave the file alone. `3` is an IO or runtime failure, such as a file that does not exist or a missing parent directory: fix the environment, not the mind map.
+- **Read the exit code before you decide what is broken.** Non-zero does not always mean the data is bad, and guessing wrong sends you to edit a file that was never the problem. `1` is invalid data: the report names the nodes, fix those. `2` is a usage error — missing argument, an unknown option under `--strict`, value out of range — so the command is wrong, fix the command and leave the file alone. `3` is an IO or runtime failure, such as a file that does not exist or a missing parent directory: fix the environment, not the mind map.
 
 ## Hard checkpoints (in order, do not skip)
 
