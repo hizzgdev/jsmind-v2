@@ -82,6 +82,22 @@ BUSY_STATUSES = ("running", "review")
 # read its own explanation back as a human request and trigger itself.
 TRACE_MARKER = "<!-- weka-webhook -->"
 
+def parse_worktrees(listing: str) -> list[tuple[str, str | None]]:
+    """`(path, branch)` for each block of `git worktree list --porcelain`."""
+    worktrees: list[tuple[str, str | None]] = []
+    for block in listing.split("\n\n"):
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        if not lines or not lines[0].startswith("worktree "):
+            continue
+        path = lines[0][len("worktree "):]
+        branch = None
+        for line in lines[1:]:
+            if line.startswith("branch refs/heads/"):
+                branch = line[len("branch refs/heads/"):]
+                break
+        worktrees.append((path, branch))
+    return worktrees
+
 
 def load_config(path: str) -> dict:
     if not os.path.exists(path):
@@ -249,50 +265,17 @@ class Weka:
         if not branch:
             print("[WARN] cleanup skipped: no branch in payload", file=sys.stderr)
             return
-        rc, out = self._run(["git", "worktree", "list", "--porcelain"])
-        if rc != 0:
-            print(f"[ERROR] git worktree list failed: {out}", file=sys.stderr)
+        removed = self.remove_worktree(branch)
+        if removed == "kept":
+            print(
+                f"[INFO] kept local branch {branch}: still checked out in a worktree",
+                file=sys.stderr,
+            )
             return
-        path = None
-        for block in out.split("\n\n"):
-            lines = [line.strip() for line in block.splitlines() if line.strip()]
-            if lines and lines[0].startswith("worktree "):
-                current_path = lines[0][len("worktree "):]
-                if f"branch refs/heads/{branch}" in lines:
-                    path = current_path
-                    break
-        main_tree = False
-        if path:
-            main_tree = os.path.realpath(path) == os.path.realpath(REPO_ROOT)
-            if main_tree:
-                # The PR branch is checked out in our own working tree (someone
-                # developed it in place). git refuses `worktree remove` on a main
-                # working tree and cannot delete a branch that is checked out, so
-                # skip both instead of logging two failures per merge.
-                print(
-                    f"[INFO] {branch} is checked out in the main working tree; leaving it",
-                    file=sys.stderr,
-                )
-                path = None
-            else:
-                # Worker worktrees always carry ignored build litter (node_modules,
-                # dist/, _site/), and `worktree remove` refuses to touch those. An
-                # ignored path is not someone's work, so allow --force exactly then;
-                # `status --porcelain` ignores gitignored files by default.
-                rc, dirty = self._run(["git", "-C", path, "status", "--porcelain"])
-                artifacts_only = rc == 0 and not dirty.strip()
-                cmd = ["git", "worktree", "remove", path] + (["--force"] if artifacts_only else [])
-                rc, out = self._run(cmd)
-                if rc != 0:
-                    # Never --force on real changes: a failure means uncommitted work there.
-                    print(f"[WARN] worktree remove failed for {path}: {out}", file=sys.stderr)
-                elif artifacts_only:
-                    print(f"[OK] removed worktree {path} (ignored artifacts only)")
-                else:
-                    print(f"[OK] removed worktree {path}")
-        if main_tree:
-            pass  # the branch belongs to this checkout; nothing to delete
-        elif merged:
+        if removed is None and self.worktree_for(branch):
+            # The main checkout has it; deleting a checked-out branch only fails.
+            return
+        if merged:
             rc, out = self._run(["git", "branch", "-D", branch])
             if rc != 0:
                 print(f"[WARN] branch delete failed for {branch}: {out}", file=sys.stderr)
@@ -301,6 +284,51 @@ class Weka:
         else:
             print(f"[INFO] PR closed unmerged: kept local branch {branch}", file=sys.stderr)
         self._run(["git", "fetch", "--prune", "origin"])
+
+    def worktree_for(self, branch: str) -> str | None:
+        """Path of the worktree with `branch` checked out, if any."""
+        rc, out = self._run(["git", "worktree", "list", "--porcelain"])
+        if rc != 0:
+            print(f"[ERROR] git worktree list failed: {out}", file=sys.stderr)
+            return None
+        for path, checked_out in parse_worktrees(out):
+            if checked_out == branch:
+                return path
+        return None
+
+    def remove_worktree(self, branch: str) -> str | None:
+        """Remove `branch`'s worktree. `removed` on success, `kept`, or None.
+
+        None means no worktree had that branch checked out — the normal case for
+        a branch that was never worked on locally, and also the case for the main
+        checkout, which must never be removed.
+        """
+        path = self.worktree_for(branch)
+        if path is None:
+            return None
+        if os.path.realpath(path) == os.path.realpath(REPO_ROOT):
+            # The PR branch is checked out in our own working tree (someone
+            # developed it in place). git refuses `worktree remove` on a main
+            # working tree, so skip it instead of failing once per merge.
+            print(
+                f"[INFO] {branch} is checked out in the main working tree; leaving it",
+                file=sys.stderr,
+            )
+            return None
+        # No --force, and no list of "artifact" names here: git already makes the
+        # distinction that matters. It removes a worktree whose only untracked
+        # content is ignored, and refuses one that holds a modification or an
+        # untracked path. Anything it refuses is either somebody's uncommitted
+        # work or a build artifact that `.gitignore` does not cover — both want a
+        # human, not a bigger hammer. (The old --force ran on the opposite
+        # condition, "status is empty", which is why a worker's gitignored
+        # node_modules link pinned its worktree after every merge.)
+        rc, out = self._run(["git", "worktree", "remove", path])
+        if rc != 0:
+            print(f"[WARN] kept worktree {path}: {out}", file=sys.stderr)
+            return "kept"
+        print(f"[OK] removed worktree {path}")
+        return "removed"
 
     def strip_labels(self, number: int | None, labels: list[str]) -> None:
         """Best-effort removal of the flow labels still carrying `number`.

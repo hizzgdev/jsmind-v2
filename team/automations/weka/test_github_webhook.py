@@ -291,5 +291,77 @@ class CommentShapeTests(unittest.TestCase):
         self.assertFalse(weka.comment_on_pr(None, "x"))
 
 
+class ScriptedGitWeka(weka_webhook.Weka):
+    """A Weka whose git/gh calls are scripted, so a cleanup decision is testable."""
+
+    def __init__(self, worktrees, remove_fails=()):
+        super().__init__(dict(CONFIG))
+        self.calls = []
+        self.worktrees = list(worktrees)          # [(path, branch)]
+        self.remove_fails = set(remove_fails)     # paths git refuses to remove
+        self.removed = []
+
+    def _run(self, cmd):
+        self.calls.append(cmd)
+        if cmd[:3] == ["git", "worktree", "list"]:
+            blocks = []
+            for path, branch in self.worktrees:
+                block = f"worktree {path}\nHEAD 0123456789abcdef"
+                if branch:
+                    block += f"\nbranch refs/heads/{branch}"
+                blocks.append(block)
+            return 0, "\n\n".join(blocks)
+        if cmd[:3] == ["git", "worktree", "remove"]:
+            path = cmd[-1]
+            if path in self.remove_fails:
+                return 1, f"fatal: '{path}' contains modified or untracked files, use --force to delete it"
+            self.removed.append(path)
+            return 0, ""
+        return 0, ""
+
+
+class WorktreeCleanupTests(unittest.TestCase):
+    """A close event must actually remove the worktree it is responsible for."""
+
+    def test_a_worktree_git_accepts_removing_is_removed(self):
+        # `git worktree remove` succeeds when the only untracked content is
+        # ignored, so no name list of ours has to know what build litter is.
+        weka = ScriptedGitWeka([("/repo/.worktrees/t_x", "fix/x")])
+
+        weka.cleanup_branch("fix/x", merged=True)
+
+        self.assertEqual(weka.removed, ["/repo/.worktrees/t_x"])
+        self.assertIn(["git", "branch", "-D", "fix/x"], weka.calls)
+
+    def test_a_worktree_git_refuses_keeps_the_worktree_and_its_branch(self):
+        weka = ScriptedGitWeka([("/repo/.worktrees/t_x", "fix/x")], remove_fails={"/repo/.worktrees/t_x"})
+
+        weka.cleanup_branch("fix/x", merged=True)
+
+        self.assertEqual(weka.removed, [])
+        self.assertNotIn(["git", "branch", "-D", "fix/x"], weka.calls)
+
+    def test_the_main_checkout_is_never_removed(self):
+        main = weka_webhook.REPO_ROOT
+        weka = ScriptedGitWeka([(main, "fix/x")])
+
+        weka.cleanup_branch("fix/x", merged=True)
+
+        self.assertEqual(weka.removed, [])
+        self.assertNotIn(["git", "branch", "-D", "fix/x"], weka.calls)
+
+
+class SweepTests(unittest.TestCase):
+    """The backstop for close events the service never saw lives in
+    `scripts/cleanup-worktrees.py` — its own tests are next to it."""
+
+    def test_the_webhook_has_no_sweep_mode_of_its_own(self):
+        # The service has one job: turn events into cards and clean up after the
+        # close event it was given. A maintenance pass of the whole checkout is a
+        # different purpose, and lives in its own script so this one stays a
+        # bridge rather than a toolbox.
+        self.assertFalse(hasattr(weka_webhook.Weka, "sweep_worktrees"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -133,6 +133,22 @@ is a single-threaded `HTTPServer`, so a delivery arriving during the restart is 
 redeliver it. That is survivable because deploys are rare and chosen by a human at a quiet moment; it is
 not survivable as an unattended unit, which is why nothing here restarts on file change.
 
+Then reconcile what the workers left behind — a separate tool, because the service has one job:
+
+```bash
+python3 scripts/cleanup-worktrees.py --dry-run   # decisions only
+python3 scripts/cleanup-worktrees.py             # merged work only
+```
+
+It removes worktrees whose branch is gone from origin **and** whose pull request GitHub reports as merged
+**and** which git is willing to remove — git refuses a worktree holding a modification or an untracked
+file, and accepts one whose untracked content is ignored. That makes `.gitignore` the policy: a build
+artifact nobody ignored blocks its own cleanup, and the fix belongs in the ignore rules, not in a longer
+list of exemptions. This is the only step that covers the events the service could not act on: the handler
+answers `200` even when the work inside it raised, and GitHub does not redeliver failed deliveries — so an
+event that went wrong leaves no queue to replay, just a line in the journal. It is idempotent, so a clean
+host prints `0 worktree(s) removed`.
+
 ### 6. Smoke test: tests always, a real event only when behaviour could have changed
 
 ```bash
