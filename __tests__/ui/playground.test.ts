@@ -399,7 +399,7 @@ test('ui - playground header contains a visible link to the jsmind-v2 repository
     assert.strictEqual(link.target, '_blank');
     assert.ok(link.rel.split(/\s+/).includes('noopener'), 'the link should use rel=noopener');
     assert.ok(link.rel.split(/\s+/).includes('noreferrer'), 'the link should use rel=noreferrer');
-    assert.ok(/jsmind-v2/i.test(link.text), 'the link should visibly name the jsmind-v2 project');
+    assert.strictEqual(link.text, 'jsmind-v2', 'the link should visibly read jsmind-v2');
     assertLinkVisible(link, 'the repository link');
 });
 
@@ -410,7 +410,7 @@ test('ui - playground header contains a visible link to the project documentatio
     assert.strictEqual(link.target, '_blank');
     assert.ok(link.rel.split(/\s+/).includes('noopener'), 'the link should use rel=noopener');
     assert.ok(link.rel.split(/\s+/).includes('noreferrer'), 'the link should use rel=noreferrer');
-    assert.ok(/docs/i.test(link.text), 'the link should visibly indicate documentation');
+    assert.strictEqual(link.text, 'Docs', 'the link should visibly read Docs');
     assertLinkVisible(link, 'the documentation link');
 });
 
