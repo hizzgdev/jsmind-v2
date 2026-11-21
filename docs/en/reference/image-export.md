@@ -83,7 +83,7 @@ Exit codes follow the CLI contract: `0` success, `1` illegal data (validate firs
 
 ### When the browser is slow to start
 
-Starting Chromium is the only part of export that depends on the machine rather than on the map. The command waits up to **60 seconds** for the browser to open its DevTools endpoint; set `JSMIND_BROWSER_START_MS` (milliseconds) to change that. A value that is not a positive number is ignored and the default applies, so a typo in CI does not turn every export into an error.
+Starting Chromium is the only part of export that depends on the machine rather than on the map. The command waits up to **60 seconds** for the browser to open its DevTools endpoint; set `JSMIND_BROWSER_START_MS` (`Since: 2.1.0`; milliseconds) to change that. A value that is not a positive number is ignored and the default applies, so a typo in CI does not turn every export into an error.
 
 The wait is not one blind sleep, and a failure is not one sentence:
 

@@ -172,7 +172,7 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 
 **参数校验发生在读文件之前**：非法 tone、非正数、未知的 `--clear` 字段都在打开文件前就报 `Usage`（退出码 2），不会因为文件恰好不存在而变成别的错误。颜色只检查是不是字符串 —— 主题接受任意 CSS 颜色，枚举值才在 CLI 层拦（为了报错时点名是哪个 flag，而不是给一个 JSON 路径）。
 
-### 3.4 `jsmind mind set-style` —— 文档级样式
+### 3.4 `jsmind mind set-style` —— 文档级样式（`Since: 2.1.0`）
 
 `mind` 组里唯一给属性字段赋值的子命令：它写 `mind.style`，不碰树结构。`node set-style` 写 `node.style`，两者是对称的两个命令，作用域靠组名区分 —— help 里也各自写明了这一点。
 
@@ -294,6 +294,27 @@ n18     供应商清洗成本
 ```
 
 没有覆盖的节点**不带 `style` 键**，而不是带一个 `{}`。
+
+**文档级样式摘要是另一层，`--json` 里与 `nodes` 平级**（`Since: 2.1.0`）。文件声明了 `mind.style` 时，文本输出在树的上方多一行：
+
+```
+style: theme=default defaultTone=primary overrides=defaultTone,tones,node
+```
+
+`--json` 时是同一个事实，放在顶层 `style` 上：
+
+```json
+{
+  "nodes": [ { "id": "n1", "level": 0, "text": "根" } ],
+  "style": {
+    "theme": "default",
+    "defaultTone": "primary",
+    "overrides": ["defaultTone", "tones", "node"]
+  }
+}
+```
+
+三个键都是解析后的值：`theme` 未写时为 `default`，`defaultTone` 未写时为 `default`，`overrides` 列出文件实际覆盖的分节（`defaultTone` / `background` / `tones` / `node` / `line` / `expander`，按类型声明顺序），没有覆盖任何分节时为空数组；文本行里空数组写成 `none`。文件没有 `mind.style` 时两样都不出现，`--ids-only` 下文本那一行也省略。
 
 **约束：**
 

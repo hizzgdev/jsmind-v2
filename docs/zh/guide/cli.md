@@ -125,13 +125,13 @@ jsmind context <file> [options]
 
 id 会打印在左对齐的一列中，便于复制到下一条命令。多行标签会被展平，截断处以省略号结束。行尾可能带有 `{…}` 块。`side` 只出现在根节点及其直接子节点上；节点折叠时会出现 `folded`；若节点样式与主题不同，也会显示相应覆盖项。
 
-文件如果声明了文档级样式，树的上方会多一行摘要，这样在任何节点被读到之前就能发现主题：
+文件如果声明了文档级样式，树的上方会多一行摘要，这样在任何节点被读到之前就能发现主题（`Since: 2.1.0`）：
 
 ```
 style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 ```
 
-`--json` 返回一个带 `nodes` 数组的对象；文件带样式时，会额外给出同一个摘要作为 `style` 块（`theme`、`defaultTone`、`overrides`）。文件没有文档级样式时两者都不出现，文本那一行在 `--ids-only` 下会被省略。
+`--json` 返回一个带 `nodes` 数组的对象；文件带样式时，会额外给出同一个摘要作为顶层的 `style` 块（`theme`、`defaultTone`、`overrides`）。文件没有文档级样式时两者都不出现，文本那一行在 `--ids-only` 下会被省略。
 
 当 `--focus` 没有匹配到任何节点时，会改为列出最接近的候选项。
 
@@ -143,7 +143,7 @@ jsmind export <file> <out.png> [options]
 
 将思维导图渲染为图片。输出尺寸以导图自身大小为准：视口内的空白会保留，超出视口的部分也不会被裁切。
 
-`export` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`；浏览器启动比默认的 60 秒还慢，就设置 `JSMIND_BROWSER_START_MS`。
+`export` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`；浏览器启动比默认的 60 秒还慢，就设置 `JSMIND_BROWSER_START_MS`（`Since: 2.1.0`）。
 
 | 选项 | 含义 | 版本 |
 | --- | --- | --- |
@@ -164,16 +164,16 @@ jsmind mind <subcommand> <file> [options]
 
 用于修改结构和关系边，以及文档自身的样式。定位一律使用 id。请使用当前这次 `context` 输出中的 id，不要沿用示例里的 id。
 
-| 子命令 | 选项 | 含义 |
-| --- | --- | --- |
-| `find` | `--node-id <id>` | 显示一个节点 |
-| `list-edges` | `--node-id <id>` | 列出与该节点相连的边 |
-| `add-child` | `--parent-id <id> --text <text> [--side left\|right] [--position <n>] [--folded true\|false]` | 添加一个子节点 |
-| `move` | `--node-id <id> --parent-id <id> [--position <n>]` | 将节点移到新的父节点下 |
-| `remove-node` | `--node-id <id>` | 删除该节点、它的整棵子树，以及触及其中任一节点的所有边 |
-| `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | 添加一条关系边 |
-| `remove-edge` | `--edge-id <id>` | 删除一条关系边 |
-| `set-style` | `--default-tone <tone>` | 文档级样式（`mind.style`）：没有自己 tone 的节点所用的语气 |
+| 子命令 | 选项 | 含义 | 版本 |
+| --- | --- | --- | --- |
+| `find` | `--node-id <id>` | 显示一个节点 | — |
+| `list-edges` | `--node-id <id>` | 列出与该节点相连的边 | — |
+| `add-child` | `--parent-id <id> --text <text> [--side left\|right] [--position <n>] [--folded true\|false]` | 添加一个子节点 | — |
+| `move` | `--node-id <id> --parent-id <id> [--position <n>]` | 将节点移到新的父节点下 | — |
+| `remove-node` | `--node-id <id>` | 删除该节点、它的整棵子树，以及触及其中任一节点的所有边 | — |
+| `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | 添加一条关系边 | — |
+| `remove-edge` | `--edge-id <id>` | 删除一条关系边 | — |
+| `set-style` | `--default-tone <tone>` | 文档级样式（`mind.style`）：没有自己 tone 的节点所用的语气 | `Since: 2.1.0` |
 
 `--side` 只在父节点是根节点时合法。侧向是根的直接子节点的位置，它下面整棵子树都继承这个侧向，所以在更深的地方写 side 只会改文件、不改画面 —— 这种情况是用例错误（退出码 2），报错会点名该节点所属的一级分支，不会静默通过。只有根节点是 center，所以 `--side` 只接受 `left` 或 `right`。
 

@@ -9,10 +9,10 @@ description: >-
   do not use it to look up flags that --help already covers. `jsmind --help`
   prints every subcommand in one place, so when you need one, read that
   subcommand's section of it.
-version: 2.0.3
+version: 2.0.4
 metadata:
   jsmind:
-    cli: ">=2.0.1 <3"
+    cli: ">=2.1.0 <3"
 ---
 
 # jsmind — bans and a checklist
