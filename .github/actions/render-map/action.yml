@@ -24,6 +24,15 @@ inputs:
     description: Viewport height to lay the map out in, in CSS pixels.
     required: false
     default: '600'
+  transparent:
+    description: >-
+      Leave the canvas background transparent instead of filling it with the
+      theme's background color. Opt-in, and the default is opaque: this action
+      has more than one caller, and a default of "transparent" would restyle
+      every one of their images without them asking. PNG and WebP only; the
+      export ignores it for JPEG, which has no alpha channel.
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -38,6 +47,15 @@ runs:
 
     - name: Render
       shell: bash
+      env:
+        # Read through the environment rather than interpolating `${{ inputs.* }}`
+        # into the script body: an input is a string from a caller, and a
+        # caller's string belongs in a variable, not in shell source.
+        DATA_FILE: ${{ inputs.data-file }}
+        OUTPUT: ${{ inputs.output }}
+        WIDTH: ${{ inputs.width }}
+        HEIGHT: ${{ inputs.height }}
+        TRANSPARENT: ${{ inputs.transparent }}
       run: |
         # Through the public export path, not a private script: whatever the API
         # produces is what gets reviewed, so a regression here is the same one a
@@ -48,8 +66,12 @@ runs:
         # stderr). That is the one failure here that is about the runner rather
         # than about the code - the same image has taken 3s and 10s to launch
         # Chrome on consecutive runs. Everything else fails once, as it should.
-        node scripts/render-preview.ts \
-          "${{ inputs.data-file }}" \
-          "${{ inputs.output }}" \
-          --width "${{ inputs.width }}" \
-          --height "${{ inputs.height }}"
+        args=("$DATA_FILE" "$OUTPUT" --width "$WIDTH" --height "$HEIGHT")
+
+        # Opt-in, per the input's own note: render-map has callers besides the
+        # preview, and their images stay opaque unless they ask.
+        if [ "$TRANSPARENT" = "true" ]; then
+          args+=(--transparent)
+        fi
+
+        node scripts/render-preview.ts "${args[@]}"
