@@ -13,8 +13,9 @@ Two things make a worktree removable, and both have to hold:
   A worktree holding a real modification or a stray file is left alone and named,
   because nothing here can tell a finished task from one that is running right
   now.
-- **the work is already on master**: the branch is gone from origin, or GitHub
-  reports a merged pull request for it.
+- **the work is already on master**: GitHub reports a merged pull request for the
+  branch. That is the only oracle that survives a squash merge, which rewrites
+  the commits and leaves `git branch --merged` answering no.
 
 Usage:
 
@@ -72,11 +73,6 @@ def merged_pr(branch: str) -> int | None:
     return int(out) if out.strip().isdigit() else None
 
 
-def gone_from_origin(branch: str) -> bool:
-    rc, _ = run(["git", "ls-remote", "--exit-code", "--heads", "origin", branch])
-    return rc != 0
-
-
 def clean(dry_run: bool, everything: bool) -> int:
     rc, listing = run(["git", "worktree", "list", "--porcelain"])
     if rc != 0:
@@ -92,9 +88,13 @@ def clean(dry_run: bool, everything: bool) -> int:
             continue
 
         if not everything:
+            # One criterion, not two: squash merges rewrite history, so git cannot
+            # answer "was this merged?" — `git branch --merged` says no even for
+            # work that is on master. GitHub is the only oracle, and a branch whose
+            # PR was closed unmerged is somebody's discarded work, not litter.
             number = merged_pr(branch)
-            if number is None and not gone_from_origin(branch):
-                print(f"[INFO] keeping {path}: {branch} is still open on origin")
+            if number is None:
+                print(f"[INFO] keeping {path}: no merged PR for {branch}")
                 continue
 
         if dry_run:

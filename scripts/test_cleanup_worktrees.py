@@ -91,7 +91,6 @@ class CleanTests(unittest.TestCase):
         self.removed = []
         self.worktrees = [("/repo/.worktrees/t_a", "fix/a")]
         self.remove_fails = False
-        self.origin_alive = set()
         self.merged = {"fix/a": 99}
         self._saved = (cleaner.run, cleaner.REPO_ROOT)
 
@@ -110,8 +109,6 @@ class CleanTests(unittest.TestCase):
             if cmd[:2] == ["git", "branch"]:
                 self.removed.append(cmd[-1])
                 return 0, ""
-            if cmd[:2] == ["git", "ls-remote"]:
-                return (0, "") if cmd[-1] in self.origin_alive else (2, "")
             if cmd[:3] == ["gh", "pr", "list"]:
                 number = self.merged.get(cmd[cmd.index("--head") + 1])
                 return 0, (str(number) if number else "")
@@ -137,14 +134,12 @@ class CleanTests(unittest.TestCase):
         self.assertEqual(cleaner.clean(dry_run=False, everything=False), 0)
         self.assertEqual(self.removed, [])
 
-    def test_an_open_branch_is_kept_without_the_merge_check(self):
-        self.origin_alive = {"fix/a"}
+    def test_a_branch_with_no_merged_pr_is_kept(self):
         self.merged = {}
         cleaner.clean(dry_run=False, everything=False)
         self.assertEqual(self.removed, [])
 
     def test_all_skips_the_merge_check_only(self):
-        self.origin_alive = {"fix/a"}
         self.merged = {}
         cleaner.clean(dry_run=False, everything=True)
         self.assertEqual(self.removed, ["/repo/.worktrees/t_a", "fix/a"])
