@@ -21,13 +21,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const SCRIPT = join(ROOT, 'scripts/check-commit-type.mjs');
 
-function run(args: string[], options: { cwd?: string } = {}) {
+function run(args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}) {
     const result = spawnSync(process.execPath, [SCRIPT, ...args], {
         cwd: options.cwd ?? ROOT,
         encoding: 'utf8',
         // In Actions the title arrives in PR_TITLE. Clearing it means a
         // developer's shell cannot decide what these assertions see.
-        env: { ...process.env, PR_TITLE: '' },
+        env: { ...process.env, PR_TITLE: '', ...options.env },
     });
     return { status: result.status, output: `${result.stdout}\n${result.stderr}` };
 }
@@ -136,6 +136,51 @@ describe('the table is the source, and an unreadable table fails', () => {
             rmSync(dir, { recursive: true, force: true });
         }
     });
+
+    it('fails when the table cannot be read at all', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'jsmind-types-'));
+        try {
+            const missing = join(dir, 'not-written.md');
+            const result = run(['--title', 'docs(api): x', '--files', 'docs/zh/guide/a.md', '--table', missing]);
+            assert.equal(result.status, 1, result.output);
+            assert.match(result.output, /cannot read the type table/);
+            assert.match(result.output, /not-written\.md/);
+        }
+        finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('takes the path shapes from the table, not from the script', () => {
+        // Every path form the table can hold: a tree, a single star inside a
+        // segment, and one exact file. Narrowing or widening a row is meant to
+        // be one edit in the document, so the matching has to follow it.
+        const dir = mkdtempSync(join(tmpdir(), 'jsmind-types-'));
+        try {
+            const table = join(dir, 'table.md');
+            writeFileSync(table, [
+                '| type | meaning | paths |',
+                '|---|---|---|',
+                '| `feat` | new behaviour | `src/*.ts` |',
+                '| `fix` | corrected behaviour | `src/**` |',
+                '| `refactor` | internals | `src/**` |',
+                '| `docs` | user docs | `docs/README.md` |',
+                '',
+            ].join('\n'));
+
+            const star = run(['--title', 'feat(api): x', '--files', 'src/entry.ts', '--table', table]);
+            assert.equal(star.status, 0, star.output);
+
+            const exact = run(['--title', 'docs(api): x', '--files', 'docs/README.md', '--table', table]);
+            assert.equal(exact.status, 0, exact.output);
+
+            const exactMiss = run(['--title', 'docs(api): x', '--files', 'docs/zh/guide/a.md', '--table', table]);
+            assert.equal(exactMiss.status, 1, exactMiss.output);
+        }
+        finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
 });
 
 describe('the diff CI passes in', () => {
@@ -173,6 +218,21 @@ describe('the diff CI passes in', () => {
 
             const accepted = run(['--title', 'team(conventions): something', '--base', base, '--head', head], { cwd: repo });
             assert.equal(accepted.status, 0, accepted.output);
+
+            // A base that is not in the repository: passing here would mean
+            // "the diff could not be read, so the type is fine".
+            const unreadable = run(['--title', 'feat(cli): x', '--base', '0'.repeat(40), '--head', head], { cwd: repo });
+            assert.equal(unreadable.status, 1, unreadable.output);
+            assert.match(unreadable.output, /could not diff/);
+
+            // git exports GIT_DIR to hooks. An inherited one would point the
+            // diff at another repository, so the check has to drop it.
+            const inherited = run(
+                ['--title', 'fix(weka): something', '--base', base, '--head', head],
+                { cwd: repo, env: { GIT_DIR: '/nonexistent/.git' } },
+            );
+            assert.equal(inherited.status, 1, inherited.output);
+            assert.match(inherited.output, /`fix` names a change to the shipped artifact/);
         }
         finally {
             rmSync(repo, { recursive: true, force: true });
