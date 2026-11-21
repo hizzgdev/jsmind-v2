@@ -140,14 +140,16 @@ python3 scripts/cleanup-worktrees.py --dry-run   # decisions only
 python3 scripts/cleanup-worktrees.py             # merged work only
 ```
 
-It removes worktrees whose branch is gone from origin **and** whose pull request GitHub reports as merged
-**and** which git is willing to remove — git refuses a worktree holding a modification or an untracked
-file, and accepts one whose untracked content is ignored. That makes `.gitignore` the policy: a build
-artifact nobody ignored blocks its own cleanup, and the fix belongs in the ignore rules, not in a longer
-list of exemptions. This is the only step that covers the events the service could not act on: the handler
-answers `200` even when the work inside it raised, and GitHub does not redeliver failed deliveries — so an
-event that went wrong leaves no queue to replay, just a line in the journal. It is idempotent, so a clean
-host prints `0 worktree(s) removed`.
+It removes a worktree when two conditions hold: GitHub reports a merged pull request for its branch, and
+git is willing to remove the directory — git refuses one holding a modification or an untracked file, and
+accepts one whose untracked content is ignored. That makes `.gitignore` the policy: a build artifact nobody
+ignored blocks its own cleanup, and the fix belongs in the ignore rules, not in a longer list of exemptions.
+Only the merge question needs GitHub, because a squash merge rewrites the commits and leaves
+`git branch --merged` answering no; whether the branch is still on origin is not a criterion, since a branch
+deleted without a merge is discarded work rather than litter. This is the only step that covers the events
+the service could not act on: the handler answers `200` even when the work inside it raised, and GitHub does
+not redeliver failed deliveries — so an event that went wrong leaves no queue to replay, just a line in the
+journal. It is idempotent, so a clean host prints `0 worktree(s) removed`.
 
 ### 6. Smoke test: tests always, a real event only when behaviour could have changed
 
