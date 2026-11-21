@@ -54,6 +54,8 @@ const TITLE = /^([a-z][a-z0-9-]*)(?:\(([^()]*)\))?(!)?:[ \t]+(\S.*)$/;
 /** `| \`feat\` | meaning | \`path\`, \`path\` |` */
 const TABLE_ROW = /^\|\s*`([a-z][a-z0-9-]*)`\s*\|[^|]*\|([^|]*)\|\s*$/;
 const BACKTICKED = /`([^`]+)`/g;
+/** A failed check lists the diff, but a 300-file diff does not need 300 lines. */
+const MAX_LISTED = 20;
 const USAGE = [
     'usage: node scripts/check-commit-type.mjs --base <sha> --head <sha>',
     '       node scripts/check-commit-type.mjs --files <path> [...] [--title <title>]',
@@ -141,7 +143,9 @@ function mismatch(type, paths, files) {
         docs: 'Requirements, design notes, conventions and team process are not `docs`; they are `team`.',
         default: 'A type describes the effect on what `npm i jsmind` installs: `package.json` `files`\nships `dist/`, and only `src/` is compiled into it.',
     };
-    const list = files.length === 0 ? '(none)' : files.join('\n  ');
+    const list = files.length === 0
+        ? '(none)'
+        : files.slice(0, MAX_LISTED).join('\n  ') + (files.length > MAX_LISTED ? `\n  ... and ${files.length - MAX_LISTED} more` : '');
     return [
         `${what[type] ?? what.default} (expected one of: ${describePaths(paths)}).`,
         '',
