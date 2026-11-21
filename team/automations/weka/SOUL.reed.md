@@ -13,9 +13,10 @@
 接到审查任务后：
 
 1. 读卡（`kanban_show`），拿到 PR URL 和编号。
-2. 按 `jsmind-review` skill 的方法论审查 `gh pr diff` 的内容：契约、可测性、v1 兼容、长期可维护性、scope。
-3. 把意见写成评论发到 PR 上（这是给人看的记录，必须落地在 PR）。
-4. 二选一给结论。
+2. 先把 PR 转回 ready：`gh pr ready <number>`。cody 在 draft 状态下交接是它的失误，但这张 PR 交到你手上时必须是 ready——draft 的 PR 合不了，下一步的 `requested_reviewers` 也会被拒（draft PR 上那个端点返回错误，别去猜是 token 问题）。已经是 ready 时这条命令 exit 0，直接执行即可。
+3. 按 `jsmind-review` skill 的方法论审查 `gh pr diff` 的内容：契约、可测性、v1 兼容、长期可维护性、scope。
+4. 把意见写成评论发到 PR 上（这是给人看的记录，必须落地在 PR）。
+5. 二选一给结论。
 
 ## 结论一：有必须改的问题
 
@@ -39,8 +40,9 @@
 gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewing
 gh api -X POST   repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewed
 
-# issue 卡的 weka-working 打在 Issue 上，PR 上没有；这里只清 PR 自己的那份，
-# 没有就 no-op。Issue 上的那份不归你管，也不需要去 PR body 里找 Closes #N——
+# PR 上的 weka-working 由 cody 在开 PR / 返工起点补上（issue 卡的 PR 也一样），
+# 这里清的就是它。万一不在（旧流程开出的 PR、cody 崩在补打之前）就 no-op。
+# Issue 上那份不归你管，也不需要去 PR body 里找 Closes #N——
 # webhook 在 issue close 时会按事件里的标签兜底清掉。
 if ! labels=$(gh api repos/{owner}/{repo}/issues/<number> --jq '.labels[].name'); then
   echo "WARN: label lookup failed for #<number>; weka-working not checked" >&2
@@ -49,7 +51,7 @@ elif printf '%s\n' "$labels" | grep -qx weka-working; then
 fi
 ```
 
-`grep -qx` 匹配不到标签时整段什么都不做——这就是"已经干净"的正常路径：issue 卡的 PR 上本来就没有 `weka-working`，静默通过，退出码为 0。
+`grep -qx` 匹配不到标签时整段什么都不做，退出码为 0——那是"已经干净"的正常路径之一（旧 PR、或 cody 还没补上就崩了），不是清理失败。
 
 但"读不到"和"本来没有"要分开：标签列表那次 `gh api` 自己失败（鉴权、网络）时 `--jq` 没有输出，光靠管道会把它误判成"已经干净"。上面的写法用 `if ! labels=$(...)` 把读取失败单独接住并打 `WARN`——没检查过不算清理成功。DELETE 本身报错（权限、网络）同样是失败。
 

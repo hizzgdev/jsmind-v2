@@ -30,11 +30,11 @@ weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签�
 GitHub Issue（weka 标签 + 指派 zzgbot）
   → webhook: kanban create "#85: <标题>" --assignee cody
   → dispatcher 拉起 cody（60s tick）
-  → Cody: 打 weka-working → 开发 → 自测 → 开 PR → 打 weka-reviewing → request_review(reed)
+  → Cody: 打 weka-working → 开发 → 自测 → 开 draft PR + 补 weka-working → 转 ready + 打 weka-reviewing → request_review(reed)
   → dispatcher 拉起 reed
-  → Reed: 按 sdlc-review 流程审 → 意见写在 PR 上
-       ├─ 有必须改 → request_changes（卡回 cody，可无限轮，不计任何计数）
-       └─ 通过 → 摘 weka-reviewing 与 PR 上的 weka-working（issue 卡打在 Issue 上、PR 上没有）、加 weka-reviewed、加 reviewer hizzgdev、complete
+  → Reed: 先把 PR 转回 ready（兜底）→ 按 sdlc-review 流程审 → 意见写在 PR 上
+       ├─ 有必须改 → request_changes（卡回 cody，cody 把 PR 转回 draft 并补上 weka-working，可无限轮，不计任何计数）
+       └─ 通过 → 摘 weka-reviewing 与 PR 上的 weka-working、加 weka-reviewed、加 reviewer hizzgdev、complete
   → 你在 GitHub 上终审
        ├─ 合并 → webhook 删 worktree + 本地分支 + 摘 PR 上的标签（不建卡）
        └─ 要求修改 → webhook 见 weka-reviewed → 建 "#86: Rework N — ..." 卡给 cody
@@ -105,13 +105,21 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 
 | 标签 | 打在哪 | 谁打 | 用途 |
 | --- | --- | --- | --- |
-| `weka-working` | issue 卡打 issue，PR 卡打 PR | cody 开工时 | 给人看：AI 正在干。PR 上的那份由 reed 通过时摘掉，issue 上的那份由 webhook 在 close 时兜底清掉 |
+| `weka-working` | issue 卡打 issue；每张 PR 在 cody 手上时都有（开 PR 时补、返工起点补） | cody 开工时 / 开 PR 后 | 给人看：AI 正在干。PR 上的那份由 reed 通过时摘掉，issue 上的那份由 webhook 在 close 时兜底清掉 |
 | `weka-reviewing` | 永远是 PR | cody 交接前 | 给人看：AI 正在审 |
 | `weka-reviewed` | 永远是 PR | reed 通过时 | **唯一控制流程的标签**：只有它存在时，你在 PR 上的动作才会触发返工卡 |
 
 规则只有一条：**人在 PR 上的动作（提交 review 或留言），只在 PR 带 `weka-reviewed` 时才建新卡**。cody 拿到返工卡的第一件事就是摘掉它，所以不会重复触发；摘掉之后人再留言，走的是"追加到该 PR 的 open 卡"那条路，不看标签。
 
 副产品：`weka-working` 挂在对象上、但板上没有对应的卡在跑，就是"卡崩了"的可视信号——排查先看标签，比翻看板快。
+
+### PR 上的 draft 与标签是同步的
+
+cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起点 `gh pr ready --undo` 转回去，交接时 `gh pr ready` 转回来。draft 是 GitHub 原生状态，不能合并、页面上有徽章，不需要新标签。
+
+draft 和 `weka-working` 说的是同一件事的两个侧面——「还没准备好」和「在我们手上」——所以必须同步：**draft 期间 `weka-working` 必须在，ready 期间必须有 `weka-reviewing` 或 `weka-reviewed`**。不允许出现 draft + `weka-reviewing`、draft + `weka-reviewed`，也不允许 ready 却一个流程标签都没有。draft→ready 的翻转发生在交接那一刻，所以在 PR 的 timeline 上，`+weka-reviewing` 和「marked this pull request as ready for review」应当相邻。
+
+cody 若死在 draft 状态，那张 PR 合不了，所以 reed 接手时先跑一次 `gh pr ready` 兜底——顺带避免 `requested_reviewers` 落在 draft 上（draft PR 上那个端点会失败）。两个方向的 `gh pr ready` 在「已经是目标状态」时都 exit 0，反复执行无害。
 
 ### 关闭时的兜底清理
 
@@ -369,7 +377,7 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
 建一个打 `weka` 标签、指派给 `zzgbot` 的 Issue，观察这条链：
 
 1. 卡片 `#<issue>: <标题>` 被创建并跑起来；
-2. issue 上出现 `weka-working`，开 PR 后 PR 上出现 `weka-reviewing`；
+2. issue 上出现 `weka-working`，开 PR 后 PR 是以 draft 开出、带 `weka-working`；交接后 PR 变成 ready 并出现 `weka-reviewing`；
 3. Reed 审完，PR 上变成 `weka-reviewed`，你被加为 reviewer；
 4. 你在 PR 上提一条 `changes_requested` 的 review → 出现卡片 `#<pr>: Rework 1 — ...`，`weka-reviewed` 被摘掉；
 5. 你合并 PR → worktree 和本地分支被删掉，PR 上标签清空，不再有卡片；PR body 里带 `Closes #N` 时 issue 会自动关闭，issue 上的 `weka-working` 同时被清掉（手动关闭 issue 同理）。
