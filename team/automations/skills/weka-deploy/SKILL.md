@@ -29,9 +29,9 @@ running thing was old:
 | `~/.hermes/config.yaml` → `kanban:` | hand edit (not in this repo) | gateway restart |
 | `README.md`, other `*.md`, this file | nothing | — |
 
-A profile copy can also be **ahead** of the repo: Hermes's skill curator edits installed skills in
-place, so the live file can carry lessons the repo has never seen. Treat that as knowledge that exists
-only on this host — a rebuild loses it — and never overwrite it to make a deploy look clean.
+A profile copy can carry edits made live: Hermes's skill curator patches installed skills in place, so the
+live file may hold lessons the repo has never seen. Step 5 says what happens to them — the repo wins,
+and the report names what the copy lost.
 
 ## Steps
 
@@ -120,23 +120,30 @@ discards live edits without saying so is indistinguishable from one that never n
 
 ### 6. Restart the webhook, only when its own inputs moved
 
+Restart when step 3 listed `github-webhook.py` or `github-webhook.service`. Nothing else justifies it:
+SOUL and skills are read when a session starts, and docs are read by nobody at runtime.
+
 ```bash
 systemctl --user restart github-webhook
 ```
 
-Then prove the process is running the *new* file, not merely running:
+Then prove the process is running the content you just pulled, not merely running:
 
 ```bash
+git log -1 --format='%h %cI %s' -- team/automations/weka/github-webhook.py
 systemctl --user show github-webhook -p ExecMainStartTimestamp
-stat -c '%y %n' team/automations/weka/github-webhook.py
 ss -lntp | grep 9180
 journalctl --user -u github-webhook -n 10 --no-pager
 ```
 
-The start timestamp must be later than the file's mtime. A process that started before the file changed
-is exactly the failure this step exists to catch.
+The start time must be **later than the commit that last touched that file**. Compare against the
+commit, never against `stat -c %y`: any checkout, `git reset` or branch switch in this clone rewrites
+paths and bumps their mtime without changing a byte, so mtime answers "when was this path last written"
+while the question is "which content is running". Getting that backwards turns the one staleness check
+into a false alarm — and a check that cries wolf is a check nobody reads by the time it matters.
 
-A docs-, SOUL- or skills-only deploy restarts nothing. Say so explicitly in the report — an unexplained
+A docs-, SOUL- or skills-only deploy restarts nothing. Say so explicitly in the report, and say how you
+know: the step 3 diff and the last commit touching `github-webhook.py` are the evidence. An unexplained
 "no restart" reads like an omission.
 
 ### 7. Smoke test, only when behaviour changed
@@ -200,3 +207,4 @@ start timestamp; the smoke evidence, or why it was not applicable; and anything 
 - Do not `git reset --hard` the clone the service points at.
 - Do not deploy "the PR that was just merged" by name. Read master: the newest commit may not be the
   only thing that landed since the last deploy.
+
