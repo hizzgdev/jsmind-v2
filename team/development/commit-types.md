@@ -19,7 +19,9 @@ dist/jsmind.js  dist/jsmind.cjs  dist/jsmind.umd.js  dist/cli.js  (+ .map, + .d.
 - **`docs` 只指用户读的 API / CLI 文档**：`docs/{zh,en}/guide`、`docs/{zh,en}/reference`。需求、设计笔记、约定、团队流程不是 `docs`。
 - **混合、无法归类的落到 `team`**，不要默认借 `feat`。
 
-2.1.0 那个窗口是这条规则的度量：35 个提交里只有 6 个碰了 `src/`，而 12 个 `feat`/`fix` 里有 7 个一个 `src/` 文件都没改。那 7 个都是真活（webhook 不丢评论、文档站构建、playground 链接），但没有一个能改变 `npm i jsmind` 装到的东西。
+2.1.0 那个窗口是这条规则的度量：35 个提交里只有 6 个改了产物，而 12 个 `feat`/`fix` 里有 7 个一个 `src/` 文件都没改。那 7 个都是真活（webhook 不丢评论、文档站构建、playground 链接），但没有一个能改变 `npm i jsmind` 装到的东西。
+
+（数 `git log --name-only` 会得到 7 个碰过 `src/` 文件的提交，多出来的是 `chore(release): 2.1.0` 本身 —— 发版 PR 把前几个 PR 的改动一起带进了那一笔。按类型过滤时它被单独摘掉，所以进说明的是 6 个。）
 
 ## 2. 表
 

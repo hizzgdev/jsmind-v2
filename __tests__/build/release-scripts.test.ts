@@ -256,9 +256,10 @@ describe('release notes', () => {
 
 /**
  * The 2.1.0 window, replayed from the real log: 35 commits, of which 7 `feat`
- * or `fix` commits touched no `src/` file at all. The shipped notes list six
- * of them. This is the acceptance check for "the notes are generated from what
- * a user can feel, not from a prefix" - the fixture is the output of
+ * or `fix` commits touched no `src/` file at all. The shipped notes list the
+ * six commits that did reach the artifact. This is the acceptance check for
+ * "the notes are generated from what a user can feel, not from a prefix" - the
+ * fixture is the output of
  * `git log --format="commit %H %s" --name-only v2.0.1..v2.1.0`, so the test
  * runs on the same data the release did, on a runner where the tags of that
  * window do not exist.
