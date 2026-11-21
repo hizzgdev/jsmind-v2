@@ -208,6 +208,24 @@ jobs:
             echo "all changes are under docs/"
           fi
 
+      # A type is a claim about what changed for a user of the package, so the
+      # title has to survive a comparison with the diff. `feat` / `fix` /
+      # `refactor` require a file under `src/`, `docs` requires a page a user
+      # reads. The rule, the table and the reason for it are in
+      # team/development/commit-types.md, and the script reads that table, so
+      # the document stays the only copy.
+      #
+      # Pull requests only: a push to master has no title to read. The step is
+      # deliberately in this job rather than a new one - the diff is already
+      # here, and a violation is something the author fixes in ten seconds.
+      - name: The title's type must name the change
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-commit-type.mjs --base "$PR_BASE" --head "$PR_HEAD"
+
   # ---------------------------------------------------------------------------
   # Everything that does not need a browser.
   #
