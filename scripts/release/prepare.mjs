@@ -2,10 +2,12 @@
 /**
  * Stage 1 of the release flow: `npm run release:prepare -- <patch|minor> [--dry-run]`
  *
- * Bumps the version on a branch, opens the pull request with the release notes
- * as its body, and stops. A human reviews and merges it; stage 2
- * (`release:publish`) cuts the tag on the merged master. Nothing here tags or
- * publishes.
+ * Bumps the version on a branch, writes the draft release notes to
+ * `releases/<version>.md`, opens the pull request and stops. The notes travel in
+ * the commit rather than in the pull request description because stage 2 sends
+ * that file to the GitHub Release verbatim: what the reviewer edits in the diff
+ * is what ships. A human reviews and merges; stage 2 (`release:publish`) cuts the
+ * tag on the merged master. Nothing here tags or publishes.
  *
  * Every preflight check runs before the first write, and any of them failing
  * stops the command - a release that starts from a dirty tree or from a master
@@ -20,15 +22,17 @@
  * The decisions themselves live in `checks.mjs`; this file only gathers facts.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
     bumpVersion,
     checkCiSuccess,
     checkCleanWorktree,
+    checkNotesAbsent,
     checkOnMaster,
     checkSyncedWithOrigin,
     checkTagAbsent,
+    notesPathFor,
     releaseKind,
     tagName,
 } from './checks.mjs';
@@ -144,8 +148,16 @@ function main(argv) {
     }
     note(`${version} -> ${target}; tag ${tag} is unused`);
 
+    const notesPath = notesPathFor(target);
+    const notesAbsolute = join(root, notesPath);
+    const notesProblem = checkNotesAbsent(notesPath, existsSync(notesAbsolute));
+    if (notesProblem) {
+        fail(notesProblem);
+    }
+    note(`${notesPath} is free`);
+
     const releaseBranch = `chore/release-${target}`;
-    const undo = () => undoBumpHint(releaseBranch).join('\n  ');
+    const undo = () => undoBumpHint(releaseBranch, target).join('\n  ');
     const existingBranch = git(['ls-remote', '--heads', 'origin', `refs/heads/${releaseBranch}`])
         .split('\n')
         .filter(Boolean);
@@ -165,11 +177,11 @@ function main(argv) {
     });
 
     const checklist = [
-        '',
         '---',
         '',
         '## Release checklist',
         '',
+        `- [ ] The notes in \`${notesPath}\` list what a user of the package can feel, not what \`git log\` says`,
         '- [ ] CI is green on this pull request',
         `- [ ] \`package.json\` says ${target} — it is the only place the version is written`,
         '- [ ] The docs home page reads that version at build time and the README badge reads npm; neither needs a commit',
@@ -177,13 +189,24 @@ function main(argv) {
         '- [ ] `git checkout master && git pull`, then `npm run release:publish`',
         '',
     ].join('\n');
-    const pullRequestBody = `${notes}${checklist}`;
+    const pullRequestBody = [
+        `Release ${target} on the 2.x preview line (\`v2-preview\`).`,
+        '',
+        `The release notes are **\`${notesPath}\`**, reviewed as a diff in this pull request.`,
+        '`npm run release:publish` sends that file to the GitHub Release verbatim, so an edit',
+        'belongs in the file — this description is not read back.',
+        '',
+        checklist,
+    ].join('\n');
+
+    step('Draft release notes');
+    console.log(notes);
 
     step('Release plan');
     note(`version:  ${version} -> ${target} (${kind})`);
     note(`branch:   ${releaseBranch}`);
     note(`tag:      ${tag} (cut later, on merged master, by release:publish)`);
-    note(`notes:    ${previousTag ? `${previousTag}..HEAD` : 'entire history'}, ${entries.length} commit(s)`);
+    note(`notes:    ${notesPath} (draft from ${previousTag ? `${previousTag}..HEAD` : 'the entire history'}, ${entries.length} commit(s))`);
     console.log('');
     console.log(pullRequestBody);
 
@@ -205,6 +228,12 @@ function main(argv) {
         );
     }
 
+    // The draft is written before the checks so that a failure below leaves one
+    // more artefact behind than it used to - the undo recipe removes it.
+    step(`Writing ${notesPath}`);
+    mkdirSync(join(root, 'releases'), { recursive: true });
+    writeFileSync(notesAbsolute, notes);
+
     step('Checking the bump');
     try {
         run('npm', ['run', 'format-check']);
@@ -213,19 +242,19 @@ function main(argv) {
     catch {
         fail(
             'format-check or pack:check failed on the bumped tree.',
-            `package.json and package-lock.json are bumped on ${releaseBranch} and nothing is committed.\nFix the failure and commit by hand, or undo with:\n  ${undo()}`,
+            `package.json, package-lock.json and ${notesPath} are on ${releaseBranch} and nothing is committed.\nFix the failure and commit by hand, or undo with:\n  ${undo()}`,
         );
     }
 
     step('Commit and push');
-    git(['add', 'package.json', 'package-lock.json']);
+    git(['add', 'package.json', 'package-lock.json', notesPath]);
     try {
         git(['commit', '-m', `chore(release): ${target}`]);
     }
     catch (error) {
         fail(
             `git commit failed on ${releaseBranch}.`,
-            `${error.message}\npackage.json and package-lock.json are bumped and staged. Commit by hand, or undo with:\n  ${undo()}`,
+            `${error.message}\npackage.json, package-lock.json and ${notesPath} are staged. Commit by hand, or undo with:\n  ${undo()}`,
         );
     }
     try {

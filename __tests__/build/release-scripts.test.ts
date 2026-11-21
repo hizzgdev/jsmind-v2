@@ -14,7 +14,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -202,6 +202,50 @@ describe('release notes', () => {
     });
 });
 
+describe('the notes file the release page is built from', () => {
+    it('lives at releases/<version>.md', () => {
+        assert.equal(checks.notesPathFor('2.1.0'), 'releases/2.1.0.md');
+    });
+
+    it('prepare refuses to overwrite notes that may already be curated', () => {
+        assert.equal(checks.checkNotesAbsent('releases/2.0.2.md', false), null);
+        const problem = checks.checkNotesAbsent('releases/2.0.2.md', true);
+        assert.match(problem, /releases\/2\.0\.2\.md already exists/);
+        assert.match(problem, /Delete the file to start over/);
+    });
+
+    const good = {
+        path: 'releases/2.0.2.md',
+        exists: true,
+        tracked: true,
+        content: '# jsMind 2.0.2\n\nPatch release.\n',
+        version: '2.0.2',
+    };
+
+    it('publish accepts the file the release PR carried', () => {
+        assert.equal(checks.checkNotesForPublish(good), null);
+        // A leading blank line is not a version mismatch.
+        assert.equal(checks.checkNotesForPublish({ ...good, content: '\n  \n# jsMind 2.0.2\n' }), null);
+    });
+
+    it('publish refuses a missing file instead of regenerating one', () => {
+        const problem = checks.checkNotesForPublish({ ...good, exists: false, content: '' });
+        assert.match(problem, /no release notes at releases\/2\.0\.2\.md/);
+        assert.match(problem, /not by a regeneration at publish time/);
+    });
+
+    it('publish refuses a file the tag would not name', () => {
+        const problem = checks.checkNotesForPublish({ ...good, tracked: false });
+        assert.match(problem, /is not committed/);
+    });
+
+    it('publish refuses notes headed for another version', () => {
+        const problem = checks.checkNotesForPublish({ ...good, content: '# jsMind 2.0.1\n' });
+        assert.match(problem, /starts with "# jsMind 2\.0\.1"/);
+        assert.match(problem, /not "# jsMind 2\.0\.2"/);
+    });
+});
+
 /**
  * `release:prepare` checks the whole world before it writes: a clean tree, on
  * master, master in sync with origin, green CI from gh, an unused tag. A
@@ -305,7 +349,7 @@ function failedPrepare(options: { scripts?: Record<string, string>; rejectCommit
  * advice ("git config --global user.email ...") from passing for a recipe.
  */
 function printedRecipe(stderr: string): string[] {
-    const recipe: string[] = lib.undoBumpHint('chore/release-2.0.2');
+    const recipe: string[] = lib.undoBumpHint('chore/release-2.0.2', '2.0.2');
     const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const block = new RegExp(recipe.map(line => `^[ \t]*${escape(line)}$`).join('\n'), 'm');
     assert.match(stderr, block);
@@ -323,6 +367,10 @@ function assertRecovered(sandbox: ReturnType<typeof failedPrepare>, recipe: stri
     assert.equal(sandbox.git('status', '--porcelain'), '');
     assert.equal(JSON.parse(readFileSync(join(sandbox.work, 'package.json'), 'utf8')).version, '2.0.1');
     assert.equal(sandbox.git('branch', '--list', 'chore/release-2.0.2').trim(), '');
+    // The draft is written before the checks, so a failure leaves it behind;
+    // the recipe has to remove it or the next release sees a stale file.
+    assert.equal(existsSync(join(sandbox.work, 'releases/2.0.2.md')), false);
+    assert.equal(sandbox.git('status', '--porcelain', '--untracked-files=all'), '');
 }
 
 describe('the way out of a failed prepare', () => {

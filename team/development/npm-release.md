@@ -124,7 +124,27 @@ npm deprecate jsmind@2.0.3 "Broken release, use 2.0.4"
 - 顺序：版本号改动走 PR → 合并 → 在已合并的 master 上打 tag → 建 release。tag 指向未合并提交的一律不发。
 - 两个阶段各一条命令，中间是人的审核点：`npm run release:prepare -- patch`（或 `minor`）改版本号、开 PR 并停下；合并后 `npm run release:publish` 在 master 上打 tag、建 Release。`release:publish` 会核对 `package.json` 的版本与 `origin/master` 上的一致，所以「tag 指向未合并提交」在结构上不可能发生。
 
-### 1.9 发布前检查清单
+### 1.9 发布说明是仓库里的一个文件
+
+`releases/<version>.md`，一版一个，进 release PR，`release:publish` 读它建 Release 正文。
+
+为什么是文件而不是每次重新生成：发布说明**不是** `git log` 的投影。条目按「用户能不能感觉到」筛，Breaking 段落是从代码行为写的，改名后的命令名要顺手纠正 —— 这三件事在提交记录里都不存在。判断标准很硬：**删掉文件，能不能从别处重建？** 生成器能重建那份 33 条的原始清单，重建不出真正发出去的那 7 条。能重建的叫 cache，不该进仓库；这个不能，所以它是原件，Release 页面是它的副本。
+
+分工：
+
+- `npm run release:prepare -- <patch|minor>` 把生成结果写成草稿（`releases/<version>.md`）并提交进 release PR。PR 正文不放说明全文，只指向文件 —— 审的是 diff，改也改在文件里。
+- 作者在 PR 里做删、加、改：删掉改不了产物的条目，补 Breaking 段，纠正命令名。
+- `npm run release:publish` **只读**这个文件，不重新生成。缺失、未提交、标题版本不符，都直接拒绝 —— 否则「审过的文本」和「发出去的文本」又成了两次生成。
+- `--notes-file <path>` 是显式例外（重跑、手工修补），不是常规路径。
+
+两条约束：
+
+- 提交的是**定稿**，不是全量 `CHANGELOG.md`。全量日志是 cache：条目多、无读者、还会越滚越长，每次发版都在同一个大文件上做 diff。
+- Release 页面建好之后不要再手改正文。要改就改文件（并且下一次会在 diff 里看到），否则仓库与页面就是两份互不知情的文本，这正是引入这个文件要消灭的状态。
+
+起点：从 2.1.0 开始。2.0.0 / 2.0.1 的说明只存在于各自的 GitHub Release 页面，不回溯。
+
+### 1.10 发布前检查清单
 
 1. `npm pack --dry-run`，确认 tarball 只含 `dist/` 下 9 个文件加 README / LICENSE / package.json
 2. README 里不能有「has not been published to npm yet」这类占位说明

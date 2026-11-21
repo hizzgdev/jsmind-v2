@@ -14,24 +14,30 @@
  * release - npm cannot see the difference, the repository and the release page
  * can.
  *
- * `--notes-file <path>` uses notes you edited by hand instead of the generated
- * ones. The generator writes its output to `tmp/release-notes-<tag>.md` so you
- * can look at it first.
+ * The release notes are not generated here. They arrive as `releases/<version>.md`
+ * in the merged release commit, which is the file the release pull request
+ * carried and the author curated; this command sends it to the Release verbatim
+ * and refuses when it is missing, untracked, or headed for another version. A
+ * second generation at publish time would mean the reviewed text and the shipped
+ * text could differ, which is what the file exists to make impossible.
+ *
+ * `--notes-file <path>` overrides that with a file you name, for a re-run or a
+ * hand-fix. It is an explicit exception, not the normal path.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import {
     checkCleanWorktree,
+    checkNotesForPublish,
     checkOnMaster,
     checkSyncedWithOrigin,
     checkTagAbsent,
     checkVersionReleased,
-    releaseKind,
+    notesPathFor,
     tagName,
 } from './checks.mjs';
 import { capture, fail, git, note, readPackage, repoRoot, step } from './lib.mjs';
-import { parseLog, renderNotes } from './notes.mjs';
 
 const USAGE = 'usage: npm run release:publish [--notes-file <path>]';
 
@@ -50,13 +56,6 @@ function parseArguments(argv) {
     return options;
 }
 
-function latestTag() {
-    const tags = git(['tag', '--list', 'v*', '--sort=-v:refname'])
-        .split('\n')
-        .filter(Boolean);
-    return tags[0] ?? '';
-}
-
 function remoteTagNames(tag) {
     return git(['ls-remote', '--tags', 'origin', `refs/tags/${tag}`])
         .split('\n')
@@ -72,6 +71,17 @@ function repositoryUrl() {
     }
     catch {
         return 'https://github.com/hizzgdev/jsmind-v2';
+    }
+}
+
+/** Is this path in the commit the tag will name? An untracked file is not. */
+function isTracked(path) {
+    try {
+        git(['ls-files', '--error-unmatch', path], { stdio: ['ignore', 'ignore', 'ignore'] });
+        return true;
+    }
+    catch {
+        return false;
     }
 }
 
@@ -125,30 +135,25 @@ function main(argv) {
     }
     note(`tag ${tag} is unused`);
 
-    const tmp = join(root, 'tmp');
-    mkdirSync(tmp, { recursive: true });
+    const notesRelative = notesPathFor(version);
+    const notesAbsolute = join(root, notesRelative);
     const notesPath = options.notesFile
         ? (isAbsolute(options.notesFile) ? options.notesFile : resolve(process.cwd(), options.notesFile))
-        : join(tmp, `release-notes-${tag}.md`);
+        : notesAbsolute;
 
-    if (!existsSync(notesPath)) {
-        const previousTag = latestTag();
-        const logRange = previousTag ? `${previousTag}..HEAD` : 'HEAD';
-        const entries = parseLog(git(['log', '--oneline', '--no-merges', logRange]));
-        const notes = renderNotes({
+    const notesProblem = options.notesFile
+        ? (existsSync(notesPath) ? null : `--notes-file ${options.notesFile} does not exist.`)
+        : checkNotesForPublish({
+            path: notesRelative,
+            exists: existsSync(notesAbsolute),
+            tracked: isTracked(notesRelative),
+            content: existsSync(notesAbsolute) ? readFileSync(notesAbsolute, 'utf8') : '',
             version,
-            kind: releaseKind(version, previousTag ? previousTag.replace(/^v/, '') : ''),
-            previousTag,
-            entries,
-            repositoryUrl: repositoryUrl(),
-            nodeRange: pkg.engines?.node ?? '>=22.12.0',
         });
-        writeFileSync(notesPath, notes);
-        note(`release notes generated from ${previousTag ? `${previousTag}..HEAD` : 'history'} (${entries.length} commit(s))`);
+    if (notesProblem) {
+        fail(notesProblem, `Write ${notesRelative} in the release pull request, or pass --notes-file <path>.`);
     }
-    else {
-        note(`using notes from ${notesPath}`);
-    }
+    note(options.notesFile ? `using notes from ${options.notesFile}` : `${notesRelative} is committed`);
 
     step('Release notes');
     console.log('');
