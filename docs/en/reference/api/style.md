@@ -90,7 +90,6 @@ so a file that only overrides a few colors does not have to name it.
 - `defaultTone` names the tone every node without one of its own wears. It is
 a name rather than a palette so this declaration stays an inheritance
 decision: restyle the tone once in `tones` and the whole map follows.
-Since: 2.1.0.
 - Every other field is an override applied on top of that preset, merged
 deeply.
 
@@ -99,7 +98,7 @@ deeply.
 | Name | Type | Description |
 | --- | --- | --- |
 | `background` (optional) | string | Canvas background color. |
-| `defaultTone` (optional) | string | Tone used by nodes that state none of their own. |
+| `defaultTone` (optional) | string | Tone used by nodes that state none of their own. `Since: 2.1.0` |
 | `expander` (optional) | `Partial`<[JmThemeExpander](/en/reference/api/style#JmThemeExpander)> | Expander geometry overrides. |
 | `line` (optional) | `Partial`<[JmThemeLine](/en/reference/api/style#JmThemeLine)> | Line geometry overrides. |
 | `node` (optional) | [JmThemeNodeOverride](/en/reference/api/style#JmThemeNodeOverride) | Node geometry overrides. |

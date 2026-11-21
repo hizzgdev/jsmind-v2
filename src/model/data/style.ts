@@ -418,7 +418,6 @@ export interface JmTheme {
  * - `defaultTone` names the tone every node without one of its own wears. It is
  *   a name rather than a palette so this declaration stays an inheritance
  *   decision: restyle the tone once in `tones` and the whole map follows.
- *   Since: 2.1.0.
  * - Every other field is an override applied on top of that preset, merged
  *   deeply.
  *
@@ -429,6 +428,8 @@ export interface JmStyle {
     theme?: string;
     /**
      * Tone used by nodes that state none of their own.
+     *
+     * `Since: 2.1.0`
      *
      * @remarks
      * A tone *name*, not a palette snapshot. Storing resolved colors here would

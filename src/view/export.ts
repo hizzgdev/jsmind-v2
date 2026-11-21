@@ -53,7 +53,7 @@ export interface JmExportImageOptions {
      * channel, so this option is ignored with a warning when `type` is
      * `image/jpeg`.
      *
-     * Since: 2.1.0
+     * `Since: 2.1.0`
      */
     transparent?: boolean;
 }
