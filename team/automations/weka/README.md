@@ -103,6 +103,8 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 
 ## 标签与人工审核门
 
+两个 SOUL 只写「做什么、按什么顺序」，状态机的理由和边界在这一节。改规则时改这里，SOUL 里只留动作。
+
 | 标签 | 打在哪 | 谁打 | 用途 |
 | --- | --- | --- | --- |
 | `weka-working` | issue 卡打 issue；每张 PR 在 cody 手上时都有（开 PR 时补、返工起点补） | cody 开工时 / 开 PR 后 | 给人看：AI 正在干。PR 上的那份由 reed 通过时摘掉，issue 上的那份由 webhook 在 close 时兜底清掉 |
@@ -115,9 +117,9 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 
 ### PR 的 draft 状态：从 cody 开工一直到 AI 审查通过
 
-cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起点 `gh pr ready --undo` 转回去。**交接时不翻 ready**——draft 一直保持到 reed 通过、加上 `weka-reviewed` 的那一刻，由 reed 跑 `gh pr ready` 转成 ready。draft 是 GitHub 原生状态，不能合并、页面上有徽章，不需要新标签。
+cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起点 `gh pr ready --undo` 转回去。**交接时不翻 ready**——draft 一直保持到 reed 通过、加上 `weka-reviewed` 的那一刻，由 reed 跑 `scripts/weka/pass-review.sh`（它的最后一步才是 `gh pr ready`）。draft 是 GitHub 原生状态，不能合并、页面上有徽章，不需要新标签。
 
-命令顺序也是固定的：cody 返工起手先 `--undo` 回 draft，再摘 `weka-reviewed`、补 `weka-working`；reed 通过时先摘标签、清掉 `weka-working`，`gh pr ready` 是最后一条，而且清理没做全就不翻。这样任何一步崩掉都停在 draft——不会停在「ready 但 AI 的结论不在」，也不会停在「ready 却还挂着 `weka-working`」。
+命令顺序也是固定的：cody 返工起手先 `--undo` 回 draft，再摘 `weka-reviewed`、补 `weka-working`；reed 通过时由 `scripts/weka/pass-review.sh` 先摘标签、清掉 `weka-working`，`gh pr ready` 是最后一条，清理没做全就不翻（脚本带 `scripts/weka/test-pass-review.sh`，CI 会跑）。这样任何一步崩掉都停在 draft——不会停在「ready 但 AI 的结论不在」，也不会停在「ready 却还挂着 `weka-working`」。
 
 标签操作不是原子的，所以判定按**稳态**看：返工起手退 draft 之后、摘 `weka-reviewed` 之前会短暂出现 draft + `weka-reviewed`，摘完到补回 `weka-working` 之间会短暂一个流程标签都没有。这两处是过渡，不是新加的合法状态——真停在那儿说明 worker 死在两步之间，卡还在板上。
 
