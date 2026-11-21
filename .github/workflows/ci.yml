@@ -138,10 +138,10 @@ jobs:
               .github/actions/render-map/*|.github/workflows/ci.yml)
                 render=true; echo "affects the render: $file" ;;
               # The preview's own pipeline scripts. They are not library code,
-              # but the tone this run picks and the command the action runs are
-              # exactly what the picture depends on - a run that changed them
-              # should be the run that shows the result.
-              scripts/render-preview.ts|scripts/preview-tone.ts)
+              # but the data this run prepares and the command the action runs
+              # are exactly what the picture depends on - a run that changed
+              # them should be the run that shows the result.
+              scripts/render-preview.ts|scripts/prepare-preview.ts)
                 render=true; echo "affects the render: $file" ;;
             esac
 
@@ -517,38 +517,33 @@ jobs:
       - name: Build
         run: npm run build
 
-      # One tone per run, written onto the data below and named in the comment.
-      # Two reasons it is random rather than fixed: consecutive previews show
+      # The preview's whole preparation: the example map in, the file the render
+      # reads out, with one tone drawn for this run. The two steps name the same
+      # path, so the flow reads top to bottom.
+      #
+      # Random rather than fixed for two reasons: consecutive previews show
       # different tones, and a palette regression in a single tone has a run
       # that shows it.
       #
-      # The name is read from `JmTone` in the model source by this script. It is
+      # The name is read from `JmTone` in the model source by the script. It is
       # deliberately not a list here: a copy of the palette's names in YAML goes
       # stale the first time the palette changes, and the run that finds out is
-      # one that picked a retired name and got refused - which reads like the
-      # job broke rather than the copy. Every draw is a name the model accepts,
-      # so the randomness cannot turn this job red.
-      - name: Choose a default tone
-        id: tone
-        run: |
-          set -euo pipefail
-          tone=$(node scripts/preview-tone.ts)
-          echo "default tone for this run: $tone"
-          echo "tone=$tone" >> "$GITHUB_OUTPUT"
-
-      # Onto a copy, never onto the tracked fixture: the preview is meant to
-      # show the repository's own data, so a run must not leave the example
-      # file carrying this run's tone (or anyone's edit) for the next one.
-      # `set-style` is the public command that writes `mind.style.defaultTone`,
-      # which is the same path a caller would use.
-      - name: Apply the tone to a copy of the fixture
-        env:
-          TONE: ${{ steps.tone.outputs.tone }}
+      # one that drew a retired name and got refused - which reads like the job
+      # broke rather than the copy. Every draw is a name the model accepts, so
+      # the randomness cannot turn this job red.
+      #
+      # Onto a prepared copy, never onto the tracked fixture: the preview is
+      # meant to show the repository's own data, so a run must not leave the
+      # example file carrying this run's tone (or anyone's edit) for the next
+      # one.
+      - name: Prepare the render data
+        id: prepare
         run: |
           set -euo pipefail
           mkdir -p tmp
-          cp example/v2-features.json tmp/preview-data.json
-          node dist/cli.js mind set-style tmp/preview-data.json --default-tone "$TONE"
+          tone=$(node scripts/prepare-preview.ts example/v2-features.json tmp/preview-data.json)
+          echo "default tone for this run: $tone"
+          echo "tone=$tone" >> "$GITHUB_OUTPUT"
 
       # `transparent: true` is what makes this a transparent-background PNG.
       # The action defaults it to false for its other callers; the job that
@@ -644,7 +639,7 @@ jobs:
           # looks off is indistinguishable from a theme problem or a rendering
           # problem, and "re-run to get a different tone" is not something a
           # reader can infer.
-          TONE: ${{ steps.tone.outputs.tone }}
+          TONE: ${{ steps.prepare.outputs.tone }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
         run: |
