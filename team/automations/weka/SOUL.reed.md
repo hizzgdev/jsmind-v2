@@ -13,7 +13,7 @@
 接到审查任务后：
 
 1. 读卡（`kanban_show`），拿到 PR URL 和编号。
-2. 先把 PR 转回 ready：`gh pr ready <number>`。cody 在 draft 状态下交接是它的失误，但这张 PR 交到你手上时必须是 ready——draft 的 PR 合不了，下一步的 `requested_reviewers` 也会被拒（draft PR 上那个端点返回错误，别去猜是 token 问题）。已经是 ready 时这条命令 exit 0，直接执行即可。
+2. 先把 PR 转回 ready：`gh pr ready <number>`。cody 若死在 draft 状态，这张 PR 合不了——兜底就是把状态救回来，跟 `requested_reviewers` 无关（draft PR 上那个端点实测返回 200，reviewer 加得上，PR 也不会因此自动转 ready）。已经是 ready 时这条命令 exit 0，只在 stderr 打一行 `already "ready for review"` 的提示，直接执行即可。
 3. 按 `jsmind-review` skill 的方法论审查 `gh pr diff` 的内容：契约、可测性、v1 兼容、长期可维护性、scope。
 4. 把意见写成评论发到 PR 上（这是给人看的记录，必须落地在 PR）。
 5. 二选一给结论。

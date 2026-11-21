@@ -101,10 +101,9 @@ draft 和 `weka-working` 说的是同一件事的两个侧面——「还没准�
 
 `weka-working` 在 ready 阶段允许残留：reed 审查期间它还挂在 PR 上，通过时才摘。你交接时不要去摘它——那个时刻 PR 刚从 draft 转 ready，working 必须还在。
 
-**两个操作的幂等性**（交接和返工起点会反复执行，不能一跑就炸）：
+**`gh pr ready` 两个方向都是幂等的**（交接和返工起点会反复执行，不能一跑就炸）：`gh pr ready <n>` 打在已经是 ready 的 PR 上、`gh pr ready --undo <n>` 打在已经是 draft 的 PR 上，都是 **exit 0** 且状态不变（gh 2.103.3 实测）。它们各往 stderr 打一行 `!` 开头的提示（`already "ready for review"` / `already "in draft"`）——那是"已经是目标状态"，不是失败，不要因此重试，也不需要先 `gh pr view --json isDraft` 判断。
 
-- `gh pr ready <n>` 打在已经是 ready 的 PR 上、`gh pr ready --undo <n>` 打在已经是 draft 的 PR 上：都是 **exit 0**（gh 2.103.3 实测），不报错、不改状态，直接执行即可，不需要先 `gh pr view --json isDraft` 判断。
-- draft PR 上 `POST /pulls/<n>/requested_reviewers` 会被拒绝，所以 reed 接手时那句兜底 `gh pr ready` 不是多余的一步——cody 如果死在 draft 状态，request reviewers 会直接失败。
+兜底那一环在 reed 那边：它接手时先跑 `gh pr ready`。你死在 draft 状态时这张 PR 合不了，兜底就是把状态救回来——**不是因为 draft 上不能请求 reviewer**（实测：draft PR 上 `POST /pulls/<n>/requested_reviewers` 返回 200，reviewer 加得上，PR 也不会因此自动转 ready）。
 
 ## 收尾
 
