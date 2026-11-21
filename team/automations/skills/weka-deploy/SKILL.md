@@ -140,10 +140,11 @@ Then sweep the worktrees — the same reset, applied to what the workers left be
 ```
 
 It removes worktrees whose branch is gone from origin **and** whose pull request GitHub reports as merged
-**and** which hold nothing but build output; anything else is named and kept. That is the backstop for the
-close events this service never saw — a delivery that arrived while it was down, or one that failed
-before the merge (every worktree left behind between #99 and #158 came from the second case). It is
-idempotent, so running it on a clean host prints `0 worktree(s) removed`.
+**and** which hold nothing but build output; anything else is named and kept. This is the only step that
+reconciles the host with what actually got merged: the handler answers `200` even when the work inside it
+raised, and GitHub does not redeliver failed deliveries — so an event that went wrong leaves no queue to
+replay, just a line in the journal. It is idempotent, so running it on a clean host prints
+`0 worktree(s) removed`.
 
 ### 6. Smoke test: tests always, a real event only when behaviour could have changed
 

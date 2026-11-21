@@ -375,9 +375,14 @@ class Weka:
         """Remove worktrees whose pull request is already merged.
 
         The close event is the primary path; this is the backstop for the cases
-        it cannot cover: a delivery that arrived while the unit was down, one
-        GitHub gave up on, and every worktree the old artifact test refused to
-        remove. Safe to run at any time, because a worktree is only removed when
+        it cannot cover. The event path is at-most-once and its success signal is
+        not trustworthy: the handler catches every exception and still answers
+        200, so a cleanup that failed inside is acked to GitHub as delivered, and
+        GitHub does not redeliver failures anyway (a delivery is also failed if
+        the response takes over 10 s, which the synchronous handler can hit).
+
+        So this is the only thing that reconciles the host with what actually got
+        merged. Safe to run at any time, because a worktree is only removed when
         all three hold:
 
         - its branch is gone from origin (GitHub deletes the head branch on merge),
