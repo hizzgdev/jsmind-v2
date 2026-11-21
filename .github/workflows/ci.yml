@@ -521,7 +521,7 @@ jobs:
       # reads out, with one tone drawn for this run. The two steps name the same
       # path, so the flow reads top to bottom.
       #
-      # One command and nothing captured: the step runs the script, and the
+      # Nothing is captured from this step: it runs the script, and the
       # prepared file is the only thing that crosses from here to the render.
       # The tone drawn for this run is a field inside that file. The script
       # logs the name it wrote, so the job log still says which tone the
