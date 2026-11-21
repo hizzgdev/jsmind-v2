@@ -6,6 +6,8 @@
 
 `docs/requirements/` 是仓库里的对外规范源文件，尚未迁入文档站，因此仍用仓库内路径列出。`team/` 和仓库根目录的 `AGENTS.md` 不上文档站。
 
+`skills/` 不在 `docs/` 下，但同样随站点一起发布：`skills/jsmind/SKILL.md` 在站点上的地址是 [skills/jsmind/SKILL.md](https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md)，内容与仓库内文件一致，所以取技能不必 clone 仓库。整个 `skills/jsmind/` 目录（含 `INSTALL.md`、`references/`）都发布在同一个前缀下。
+
 ```
 docs/
 ├── README.md                       # 本文件：对外文档索引

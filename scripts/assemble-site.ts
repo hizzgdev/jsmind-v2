@@ -2,9 +2,14 @@
  * @fileoverview Builds the GitHub Pages directory.
  *
  * The workflow only publishes `_site`. This command writes the root index as
- * a redirect to the docs site, copies the playground and the bundle, points
- * the playground at the bundle that sits beside it, and builds the VitePress
- * documentation site into `_site/docs`.
+ * a redirect to the docs site, copies the playground, the bundle and the
+ * `skills/` directory, points the playground at the bundle that sits beside
+ * it, and builds the VitePress documentation site into `_site/docs`.
+ *
+ * The skill directory is published whole, at the site root, so an agent can
+ * fetch `skills/jsmind/SKILL.md` over HTTPS without cloning the repository.
+ * It is not part of the npm package: the directory may later carry scripts
+ * and fixtures that npm has no business shipping.
  *
  * The site root is a redirect, not a page: `/docs/` is the project front
  * page, so a second copy of the project description at the root would only
@@ -25,7 +30,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -65,7 +70,20 @@ export const SITE_BUNDLE_SRC = 'jsmind.js';
 /** localStorage key used by `/docs/` and the docs language switcher. */
 export const DOCS_LANG_STORAGE_KEY = 'jsmind-docs-lang';
 
-const SITE_FILES = ['index.html', 'playground.html', 'jsmind.js'] as const;
+/**
+ * Source directory of the agent skill, copied whole to the site root.
+ *
+ * The site keeps the repository's own layout, so the published path can be
+ * derived from the repository path instead of being a second place to edit:
+ * `skills/jsmind/SKILL.md` in the checkout is `skills/jsmind/SKILL.md` on the
+ * site.
+ */
+export const SKILL_DIR = 'skills';
+
+/** The one file inside {@link SKILL_DIR} that proves the copy happened. */
+export const SKILL_SITE_FILE = `${SKILL_DIR}/jsmind/SKILL.md`;
+
+const SITE_FILES = ['index.html', 'playground.html', 'jsmind.js', SKILL_SITE_FILE] as const;
 
 /**
  * Language redirect written to `_site/docs/index.html` after the VitePress
@@ -135,9 +153,13 @@ export function rewritePlayground(html: string): string {
 }
 
 /**
- * Writes the site root index, the playground and the bundle into an
- * already-created site directory. Does not wipe the directory or build the
- * docs site.
+ * Writes the site root index, the playground, the bundle and the skill
+ * directory into an already-created site directory. Does not wipe the
+ * directory or build the docs site.
+ *
+ * The skill is copied as a directory, not file by file: its `references/`,
+ * `INSTALL.md` and test fixtures are part of what an agent fetches, and a list
+ * of names here would silently drop anything added later.
  *
  * @param root - Repository root.
  * @param siteDir - Output directory.
@@ -150,6 +172,8 @@ export function assembleRootSite(root: string, siteDir: string): void {
 
     const playground = readFileSync(join(root, 'example', 'playground.html'), 'utf8');
     writeFileSync(join(siteDir, 'playground.html'), rewritePlayground(playground));
+
+    cpSync(join(root, SKILL_DIR), join(siteDir, SKILL_DIR), { recursive: true });
 
     for (const name of SITE_FILES) {
         const path = join(siteDir, name);

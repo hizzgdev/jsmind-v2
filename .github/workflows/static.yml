@@ -1,9 +1,9 @@
 # Publishes the public site to GitHub Pages: the landing page, the playground,
-# and the VitePress documentation site under /docs/.
+# the agent skill directory, and the VitePress documentation site under /docs/.
 #
 # `npm run assemble-site` writes `_site`. The documentation is built into
-# `_site/docs` as part of that command. The landing page and playground stay
-# at the site root.
+# `_site/docs` as part of that command. The landing page, the playground and
+# the skill stay at the site root.
 name: Deploy static content to Pages
 
 on:
@@ -64,7 +64,8 @@ jobs:
         run: npm run build
 
       # `npm run assemble-site` writes `_site`: the landing page, the
-      # playground, the bundle, and the VitePress docs site under `docs/`.
+      # playground, the bundle, the skill directory, and the VitePress docs
+      # site under `docs/`.
       # Path rewrite, the playground module-script check, and the docs
       # language redirect live in that command, not here.
       - name: Assemble the site
