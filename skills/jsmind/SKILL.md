@@ -9,7 +9,7 @@ description: >-
   do not use it to look up flags that --help already covers. `jsmind --help`
   prints every subcommand in one place, so when you need one, read that
   subcommand's section of it.
-version: 2.0.1
+version: 2.0.2
 metadata:
   jsmind:
     cli: ">=2.0.1 <3"
@@ -133,7 +133,7 @@ Not `jsmind --help`. Not a tutorial. One list, most-used first. Read every line.
 context <file> [--focus <text>] [--depth <n>] [--full-text] [--json]
 mind find <file> --node-id <id>
 mind add-child <file> --parent-id <id> --text <label> [--side left|right] [--position <n>] [--folded true|false]
-mind style set <file> --default-tone <tone>
+mind set-style <file> --default-tone <tone>
 node set-style <file> --node-id <id> --tone <name>
 node set-folded <file> --node-id <id> --folded true|false
 validate <file>
@@ -148,7 +148,7 @@ mind move <file> --node-id <id> --parent-id <id> [--position <n>]
 
 `add-child` places the node in the same command. `--side left|right` works only when the parent is the root — a side is the placement of a first-level node and everything under it inherits — and on any other parent it is a usage error naming the branch the new node would land in. `--position <n>` is an index among the parent's children, appended when omitted. `--folded true|false` creates the node collapsed. All three change the picture, and none of them is visible in the tree you sketched before you started.
 
-`context --json` reads the document-level style too: `{ nodes, style? }`, where `style` carries `theme`, the resolved `defaultTone`, and the sections the file overrides. A file with a `defaultTone` wears it on every node that has no tone of its own, so an untoned node is not necessarily `default`. `mind style set <file> --default-tone <tone>` is the command that writes it.
+`context --json` reads the document-level style too: `{ nodes, style? }`, where `style` carries `theme`, the resolved `defaultTone`, and the sections the file overrides. A file with a `defaultTone` wears it on every node that has no tone of its own, so an untoned node is not necessarily `default`. `mind set-style <file> --default-tone <tone>` is the command that writes it.
 
 `side` is only meaningful for the root's direct children. A new child of the root defaults to the right side. The check is `side=` at the end of that node's `context` line, which the text output prints for the root and its direct children only — the command echo says nothing about it.
 
