@@ -106,17 +106,27 @@ Repo sources live under `team/automations/skills/`. Find which ones are installe
 ls -l ~/.hermes/profiles/*/skills/ | grep -E 'jsmind-review|weka-deploy'
 ```
 
-For each installed skill that has a repo source, compare both directions:
+`md5sum` only answers "same or different" — it never says which side moved. Ask `diff` as well, and
+classify by which side the changed lines are on:
 
 ```bash
-md5sum team/automations/skills/<name>/SKILL.md ~/.hermes/profiles/<p>/skills/<name>/SKILL.md
+diff team/automations/skills/<name>/SKILL.md ~/.hermes/profiles/<p>/skills/<name>/SKILL.md
 ```
 
-- **Identical** — nothing to do.
-- **Repo ahead** — copy it over, then re-check the hashes.
-- **Profile ahead** — stop and report. That file carries edits made live (the curator adds lessons while
-  running) and the repo has none of them. Folding them back is a content decision for the owner, not
-  something a deploy should settle by overwriting.
+| `diff` output | Meaning | Action |
+|---|---|---|
+| empty | identical | nothing |
+| only `>` lines | the profile has content the repo lacks | **stop and report** |
+| only `<` lines | the repo has content the profile lacks | copy over, then re-check hashes |
+| both `<` and `>` | both sides were edited | **stop and report** |
+
+Both "stop" rows have the same reason: a copy is not a merge. The profile carries edits made live —
+Hermes's skill curator patches installed skills in place — and the repo has none of them, so
+overwriting destroys the only copy of that knowledge. Folding it back is a content decision for the
+owner: report what differs (line counts and which headings are involved are enough) and let them choose.
+
+"Only `<`" is the one case where a copy is unambiguously right, and it is the common one: the profile
+was installed from an older commit of the repo file.
 
 ### 6. Restart the webhook, only when its own inputs moved
 
@@ -182,7 +192,8 @@ start timestamp; the smoke evidence, or why it was not applicable; and anything 
 ## Stop and ask instead of guessing
 
 - The clone is dirty, or sits on a branch other than `master`.
-- A profile skill is ahead of its repo source — folding it back is a content decision.
+- A profile skill differs in a way a copy cannot settle: the profile has lines the repo lacks, or both
+  sides were edited. Folding live edits back is a content decision for the owner.
 - The change requires `~/.hermes/config.yaml` → `kanban:`. Those values are read once at gateway boot,
   and the gateway refuses to restart itself from inside its own process — hand the command over.
 - The smoke test prints something other than the expected line: report it. Restarting again to "see if
