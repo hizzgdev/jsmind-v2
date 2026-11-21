@@ -1,6 +1,6 @@
 {
     "name": "jsmind",
-    "version": "2.0.1",
+    "version": "2.1.0",
     "description": "A mind-map kernel for people and agents — people can view, edit, and export maps; agents can reliably create, read, and modify structured maps.",
     "type": "module",
     "main": "./dist/jsmind.cjs",

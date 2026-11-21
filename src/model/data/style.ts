@@ -429,6 +429,8 @@ export interface JmStyle {
     /**
      * Tone used by nodes that state none of their own.
      *
+     * `Since: 2.1.0`
+     *
      * @remarks
      * A tone *name*, not a palette snapshot. Storing resolved colors here would
      * freeze them: a later `tones` override, or a different preset, would no

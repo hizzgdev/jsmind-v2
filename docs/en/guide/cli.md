@@ -22,15 +22,15 @@ jsmind <command> [options]
 
 These options are accepted by every command and subcommand.
 
-| Option | Meaning |
-| --- | --- |
-| `--json` | Machine-readable output |
-| `--dry-run` | Show what would change, write nothing |
-| `--output <path>` | Write somewhere other than the input file |
-| `--backup` | Keep a `.bak` copy before overwriting |
-| `--strict` | Treat an unknown option as a usage error |
-| `--version` | Print the version and exit |
-| `-h`, `--help` | Show the built-in help |
+| Option | Meaning | Version |
+| --- | --- | --- |
+| `--json` | Machine-readable output | — |
+| `--dry-run` | Show what would change, write nothing | — |
+| `--output <path>` | Write somewhere other than the input file | — |
+| `--backup` | Keep a `.bak` copy before overwriting | — |
+| `--strict` | Treat an unknown option as a usage error | `Since: 2.1.0` |
+| `--version` | Print the version and exit | `Since: 2.1.0` |
+| `-h`, `--help` | Show the built-in help | — |
 
 `--dry-run`, `--output`, and `--backup` apply to the mutating `mind` and `node` subcommands. `create` supports `--dry-run` and `--backup`, but the output path is the positional file argument, so `--output` is not used there.
 
@@ -125,13 +125,13 @@ Discovery step: shows the tree so you (or an agent) can find the ids needed for 
 
 Ids are printed in a left-aligned column so they can be copied into the next command. Multi-line labels are flattened, and truncation ends in an ellipsis. Each line may end with a `{…}` block. `side` is shown only for the root and the root's direct children. `folded` appears when the node is collapsed, and style overrides appear when the node differs from the theme.
 
-A file that declares its own document style is announced above the tree, so the theme is discoverable before any node is read:
+A file that declares its own document style is announced above the tree, so the theme is discoverable before any node is read (`Since: 2.1.0`):
 
 ```
 style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 ```
 
-`--json` returns an object with a `nodes` array, and adds the same summary as a `style` block (`theme`, `defaultTone`, `overrides`) when the file carries one. Neither appears for a file with no document style, and the text line is suppressed under `--ids-only`.
+`--json` returns an object with a `nodes` array, and adds the same summary as a top-level `style` block (`theme`, `defaultTone`, `overrides`) when the file carries one. Neither appears for a file with no document style, and the text line is suppressed under `--ids-only`.
 
 When `--focus` matches nothing, the closest candidates are listed instead.
 
@@ -143,16 +143,16 @@ jsmind export <file> <out.png> [options]
 
 Renders a mind map to an image. The size is the map's own size: whitespace inside the viewport is kept, and a map larger than the viewport is not cropped.
 
-`export` requires a Chromium browser. Set `CHROME_PATH` if it is not in a standard location, and `JSMIND_BROWSER_START_MS` if the browser needs longer than the default 60 seconds to start.
+`export` requires a Chromium browser. Set `CHROME_PATH` if it is not in a standard location, and `JSMIND_BROWSER_START_MS` (`Since: 2.1.0`) if the browser needs longer than the default 60 seconds to start.
 
-| Option | Meaning |
-| --- | --- |
-| `--width <px>` | Viewport width to lay the map out in (default `1200`) |
-| `--height <px>` | Viewport height (default `800`) |
-| `--scale <n>` | Output pixel ratio (default `2`) |
-| `--type <format>` | `image/png`, `image/jpeg`, or `image/webp` (default `image/png`) |
-| `--transparent` | Transparent background (PNG and WebP; opt-in, default keeps the current opaque background). For JPEG, the option is ignored and a warning is printed. |
-| `--json` | Machine-readable output |
+| Option | Meaning | Version |
+| --- | --- | --- |
+| `--width <px>` | Viewport width to lay the map out in (default `1200`) | — |
+| `--height <px>` | Viewport height (default `800`) | — |
+| `--scale <n>` | Output pixel ratio (default `2`) | — |
+| `--type <format>` | `image/png`, `image/jpeg`, or `image/webp` (default `image/png`) | — |
+| `--transparent` | Transparent background (PNG and WebP; opt-in, default keeps the current opaque background). For JPEG, the option is ignored and a warning is printed. | `Since: 2.1.0` |
+| `--json` | Machine-readable output | — |
 
 With the default width, height, and scale, a typical export is 2400×1600 pixels.
 
@@ -164,16 +164,16 @@ jsmind mind <subcommand> <file> [options]
 
 Structure, edges, and the document's style. Locators are ids only. Use ids from a current `context` output; do not reuse ids copied from examples.
 
-| Subcommand | Options | Meaning |
-| --- | --- | --- |
-| `find` | `--node-id <id>` | Show one node |
-| `list-edges` | `--node-id <id>` | Edges touching a node |
-| `add-child` | `--parent-id <id> --text <text> [--side left\|right] [--position <n>] [--folded true\|false]` | Add a child node |
-| `move` | `--node-id <id> --parent-id <id> [--position <n>]` | Reparent a node |
-| `remove-node` | `--node-id <id>` | Remove the node, its whole subtree, and every edge touching any of them |
-| `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | Add a relation |
-| `remove-edge` | `--edge-id <id>` | Remove a relation |
-| `set-style` | `--default-tone <tone>` | The document's style (`mind.style`): the tone untoned nodes wear |
+| Subcommand | Options | Meaning | Version |
+| --- | --- | --- | --- |
+| `find` | `--node-id <id>` | Show one node | — |
+| `list-edges` | `--node-id <id>` | Edges touching a node | — |
+| `add-child` | `--parent-id <id> --text <text> [--side left\|right] [--position <n>] [--folded true\|false]` | Add a child node | — |
+| `move` | `--node-id <id> --parent-id <id> [--position <n>]` | Reparent a node | — |
+| `remove-node` | `--node-id <id>` | Remove the node, its whole subtree, and every edge touching any of them | — |
+| `add-edge` | `--source-id <id> --target-id <id> [--type link] [--label <text>]` | Add a relation | — |
+| `remove-edge` | `--edge-id <id>` | Remove a relation | — |
+| `set-style` | `--default-tone <tone>` | The document's style (`mind.style`): the tone untoned nodes wear | `Since: 2.1.0` |
 
 `--side` applies only when the parent is the root node. A side is the placement of a root child, and every node below one inherits it, so a side written deeper would change the file and not the picture — that is a usage error naming the first-level branch, not a silent no-op. Only the root is center, so `--side` takes `left` or `right`.
 

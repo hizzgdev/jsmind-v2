@@ -24,7 +24,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 | --- | --- | --- |
 | `quality` (可选) | number | 有损格式的质量，范围为 0 到 1。PNG 会忽略该值，浏览器会拒绝为 PNG 传入质量参数。 |
 | `scale` (可选) | number | 渲染时使用的设备像素比。`2` 在高分屏上更清晰且开销不大；`1` 与用户看到的效果一致。 |
-| `transparent` (可选) | boolean | 为 true 时导出透明背景，而不是填充主题画布色。这是 opt-in 选项，默认导出行为不变。JPEG 没有 Alpha 通道，因此 `type` 为 `image/jpeg` 时会忽略该选项并给出警告。 |
+| `transparent` (可选) | boolean | 为 true 时导出透明背景，而不是填充主题画布色。这是 opt-in 选项，默认导出行为不变。JPEG 没有 Alpha 通道，因此 `type` 为 `image/jpeg` 时会忽略该选项并给出警告。`Since: 2.1.0` |
 | `type` (可选) | [JmImageType](/zh/reference/api/export#JmImageType) | 输出格式。JPEG 和 WebP 是有损的，PNG 不是。 |
 
 ## JmExportImageResult {#JmExportImageResult}

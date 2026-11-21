@@ -24,7 +24,7 @@ Options for exporting the rendered mind map to an image.
 | --- | --- | --- |
 | `quality` (optional) | number | Quality for the lossy formats, 0 to 1. Ignored for PNG, where the browser rejects a quality argument. |
 | `scale` (optional) | number | Device pixel ratio to render at. 2 gives a crisp result on high-density screens and stays cheap; 1 mirrors what the user sees. |
-| `transparent` (optional) | boolean | Leave the canvas background transparent instead of filling it with the theme color. Opt-in; the default export is unchanged. JPEG has no alpha channel, so this option is ignored with a warning when `type` is `image/jpeg`. |
+| `transparent` (optional) | boolean | Leave the canvas background transparent instead of filling it with the theme color. Opt-in; the default export is unchanged. JPEG has no alpha channel, so this option is ignored with a warning when `type` is `image/jpeg`. `Since: 2.1.0` |
 | `type` (optional) | [JmImageType](/en/reference/api/export#JmImageType) | Output format. JPEG and WebP are lossy, PNG is not. |
 
 ## JmExportImageResult {#JmExportImageResult}

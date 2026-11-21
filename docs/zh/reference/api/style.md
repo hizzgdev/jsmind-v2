@@ -80,7 +80,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
 | `background` (可选) | string | 画布背景色。 |
-| `defaultTone` (可选) | string | 没有自己 tone 的节点使用的语气。 |
+| `defaultTone` (可选) | string | 没有自己 tone 的节点使用的语气。`Since: 2.1.0` |
 | `expander` (可选) | `Partial`<[JmThemeExpander](/zh/reference/api/style#JmThemeExpander)> | 展开/折叠控件的几何覆盖。 |
 | `line` (可选) | `Partial`<[JmThemeLine](/zh/reference/api/style#JmThemeLine)> | 线条几何覆盖。 |
 | `node` (可选) | [JmThemeNodeOverride](/zh/reference/api/style#JmThemeNodeOverride) | 节点几何覆盖。 |

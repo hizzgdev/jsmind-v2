@@ -172,13 +172,13 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 
 **参数校验发生在读文件之前**：非法 tone、非正数、未知的 `--clear` 字段都在打开文件前就报 `Usage`（退出码 2），不会因为文件恰好不存在而变成别的错误。颜色只检查是不是字符串 —— 主题接受任意 CSS 颜色，枚举值才在 CLI 层拦（为了报错时点名是哪个 flag，而不是给一个 JSON 路径）。
 
-### 3.4 `jsmind mind set-style` —— 文档级样式
+### 3.4 `jsmind mind set-style` —— 文档级样式（`Since: 2.1.0`）
 
 `mind` 组里唯一给属性字段赋值的子命令：它写 `mind.style`，不碰树结构。`node set-style` 写 `node.style`，两者是对称的两个命令，作用域靠组名区分 —— help 里也各自写明了这一点。
 
-| 字段 | CLI 命令 |
-|---|---|
-| `mind.style` | `jsmind mind set-style <file> --default-tone <tone>` |
+| 字段 | CLI 命令 | 版本 |
+|---|---|---|
+| `mind.style` | `jsmind mind set-style <file> --default-tone <tone>` | `Since: 2.1.0` |
 
 字段写法与 3.3 相同：点号分层（`--node.font-size`、`--line.color`）、连字符分词，配 `--clear <字段列表>` 与 `--reset`。目前只有 `--default-tone` 有写入器；`mind.style` 的其余分节（`tones` / `background` / `node` / `line` / `expander`）暂时只能通过 `context` 读，拿到写入器时按同一张 flag 表加进这个命令，不再开新的子命令。
 
@@ -295,6 +295,27 @@ n18     供应商清洗成本
 
 没有覆盖的节点**不带 `style` 键**，而不是带一个 `{}`。
 
+**文档级样式摘要是另一层，`--json` 里与 `nodes` 平级**（`Since: 2.1.0`）。文件声明了 `mind.style` 时，文本输出在树的上方多一行：
+
+```
+style: theme=default defaultTone=primary overrides=defaultTone,tones,node
+```
+
+`--json` 时是同一个事实，放在顶层 `style` 上：
+
+```json
+{
+  "nodes": [ { "id": "n1", "level": 0, "text": "根" } ],
+  "style": {
+    "theme": "default",
+    "defaultTone": "primary",
+    "overrides": ["defaultTone", "tones", "node"]
+  }
+}
+```
+
+三个键都是解析后的值：`theme` 未写时为 `default`，`defaultTone` 未写时为 `default`，`overrides` 列出文件实际覆盖的分节（`defaultTone` / `background` / `tones` / `node` / `line` / `expander`，按类型声明顺序），没有覆盖任何分节时为空数组；文本行里空数组写成 `none`。文件没有 `mind.style` 时两样都不出现，`--ids-only` 下文本那一行也省略。
+
 **约束：**
 
 - **多行文本压成一行**（换行替换为空格），否则树形结构被打断
@@ -388,7 +409,7 @@ jsmind convert <input> --from v1 --to v2 [--output <path>]
 
 **每个子命令声明自己的允许选项集合。全局选项（`--json`、`--dry-run`、`--output`、`--backup`、`--strict`、`--version`、`-h` / `--help`）单列，对所有子命令合法。**
 
-未知选项（拼错的 flag，或只对另一个子命令有意义的 flag）默认**只警告**：往 stderr 打一行，命令照常执行，退出码不变。
+未知选项（拼错的 flag，或只对另一个子命令有意义的 flag）默认**只警告**（`Since: 2.1.0`）：往 stderr 打一行，命令照常执行，退出码不变。
 
 **为什么不是直接报错**：这类调用原本是「退出码 0 而什么都没发生」，直接收紧会把一批本来能跑的脚本打断。先让调用方看见问题，再让需要确定性失败的一方自己打开开关。
 
@@ -402,10 +423,10 @@ jsmind convert <input> --from v1 --to v2 [--output <path>]
 
 ### 6.5 `--strict` 与 `--version`
 
-| 选项 | 行为 |
-|---|---|
-| `--strict` | 把未知选项从警告升级为用法错误（退出码 `2`） |
-| `--version` | 只打印 `package.json` 里的 version 字符串，不带其他文字，不依赖任何子命令 |
+| 选项 | 行为 | 版本 |
+|---|---|---|
+| `--strict` | 把未知选项从警告升级为用法错误（退出码 `2`） | `Since: 2.1.0` |
+| `--version` | 只打印 `package.json` 里的 version 字符串，不带其他文字，不依赖任何子命令 | `Since: 2.1.0` |
 
 `--version` 的版本号不存第二份常量：manifest 是唯一来源，CLI 运行时读它，所以不会和发布版本脱节。
 

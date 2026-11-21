@@ -60,14 +60,14 @@ const url = URL.createObjectURL(blob);
 jsmind export <file> <out.png> [options]
 ```
 
-| 选项 | 默认 | 说明 |
-|---|---|---|
-| `--width <px>` | 1200 | 布局用的视口宽度 |
-| `--height <px>` | 800 | 布局用的视口高度 |
-| `--scale <n>` | 2 | 输出倍率 |
-| `--type <format>` | image/png | 输出格式 |
-| `--transparent` | — | 透明背景（PNG 和 WebP；需显式打开）。用于 JPEG 时会忽略该选项并给出警告。 |
-| `--json` | — | 机器可读输出 |
+| 选项 | 默认 | 说明 | 版本 |
+|---|---|---|---|
+| `--width <px>` | 1200 | 布局用的视口宽度 | — |
+| `--height <px>` | 800 | 布局用的视口高度 | — |
+| `--scale <n>` | 2 | 输出倍率 | — |
+| `--type <format>` | image/png | 输出格式 | — |
+| `--transparent` | — | 透明背景（PNG 和 WebP；需显式打开）。用于 JPEG 时会忽略该选项并给出警告。 | `Since: 2.1.0` |
+| `--json` | — | 机器可读输出 | — |
 
 ```bash
 $ jsmind export example/v2-features.json preview.png
@@ -83,7 +83,7 @@ small.png: 2095x1032 (145.0 KB)      # 视口装不下，图反而更大，没�
 
 ### 浏览器启动慢的时候
 
-启动 Chromium 是整个导出里唯一取决于机器、而不取决于导图的环节。命令最多等 **60 秒**，等浏览器打开 DevTools 端口；`JSMIND_BROWSER_START_MS`（毫秒）可以改这个预算。不是正数的值会被忽略、回落到默认值，免得 CI 里一个笔误让每次导出都报参数错误。
+启动 Chromium 是整个导出里唯一取决于机器、而不取决于导图的环节。命令最多等 **60 秒**，等浏览器打开 DevTools 端口；`JSMIND_BROWSER_START_MS`（毫秒，`Since: 2.1.0`）可以改这个预算。不是正数的值会被忽略、回落到默认值，免得 CI 里一个笔误让每次导出都报参数错误。
 
 等待不是一次盲等，失败也不只是一句话：
 

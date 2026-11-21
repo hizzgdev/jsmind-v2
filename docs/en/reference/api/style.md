@@ -98,7 +98,7 @@ deeply.
 | Name | Type | Description |
 | --- | --- | --- |
 | `background` (optional) | string | Canvas background color. |
-| `defaultTone` (optional) | string | Tone used by nodes that state none of their own. |
+| `defaultTone` (optional) | string | Tone used by nodes that state none of their own. `Since: 2.1.0` |
 | `expander` (optional) | `Partial`<[JmThemeExpander](/en/reference/api/style#JmThemeExpander)> | Expander geometry overrides. |
 | `line` (optional) | `Partial`<[JmThemeLine](/en/reference/api/style#JmThemeLine)> | Line geometry overrides. |
 | `node` (optional) | [JmThemeNodeOverride](/en/reference/api/style#JmThemeNodeOverride) | Node geometry overrides. |

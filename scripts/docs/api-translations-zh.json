@@ -64,7 +64,7 @@
     "summary": "输出格式。JPEG 和 WebP 是有损的，PNG 不是。"
   },
   "JmExportImageOptions.transparent": {
-    "summary": "为 true 时导出透明背景，而不是填充主题画布色。这是 opt-in 选项，默认导出行为不变。JPEG 没有 Alpha 通道，因此 `type` 为 `image/jpeg` 时会忽略该选项并给出警告。"
+    "summary": "为 true 时导出透明背景，而不是填充主题画布色。这是 opt-in 选项，默认导出行为不变。JPEG 没有 Alpha 通道，因此 `type` 为 `image/jpeg` 时会忽略该选项并给出警告。`Since: 2.1.0`"
   },
   "JmExportImageResult": {
     "summary": "{@link JsMind.exportImage} 返回的已编码图片及其尺寸。"
@@ -479,7 +479,7 @@
     "summary": "画布背景色。"
   },
   "JmStyle.defaultTone": {
-    "summary": "没有自己 tone 的节点使用的语气。",
+    "summary": "没有自己 tone 的节点使用的语气。`Since: 2.1.0`",
     "remarks": "存的是语气**名字**，不是调色板快照。把解析后的颜色存进来会把颜色冻死：之后改 `tones` 覆盖、或换 preset，依赖这个字段的节点就不再跟着变。名字走的是和节点级 tone 同一套查表，所以 `style.tones` 仍然叠在它上面生效。"
   },
   "JmStyle.expander": {
