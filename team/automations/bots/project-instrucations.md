@@ -8,7 +8,7 @@ Information priority:
 
 Hard rules (must follow):
 - All changes go through PRs. Never push directly to master.
-- PR titles and commit messages use English Conventional Commits (`<type>(<scope>): <subject>`). See README for suggested scopes.
+- PR titles and commit messages use English Conventional Commits (`<type>(<scope>): <subject>`). The type must name the change's effect on the shipped artifact: the table, the path map and the CI check are in `team/development/commit-types.md`. See AGENTS.md for suggested scopes.
 - Code comments must be in English.
 - Temporary experiment files go in tmp/.
 

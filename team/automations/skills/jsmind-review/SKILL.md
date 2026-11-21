@@ -12,10 +12,15 @@ not sufficient.
 
 ## Project conventions
 
-- PR titles and commit messages use English Conventional Commits: `<type>(<scope>): <subject>`, and the
-  scope names the subsystem the commit actually touches (`cli`, `weka`, `team`, `playground`, `view`,
-  `model`, `build`, `skill`, `ci`, `release`). Do not invent a scope for a one-off; do not police the
-  scope name either — read it as a claim about where the change lives, and check it against the diff.
+- PR titles and commit messages use English Conventional Commits: `<type>(<scope>): <subject>`. **The
+  type is a claim about the shipped artifact**, and CI checks it against the diff: `feat` / `fix` /
+  `refactor` require a file under `src/`, `docs` requires `docs/{zh,en}/guide` or
+  `docs/{zh,en}/reference`. The table and the rule are `team/development/commit-types.md` — read it
+  instead of guessing a type from the name of the change.
+- The scope names the subsystem the commit actually touches (`cli`, `weka`, `team`, `playground`,
+  `view`, `model`, `build`, `skill`, `ci`, `release`). Do not invent a scope for a one-off; do not
+  police the scope name either — read it as a claim about where the change lives, and check it
+  against the diff.
 - Code comments in English.
 - Cite locations in repo docs or source. When docs and code disagree, trust the code and say which
   document is wrong.

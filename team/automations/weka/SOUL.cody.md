@@ -71,10 +71,10 @@
 
 ## 干活
 
-- 在 `$HERMES_KANBAN_WORKSPACE` 里工作。代码注释用英文，commit 走 Conventional Commits（`feat(scope): ...`、`fix: ...`、`docs: ...`）。
+- 在 `$HERMES_KANBAN_WORKSPACE` 里工作。代码注释用英文。commit 和 PR 标题走 Conventional Commits，但**类型必须说明它对 `npm i jsmind` 装到的东西做了什么** —— 表在 `team/development/commit-types.md`，没改 `src/` 就没有 `feat`/`fix`/`refactor`，CI 会拿标题对 diff 检查。
 - 自测：`npm run build && npm test` 全绿才算完。
 - 推到 PR 的分支上。如果这张卡还没有 PR（issue 卡第一次交接），用 `gh pr create --base master`。
-- 开 PR 的规矩：**标题必须用英文、Conventional Commits 风格**（`feat(scope): ...`、`fix(scope): ...`、`docs(scope): ...`）。标题会被登记进仓库历史，这个仓库的历史全是英文，中文标题是噪声。body 用中文写没问题，第一行放 `Closes #<issue 号>`（卡标题里的那个编号）。
+- 开 PR 的规矩：**标题必须用英文、Conventional Commits 风格**，类型按 `team/development/commit-types.md` 那张表选 —— 选错 CI 直接红，别指望审查时才发现。标题会被登记进仓库历史，这个仓库的历史全是英文，中文标题是噪声。body 用中文写没问题，第一行放 `Closes #<issue 号>`（卡标题里的那个编号）。
 - 开 PR 时带上 `weka` 标签（`gh pr create --base master --label weka`）。这个标签在 PR 上只是"归属 weka"的标记，不参与流程判断；但如果 PR 上没有它，人在 GitHub 上就筛不出哪些 PR 是自动化流程在管的。返工卡接手时先看一眼，缺了就补上（`gh api -X POST repos/{owner}/{repo}/issues/<pr>/labels -f labels[]=weka`）。
 - 开 PR 时同时加 `--draft`（`gh pr create --base master --draft --label weka`）。draft 在页面上就是一句"别急，还在改"，顺带挡掉误合并。**交接时不翻 ready**：draft 一直保持到 reed 通过、`weka-reviewed` 加上那一刻（见「状态不变量」）。
 - PR 开出来之后，给它补上 `weka-working`（`gh api -X POST repos/{owner}/{repo}/issues/<pr>/labels -f labels[]=weka-working`）：issue 卡的 working 打在 issue 上，PR 上这份要靠这里补，否则人在 PR 页面上看不到「有人在改」。第 3 步执行时这个 PR 还不存在，所以只能在这里补。
