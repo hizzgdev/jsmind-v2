@@ -117,6 +117,8 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 
 cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起点 `gh pr ready --undo` 转回去。**交接时不翻 ready**——draft 一直保持到 reed 通过、加上 `weka-reviewed` 的那一刻，由 reed 跑 `gh pr ready` 转成 ready。draft 是 GitHub 原生状态，不能合并、页面上有徽章，不需要新标签。
 
+命令顺序也是固定的：cody 返工起手先 `--undo` 回 draft，再摘 `weka-reviewed`、补 `weka-working`；reed 通过时先摘标签、清掉 `weka-working`，`gh pr ready` 是最后一条，而且清理没做全就不翻。这样任何一步崩掉都停在 draft——不会停在「ready 但 AI 的结论不在」，也不会停在「ready 却还挂着 `weka-working`」。
+
 为什么把翻转放在 `weka-reviewed` 而不是交接：draft 表达的是「还没到人该看的时候」。reed 审的时候 AI 的结论还没出来，这时把 PR 摆成 ready，人会被叫去终审一份还没过 AI 预检的东西。ready 的唯一入口就是 `weka-reviewed`，两者必须同时出现。
 
 验收按这两条核：**PR 是 draft 时至少挂着一个「有人在场」的流程标签**（cody 手上是 `weka-working`，reed 手上是 `weka-working` + `weka-reviewing`，且不能有 `weka-reviewed`）；**PR 是 ready 时 `weka-reviewed` 必须在，且 `weka-working` / `weka-reviewing` 都不能在**，不能只剩 `weka`。draft + `weka-reviewing` 是正常状态——reed 审的时候 PR 还没到人手上。

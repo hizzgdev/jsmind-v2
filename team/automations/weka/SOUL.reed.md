@@ -29,19 +29,17 @@
 依次做完四件事，然后才算结束：
 
 1. 在 PR 上写"技术审查通过"。
-2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，摘掉 PR 上的 `weka-working`，并**把 PR 转成 ready**（`gh pr ready <number>`）——这是全流程唯一一次 draft → ready 的翻转，ready 的含义就是"AI 审完了，请人终审"。
+2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，摘掉 PR 上的 `weka-working`，**最后把 PR 转成 ready**（`gh pr ready <number>`）——这是全流程唯一一次 draft → ready 的翻转，ready 的含义就是"AI 审完了，请人终审"。
 3. 把仓库所有者加为 reviewer：`gh api -X POST repos/{owner}/{repo}/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev`。
 4. `kanban_complete(summary="...")`。卡在这一刻结束。
 
-标签操作不要用 `gh pr edit`。摘 `weka-working` 前先确认它确实在上面——`DELETE` 一个不存在的标签返回 404 且 exit 1，会让人误以为清理失败；先确认存在再删，才是真正幂等的。`weka-reviewing` 在审查时必然在 PR 上，直接删即可：
+标签操作不要用 `gh pr edit`。摘 `weka-working` 前先确认它确实在上面——`DELETE` 一个不存在的标签返回 404 且 exit 1，会让人误以为清理失败；先确认存在再删，才是真正幂等的。`weka-reviewing` 在审查时必然在 PR 上，直接删即可。**`gh pr ready` 是这段的最后一条**：先摘干净再翻，中途失败就停在 draft，不会留下 ready 却还挂着 `weka-working` 的样子：
 
 ```bash
 # <number> 始终是 PR 编号
-gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewing
-gh api -X POST   repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewed
-
-# 通过的这一刻才转 ready（已经是 ready 时同样 exit 0，只在 stderr 打一行 ! 提示）
-gh pr ready <number>
+status=0
+gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewing || status=1
+gh api -X POST   repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewed || status=1
 
 # PR 上的 weka-working 由 cody 在开 PR / 返工起点补上（issue 卡的 PR 也一样），
 # 这里清的就是它。万一不在（旧流程开出的 PR、cody 崩在补打之前）就 no-op。
@@ -49,14 +47,26 @@ gh pr ready <number>
 # webhook 在 issue close 时会按事件里的标签兜底清掉。
 if ! labels=$(gh api repos/{owner}/{repo}/issues/<number> --jq '.labels[].name'); then
   echo "WARN: label lookup failed for #<number>; weka-working not checked" >&2
+  status=1
 elif printf '%s\n' "$labels" | grep -qx weka-working; then
-  gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working
+  gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working || status=1
+fi
+
+# 最后一条：全流程唯一一次 draft → ready 的翻转。
+# 只在上面全部成功时才翻——ready + weka-working 是禁止组合，清理没做干净就翻，
+# 人会被叫来终审，而 PR 上还写着「AI 正在干」。停在 draft 是安全状态，修好再重跑这段。
+# 已经是 ready 时这条同样 exit 0，只在 stderr 打一行 ! 提示。
+if [ "$status" -eq 0 ]; then
+  gh pr ready <number>
+else
+  echo "NOT flipping #<number> to ready: cleanup above failed" >&2
+  exit 1
 fi
 ```
 
 `grep -qx` 匹配不到标签时整段什么都不做，退出码为 0——那是"已经干净"的正常路径之一（旧 PR、或 cody 还没补上就崩了），不是清理失败。
 
-但"读不到"和"本来没有"要分开：标签列表那次 `gh api` 自己失败（鉴权、网络）时 `--jq` 没有输出，光靠管道会把它误判成"已经干净"。上面的写法用 `if ! labels=$(...)` 把读取失败单独接住并打 `WARN`——没检查过不算清理成功。DELETE 本身报错（权限、网络）同样是失败。
+但"读不到"和"本来没有"要分开：标签列表那次 `gh api` 自己失败（鉴权、网络）时 `--jq` 没有输出，光靠管道会把它误判成"已经干净"。上面的写法用 `if ! labels=$(...)` 把读取失败单独接住并打 `WARN`——没检查过不算清理成功。DELETE 本身报错（权限、网络）同样是失败；这些失败都记进 `status`，最后那条 `gh pr ready` 因此不会执行。
 
 **不要尝试清空自己的 assignee。** 卡完成（`kanban_complete`）就是终点：卡一旦 done 就不再被调度，调度器自然不会把你再拉起来。worker 上下文里 `hermes kanban assign` 会被围栏拒绝，那是设计如此，不是故障。
 

@@ -14,23 +14,31 @@
 2. 判断卡的类型：
    - 第一行是 **issue** URL → issue 卡：你自己实现，最后开 PR。
    - 第一行是 **PR** URL → PR 卡（返工）：你在已有 PR 上改。
-3. 打标签（失败必须看到。注意 `DELETE` 一个不存在的标签会返回 404 且 exit 1——那是"本来就没有"，不是故障）：
-   - PR 卡：先摘掉 `weka-reviewed`。这是流程信号，不摘的话你干完之前人来一句话会再建一张卡。
-   - 所有卡：给**你这张卡对应的对象**打 `weka-working`——issue 卡打 issue，PR 卡打 PR。
-   - 卡已经有 PR 时（PR 卡返工，或 issue 卡在后面的收尾步骤里开出的那个 PR），**PR 上再打一份** `weka-working`。PR 才是人看流程状态的地方：issue 卡的 PR 不打，它在「reed 要求修改」到「你返工交接」的整个窗口里一个流程标签都没有，人看不出有没有人在管。
-   - PR 卡：把 PR 转回 **draft**（`gh pr ready --undo`）。draft 的意思是「还没到人该看的时候」——它从你开工一直持续到 reed 审完，所以你交接时也不翻 ready，只在 Reed 通过那一刻才翻（见「状态不变量」）。返工起点就是要回到这个状态。
+3. 打标签。失败必须看到：`DELETE` 一个不存在的标签会返回 404 且 exit 1——那是"本来就没有"，不是故障。**下面几条的顺序不能换**：PR 卡的第一步永远是回到 draft，标签操作排在它后面，中途崩掉才会停在文档认可的状态上（见「状态不变量」）。
+   - **PR 卡**：把 PR 转回 **draft**（`<number>` 是 PR 号）。draft 的意思是「还没到人该看的时候」——它从你开工一直持续到 reed 审完，所以你交接时也不翻 ready，只在 Reed 通过那一刻才翻。返工起点就是要回到这个状态，而且这一条必须排在所有标签操作前面：
 
-   ```bash
-   gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewed
-   gh api -X POST repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-working
+     ```bash
+     # 已经是 draft 时同样 exit 0（见「状态不变量」的实测记录）
+     gh pr ready --undo <number>
+     ```
 
-   # 这张卡已经有 PR 时，另外打一份到 PR 上（<pr> 是 PR 的号码，不是卡的号码）
-   # PR 卡里 <pr> 就是 <number>，上一行已经打到；issue 卡的 PR 要靠这里补。
-   gh api -X POST repos/{owner}/{repo}/issues/<pr>/labels -f labels[]=weka-working
+   - **PR 卡**：摘掉 `weka-reviewed`。这是流程信号，不摘的话你干完之前人来一句话会再建一张卡：
 
-   # PR 卡返工起点：转回 draft。已经是 draft 时同样 exit 0（见「状态不变量」的实测记录）
-   gh pr ready --undo <number>
-   ```
+     ```bash
+     gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewed
+     ```
+
+   - **所有卡**：给**你这张卡对应的对象**打 `weka-working`——issue 卡打 issue，PR 卡打 PR：
+
+     ```bash
+     gh api -X POST repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-working
+     ```
+
+   - **卡已经有 PR 时**（PR 卡，或 issue 卡在后面的收尾步骤里开出的那个 PR），**PR 上再打一份** `weka-working`。PR 才是人看流程状态的地方：issue 卡的 PR 不打，它在「reed 要求修改」到「你返工交接」的整个窗口里一个流程标签都没有，人看不出有没有人在管。（`<pr>` 是 PR 的号码，不是卡的号码；PR 卡里它等于上面的 `<number>`，重复打无害。）
+
+     ```bash
+     gh api -X POST repos/{owner}/{repo}/issues/<pr>/labels -f labels[]=weka-working
+     ```
 
 4. **只有 PR 卡需要对齐分支**（issue 卡从 master 新开）：
 
