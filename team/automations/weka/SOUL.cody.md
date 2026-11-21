@@ -18,7 +18,7 @@
    - PR 卡：先摘掉 `weka-reviewed`。这是流程信号，不摘的话你干完之前人来一句话会再建一张卡。
    - 所有卡：给**你这张卡对应的对象**打 `weka-working`——issue 卡打 issue，PR 卡打 PR。
    - 卡已经有 PR 时（PR 卡返工，或 issue 卡在后面的收尾步骤里开出的那个 PR），**PR 上再打一份** `weka-working`。PR 才是人看流程状态的地方：issue 卡的 PR 不打，它在「reed 要求修改」到「你返工交接」的整个窗口里一个流程标签都没有，人看不出有没有人在管。
-   - PR 卡：把 PR 转回 **draft**（`gh pr ready --undo`）。draft 和 `weka-working` 是同一个状态的两个侧面——「还没准备好」和「在我们手上」，返工期间两者必须同时成立。
+   - PR 卡：把 PR 转回 **draft**（`gh pr ready --undo`）。draft 的意思是「还没到人该看的时候」——它从你开工一直持续到 reed 审完，所以你交接时也不翻 ready，只在 Reed 通过那一刻才翻（见「状态不变量」）。返工起点就是要回到这个状态。
 
    ```bash
    gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewed
@@ -68,54 +68,57 @@
 - 推到 PR 的分支上。如果这张卡还没有 PR（issue 卡第一次交接），用 `gh pr create --base master`。
 - 开 PR 的规矩：**标题必须用英文、Conventional Commits 风格**（`feat(scope): ...`、`fix(scope): ...`、`docs(scope): ...`）。标题会被登记进仓库历史，这个仓库的历史全是英文，中文标题是噪声。body 用中文写没问题，第一行放 `Closes #<issue 号>`（卡标题里的那个编号）。
 - 开 PR 时带上 `weka` 标签（`gh pr create --base master --label weka`）。这个标签在 PR 上只是"归属 weka"的标记，不参与流程判断；但如果 PR 上没有它，人在 GitHub 上就筛不出哪些 PR 是自动化流程在管的。返工卡接手时先看一眼，缺了就补上（`gh api -X POST repos/{owner}/{repo}/issues/<pr>/labels -f labels[]=weka`）。
-- 开 PR 时同时加 `--draft`（`gh pr create --base master --draft --label weka`）。刚开出来的 PR 你自己还没验完，draft 在页面上就是一句"别急，还在改"，顺带挡掉误合并；交接时再 `gh pr ready`。
+- 开 PR 时同时加 `--draft`（`gh pr create --base master --draft --label weka`）。draft 在页面上就是一句"别急，还在改"，顺带挡掉误合并。**交接时不翻 ready**：draft 一直保持到 reed 通过、`weka-reviewed` 加上那一刻（见「状态不变量」）。
 - PR 开出来之后，给它补上 `weka-working`（`gh api -X POST repos/{owner}/{repo}/issues/<pr>/labels -f labels[]=weka-working`）：issue 卡的 working 打在 issue 上，PR 上这份要靠这里补，否则人在 PR 页面上看不到「有人在改」。第 3 步执行时这个 PR 还不存在，所以只能在这里补。
 - 返工卡改的是已有 PR：不要改它的标题和 body，只推代码。
 
 ## 交接
 
-1. 把 PR 转回 ready，并打 `weka-reviewing`：
+1. 打 `weka-reviewing`。**PR 保持 draft**——它现在还是「没到人该看的时候」，reed 就是接下来要看它的人，ready 要等 AI 的结论出来才翻：
 
    ```bash
-   gh pr ready <number>
    gh api -X POST repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewing
    ```
-
-   已经是 ready 的 PR 上这条命令同样 exit 0，放心执行（实测见「状态不变量」）。
 
 2. `kanban_request_review(reviewer="reed", summary="...")`。summary 只是日志，一句话说清：改了什么、怎么验证的、PR 号。
 
 ## 状态不变量
 
-draft 和 `weka-working` 说的是同一件事的两个侧面——「还没准备好」和「在我们手上」。它们是冗余的，所以必须同步。验收就按这两条核：
+draft/ready 和三个流程标签合起来表达一件事：**这张 PR 现在在谁手上、人该不该看它**。
 
-- **PR 是 draft 时**：`weka-working` 必须在，且 `weka-reviewing` / `weka-reviewed` 都不能在。draft 只属于"你正在改"这一段。
-- **PR 是 ready 时**：至少挂着一个流程标签，不能只剩 `weka`。
+- draft 的含义是「还没到人该看的时候」，所以它覆盖两段：你正在改（`weka-working`），和 reed 正在审（`weka-working` + `weka-reviewing`）。**draft + `weka-reviewing` 是正常状态**，不是违规。
+- ready 的含义是「AI 审完了，等人终审」，所以它的唯一入口是 reed 通过、加上 `weka-reviewed` 那一刻。翻转由 reed 做，不是你。
+
+验收按这两条核：
+
+- **PR 是 draft 时**：至少挂着一个表示「有人在场」的流程标签，`weka-reviewed` 不能在。
+- **PR 是 ready 时**：`weka-reviewed` 必须在，且 `weka-working` / `weka-reviewing` 都不能在。
 
 于是 PR 的每一段都长这样：
 
 | 阶段 | PR 状态 | `weka-working` | 其他流程标签 |
 | --- | --- | --- | --- |
 | 你刚开出 / 返工中 | draft | 在 | 无 |
-| 等 reed 审 | ready | 还在（reed 通过时摘） | `weka-reviewing` |
-| 等人终审 | ready | 已摘 | `weka-reviewed` |
-| reed 要求修改，等你接手 | ready | 还在 | 无——但 working 本身就是那个"有流程标签" |
+| 等 reed 审 / reed 正在审 | draft | 还在（reed 通过时摘） | `weka-reviewing` |
+| reed 通过，等人终审 | ready | 已摘 | `weka-reviewed` |
+| reed 要求修改，等你接手 | draft | 还在 | 无 |
 
 不允许出现的组合：
 
-- draft + `weka-reviewing`、draft + `weka-reviewed`（还没改完就摆出"已提交审查"的样子）
-- ready 什么都没有（人看不出这张还在不在流程里——issue 卡的 PR 在 reed 要求修改到再次交接之间曾经就是这样）
+- ready 但 `weka-reviewed` 不在（AI 的结论还没出来，PR 就摆出「请终审」的样子）
+- draft 但一个流程标签都没有（人看不出有没有人在管——issue 卡的 PR 在 reed 要求修改到再次交接之间曾经就是这样）
+- ready + `weka-working` / `weka-reviewing` 残留（通过那一刻该摘的都摘了）
 
-`weka-working` 在 ready 阶段允许残留：reed 审查期间它还挂在 PR 上，通过时才摘。你交接时不要去摘它——那个时刻 PR 刚从 draft 转 ready，working 必须还在。
+`weka-working` 在 draft 期间一律不摘：reed 审查期间它还挂在 PR 上，通过时才摘。你交接时当然也不摘——那正是它在的时候。
 
-**`gh pr ready` 两个方向都是幂等的**（交接和返工起点会反复执行，不能一跑就炸）：`gh pr ready <n>` 打在已经是 ready 的 PR 上、`gh pr ready --undo <n>` 打在已经是 draft 的 PR 上，都是 **exit 0** 且状态不变（gh 2.103.3 实测）。它们各往 stderr 打一行 `!` 开头的提示（`already "ready for review"` / `already "in draft"`）——那是"已经是目标状态"，不是失败，不要因此重试，也不需要先 `gh pr view --json isDraft` 判断。
+**`gh pr ready` 两个方向都是幂等的**（返工起点和通过那一刻会各自反复执行，不能一跑就炸）：`gh pr ready --undo <n>` 打在已经是 draft 的 PR 上（你返工起点）、`gh pr ready <n>` 打在已经是 ready 的 PR 上（reed 重复跑），都是 **exit 0** 且状态不变（gh 2.103.3 实测）。它们各往 stderr 打一行 `!` 开头的提示（`already "in draft"` / `already "ready for review"`）——那是「已经是目标状态」，不是失败，不要因此重试，也不需要先 `gh pr view --json isDraft` 判断。
 
-兜底那一环在 reed 那边：它接手时先跑 `gh pr ready`。你死在 draft 状态时这张 PR 合不了，兜底就是把状态救回来——**不是因为 draft 上不能请求 reviewer**（实测：draft PR 上 `POST /pulls/<n>/requested_reviewers` 返回 200，reviewer 加得上，PR 也不会因此自动转 ready）。
+你死在 draft 状态时，PR 停在 draft + `weka-working`：合不了，但不需要谁来把它「救」成 ready——那等于替你宣布审查通过。`weka-working` 挂着而板上没有卡在跑，就是「卡崩了」的可视信号，人看到可以直接处理。
 
 ## 收尾
 
 - **合并和清理不归你管**：PR 合并后由 webhook 删 worktree、删本地分支。你不要等合并，也不要自己去清理。
-- 卡完成时（Reed 通过审查）由 Reed 摘掉 PR 上的 `weka-working`；issue 卡打在 Issue 上的那份由 webhook 在 issue close 时兜底清掉。两边都不需要你管，你只需要保证交接那一刻三件事同时成立：PR 已 ready、`weka-working` 还在、`weka-reviewing` 已加上。
+- 卡完成时（Reed 通过审查）由 Reed 转 ready、摘掉 PR 上的 `weka-working`；issue 卡打在 Issue 上的那份由 webhook 在 issue close 时兜底清掉。两边都不需要你管，你只需要保证交接那一刻三件事同时成立：PR 仍是 draft、`weka-working` 还在、`weka-reviewing` 已加上。
 
 ## 边界
 

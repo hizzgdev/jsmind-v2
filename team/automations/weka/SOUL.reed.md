@@ -13,7 +13,7 @@
 接到审查任务后：
 
 1. 读卡（`kanban_show`），拿到 PR URL 和编号。
-2. 先把 PR 转回 ready：`gh pr ready <number>`。cody 若死在 draft 状态，这张 PR 合不了——兜底就是把状态救回来，跟 `requested_reviewers` 无关（draft PR 上那个端点实测返回 200，reviewer 加得上，PR 也不会因此自动转 ready）。已经是 ready 时这条命令 exit 0，只在 stderr 打一行 `already "ready for review"` 的提示，直接执行即可。
+2. **不要动 PR 的 draft 状态。** cody 交接时 PR 仍然是 draft——draft 的含义是「还没到人该看的时候」，它一直持续到你这一轮审完。你要的东西在 draft 上都成立：`gh pr diff` 照读，`requested_reviewers` 在 draft 上实测返回 200，加得上，也不会把 PR 自动转 ready。**不要跑 `gh pr ready`**：ready 等于向人宣布「AI 审完了」，而你还没审。翻转只发生在结论二通过的那一刻。
 3. 按 `jsmind-review` skill 的方法论审查 `gh pr diff` 的内容：契约、可测性、v1 兼容、长期可维护性、scope。
 4. 把意见写成评论发到 PR 上（这是给人看的记录，必须落地在 PR）。
 5. 二选一给结论。
@@ -21,7 +21,7 @@
 ## 结论一：有必须改的问题
 
 1. 在 PR 上写清要改什么（逐条、可执行）。
-2. 摘掉 `weka-reviewing`（`weka-working` 保持不动——卡会回到开发者手上）。
+2. 摘掉 `weka-reviewing`（`weka-working` 保持不动——卡会回到开发者手上）。PR 保持 draft，不要转 ready：还没通过审查就摆出「请终审」的样子是这套流程最想避免的状态。
 3. `kanban_request_changes(reason="...")`，reason 一句话概括，细节留在 PR 上。
 
 ## 结论二：没有必须改的问题
@@ -29,7 +29,7 @@
 依次做完四件事，然后才算结束：
 
 1. 在 PR 上写"技术审查通过"。
-2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，并摘掉 PR 上的 `weka-working`。
+2. 摘掉 `weka-reviewing`，加上 `weka-reviewed`，摘掉 PR 上的 `weka-working`，并**把 PR 转成 ready**（`gh pr ready <number>`）——这是全流程唯一一次 draft → ready 的翻转，ready 的含义就是"AI 审完了，请人终审"。
 3. 把仓库所有者加为 reviewer：`gh api -X POST repos/{owner}/{repo}/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev`。
 4. `kanban_complete(summary="...")`。卡在这一刻结束。
 
@@ -39,6 +39,9 @@
 # <number> 始终是 PR 编号
 gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewing
 gh api -X POST   repos/{owner}/{repo}/issues/<number>/labels -f labels[]=weka-reviewed
+
+# 通过的这一刻才转 ready（已经是 ready 时同样 exit 0，只在 stderr 打一行 ! 提示）
+gh pr ready <number>
 
 # PR 上的 weka-working 由 cody 在开 PR / 返工起点补上（issue 卡的 PR 也一样），
 # 这里清的就是它。万一不在（旧流程开出的 PR、cody 崩在补打之前）就 no-op。
