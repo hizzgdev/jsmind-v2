@@ -123,37 +123,82 @@ describe('preflight checks', () => {
     });
 
     it('does not list the release commit itself as a change', () => {
+        // The type the release script writes now, and the one it wrote before
+        // the type table existed. Neither is changed content.
+        assert.equal(checks.isReleaseCommit('release: 2.0.2'), true);
         assert.equal(checks.isReleaseCommit('chore(release): 2.0.2'), true);
         assert.equal(checks.isReleaseCommit('chore: tidy the release scripts'), false);
+        assert.equal(checks.isReleaseCommit('tooling(release): quote the tag from origin'), false);
         assert.equal(checks.isReleaseCommit('feat(view): mention chore(release) in a message'), false);
     });
 });
 
+/** `git log --format=commit %H %s --name-only` output for one commit. */
+function logEntry(sha: string, subject: string, files: string[]): string {
+    return [`commit ${sha} ${subject}`, '', ...files, ''].join('\n');
+}
+
+const SHA_A = 'a'.repeat(40);
+const SHA_B = 'b'.repeat(40);
+const SHA_C = 'c'.repeat(40);
+const SHA_D = 'd'.repeat(40);
+
 describe('release notes', () => {
     const log = [
-        'aaa1111 feat(playground): highlight the code editor (#110)',
-        'bbb2222 fix(arranger): correct cousin spacing',
-        'ccc3333 docs: point the install command at @2',
-        'ddd4444 chore(release): 2.0.2',
-        'eee5555 merge something without a prefix',
-        '',
+        logEntry(SHA_A, 'feat(cli): report unknown options (#136)', ['src/cli/index.ts']),
+        logEntry(SHA_B, 'fix(weka): never drop a human comment on a PR (#154)', ['team/automations/weka/github-webhook.py']),
+        logEntry(SHA_C, 'docs: point the install command at @2 (#123)', ['docs/en/guide/install.md']),
+        logEntry(SHA_D, 'release: 2.0.2', ['package.json', 'package-lock.json']),
     ].join('\n');
 
-    it('drops the sha and keeps the subject verbatim', () => {
+    it('keeps the subject verbatim and reads the files it touched', () => {
         const entries = notes.parseLog(log);
-        assert.equal(entries.length, 5);
-        assert.deepEqual(entries[0], { sha: 'aaa1111', subject: 'feat(playground): highlight the code editor (#110)' });
+        assert.equal(entries.length, 4);
+        assert.deepEqual(entries[0], {
+            sha: SHA_A,
+            subject: 'feat(cli): report unknown options (#136)',
+            files: ['src/cli/index.ts'],
+        });
+        assert.deepEqual(notes.parseLog('   '), []);
+    });
+
+    it('refuses a log that does not carry the file list', () => {
+        // `git log --oneline` would leave every entry with no files, and an
+        // entry with no files cannot claim to reach the artifact - which is
+        // the "everything reaches the artifact" bug this module just lost.
+        assert.throws(
+            () => notes.parseLog('aaa1111 feat(playground): highlight the code editor\n'),
+            /--name-only/,
+        );
+    });
+
+    it('only lists a commit when it changed a file under src/', () => {
+        assert.equal(notes.reachesArtifact(['src/view/export.ts', 'docs/en/guide/x.md']), true);
+        assert.equal(notes.reachesArtifact(['docs/en/guide/x.md', 'package.json']), false);
+        assert.equal(notes.reachesArtifact([]), false);
+
+        // The release commit of 2.1.0 really did carry src/ changes; the type
+        // still keeps it out of the list.
+        const entries = notes.parseLog([
+            logEntry(SHA_A, 'feat(cli): one that ships', ['src/cli/index.ts']),
+            logEntry(SHA_B, 'fix(weka): one that does not', ['team/automations/weka/x.py']),
+            logEntry(SHA_C, 'release: 2.0.2', ['src/model/x.ts']),
+        ].join('\n'));
+        assert.deepEqual(
+            notes.artifactEntries(entries).map((entry: { subject: string }) => entry.subject),
+            ['feat(cli): one that ships'],
+        );
     });
 
     it('groups by prefix in a fixed order and skips empty groups', () => {
-        const entries = notes.parseLog(log)
-            .filter(({ subject }: { subject: string }) => !checks.isReleaseCommit(subject));
-        const groups = notes.groupCommits(entries);
-        assert.deepEqual(groups.map((group: { title: string }) => group.title), ['Features', 'Fixes', 'Docs', 'Other']);
-        assert.deepEqual(groups[0].entries, ['feat(playground): highlight the code editor (#110)']);
+        const groups = notes.groupCommits(notes.parseLog(log));
+        assert.deepEqual(groups.map((group: { title: string }) => group.title), ['Features', 'Fixes', 'Other']);
+        assert.deepEqual(groups[0].entries, ['feat(cli): report unknown options (#136)']);
 
-        const onlyFixes = notes.groupCommits(notes.parseLog('aaa1111 fix: one thing\n'));
-        assert.deepEqual(onlyFixes.map((group: { title: string }) => group.title), ['Fixes']);
+        const refactor = notes.groupCommits(
+            notes.parseLog(logEntry(SHA_A, 'refactor(cli): rename a command', ['src/cli/index.ts'])),
+        );
+        assert.deepEqual(refactor.map((group: { title: string }) => group.title), ['Internals']);
     });
 
     it('renders the fixed template, with the install line and the diff link', () => {
@@ -169,23 +214,30 @@ describe('release notes', () => {
         assert.match(text, /Patch release on the 2\.x preview line \(npm tag `v2-preview`\)/);
         assert.match(text, /## Install\n\n```bash\nnpm i jsmind@2\n```/);
         assert.match(text, /`npm i jsmind` still installs v1 \(0\.9\.x\)/);
-        assert.match(text, /### Features\n\n- feat\(playground\): highlight the code editor \(#110\)/);
+        assert.match(text, /### Features\n\n- feat\(cli\): report unknown options \(#136\)/);
         assert.match(text, /- Diff: https:\/\/github\.com\/hizzgdev\/jsmind-v2\/compare\/v2\.0\.1\.\.\.v2\.0\.2/);
         assert.match(text, /## Node version\n\nNode\.js `>=22\.12\.0` is required/);
-        // The release commit is a chore and must not be presented as a change.
-        assert.doesNotMatch(text, /chore\(release\)/);
+        // Not the release commit, and not a fix that never reached dist/.
+        assert.doesNotMatch(text, /^- release: 2\.0\.2/m);
+        assert.doesNotMatch(text, /never drop a human comment/);
+        assert.doesNotMatch(text, /point the install command at @2/);
     });
 
-    it('says so when there is nothing to list', () => {
+    it('says so when nothing reached the artifact', () => {
+        const onlyNonProduction = notes.parseLog([
+            logEntry(SHA_B, 'fix(weka): never drop a human comment on a PR (#154)', ['team/automations/weka/x.py']),
+            logEntry(SHA_C, 'docs: point the install command at @2 (#123)', ['docs/en/guide/install.md']),
+        ].join('\n'));
         const text = notes.renderNotes({
             version: '2.0.2',
             kind: 'patch',
             previousTag: '',
-            entries: [],
+            entries: onlyNonProduction,
             repositoryUrl: 'https://github.com/hizzgdev/jsmind-v2',
             nodeRange: '>=22.12.0',
         });
         assert.match(text, /No user-visible changes\./);
+        assert.doesNotMatch(text, /### /);
         assert.doesNotMatch(text, /## Links\n\n- Diff:/);
     });
 
@@ -199,6 +251,63 @@ describe('release notes', () => {
             nodeRange: '>=22.12.0',
         });
         assert.match(text, /Minor release on the 2\.x preview line/);
+    });
+});
+
+/**
+ * The 2.1.0 window, replayed from the real log: 35 commits, of which 7 `feat`
+ * or `fix` commits touched no `src/` file at all. The shipped notes list six
+ * of them. This is the acceptance check for "the notes are generated from what
+ * a user can feel, not from a prefix" - the fixture is the output of
+ * `git log --format="commit %H %s" --name-only v2.0.1..v2.1.0`, so the test
+ * runs on the same data the release did, on a runner where the tags of that
+ * window do not exist.
+ */
+describe('the 2.1.0 window, reproduced from the real log', () => {
+    const window = readFileSync(join(ROOT, '__tests__/build/fixtures/release-window-2.1.0.log'), 'utf8');
+    const entries = notes.parseLog(window);
+
+    it('reads every commit of the window with the files it touched', () => {
+        assert.equal(entries.length, 35);
+        // Seven commits changed something under src/ - including the release
+        // commit, which is why the release type is filtered separately.
+        assert.equal(entries.filter((entry: { files: string[] }) => notes.reachesArtifact(entry.files)).length, 7);
+        assert.equal(notes.artifactEntries(entries).length, 6);
+    });
+
+    it('lists exactly the commits the shipped 2.1.0 notes list', () => {
+        const listed = notes.artifactEntries(entries);
+        const numbers = (text: string) => new Set([...text.matchAll(/#(\d+)/g)].map(match => match[1]));
+
+        const generated = numbers(listed.map((entry: { subject: string }) => entry.subject)
+            .join('\n'));
+        const shipped = numbers(readFileSync(join(ROOT, 'releases/2.1.0.md'), 'utf8'));
+
+        // #134 is described under "Breaking" rather than in the Features list,
+        // and the prose there is written by hand - what the generator has to
+        // reproduce is which commits belong, not which section they sit in.
+        assert.deepEqual([...generated].sort(), [...shipped].sort());
+        assert.deepEqual([...shipped].sort(), ['131', '132', '134', '136', '141', '145']);
+    });
+
+    it('leaves out every commit that changed nothing under src/', () => {
+        const text = notes.renderNotes({
+            version: '2.1.0',
+            kind: 'minor',
+            previousTag: 'v2.0.1',
+            entries,
+            repositoryUrl: 'https://github.com/hizzgdev/jsmind-v2',
+            nodeRange: '>=22.12.0',
+        });
+        // The three kinds that used to fill the list and cannot reach dist/.
+        assert.doesNotMatch(text, /fix\(weka\)/);
+        assert.doesNotMatch(text, /^- docs[(:]/m);
+        assert.doesNotMatch(text, /build\(deps-dev\)/);
+        assert.doesNotMatch(text, /^- chore\(release\)/m);
+        // And the production changes are all there.
+        for (const number of ['131', '132', '134', '136', '141', '145']) {
+            assert.match(text, new RegExp(`#${number}\\b`));
+        }
     });
 });
 
@@ -349,7 +458,7 @@ function failedPrepare(options: { scripts?: Record<string, string>; rejectCommit
  * advice ("git config --global user.email ...") from passing for a recipe.
  */
 function printedRecipe(stderr: string): string[] {
-    const recipe: string[] = lib.undoBumpHint('chore/release-2.0.2', '2.0.2');
+    const recipe: string[] = lib.undoBumpHint('release/2.0.2', '2.0.2');
     const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const block = new RegExp(recipe.map(line => `^[ \t]*${escape(line)}$`).join('\n'), 'm');
     assert.match(stderr, block);
@@ -366,7 +475,7 @@ function assertRecovered(sandbox: ReturnType<typeof failedPrepare>, recipe: stri
     assert.equal(sandbox.git('rev-parse', '--abbrev-ref', 'HEAD').trim(), 'master');
     assert.equal(sandbox.git('status', '--porcelain'), '');
     assert.equal(JSON.parse(readFileSync(join(sandbox.work, 'package.json'), 'utf8')).version, '2.0.1');
-    assert.equal(sandbox.git('branch', '--list', 'chore/release-2.0.2').trim(), '');
+    assert.equal(sandbox.git('branch', '--list', 'release/2.0.2').trim(), '');
     // The draft is written before the checks, so a failure leaves it behind;
     // the recipe has to remove it or the next release sees a stale file.
     assert.equal(existsSync(join(sandbox.work, 'releases/2.0.2.md')), false);
@@ -399,6 +508,52 @@ describe('the way out of a failed prepare', () => {
             assert.match(sandbox.result.stderr, /format-check or pack:check failed/);
 
             assertRecovered(sandbox, printedRecipe(sandbox.result.stderr));
+        }
+        finally {
+            rmSync(sandbox.root, { recursive: true, force: true });
+        }
+    });
+});
+
+/**
+ * The acceptance path for the notes rule: `release:prepare --dry-run` prints
+ * the file it would commit and stops, so a window containing a `fix` that
+ * never touched `src/` can be run for real - no repository, no network, no gh.
+ */
+describe('a dry run over a window with a non-production fix', () => {
+    it('leaves the fix out of the notes and keeps the production change', () => {
+        const sandbox = sandboxRepository(PASSING_CHECKS);
+        try {
+            mkdirSync(join(sandbox.work, 'src/cli'), { recursive: true });
+            writeFileSync(join(sandbox.work, 'src/cli/index.ts'), 'export const options = 1;\n');
+            sandbox.git('add', 'src/cli/index.ts');
+            sandbox.git('commit', '-q', '-m', 'feat(cli): report unknown options');
+            // A real fix, in the process that runs the bots: it is not a
+            // `fix` to anything `npm i jsmind` installs.
+            writeFileSync(join(sandbox.work, 'team-notes.md'), '# how the webhook works\n');
+            sandbox.git('add', 'team-notes.md');
+            sandbox.git('commit', '-q', '-m', 'fix(weka): never drop a human comment on a PR');
+            sandbox.git('push', '-q', 'origin', 'master');
+
+            const result = spawnSync(
+                process.execPath,
+                [join(ROOT, 'scripts/release/prepare.mjs'), 'patch', '--dry-run'],
+                {
+                    cwd: sandbox.work,
+                    encoding: 'utf8',
+                    env: { ...sandbox.env, PATH: `${sandbox.bin}:${process.env.PATH ?? ''}` },
+                },
+            );
+            const output = `${result.stdout}\n${result.stderr}`;
+
+            assert.equal(result.status, 0, output);
+            assert.match(output, /- feat\(cli\): report unknown options/);
+            assert.doesNotMatch(output, /never drop a human comment/);
+            // Three commits since the beginning, one of them reaches dist/.
+            assert.match(output, /1 of 3 commit\(s\) reach the artifact/);
+            assert.match(output, /branch:   release\/2\.0\.2/);
+            // A dry run changes nothing, so the tree is still clean.
+            assert.equal(sandbox.git('status', '--porcelain', '--untracked-files=all'), '');
         }
         finally {
             rmSync(sandbox.root, { recursive: true, force: true });

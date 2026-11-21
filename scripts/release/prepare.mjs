@@ -37,7 +37,7 @@ import {
     tagName,
 } from './checks.mjs';
 import { capture, fail, git, note, readPackage, repoRoot, run, step, undoBumpHint } from './lib.mjs';
-import { parseLog, renderNotes } from './notes.mjs';
+import { artifactEntries, parseLog, renderNotes } from './notes.mjs';
 
 const USAGE = 'usage: npm run release:prepare -- <patch|minor> [--dry-run]';
 const KINDS = new Set(['patch', 'minor']);
@@ -156,7 +156,7 @@ function main(argv) {
     }
     note(`${notesPath} is free`);
 
-    const releaseBranch = `chore/release-${target}`;
+    const releaseBranch = `release/${target}`;
     const undo = () => undoBumpHint(releaseBranch, target).join('\n  ');
     const existingBranch = git(['ls-remote', '--heads', 'origin', `refs/heads/${releaseBranch}`])
         .split('\n')
@@ -166,7 +166,11 @@ function main(argv) {
     }
 
     const logRange = previousTag ? `${previousTag}..HEAD` : 'HEAD';
-    const entries = parseLog(git(['log', '--oneline', '--no-merges', logRange]));
+    // `--name-only` with this format is what lets the notes be built from what
+    // each commit changed rather than from the word in front of its colon: an
+    // entry is listed only if one of these files is under `src/`.
+    const entries = parseLog(git(['log', '--format=commit %H %s', '--name-only', '--no-merges', logRange]));
+    const listed = artifactEntries(entries).length;
     const notes = renderNotes({
         version: target,
         kind: releaseKind(target, previousTag ? previousTag.replace(/^v/, '') : ''),
@@ -206,7 +210,7 @@ function main(argv) {
     note(`version:  ${version} -> ${target} (${kind})`);
     note(`branch:   ${releaseBranch}`);
     note(`tag:      ${tag} (cut later, on merged master, by release:publish)`);
-    note(`notes:    ${notesPath} (draft from ${previousTag ? `${previousTag}..HEAD` : 'the entire history'}, ${entries.length} commit(s))`);
+    note(`notes:    ${notesPath} (draft from ${previousTag ? `${previousTag}..HEAD` : 'the entire history'}, ${listed} of ${entries.length} commit(s) reach the artifact)`);
     console.log('');
     console.log(pullRequestBody);
 
@@ -249,7 +253,7 @@ function main(argv) {
     step('Commit and push');
     git(['add', 'package.json', 'package-lock.json', notesPath]);
     try {
-        git(['commit', '-m', `chore(release): ${target}`]);
+        git(['commit', '-m', `release: ${target}`]);
     }
     catch (error) {
         fail(
@@ -285,7 +289,7 @@ function main(argv) {
             '--head',
             releaseBranch,
             '--title',
-            `chore(release): ${target}`,
+            `release: ${target}`,
             '--body-file',
             bodyPath,
         ]);
@@ -293,7 +297,7 @@ function main(argv) {
     catch (error) {
         fail(
             `gh pr create failed. The branch ${releaseBranch} is pushed.`,
-            `${error.message}\nOpen the pull request by hand:\n  gh pr create --base master --head ${releaseBranch} --title "chore(release): ${target}" --body-file ${bodyPath}`,
+            `${error.message}\nOpen the pull request by hand:\n  gh pr create --base master --head ${releaseBranch} --title "release: ${target}" --body-file ${bodyPath}`,
         );
     }
     note(prUrl);
