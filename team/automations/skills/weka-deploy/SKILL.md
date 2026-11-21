@@ -98,35 +98,25 @@ md5sum team/automations/weka/SOUL.cody.md ~/.hermes/profiles/cody/SOUL.md
 No restart is involved: `SOUL.md` is read when a worker session starts, so the next card picks it up.
 That is also why a drifted copy fails silently.
 
-### 5. Skills installed into profiles
+### 5. Skills installed into profiles — the repo wins
 
-Repo sources live under `team/automations/skills/`. Find which ones are installed, and where:
+Repo sources live under `team/automations/skills/`. A profile install is a deployment target, not a
+fork: when the two differ, the repo's version is what goes live. Do not stop to ask which side moved.
 
 ```bash
 ls -l ~/.hermes/profiles/*/skills/ | grep -E 'jsmind-review|weka-deploy'
+cp team/automations/skills/<name>/SKILL.md ~/.hermes/profiles/<p>/skills/<name>/SKILL.md
+md5sum team/automations/skills/<name>/SKILL.md ~/.hermes/profiles/<p>/skills/<name>/SKILL.md
 ```
 
-`md5sum` only answers "same or different" — it never says which side moved. Ask `diff` as well, and
-classify by which side the changed lines are on:
+Copy unconditionally, then verify the hashes are equal — "the copy ran" is not evidence.
 
-```bash
-diff team/automations/skills/<name>/SKILL.md ~/.hermes/profiles/<p>/skills/<name>/SKILL.md
-```
-
-| `diff` output | Meaning | Action |
-|---|---|---|
-| empty | identical | nothing |
-| only `>` lines | the profile has content the repo lacks | **stop and report** |
-| only `<` lines | the repo has content the profile lacks | copy over, then re-check hashes |
-| both `<` and `>` | both sides were edited | **stop and report** |
-
-Both "stop" rows have the same reason: a copy is not a merge. The profile carries edits made live —
-Hermes's skill curator patches installed skills in place — and the repo has none of them, so
-overwriting destroys the only copy of that knowledge. Folding it back is a content decision for the
-owner: report what differs (line counts and which headings are involved are enough) and let them choose.
-
-"Only `<`" is the one case where a copy is unambiguously right, and it is the common one: the profile
-was installed from an older commit of the repo file.
+What that policy costs, and why it is still right: the profile copy can carry edits made live by
+Hermes's skill curator, and git has none of them. Treat such an edit as a draft — if it was worth
+keeping, it belonged in the repo, where it would have been reviewed. The one obligation left is to not
+lose it silently: before overwriting, count what only the profile has
+(`diff <repo> <profile> | grep -c '^>'`) and name the file and the count in the report. A deploy that
+discards live edits without saying so is indistinguishable from one that never noticed them.
 
 ### 6. Restart the webhook, only when its own inputs moved
 
@@ -192,8 +182,6 @@ start timestamp; the smoke evidence, or why it was not applicable; and anything 
 ## Stop and ask instead of guessing
 
 - The clone is dirty, or sits on a branch other than `master`.
-- A profile skill differs in a way a copy cannot settle: the profile has lines the repo lacks, or both
-  sides were edited. Folding live edits back is a content decision for the owner.
 - The change requires `~/.hermes/config.yaml` → `kanban:`. Those values are read once at gateway boot,
   and the gateway refuses to restart itself from inside its own process — hand the command over.
 - The smoke test prints something other than the expected line: report it. Restarting again to "see if
