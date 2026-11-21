@@ -141,10 +141,13 @@ python3 scripts/cleanup-worktrees.py             # merged work only
 ```
 
 It removes worktrees whose branch is gone from origin **and** whose pull request GitHub reports as merged
-**and** which hold nothing but build output; anything else is named and kept. This is the only step that
-covers the events the service could not act on: the handler answers `200` even when the work inside it
-raised, and GitHub does not redeliver failed deliveries — so an event that went wrong leaves no queue to
-replay, just a line in the journal. It is idempotent, so a clean host prints `0 worktree(s) removed`.
+**and** which git is willing to remove — git refuses a worktree holding a modification or an untracked
+file, and accepts one whose untracked content is ignored. That makes `.gitignore` the policy: a build
+artifact nobody ignored blocks its own cleanup, and the fix belongs in the ignore rules, not in a longer
+list of exemptions. This is the only step that covers the events the service could not act on: the handler
+answers `200` even when the work inside it raised, and GitHub does not redeliver failed deliveries — so an
+event that went wrong leaves no queue to replay, just a line in the journal. It is idempotent, so a clean
+host prints `0 worktree(s) removed`.
 
 ### 6. Smoke test: tests always, a real event only when behaviour could have changed
 

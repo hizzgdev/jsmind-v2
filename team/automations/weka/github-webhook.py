@@ -82,38 +82,6 @@ BUSY_STATUSES = ("running", "review")
 # read its own explanation back as a human request and trigger itself.
 TRACE_MARKER = "<!-- weka-webhook -->"
 
-# Names that are build output or a dependency install, never someone's work.
-#
-# These have to be listed here even though `.gitignore` names them, because a
-# worker symlinks the main checkout's dependencies into its worktree instead of
-# installing a second copy, and `.gitignore` used to say `node_modules/` — with a
-# trailing slash, which matches a directory but not a symlink of that name. That
-# is what left a worktree behind after every merge. The ignore rules no longer
-# depend on the trailing slash, so this list is the second line of defence: it
-# still classifies a path correctly in a checkout whose ignore rules have drifted.
-WORKTREE_ARTIFACTS = frozenset({"node_modules", "dist", "_site", "coverage"})
-
-
-def blocking_paths(status_output: str) -> list[str]:
-    """Paths from `git status --porcelain` that are not disposable artifacts.
-
-    An empty result means the worktree holds nothing worth keeping. Matched on
-    the first path component, because the artifacts are top-level directories.
-    """
-    blocking: list[str] = []
-    for line in status_output.splitlines():
-        if len(line) < 4:
-            continue
-        path = line[3:].strip().strip('"')
-        if " -> " in path:  # porcelain rename/rewrite: "old -> new"
-            path = path.split(" -> ", 1)[1]
-        top = path.rstrip("/").split("/", 1)[0]
-        if top in WORKTREE_ARTIFACTS:
-            continue
-        blocking.append(path)
-    return blocking
-
-
 def parse_worktrees(listing: str) -> list[tuple[str, str | None]]:
     """`(path, branch)` for each block of `git worktree list --porcelain`."""
     worktrees: list[tuple[str, str | None]] = []
@@ -347,28 +315,17 @@ class Weka:
                 file=sys.stderr,
             )
             return None
-        rc, status = self._run(["git", "-C", path, "status", "--porcelain"])
+        # No --force, and no list of "artifact" names here: git already makes the
+        # distinction that matters. It removes a worktree whose only untracked
+        # content is ignored, and refuses one that holds a modification or an
+        # untracked path. Anything it refuses is either somebody's uncommitted
+        # work or a build artifact that `.gitignore` does not cover — both want a
+        # human, not a bigger hammer. (The old --force ran on the opposite
+        # condition, "status is empty", which is why a worker's gitignored
+        # node_modules link pinned its worktree after every merge.)
+        rc, out = self._run(["git", "worktree", "remove", path])
         if rc != 0:
-            print(f"[WARN] git status failed in {path}: {status}", file=sys.stderr)
-            return "kept"
-        blockers = blocking_paths(status)
-        if blockers:
-            # Never --force over real changes. Name them: git's own message only
-            # says "contains modified or untracked files", and a path that is
-            # build litter misread as work is what left a worktree behind after
-            # every single merge.
-            shown = ", ".join(blockers[:5]) + (" …" if len(blockers) > 5 else "")
-            print(
-                f"[WARN] kept worktree {path}: {len(blockers)} path(s) that are not build output: {shown}",
-                file=sys.stderr,
-            )
-            return "kept"
-        # Build output only — a dependency symlink, dist/, _site/. `worktree
-        # remove` refuses to delete those without --force, and they are not work,
-        # so this is exactly where --force is safe.
-        rc, out = self._run(["git", "worktree", "remove", "--force", path])
-        if rc != 0:
-            print(f"[WARN] worktree remove failed for {path}: {out}", file=sys.stderr)
+            print(f"[WARN] kept worktree {path}: {out}", file=sys.stderr)
             return "kept"
         print(f"[OK] removed worktree {path}")
         return "removed"

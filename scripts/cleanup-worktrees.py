@@ -38,15 +38,6 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Top-level names that are build output or a dependency install, never a
-# colleague's work in progress. Every one of them also has a rule in
-# `.gitignore`, and `test_artifacts_are_all_ignored` keeps the two lists in step:
-# a name that the repository does not ignore is a name this script would be
-# excusing on its own authority, which is how a speculative entry turns into a
-# hole later.
-ARTIFACTS = frozenset({"node_modules", "dist", "_site", "coverage"})
-
-
 def run(cmd: list[str]) -> tuple[int, str]:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
     return result.returncode, (result.stdout or result.stderr or "").strip()
@@ -67,25 +58,6 @@ def parse_worktrees(listing: str) -> list[tuple[str, str | None]]:
                 break
         worktrees.append((path, branch))
     return worktrees
-
-
-def blocking_paths(status_output: str) -> list[str]:
-    """Paths in `git status --porcelain` that are not build output.
-
-    Empty means the worktree holds nothing worth keeping. Matched on the first
-    path component: the artifacts are top-level.
-    """
-    blocking: list[str] = []
-    for line in status_output.splitlines():
-        if len(line) < 4:
-            continue
-        path = line[3:].strip().strip('"')
-        if " -> " in path:
-            path = path.split(" -> ", 1)[1]
-        if path.rstrip("/").split("/", 1)[0] in ARTIFACTS:
-            continue
-        blocking.append(path)
-    return blocking
 
 
 def merged_pr(branch: str) -> int | None:
@@ -125,23 +97,16 @@ def clean(dry_run: bool, everything: bool) -> int:
                 print(f"[INFO] keeping {path}: {branch} is still open on origin")
                 continue
 
-        rc, status = run(["git", "-C", path, "status", "--porcelain"])
-        if rc != 0:
-            print(f"[WARN] git status failed in {path}: {status}", file=sys.stderr)
-            continue
-        blockers = blocking_paths(status)
-        if blockers:
-            shown = ", ".join(blockers[:5]) + (" …" if len(blockers) > 5 else "")
-            print(f"[KEEP] {path}: {len(blockers)} path(s) that are not build output: {shown}")
-            continue
-
         if dry_run:
             print(f"[DRY] would remove {path} and branch {branch}")
             removed += 1
             continue
-        rc, out = run(["git", "worktree", "remove", "--force", path])
+        # No --force: git refuses a worktree holding a modification or an
+        # untracked path, and removes one whose untracked content is ignored.
+        # That is the line this script wants, and it is git's to draw.
+        rc, out = run(["git", "worktree", "remove", path])
         if rc != 0:
-            print(f"[WARN] worktree remove failed for {path}: {out}", file=sys.stderr)
+            print(f"[KEEP] {path}: {out}")
             continue
         print(f"[OK] removed worktree {path}")
         rc, out = run(["git", "branch", "-D", branch])

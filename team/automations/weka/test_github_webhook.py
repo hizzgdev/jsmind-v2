@@ -294,13 +294,11 @@ class CommentShapeTests(unittest.TestCase):
 class ScriptedGitWeka(weka_webhook.Weka):
     """A Weka whose git/gh calls are scripted, so a cleanup decision is testable."""
 
-    def __init__(self, worktrees, status_by_path=None, origin_alive=(), merged_prs=()):
+    def __init__(self, worktrees, remove_fails=()):
         super().__init__(dict(CONFIG))
         self.calls = []
         self.worktrees = list(worktrees)          # [(path, branch)]
-        self.status_by_path = status_by_path or {}
-        self.origin_alive = set(origin_alive)     # branches still on origin
-        self.merged_prs = dict(merged_prs)        # branch -> merged PR number
+        self.remove_fails = set(remove_fails)     # paths git refuses to remove
         self.removed = []
 
     def _run(self, cmd):
@@ -313,65 +311,30 @@ class ScriptedGitWeka(weka_webhook.Weka):
                     block += f"\nbranch refs/heads/{branch}"
                 blocks.append(block)
             return 0, "\n\n".join(blocks)
-        if cmd[:2] == ["git", "-C"] and cmd[3:] == ["status", "--porcelain"]:
-            return 0, self.status_by_path.get(cmd[2], "")
         if cmd[:3] == ["git", "worktree", "remove"]:
-            self.removed.append(cmd[-1])  # path is last, after an optional --force
+            path = cmd[-1]
+            if path in self.remove_fails:
+                return 1, f"fatal: '{path}' contains modified or untracked files, use --force to delete it"
+            self.removed.append(path)
             return 0, ""
-        if cmd[:2] == ["git", "ls-remote"]:
-            return (0, "") if cmd[-1] in self.origin_alive else (2, "")
-        if cmd[:3] == ["gh", "pr", "list"]:
-            number = self.merged_prs.get(cmd[cmd.index("--head") + 1])
-            return 0, (str(number) if number else "")
         return 0, ""
-
-
-class ArtifactClassificationTests(unittest.TestCase):
-    """What counts as build litter rather than someone's uncommitted work."""
-
-    def test_a_dependency_symlink_is_an_artifact(self):
-        # The worker links the main checkout's node_modules in. `.gitignore` says
-        # `node_modules/`, which does not match a symlink of that name, so this
-        # arrives as an untracked path — and it is the reason every merged PR
-        # used to leave its worktree behind.
-        self.assertEqual(weka_webhook.blocking_paths("?? node_modules\n"), [])
-
-    def test_build_output_is_an_artifact(self):
-        self.assertEqual(weka_webhook.blocking_paths("?? dist/\n?? _site/\n?? coverage/\n"), [])
-
-    def test_a_stray_file_blocks(self):
-        self.assertEqual(weka_webhook.blocking_paths("?? scratch.md\n"), ["scratch.md"])
-
-    def test_a_tracked_modification_blocks(self):
-        self.assertEqual(weka_webhook.blocking_paths(" M src/a.ts\n"), ["src/a.ts"])
-
-    def test_a_nested_dependency_tree_blocks(self):
-        # Only the top-level name is exempt: a vendored tree inside a package is
-        # not the link this rule exists for.
-        self.assertEqual(
-            weka_webhook.blocking_paths("?? src/node_modules/x.js\n"), ["src/node_modules/x.js"]
-        )
 
 
 class WorktreeCleanupTests(unittest.TestCase):
     """A close event must actually remove the worktree it is responsible for."""
 
-    def test_a_worktree_holding_only_a_dependency_link_is_removed(self):
-        weka = ScriptedGitWeka(
-            [("/repo/.worktrees/t_x", "fix/x")],
-            {"/repo/.worktrees/t_x": "?? node_modules\n"},
-        )
+    def test_a_worktree_git_accepts_removing_is_removed(self):
+        # `git worktree remove` succeeds when the only untracked content is
+        # ignored, so no name list of ours has to know what build litter is.
+        weka = ScriptedGitWeka([("/repo/.worktrees/t_x", "fix/x")])
 
         weka.cleanup_branch("fix/x", merged=True)
 
         self.assertEqual(weka.removed, ["/repo/.worktrees/t_x"])
         self.assertIn(["git", "branch", "-D", "fix/x"], weka.calls)
 
-    def test_real_changes_keep_the_worktree_and_its_branch(self):
-        weka = ScriptedGitWeka(
-            [("/repo/.worktrees/t_x", "fix/x")],
-            {"/repo/.worktrees/t_x": "?? notes.txt\n M src/a.ts\n"},
-        )
+    def test_a_worktree_git_refuses_keeps_the_worktree_and_its_branch(self):
+        weka = ScriptedGitWeka([("/repo/.worktrees/t_x", "fix/x")], remove_fails={"/repo/.worktrees/t_x"})
 
         weka.cleanup_branch("fix/x", merged=True)
 
@@ -380,7 +343,7 @@ class WorktreeCleanupTests(unittest.TestCase):
 
     def test_the_main_checkout_is_never_removed(self):
         main = weka_webhook.REPO_ROOT
-        weka = ScriptedGitWeka([(main, "fix/x")], {main: ""})
+        weka = ScriptedGitWeka([(main, "fix/x")])
 
         weka.cleanup_branch("fix/x", merged=True)
 
