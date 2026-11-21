@@ -10,22 +10,12 @@ jsmind skill 位于本仓库的 `skills/jsmind/`。它是一套禁令和检查�
 
 以下两种方式任选其一，不是先后步骤。
 
-本页每个仓库链接都给两次：先 GitHub，后同一路径的 Gitee 镜像。GitHub 访问不了时用镜像。镜像跟踪 `master`，但它是周期性同步，不是推送即到，可能落后几个提交——所以下面的版本核对属于安装的一部分，不是可有可无的收尾。
-
 ### 自动安装
 
 你可以把下面的 prompt 直接交给自己的 agent。
 
 ```
-请从 https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/INSTALL.md 安装 jsMind skill：读这份文件并照做。里面同时讲 skill 目录和 jsmind CLI，后者是另一个 npm 包。
-
-GitHub 访问不了时，同一份文件的镜像在 https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/INSTALL.md
-
-取这些文件请用上面的 raw 直链，不要用仓库的 blob 页面：blob 是网页，抓到的是 HTML，不是原文。
-
-装完先核对版本再报告成功：`jsmind --version` 输出 CLI 的版本号；如果装的版本还没有这个参数，它会答 `Unknown option`，这时用 `npm ls jsmind` 拿到同一个号。两种情况都要让这个版本号落在 `SKILL.md` frontmatter 中 `metadata.jsmind.cli` 的区间内；旁边的 `version` 是 skill 自身的版本。对不上说明你手里这份 `SKILL.md` 是旧的——镜像允许落后——重新取一次，不要去放宽区间。
-
-然后按 `INSTALL.md` 末尾的 “Done means” 逐条核对，把每一条的结果告诉我。如果 skill 在你的 harness 里加载不了，停下来说清楚，不要绕过去。
+请从 https://hizzgdev.github.io/jsmind-v2/skills/jsmind/INSTALL.md 安装 jsMind skill：读这份文件并照做。
 ```
 
 ### 手动安装

@@ -559,9 +559,7 @@ describe('pages site assembly', () => {
             // directory. The inline install prompt used to have to be kept in step with
             // the CLI by hand, and drifted.
             // The guide hands an agent *raw* URLs: a blob page is a web page, so
-            // fetching one installs HTML instead of the file. Each address is
-            // paired with the Gitee mirror of the same path, GitHub first, because
-            // the reader who needs the mirror cannot reach the first one at all.
+            // fetching one installs HTML instead of the file.
             for (const [label, page] of [
                 ['en guide', enSkill],
                 ['zh guide', zhSkill],
@@ -571,10 +569,6 @@ describe('pages site assembly', () => {
                     `${label}: the skill has to be handed over as a raw URL`
                 );
                 assert.ok(
-                    page.includes('https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/INSTALL.md'),
-                    `${label}: the install runbook needs its Gitee mirror in the prompt`
-                );
-                assert.ok(
                     !page.includes('/blob/master/skills/jsmind/'),
                     `${label}: a blob link returns HTML, not the file it names`
                 );
@@ -582,6 +576,27 @@ describe('pages site assembly', () => {
             for (const lang of ['en', 'zh'] as const) {
                 const source = readFileSync(join(ROOT, 'docs', lang, 'guide', 'skill.md'), 'utf8');
                 assertMirrored(source, `${lang} skill guide`);
+                // The prompt is one line, and the one address it names is the copy this
+                // site publishes: a reader of this page reached the site by definition,
+                // so that address works for them, which is not true of github.com.
+                // Everything else the install needs — the mirror, the version check, the
+                // report — is in INSTALL.md, so the prompt cannot grow back into a
+                // second copy of the runbook.
+                const heading = lang === 'en' ? '### Automatic install' : '### 自动安装';
+                const at = source.indexOf(heading);
+                assert.notStrictEqual(at, -1, `${lang} guide: the automatic install section is missing`);
+                const block = /```\r?\n([\s\S]*?)\r?\n```/.exec(source.slice(at));
+                assert.ok(block, `${lang} guide: the automatic install prompt is not fenced`);
+                const prompt = block[1];
+                assert.ok(!prompt.includes('\n'), `${lang} guide: the install prompt has to stay one line`);
+                assert.ok(
+                    prompt.includes('https://hizzgdev.github.io/jsmind-v2/skills/jsmind/INSTALL.md'),
+                    `${lang} guide: the prompt hands over the docs-site copy of the runbook`
+                );
+                assert.ok(
+                    !prompt.includes('gitee.com') && !prompt.includes('githubusercontent.com'),
+                    `${lang} guide: one address in the prompt; the mirror belongs to INSTALL.md`
+                );
             }
             assert.ok(enSkill.includes('skills/jsmind/INSTALL.md'));
             assert.ok(zhSkill.includes('skills/jsmind/INSTALL.md'));
@@ -603,9 +618,15 @@ describe('pages site assembly', () => {
             // The guide hands over a URL, not a clone, and a relative link does not
             // survive a raw read of the file: every reference to the skill inside it has
             // to be a path that works from that URL alone.
-            // Two addresses per file, GitHub first: the blob link this file used
-            // to print fetched a web page, and the mirror is only useful to a
-            // reader who cannot reach the first address at all.
+            // Three addresses for SKILL.md, docs site first. This file is read both on
+            // the site and out of a repository, and the site copy is the only one known
+            // to work for someone who arrived by reading the install page; the GitHub and
+            // Gitee pair below it is for the reader who got here from a raw URL instead.
+            // None of them is a blob link, because a blob link fetches a web page.
+            assert.ok(
+                install.includes('https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md'),
+                'INSTALL.md names the docs-site copy of SKILL.md'
+            );
             assert.ok(
                 install.includes('https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/SKILL.md')
             );
@@ -633,6 +654,9 @@ describe('pages site assembly', () => {
             // different directory no longer lands back on 0.9.1.
             assert.ok(install.includes('does not matter which directory you installed from'));
             assert.ok(install.includes('Done means'));
+            // The one-line prompt no longer asks for a report, so the reporting step
+            // belongs to the checklist the prompt points at.
+            assert.ok(install.includes('report the result of each one'));
             assert.ok(!existsSync(join(ROOT, 'skills', 'jsmind', 'SKILL.zh.md')));
 
             const enApi = readFileSync(join(docsDir, 'en', 'reference', 'api.html'), 'utf8');

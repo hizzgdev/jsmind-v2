@@ -2,14 +2,13 @@
 
 You have been asked to install the jsMind skill into the harness you are running in. Two separate things have to be in place, and the skill does not install the other one for you:
 
-- **The skill** is `SKILL.md`, in the same directory as this file. Fetch it with a raw link: a `blob` link is a web page, so an agent that follows one gets HTML instead of the file. GitHub first, the Gitee mirror of the same path after it:
-    - https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/SKILL.md
-    - https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/SKILL.md
-
-  It is documentation only: guardrails, checkpoints, and what to look for in the exported picture. It ships no commands.
+- **The skill** is `SKILL.md`, in the same directory as this file. It is the file the harness reads: guardrails, checkpoints, and what to look for in the exported picture. It ships no commands. Fetch it from the first of these that answers, in this order:
+    - https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md — this documentation site, and the one address a reader of this page is sure to reach
+    - https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/SKILL.md — GitHub
+    - https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/SKILL.md — the Gitee mirror, for a reader who cannot reach github.com at all
 - **The CLI** is the `jsmind` package on npm. Every map you build or edit goes through it.
 
-Every repository address in this file follows that same order: the GitHub URL, then the Gitee mirror of the same path. The mirror is public and tracks `master`, but it syncs periodically rather than on every push, so it can be a few commits behind. If a step below does not match what you see, find out which of the two you fetched from before you conclude this file is wrong.
+Each address above returns the file itself. A `blob` or `tree` page is a web page, so an agent that follows one installs HTML instead of the file. The repository addresses keep the same order everywhere in this file: GitHub first, then the Gitee mirror of the same path. The mirror is public and tracks `master`, but it syncs periodically rather than on every push, so it can be a few commits behind — if a step below does not match what you see, find out which copy you fetched before you conclude this file is wrong.
 
 ## The CLI
 
@@ -40,5 +39,7 @@ All five:
 3. A map created with `npx jsmind@2 create` passes `npx jsmind@2 validate`.
 4. All four picture checks in `SKILL.md` ("How to read the picture") pass on the exported PNG: no crushed text, no side overloaded, nothing folded that this task needs open, no crossing lines. "The PNG opens" is not this check — each of the four is a fail until you have looked at the picture and passed it.
 5. The skill is reachable by its description, tested the way a new session meets it. Start a fresh process with nothing preloaded — no `-s <skill>`, no earlier session that already loaded it — and ask for a mind map without naming the skill. If the harness picks it from the description alone, it is reachable. A harness that lists the skill in its settings, or loads it because you forced it, has not shown this. If it does not come up, stop and report that instead of working around it.
+
+Go through the five in order and report the result of each one. If the skill does not load in the harness at all, stop and say so rather than working around it.
 
 Keep the rules in the skill directory. Do not copy them into long-term memory (MEMORY.md or similar): the skill is versioned and memory is not, so the two drift apart.

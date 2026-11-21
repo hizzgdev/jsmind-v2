@@ -10,22 +10,12 @@ The directory ships with this site as well, so it can be read without cloning an
 
 Pick one of the following. They are alternatives, not sequential steps.
 
-Every repository link on this page is given twice: the GitHub address first, and its Gitee mirror after it. Use the mirror when GitHub does not answer. It tracks `master`, but it syncs periodically rather than on every push, so it can be a few commits behind — which is why the version check below belongs to the install instead of being an afterthought.
-
 ### Automatic install
 
 You can give the following prompt directly to your own agent.
 
 ```
-Install the jsMind skill from https://raw.githubusercontent.com/hizzgdev/jsmind-v2/master/skills/jsmind/INSTALL.md — read that file and follow it. It covers the skill directory and the jsmind CLI, which is a separate npm package.
-
-If GitHub does not answer, the same file is mirrored at https://gitee.com/hizzgdev/jsmind-v2/raw/master/skills/jsmind/INSTALL.md
-
-Fetch these files with the raw links above, not with a repository's blob page: a blob page is a web page, so what arrives is HTML instead of the file.
-
-When you are done, check the version before you report success. `jsmind --version` prints the CLI version; on a release that predates that flag the answer is `Unknown option`, and `npm ls jsmind` gives the same number instead. Either way it has to fall inside the `cli` range in `SKILL.md`'s frontmatter (`metadata.jsmind.cli`); the `version` field next to it is the revision of the skill itself. If that check fails, you are holding a stale `SKILL.md` — the mirror is allowed to lag — so fetch it again rather than widening the range.
-
-Then go through the "Done means" list in `INSTALL.md` item by item and tell me the result of each one. If the skill does not load in your harness, stop and say so.
+Install the jsMind skill from https://hizzgdev.github.io/jsmind-v2/skills/jsmind/INSTALL.md — read that file and follow it.
 ```
 
 ### Manual install
