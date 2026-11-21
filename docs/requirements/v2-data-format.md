@@ -399,7 +399,7 @@ tone：  node.style.tone            ??  theme.defaultTone       ??  "default"
 形态：  node.style.incoming.curve   ??  theme.line.curve
 ```
 
-**`tone` 是第一行，因为它是后面「有效 tone」的来源。** 没有显式 tone 的节点用文档级 `style.defaultTone`，省略即 `default`。它存的是 tone 名字而不是调色板，所以 `tones` 覆盖仍然叠在它上面；连线颜色同样按子节点的有效 tone 取色。
+**`tone` 是第一行，因为它是后面「有效 tone」的来源。** 没有显式 tone 的节点用文档级 `style.defaultTone`（`Since: 2.1.0`），省略即 `default`。它存的是 tone 名字而不是调色板，所以 `tones` 覆盖仍然叠在它上面；连线颜色同样按子节点的有效 tone 取色。
 
 **线的颜色取子节点的 tone，不是父节点。** 一条线唯一对应一个子节点，所以子节点拥有它，这一点和「`incoming` 挂在子节点上」是同一个理由。v1 的 `show_lines` 也是从子节点的 `data["leading-line-color"]` 取色。
 

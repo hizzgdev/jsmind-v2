@@ -60,14 +60,14 @@ Calling this when no mind map is open throws `JsMindError`.
 jsmind export <file> <out.png> [options]
 ```
 
-| Option | Default | Description |
+| Option | Default | Description | Version |
 |---|---|---|
-| `--width <px>` | 1200 | Viewport width used for layout |
-| `--height <px>` | 800 | Viewport height used for layout |
-| `--scale <n>` | 2 | Output scale |
-| `--type <format>` | image/png | Output format |
-| `--transparent` | — | Transparent background (PNG and WebP; opt-in). For JPEG, the option is ignored and a warning is printed. |
-| `--json` | — | Machine-readable output |
+| `--width <px>` | 1200 | Viewport width used for layout | — |
+| `--height <px>` | 800 | Viewport height used for layout | — |
+| `--scale <n>` | 2 | Output scale | — |
+| `--type <format>` | image/png | Output format | — |
+| `--transparent` | — | Transparent background (PNG and WebP; opt-in). For JPEG, the option is ignored and a warning is printed. | `Since: 2.1.0` |
+| `--json` | — | Machine-readable output | — |
 
 ```bash
 $ jsmind export example/v2-features.json preview.png

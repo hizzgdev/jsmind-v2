@@ -60,14 +60,14 @@ const url = URL.createObjectURL(blob);
 jsmind export <file> <out.png> [options]
 ```
 
-| 选项 | 默认 | 说明 |
+| 选项 | 默认 | 说明 | 版本 |
 |---|---|---|
-| `--width <px>` | 1200 | 布局用的视口宽度 |
-| `--height <px>` | 800 | 布局用的视口高度 |
-| `--scale <n>` | 2 | 输出倍率 |
-| `--type <format>` | image/png | 输出格式 |
-| `--transparent` | — | 透明背景（PNG 和 WebP；需显式打开）。用于 JPEG 时会忽略该选项并给出警告。 |
-| `--json` | — | 机器可读输出 |
+| `--width <px>` | 1200 | 布局用的视口宽度 | — |
+| `--height <px>` | 800 | 布局用的视口高度 | — |
+| `--scale <n>` | 2 | 输出倍率 | — |
+| `--type <format>` | image/png | 输出格式 | — |
+| `--transparent` | — | 透明背景（PNG 和 WebP；需显式打开）。用于 JPEG 时会忽略该选项并给出警告。 | `Since: 2.1.0` |
+| `--json` | — | 机器可读输出 | — |
 
 ```bash
 $ jsmind export example/v2-features.json preview.png

@@ -52,6 +52,8 @@ export interface JmExportImageOptions {
      * theme color. Opt-in; the default export is unchanged. JPEG has no alpha
      * channel, so this option is ignored with a warning when `type` is
      * `image/jpeg`.
+     *
+     * Since: 2.1.0
      */
     transparent?: boolean;
 }

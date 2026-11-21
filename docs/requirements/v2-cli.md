@@ -176,9 +176,9 @@ this.readonlyFields = new Set(['id', 'parent', 'children', 'data']);
 
 `mind` 组里唯一给属性字段赋值的子命令：它写 `mind.style`，不碰树结构。`node set-style` 写 `node.style`，两者是对称的两个命令，作用域靠组名区分 —— help 里也各自写明了这一点。
 
-| 字段 | CLI 命令 |
-|---|---|
-| `mind.style` | `jsmind mind set-style <file> --default-tone <tone>` |
+| 字段 | CLI 命令 | 版本 |
+|---|---|---|
+| `mind.style` | `jsmind mind set-style <file> --default-tone <tone>` | `Since: 2.1.0` |
 
 字段写法与 3.3 相同：点号分层（`--node.font-size`、`--line.color`）、连字符分词，配 `--clear <字段列表>` 与 `--reset`。目前只有 `--default-tone` 有写入器；`mind.style` 的其余分节（`tones` / `background` / `node` / `line` / `expander`）暂时只能通过 `context` 读，拿到写入器时按同一张 flag 表加进这个命令，不再开新的子命令。
 
@@ -388,7 +388,7 @@ jsmind convert <input> --from v1 --to v2 [--output <path>]
 
 **每个子命令声明自己的允许选项集合。全局选项（`--json`、`--dry-run`、`--output`、`--backup`、`--strict`、`--version`、`-h` / `--help`）单列，对所有子命令合法。**
 
-未知选项（拼错的 flag，或只对另一个子命令有意义的 flag）默认**只警告**：往 stderr 打一行，命令照常执行，退出码不变。
+未知选项（拼错的 flag，或只对另一个子命令有意义的 flag）默认**只警告**（`Since: 2.1.0`）：往 stderr 打一行，命令照常执行，退出码不变。
 
 **为什么不是直接报错**：这类调用原本是「退出码 0 而什么都没发生」，直接收紧会把一批本来能跑的脚本打断。先让调用方看见问题，再让需要确定性失败的一方自己打开开关。
 
@@ -402,10 +402,10 @@ jsmind convert <input> --from v1 --to v2 [--output <path>]
 
 ### 6.5 `--strict` 与 `--version`
 
-| 选项 | 行为 |
-|---|---|
-| `--strict` | 把未知选项从警告升级为用法错误（退出码 `2`） |
-| `--version` | 只打印 `package.json` 里的 version 字符串，不带其他文字，不依赖任何子命令 |
+| 选项 | 行为 | 版本 |
+|---|---|---|
+| `--strict` | 把未知选项从警告升级为用法错误（退出码 `2`） | `Since: 2.1.0` |
+| `--version` | 只打印 `package.json` 里的 version 字符串，不带其他文字，不依赖任何子命令 | `Since: 2.1.0` |
 
 `--version` 的版本号不存第二份常量：manifest 是唯一来源，CLI 运行时读它，所以不会和发布版本脱节。
 

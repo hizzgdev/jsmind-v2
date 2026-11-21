@@ -22,15 +22,15 @@ jsmind <command> [options]
 
 These options are accepted by every command and subcommand.
 
-| Option | Meaning |
-| --- | --- |
-| `--json` | Machine-readable output |
-| `--dry-run` | Show what would change, write nothing |
-| `--output <path>` | Write somewhere other than the input file |
-| `--backup` | Keep a `.bak` copy before overwriting |
-| `--strict` | Treat an unknown option as a usage error |
-| `--version` | Print the version and exit |
-| `-h`, `--help` | Show the built-in help |
+| Option | Meaning | Version |
+| --- | --- | --- |
+| `--json` | Machine-readable output | — |
+| `--dry-run` | Show what would change, write nothing | — |
+| `--output <path>` | Write somewhere other than the input file | — |
+| `--backup` | Keep a `.bak` copy before overwriting | — |
+| `--strict` | Treat an unknown option as a usage error | `Since: 2.1.0` |
+| `--version` | Print the version and exit | `Since: 2.1.0` |
+| `-h`, `--help` | Show the built-in help | — |
 
 `--dry-run`, `--output`, and `--backup` apply to the mutating `mind` and `node` subcommands. `create` supports `--dry-run` and `--backup`, but the output path is the positional file argument, so `--output` is not used there.
 
@@ -145,14 +145,14 @@ Renders a mind map to an image. The size is the map's own size: whitespace insid
 
 `export` requires a Chromium browser. Set `CHROME_PATH` if it is not in a standard location, and `JSMIND_BROWSER_START_MS` if the browser needs longer than the default 60 seconds to start.
 
-| Option | Meaning |
-| --- | --- |
-| `--width <px>` | Viewport width to lay the map out in (default `1200`) |
-| `--height <px>` | Viewport height (default `800`) |
-| `--scale <n>` | Output pixel ratio (default `2`) |
-| `--type <format>` | `image/png`, `image/jpeg`, or `image/webp` (default `image/png`) |
-| `--transparent` | Transparent background (PNG and WebP; opt-in, default keeps the current opaque background). For JPEG, the option is ignored and a warning is printed. |
-| `--json` | Machine-readable output |
+| Option | Meaning | Version |
+| --- | --- | --- |
+| `--width <px>` | Viewport width to lay the map out in (default `1200`) | — |
+| `--height <px>` | Viewport height (default `800`) | — |
+| `--scale <n>` | Output pixel ratio (default `2`) | — |
+| `--type <format>` | `image/png`, `image/jpeg`, or `image/webp` (default `image/png`) | — |
+| `--transparent` | Transparent background (PNG and WebP; opt-in, default keeps the current opaque background). For JPEG, the option is ignored and a warning is printed. | `Since: 2.1.0` |
+| `--json` | Machine-readable output | — |
 
 With the default width, height, and scale, a typical export is 2400×1600 pixels.
 

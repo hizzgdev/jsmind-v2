@@ -22,15 +22,15 @@ jsmind <command> [options]
 
 这些选项对所有命令和子命令都合法。
 
-| 选项 | 含义 |
-| --- | --- |
-| `--json` | 以机器可读格式输出 |
-| `--dry-run` | 只显示将要发生的改动，不写入文件 |
-| `--output <path>` | 写入到输入文件以外的路径 |
-| `--backup` | 覆盖前保留一份 `.bak` 备份 |
-| `--strict` | 把未知选项当作用法错误 |
-| `--version` | 打印版本号后退出 |
-| `-h`, `--help` | 显示内置帮助 |
+| 选项 | 含义 | 版本 |
+| --- | --- | --- |
+| `--json` | 以机器可读格式输出 | — |
+| `--dry-run` | 只显示将要发生的改动，不写入文件 | — |
+| `--output <path>` | 写入到输入文件以外的路径 | — |
+| `--backup` | 覆盖前保留一份 `.bak` 备份 | — |
+| `--strict` | 把未知选项当作用法错误 | `Since: 2.1.0` |
+| `--version` | 打印版本号后退出 | `Since: 2.1.0` |
+| `-h`, `--help` | 显示内置帮助 | — |
 
 `--dry-run`、`--output` 和 `--backup` 适用于会改写文件的 `mind` 和 `node` 子命令。`create` 支持 `--dry-run` 和 `--backup`，但输出路径就是位置参数里的文件，因此不使用 `--output`。
 
@@ -145,14 +145,14 @@ jsmind export <file> <out.png> [options]
 
 `export` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`；浏览器启动比默认的 60 秒还慢，就设置 `JSMIND_BROWSER_START_MS`。
 
-| 选项 | 含义 |
-| --- | --- |
-| `--width <px>` | 布局时使用的视口宽度（默认 `1200`） |
-| `--height <px>` | 视口高度（默认 `800`） |
-| `--scale <n>` | 输出像素比（默认 `2`） |
-| `--type <format>` | `image/png`、`image/jpeg` 或 `image/webp`（默认 `image/png`） |
-| `--transparent` | 透明背景（PNG 和 WebP；需显式打开，默认保持当前的不透明背景）。用于 JPEG 时会忽略该选项并给出警告。 |
-| `--json` | 以机器可读格式输出 |
+| 选项 | 含义 | 版本 |
+| --- | --- | --- |
+| `--width <px>` | 布局时使用的视口宽度（默认 `1200`） | — |
+| `--height <px>` | 视口高度（默认 `800`） | — |
+| `--scale <n>` | 输出像素比（默认 `2`） | — |
+| `--type <format>` | `image/png`、`image/jpeg` 或 `image/webp`（默认 `image/png`） | — |
+| `--transparent` | 透明背景（PNG 和 WebP；需显式打开，默认保持当前的不透明背景）。用于 JPEG 时会忽略该选项并给出警告。 | `Since: 2.1.0` |
+| `--json` | 以机器可读格式输出 | — |
 
 按默认的宽度、高度和缩放，常见导出尺寸是 2400×1600 像素。
 
