@@ -39,7 +39,7 @@ GitHub 对 required check 的判定：
 ### 3.2 `Optional tests` 保持 optional，且不加 `continue-on-error`
 
 - 一个 job 只能整体 required 或整体 optional。以后要把桶里某个测试提成 required，先把它拆成单独的 job；直接把桶标 required 会把同桶里后来加进来的测试一起拖进合并门。
-- `continue-on-error: true` 会把 job 的结论写成 success，检查永远绿。真需要它拦的时候没有东西可拦 —— 这跟第 3 节其余内容无关，它自己就能让一个 required 检查变成摆设。
+- `continue-on-error: true` 会把 job 的结论写成 success，检查永远绿，真需要它拦的时候没有东西可拦。它和 3.3 那个洞不是一回事：不需要别的 job 配合，`continue-on-error` 自己就能让一个 required 检查永远绿。
 
 ### 3.3 `Change detection` 必须是 required
 
@@ -74,4 +74,6 @@ gh api repos/hizzgdev/jsmind-v2/rulesets/27518846 \
   --jq '.rules[] | select(.type == "required_status_checks")'
 ```
 
-只改 `docs/` 的 PR 上，`Docs site`、`UI tests`、`Optional tests` 应该是 skipped 且可合并。合并门的验证只能由管理员做：让一个 required 检查红，确认拦合并；让 `Optional tests` 红，确认不拦。
+只改 `docs/` 的 PR 上，`UI tests`、`Optional tests` 是 skipped，`Docs site` **会跑**：分类器对 `docs/` 下任何文件都置 `docs=true`，剩下的交给这个 job 自己判断这批文件动不动发布出来的站点 —— 不影响时它内部的步骤跳过，结论仍是 success，不是 skipped。只改根目录 `*.md`（`README.md` 之类）的 PR 上三者才都是 skipped。两种都可合并。
+
+合并门的验证只能由管理员做：让一个 required 检查红，确认拦合并；让 `Optional tests` 红，确认不拦。
