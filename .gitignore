@@ -1,9 +1,14 @@
 .DS_Store
-node_modules/
+
+# Build output and dependency installs. No trailing slash on purpose: `name/`
+# matches a directory only, so a worktree's `node_modules` symlink surfaced as an
+# untracked file and the weka cleanup then refused to delete the directory it sat
+# in. As bare names these match the link as well.
+node_modules
 coverage
-dist/
-logs/
-_site/
+dist
+logs
+_site
 .vscode/settings.json
 
 # vim / editor swap & undo files (never commit these — they can carry file contents)

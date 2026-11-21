@@ -82,14 +82,16 @@ BUSY_STATUSES = ("running", "review")
 # read its own explanation back as a human request and trigger itself.
 TRACE_MARKER = "<!-- weka-webhook -->"
 
-# Names that are build output or a dependency install, never someone's work. A
+# Names that are build output or a dependency install, never someone's work.
+#
+# These have to be listed here even though `.gitignore` names them, because a
 # worker symlinks the main checkout's dependencies into its worktree instead of
-# installing a second copy, and `.gitignore` says `node_modules/` — with the
-# trailing slash, which matches a directory but not a symlink of that name. So
-# `git status --porcelain` reports it as an untracked path, and anything that
-# treats a non-empty status as "real work in there" refuses to remove a worktree
-# that holds nothing but that link. Every merged PR used to leave one behind.
-WORKTREE_ARTIFACTS = frozenset({"node_modules", "dist", "_site", ".vite", ".cache", "coverage"})
+# installing a second copy, and `.gitignore` used to say `node_modules/` — with a
+# trailing slash, which matches a directory but not a symlink of that name. That
+# is what left a worktree behind after every merge. The ignore rules no longer
+# depend on the trailing slash, so this list is the second line of defence: it
+# still classifies a path correctly in a checkout whose ignore rules have drifted.
+WORKTREE_ARTIFACTS = frozenset({"node_modules", "dist", "_site", "coverage"})
 
 
 def blocking_paths(status_output: str) -> list[str]:

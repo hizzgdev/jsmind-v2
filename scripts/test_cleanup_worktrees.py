@@ -68,6 +68,34 @@ class BlockingPathsTests(unittest.TestCase):
         )
 
 
+class ArtifactListMatchesGitignoreTests(unittest.TestCase):
+    """The list is a copy of `.gitignore`, not an independent opinion."""
+
+    def _rules(self):
+        # Resolved from this file, not from REPO_ROOT: a test that fakes the
+        # checkout root must not be able to point this at nothing.
+        path = os.path.join(HERE, os.pardir, ".gitignore")
+        with open(path, encoding="utf-8") as handle:
+            return [
+                line.strip()
+                for line in handle
+                if line.strip() and not line.strip().startswith("#")
+            ]
+
+    def test_every_artifact_is_ignored(self):
+        rules = self._rules()
+        for name in cleaner.ARTIFACTS:
+            self.assertIn(name, rules, f"{name} would be excused without being ignored")
+
+    def test_no_artifact_rule_depends_on_a_trailing_slash(self):
+        # `name/` matches a directory only. A worker's `node_modules` symlink is
+        # not a directory, so it surfaced as untracked — that is the bug this
+        # whole change exists for.
+        rules = self._rules()
+        for name in cleaner.ARTIFACTS:
+            self.assertNotIn(f"{name}/", rules, f"{name}/ does not match a symlink")
+
+
 class CleanTests(unittest.TestCase):
     """`clean()` with git and gh scripted, so each decision is visible."""
 

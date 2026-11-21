@@ -39,8 +39,12 @@ import sys
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Top-level names that are build output or a dependency install, never a
-# colleague's work in progress.
-ARTIFACTS = frozenset({"node_modules", "dist", "_site", ".vite", ".cache", "coverage"})
+# colleague's work in progress. Every one of them also has a rule in
+# `.gitignore`, and `test_artifacts_are_all_ignored` keeps the two lists in step:
+# a name that the repository does not ignore is a name this script would be
+# excusing on its own authority, which is how a speculative entry turns into a
+# hole later.
+ARTIFACTS = frozenset({"node_modules", "dist", "_site", "coverage"})
 
 
 def run(cmd: list[str]) -> tuple[int, str]:
