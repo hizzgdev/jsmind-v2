@@ -28,6 +28,10 @@ is for the case where the branch was deleted from origin without a merge (a PR
 closed unmerged, a stray experiment) and you have decided the directory is dead.
 
 Standard library only, and it never touches the main checkout.
+
+What git refuses here is measured, not assumed: `scripts/probe-worktree-removal.sh`
+builds a throwaway repo and prints REMOVED/REFUSED for the four cases that matter
+(ignored symlink, ignored directory, stray file, tracked edit).
 """
 
 from __future__ import annotations

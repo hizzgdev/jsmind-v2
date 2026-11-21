@@ -306,6 +306,9 @@ jobs:
         run: |
           python3 -m unittest discover -s team/automations/weka -p 'test_*.py' -v
           python3 -m unittest discover -s scripts -p 'test_*.py' -v
+          # The cleanup leans on what `git worktree remove` refuses; this probe
+          # holds that rule down so a git release that changes it fails here.
+          bash scripts/probe-worktree-removal.sh
 
 
   # ---------------------------------------------------------------------------

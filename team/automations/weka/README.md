@@ -399,6 +399,14 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
 
    只在三件事同时成立时删——分支已不在 origin、GitHub 说该分支的 PR 已合并、git 愿意删（有未提交改动的它自己就拒绝，只剩被忽略文件的它接受）。也就是说 `.gitignore` 就是这里的策略：某个构建产物没被忽略，它就会拦住自己的清理，该修的是忽略规则，不是再往白名单里加一条。`--all` 跳过合并检查。幂等，干净时输出 `0 worktree(s) removed`。
 
+   支撑这个判断的三条机制，都不是推测：
+
+   - `git worktree remove` 拒绝一个含已跟踪改动或未跟踪文件的 worktree，而对只剩被忽略内容的照删——不加 `--force` 也是这个行为。
+   - `.gitignore` 里 `name/` 只匹配目录，`name` 才同时匹配目录和同名符号链接。worker 把主 checkout 的 `node_modules` 用符号链接链进 worktree，带斜杠的规则看不见它，`git status` 于是报出一条未跟踪路径。
+   - 删 worktree 不会顺带删本地分支，`git branch -D` 得单独跑。
+
+   想自己验证，或者要改清理逻辑之前，先跑 `scripts/probe-worktree-removal.sh`：它在临时仓库里把四种情况各试一遍，逐条打印 `ok` 或 `MISMATCH`，跑完自动清理，不碰当前 checkout。它也在 CI 里跑，所以哪天 git 改了这条规则，是那条流水线先红，而不是又攒出一堆没人删的 worktree。
+
 任何一环卡住，按顺序看：
 
 ```bash
