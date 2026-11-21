@@ -36,6 +36,7 @@ Internal development docs in [`team/development/`](team/development/):
 - [`roadmap.md`](team/development/roadmap.md) — 每一层怎么做
 - [`v2-requirements.md`](team/development/v2-requirements.md) — v2 目标与功能边界
 - [`render-test-plan.md`](team/development/render-test-plan.md) — 渲染回归测试清单
+- [`commit-types.md`](team/development/commit-types.md) — 提交类型的唯一约定
 
 Archived material is in [`team/archive/`](team/archive/).
 
@@ -43,38 +44,17 @@ Archived material is in [`team/archive/`](team/archive/).
 
 **所有改动走 PR，不直接推 master。** Collaboration and PR conventions are in [`team/automations/hubie/agent-team-collaboration.md`](team/automations/hubie/agent-team-collaboration.md). The rules below are the repository workflow already documented here; that file is the place for team process, not a second copy of it.
 
-分支命名 `<type>/<short-slug>`，type 取自 Conventional Commits：
+分支命名 `<type>/<short-slug>`，type 取自 [`team/development/commit-types.md`](team/development/commit-types.md)。**一个类型说的是它对产物做了什么** —— 没改 `src/` 就没有 `feat` / `fix` / `refactor`。
 
-| type | 用途 | 例 |
-|---|---|---|
-| `feat` | 新功能 | `feat/view-theme-system` |
-| `fix` | 修复 | `fix/arranger-cousin-spacing` |
-| `refactor` | 重构（行为不变） | `refactor/view-settle` |
-| `test` | 测试 | `test/arranger-coverage` |
-| `docs` | 文档 | `docs/v2-requirements` |
-| `chore` | 杂务（依赖、配置） | `chore/tmp-gitignore` |
+PR title 格式 `<type>(<scope>): <subject>`，**标题用英文，描述可用中文**。
 
-PR title 格式 `<type>(<scope>): <subject>`，**标题用英文，描述可用中文**：
+**为什么标题用英文**：与仓库文档约定保持一致；便于将来的英文贡献者扫 PR 列表；`<type>(<scope>)` 前缀可被工具自动解析，用于过滤 PR、生成 release notes。
 
-```
-docs: add v2 requirements and repo workflow conventions
-feat(view): support theme and node-level styles
-fix(arranger): correct cousin spacing calculation
-```
-
-**为什么标题用英文**：与仓库文档约定保持一致；便于将来的英文贡献者扫 PR 列表；`<type>(<scope>)` 前缀可被工具自动解析，用于生成 changelog 或过滤 PR。
-
-**commit message 同样用英文**，规则与 PR title 一致（Conventional Commits）：
-
-```
-docs: add v2 requirements and refresh outdated status docs
-chore: add repo layout and workflow conventions
-feat(view): support theme and node-level styles
-```
+**commit message 同样用英文**，规则与 PR title 一致。
 
 **PR 标题和 commit message 用同一条规则** —— 这样 PR 列表和 `git log` 读起来是同一个体系，不用在两套措辞之间来回切换。中文只出现在 PR 描述里（那是给人读的说明，不是索引）。
 
-**scope 建议值**（对应 `src/` 下的目录）：`model` / `arranger` / `view` / `serialization` / `docs` / `tests` / `build`。
+**scope 建议值**（对应 `src/` 下的目录）：`model` / `arranger` / `view` / `serialization` / `cli`。
 
 ## Running
 

@@ -14,7 +14,13 @@
  */
 
 const PLAIN_VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
-const RELEASE_COMMIT = /^chore\(release\):/;
+/**
+ * The version bump commit. `release: 2.2.0` is the type the table in
+ * `team/development/commit-types.md` gives it; `chore(release):` is how the
+ * same commit was written before that table existed, and it stays accepted so
+ * an older window still generates sane notes.
+ */
+const RELEASE_COMMIT = /^(?:release|chore\(release\)):/;
 
 function parseVersion(version) {
     const match = PLAIN_VERSION.exec(version);

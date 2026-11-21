@@ -48,7 +48,7 @@
 - 在 `$HERMES_KANBAN_WORKSPACE` 里工作。代码注释用英文。
 - 自测：`npm run build && npm test` 全绿才算完。
 - 推到 PR 的分支上。这张卡还没有 PR 时（issue 卡第一次交接）：`gh pr create --base master --draft --label weka`。
-- 标题用英文 Conventional Commits（`feat(scope): ...`）；body 用中文可以，第一行放 `Closes #<issue>`。返工卡不要改标题和 body，只推代码。
+- 标题用英文 Conventional Commits，类型按 `team/development/commit-types.md` 那张表选：**类型说的是它对 `npm i jsmind` 装到的东西做了什么**，没改 `src/` 就没有 `feat`/`fix`/`refactor`。没有 CI 拦这条 —— 但 reviewer 会拿标题对一遍 diff，选错会被打回。body 用中文可以，第一行放 `Closes #<issue>`。返工卡不要改标题和 body，只推代码。
 - PR 开出来之后，在 PR 上再补一份 `weka-working`——第 3 步执行时这个 PR 还不存在：
 
   ```bash
@@ -56,6 +56,15 @@
   ```
 
   这里 `<pr>` 是 PR 号，不是卡号；重复打无害。
+
+### 受保护文件：一个字都不要改
+
+`AGENTS.md`、`CLAUDE.md`、`SOUL.md`、`.cursorrules` 这四个文件名（任何目录、大小写不敏感）被工具层保护：写入永远要人工批准，无人值守的运行里没人批准，必然超时成 `BLOCKED: write to protected agent-instruction file(s)`。所以：
+
+- **不要尝试**，也不要换 patch / write_file / 终端去绕。看到「这一步要改 `AGENTS.md`」就当它是人的活。
+- 任务要求改这类文件时：把**可直接粘贴的整段替换文**写进 PR body 的「需要人来做」一节，标清文件与行号范围，并在 `kanban_request_review` 的 summary 里点名这一项。
+- 若剩下的唯一工作就是这种改动，**不要 `kanban_block`**：block 会把整条流水线停住等人来救。照常交接，让人在 PR 上补完再合并。
+- `team/automations/weka/SOUL.cody.md` 不在这份名单里（名单只认 `SOUL.md`），改它不需要审批；但它是规则文件，改之前先看 `README.md`「标签与人工审核门」那一节。
 
 ## 交接
 
