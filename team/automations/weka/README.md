@@ -117,7 +117,7 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 
 ### PR 的 draft 状态：从 cody 开工一直到 AI 审查通过
 
-cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起点 `gh pr ready --undo` 转回去。**交接时不翻 ready**——draft 一直保持到 reed 通过、加上 `weka-reviewed` 的那一刻，由 reed 跑 `scripts/weka/pass-review.sh`（它的最后一步才是 `gh pr ready`）。draft 是 GitHub 原生状态，不能合并、页面上有徽章，不需要新标签。
+cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起点 `gh pr ready --undo` 转回去。**交接时不翻 ready**——draft 一直保持到 reed 通过、加上 `weka-reviewed` 的那一刻，由 reed 跑 `scripts/weka/pass-review.sh`（它的最后一步才是 `gh pr ready`；reed 跑的是 `origin/master` 上的那份副本，不跑被审查分支里的代码，见 `SOUL.reed.md`）。draft 是 GitHub 原生状态，不能合并、页面上有徽章，不需要新标签。
 
 命令顺序也是固定的：cody 返工起手先 `--undo` 回 draft，再摘 `weka-reviewed`、补 `weka-working`；reed 通过时由 `scripts/weka/pass-review.sh` 先摘标签、清掉 `weka-working`，`gh pr ready` 是最后一条，清理没做全就不翻（脚本带 `scripts/weka/test-pass-review.sh`，CI 会跑）。这样任何一步崩掉都停在 draft——不会停在「ready 但 AI 的结论不在」，也不会停在「ready 却还挂着 `weka-working`」。
 
