@@ -30,7 +30,7 @@ jobs:
   # and a documentation-only change still needs its formatting checked.
   # ---------------------------------------------------------------------------
   changes:
-    name: What changed
+    name: Change detection
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -483,6 +483,46 @@ jobs:
         # this step on its own budget instead so the cause is obvious.
         timeout-minutes: 3
         run: npm run test:ui
+
+  # ---------------------------------------------------------------------------
+  # Optional tests.
+  #
+  # Tests whose failure is information, not a gate. Several of them share one
+  # job on purpose: a ruleset accepts or rejects a check as a whole, so a test
+  # that must block a merge cannot sit in this bucket, and a test that arrives
+  # later joins this job as another step rather than as a check of its own.
+  #
+  # Deliberately no `continue-on-error: true`. That turns the job's conclusion
+  # into a success, so a red `Optional tests` would stop being visible - and if
+  # anyone ever did mark the job required, the requirement would be vacuous.
+  # The point is a failure someone can see and merge past, not a failure the
+  # configuration hides.
+  #
+  # Gated on the classifier like the library jobs: a documentation-only change
+  # has nothing here to run.
+  # ---------------------------------------------------------------------------
+  optional-tests:
+    name: Optional tests
+    needs: changes
+    if: needs.changes.outputs.library == 'true'
+    runs-on: ubuntu-latest
+    # bash and jq only: no install and no build, so this is seconds.
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The Hubie event filter decides which GitHub events wake the Coordinator
+      # routine, and its unit tests are the only thing that exercises the
+      # script. They used to be a second job in the forwarding workflow itself,
+      # which meant a production workflow ran test work on pull request events
+      # it otherwise never acts on.
+      - name: Hubie event filter tests
+        run: bash team/automations/hubie/forward-github-event.test.sh
 
   # ---------------------------------------------------------------------------
   # Render preview
