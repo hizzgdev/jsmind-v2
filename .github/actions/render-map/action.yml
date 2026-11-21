@@ -27,10 +27,10 @@ inputs:
   transparent:
     description: >-
       Leave the canvas background transparent instead of filling it with the
-      theme's background color. Opt-in, and the default is opaque: this action
-      has more than one caller, and a default of "transparent" would restyle
-      every one of their images without them asking. PNG and WebP only; the
-      export ignores it for JPEG, which has no alpha channel.
+      theme's background color. Opt-in, and the default is opaque: the default
+      belongs to the action, not to the job that calls it, so a caller has to
+      ask for a transparent image rather than inherit one. PNG and WebP only;
+      the export ignores it for JPEG, which has no alpha channel.
     required: false
     default: 'false'
 
@@ -68,8 +68,8 @@ runs:
         # Chrome on consecutive runs. Everything else fails once, as it should.
         args=("$DATA_FILE" "$OUTPUT" --width "$WIDTH" --height "$HEIGHT")
 
-        # Opt-in, per the input's own note: render-map has callers besides the
-        # preview, and their images stay opaque unless they ask.
+        # Opt-in, per the input's own note: opaque is this action's default,
+        # and a caller that wants a transparent image is the one who says so.
         if [ "$TRANSPARENT" = "true" ]; then
           args+=(--transparent)
         fi

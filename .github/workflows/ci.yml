@@ -546,8 +546,9 @@ jobs:
           echo "tone=$tone" >> "$GITHUB_OUTPUT"
 
       # `transparent: true` is what makes this a transparent-background PNG.
-      # The action defaults it to false for its other callers; the job that
-      # wants it says so. Pasted into a pull request comment, the transparent
+      # The action's default is opaque - that default belongs to the action,
+      # not to the one job that calls it - so the job that wants transparency
+      # says so here. Pasted into a pull request comment, the transparent
       # area shows GitHub's own background - light or dark depending on the
       # reader's theme. That is a known cost of a real transparent image, not
       # something to paper over with a checkerboard or a filled background: a

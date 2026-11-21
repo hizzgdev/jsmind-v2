@@ -158,8 +158,9 @@ test('the script refuses a command line without both paths', () => {
 });
 
 test('render-map: transparency is an input, and its default is opaque', () => {
-    // The action has callers besides the preview; a default of "transparent"
-    // would restyle all of their images without them asking.
+    // The default belongs to the action, not to its one in-repo caller: a
+    // default of "transparent" would hand every caller a transparent image
+    // without them asking.
     const input = /^ {2}transparent:\n(?: {4}.*\n)*? {4}default: '([^']*)'$/m.exec(ACTION);
     assert.ok(input, 'render-map should declare a transparent input with a default');
     assert.equal(input?.[1], 'false');
