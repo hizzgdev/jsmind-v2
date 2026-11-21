@@ -61,7 +61,7 @@ jsmind export <file> <out.png> [options]
 ```
 
 | Option | Default | Description | Version |
-|---|---|---|
+|---|---|---|---|
 | `--width <px>` | 1200 | Viewport width used for layout | — |
 | `--height <px>` | 800 | Viewport height used for layout | — |
 | `--scale <n>` | 2 | Output scale | — |
