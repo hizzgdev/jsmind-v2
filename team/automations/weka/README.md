@@ -117,7 +117,7 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 
 cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起点 `gh pr ready --undo` 转回去，交接时 `gh pr ready` 转回来。draft 是 GitHub 原生状态，不能合并、页面上有徽章，不需要新标签。
 
-draft 和 `weka-working` 说的是同一件事的两个侧面——「还没准备好」和「在我们手上」——所以必须同步：**draft 期间 `weka-working` 必须在，ready 期间必须有 `weka-reviewing` 或 `weka-reviewed`**。不允许出现 draft + `weka-reviewing`、draft + `weka-reviewed`，也不允许 ready 却一个流程标签都没有。draft→ready 的翻转发生在交接那一刻，所以在 PR 的 timeline 上，`+weka-reviewing` 和「marked this pull request as ready for review」应当相邻。
+draft 和 `weka-working` 说的是同一件事的两个侧面——「还没准备好」和「在我们手上」——所以必须同步，验收就按这两条核：**PR 是 draft 时 `weka-working` 必须在，且不能有 `weka-reviewing` / `weka-reviewed`；PR 是 ready 时至少要有一个流程标签**（审查中是 `weka-reviewing`，通过后是 `weka-reviewed`，返工请求已发出等 cody 接手的那段是 `weka-working`），不能只剩 `weka`。draft→ready 的翻转发生在交接那一刻，所以在 PR 的 timeline 上，`+weka-reviewing` 和「marked this pull request as ready for review」应当相邻。
 
 cody 若死在 draft 状态，那张 PR 合不了，所以 reed 接手时先跑一次 `gh pr ready` 兜底。这是纯崩溃恢复，不是为了让 `requested_reviewers` 能通过——draft PR 上那个端点实测返回 200，reviewer 加得上，PR 也不会因此自动转 ready。两个方向的 `gh pr ready` 在「已经是目标状态」时都 exit 0（只在 stderr 打一行 `!` 提示），反复执行无害。
 

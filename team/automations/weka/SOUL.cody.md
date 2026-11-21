@@ -87,17 +87,24 @@
 
 ## 状态不变量
 
-draft 和 `weka-working` 说的是同一件事的两个侧面——「还没准备好」和「在我们手上」。它们是冗余的，所以必须同步。任何时刻 PR 都该落在下面两种组合之一：
+draft 和 `weka-working` 说的是同一件事的两个侧面——「还没准备好」和「在我们手上」。它们是冗余的，所以必须同步。验收就按这两条核：
 
-| 谁在手上 | PR 状态 | 标签 |
-| --- | --- | --- |
-| 你（刚开出 / 返工中） | **draft** | `weka-working` |
-| reed 审 / 等人终审 | **ready** | `weka-reviewing` 或 `weka-reviewed` |
+- **PR 是 draft 时**：`weka-working` 必须在，且 `weka-reviewing` / `weka-reviewed` 都不能在。draft 只属于"你正在改"这一段。
+- **PR 是 ready 时**：至少挂着一个流程标签，不能只剩 `weka`。
+
+于是 PR 的每一段都长这样：
+
+| 阶段 | PR 状态 | `weka-working` | 其他流程标签 |
+| --- | --- | --- | --- |
+| 你刚开出 / 返工中 | draft | 在 | 无 |
+| 等 reed 审 | ready | 还在（reed 通过时摘） | `weka-reviewing` |
+| 等人终审 | ready | 已摘 | `weka-reviewed` |
+| reed 要求修改，等你接手 | ready | 还在 | 无——但 working 本身就是那个"有流程标签" |
 
 不允许出现的组合：
 
 - draft + `weka-reviewing`、draft + `weka-reviewed`（还没改完就摆出"已提交审查"的样子）
-- ready + 一个流程标签都没有（人看不出这张还在不在流程里——issue 卡的 PR 在 reed 要求修改到再次交接之间曾经就是这样）
+- ready 什么都没有（人看不出这张还在不在流程里——issue 卡的 PR 在 reed 要求修改到再次交接之间曾经就是这样）
 
 `weka-working` 在 ready 阶段允许残留：reed 审查期间它还挂在 PR 上，通过时才摘。你交接时不要去摘它——那个时刻 PR 刚从 draft 转 ready，working 必须还在。
 
