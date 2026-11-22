@@ -170,9 +170,11 @@ interface Highlight {
  * @param requests - Labels to look up, already de-duplicated.
  * @returns One result per request, in the order asked.
  * @remarks
- * Matching is whole-label but not case-sensitive, the same way `--focus`
- * matches: labels are typed by people, and `Customer Service` and
- * `customer service` are one label with two capitalisations, not two labels.
+ * Matching is whole-label but not case-sensitive. Case folding is the same as
+ * `--focus`, but the comparison is not: `--focus` looks for the needle as a
+ * substring, while here the whole flattened label must equal the request.
+ * Labels are typed by people, and `Customer Service` and `customer service`
+ * are one label with two capitalisations, not two labels.
  * A near-miss in any other respect is reported as a miss rather than guessed
  * at, since the caller's next move is an id and a guessed id edits the wrong
  * node.
