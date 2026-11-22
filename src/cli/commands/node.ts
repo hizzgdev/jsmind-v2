@@ -383,6 +383,11 @@ const STYLE_FIELDS_HELP = `set-style fields (any combination, applied in one wri
 --incoming.color addresses \`style.incoming.color\`. Accepted values are read from
 the model's own enums, so this list cannot fall behind them:
 
+\`--tone\` picks one of the theme's named pairs: a box fill, and the text colour
+drawn on it, so the label stays readable on that fill. The colour flags below
+override a single part and leave the other alone — \`--background\` does not
+adjust the text colour, and \`--color blue\` over a blue box is blue on blue.
+
   --tone <value>              ${TONE_WORDS.join(' | ')}
   --background <color>
   --color <color>
