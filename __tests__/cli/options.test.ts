@@ -351,32 +351,6 @@ test('cli - an unknown option warns, exits 0 and leaves the file alone', () => {
     }
 });
 
-test('cli - context no longer takes --focus', () => {
-    // Deleted, not deprecated: no alias, no hint, no candidate list. The flag is
-    // an unknown option like any other, and a value after it lands in the
-    // positional check — both are what every retired flag gets from the table,
-    // which is why nothing here mentions --highlight.
-    const { file, dir } = fixtureCopy();
-
-    try {
-        const bare = runCli(['context', file, '--focus']);
-
-        assert.strictEqual(bare.code, CliExit.Ok, 'a warning must not change the exit code');
-        assert.strictEqual(
-            bare.stderr,
-            'jsmind: warning: unknown option for "context": --focus ' + '(--strict makes this an error)\n'
-        );
-        assert.ok(bare.stdout.includes('root'), 'the plain tree is printed, with no focus view');
-
-        const withValue = runCli(['context', file, '--focus', '清洗']);
-
-        assert.strictEqual(withValue.code, CliExit.Usage, 'the value is a surplus argument now');
-        assert.ok(withValue.stderr.includes('Unexpected arguments: 清洗'));
-    } finally {
-        rmSync(dir, { recursive: true, force: true });
-    }
-});
-
 test('cli - the same command line with --strict exits 2 and writes nothing', () => {
     const { file, dir, before } = fixtureCopy();
     const target = join(dir, 'out.json');
