@@ -108,6 +108,8 @@ This round changed structure (add or remove a node, reparent, change side, fold)
 
 Style only, structure untouched: still `export` once, and confirm the color or font size is actually on the picture.
 
+Two things about `export` that read like failures and are not. It starts a browser process, so an execution environment that sandboxes child processes may ask for permission, or offer to leave the sandbox, the first time it runs — that is Chromium starting. And it **overwrites an existing output file in place**: running it twice on the same path silently replaces the picture, with no copy kept. Give the second positional a different path, or rename the old file, when both images are wanted. `--output` does not redirect it; `export` takes its output path from the second positional only.
+
 ### 4. A failed look → back to checkpoint 1
 
 Any item below fails: `context` again, edit, `validate`, `export`. Do not keep using ids you remember from the previous round.

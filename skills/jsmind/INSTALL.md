@@ -23,8 +23,6 @@ The 2.x line is on a preview channel: `latest` on npm is still 0.9.1 (v1), which
 
 `export` renders the PNG in a browser, so the machine needs a Chromium binary. Without one jsmind fails with `No Chromium found. Image export needs a browser`. That is a missing browser, not a missing skill file.
 
-Two things about `export` that read like failures and are not. It starts a browser process, so an execution environment that sandboxes child processes may ask for permission, or offer to leave the sandbox, the first time it runs — that is Chromium starting. And it **overwrites an existing output file in place**: running it twice on the same path silently replaces the picture, with no copy kept. Give the second positional a different path, or rename the old file, when both images are wanted. `--output` does not redirect it; `export` takes its output path from the second positional only.
-
 ## Placing the skill
 
 The directory name is the skill name, so `SKILL.md` has to sit one level below the skills root.
