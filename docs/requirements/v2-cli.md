@@ -254,7 +254,7 @@ jsmind create <file> --title <title> [options]
 
 ### 5.1 `context` —— agent 的发现步骤
 
-**这是唯一允许模糊匹配的地方。** 它是 agent 在动手前的侦察工具。
+**这是唯一接受文本、用来替 id 定位的地方。** 它是 agent 在动手前的侦察工具。
 
 ```bash
 jsmind context <file> [选项]
@@ -262,7 +262,6 @@ jsmind context <file> [选项]
 
 | 选项 | 默认 | 说明 |
 |---|---|---|
-| `--focus <text>` | 无 | **已废弃**，改用 `--highlight`。模糊匹配节点文本，只显示命中的及其周边 |
 | `--highlight <text>` | 无 | 按节点文本匹配（忽略大小写），给出它的 id 路径；可重复传参、在整份文档里查找（`Since: 2.2.0`） |
 | `--depth <n>` | `2` | 从根往下展示几层 |
 | `--max-text <n>` | `40` | 节点文本截断长度 |
@@ -325,14 +324,6 @@ style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 - **截断以 `…` 结尾**，默认 40 字符
 - **id 必须醒目可复制**，因为它就是下一步的参数
 
-**`--focus`（已废弃）匹配不到时，必须给候选，不能只说 not found：**
-
-```
-No node matches "粗暴". Closest:
-  n4   数据清洗
-  n20  数据准备
-```
-
 **`--highlight` 把已知文本换成 id**（`Since: 2.2.0`）。agent 天然掌握的是节点文本，而所有改动命令都以 id 定位；两者之间隔着一个无规律的随机串。这个参数就是那座桥：
 
 ```bash
@@ -349,12 +340,12 @@ fullmap:
 ```
 
 - **重复传参，不用逗号分隔**：每个值一个 flag，值本身含逗号时没有转义歧义，调用方拼参数也不必先 join。大小写折叠后相同的值只算一次（`earth` 与 `EARTH` 是同一个问题，不打印两遍）。
-- **整条匹配、忽略大小写**：按打印出来的文本（已压平空白）比较整条标签，大小写折叠的方式与 `--focus` 一致，但比较范围不同——`--focus` 是**子串**查找，`--highlight` 比的是整条标签（`--highlight "customer serv"` 对 `Customer Service` 是 `(no match)`）。不做模糊、不比对截断后的文本。
+- **整条匹配、忽略大小写**：按打印出来的文本（已压平空白）比较整条标签，两侧折叠大小写后必须完全相等——`--highlight "customer serv"` 对 `Customer Service` 是 `(no match)`。不做子串查找、不做模糊、不比对截断后的文本。
 - **查整份文档**，不受 `--depth` 限制：命中目标往往比一次可读的树更深，这正是它的用处。
 - **结果放最前面**（`--json` 里是顶层 `highlighted`，在 `nodes` 之前），值是**与 `nodes` 同构的节点对象**（同样带 `parentId`），拿到就不必二次查找。同构不等于同一条：比 `--depth` 更深的命中不会出现在 `nodes` 里，共享标签的命中还多一个 `matches`。
 - **无命中写 `(no match)`**：`--json` 里保留键并置 `null`——“查了没命中”和“压根没查”是两种状态。不给候选、不猜。
 - **同一文本被多个节点共用**时取文档顺序里的第一个，并标注还有几个（文本 `(+N more)`，`--json` 里是 `matches`）。这不是替 agent 消歧，是告诉它该换一个更具体的标签。
-- **只定位，不改变操作目标**：后续命令照旧走 `--node-id` / `--parent-id`。`--focus` 已废弃——模糊匹配加祖先视图加候选列表只回答“可能在哪儿”，给不出能直接执行的 id；它仍能运行，也不再与 `--highlight` 互斥，同时给出时高亮块在前、focus 视图在后。文本模式下 `--ids-only` 与它仍然互斥（一行一个裸 id 与每个标签一行 id 路径没法共存），要只拿 id 就加 `--json`。
+- **只定位，不改变操作目标**：后续命令照旧走 `--node-id` / `--parent-id`。文本模式下 `--ids-only` 与 `--highlight` 互斥（一行一个裸 id 与每个标签一行 id 路径没法共存），要只拿 id 就加 `--json`。
 
 ### 5.2 `validate`
 
@@ -502,6 +493,6 @@ File unchanged.
 | ~~命令名用 `add-child` 还是 `addChild`~~ | **已定并实现**：`add-child`。`add-node` 已并入它，`--side` / `--position` / `--folded` 就是原来 `addNode` 的 dest 与 nodeOptions |
 | ~~`set-style` 的参数怎么展开~~ | **已定并实现**：`--tone` / `--font-size` / `--border-width` 直接映射字段名，不做缩写 |
 | ~~文档级样式命令叫什么~~ | **已定**：`mind set-style`（曾叫 `mind style set`）。一个词的子命令，与 `node set-style` 对称，不留旧名别名；CLI 里不再有嵌套层 |
-| ~~`context --focus` 的匹配算法~~ | **已定并实现**：匹配是大小写不敏感的**子串**查找；模糊只出现在没匹配上时的候选提示里，按「needle 的字符按序出现在文本中的个数」排序，不是编辑距离 |
+| ~~`context --focus` 的匹配算法~~ | **已删除**：`--focus`（模糊子串查找、祖先视图、候选列表）在上线前就被去掉，由 `--highlight` 取代——整条匹配、大小写不敏感。没有需要保留的匹配算法 |
 | 是否要 `jsmind mind list` 之类只读命令 | 倾向不加，`context` 已经覆盖 |
 | 退出码 `3` 是否再细分 | 暂不细分，先观察实际需要 |

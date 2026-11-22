@@ -2,8 +2,9 @@
  * `jsmind context` — the agent's discovery step.
  *
  * @remarks
- * This is the only command allowed to fuzzy-match, because it is what an agent
- * runs before it knows any ids. Everything downstream takes ids only.
+ * This is the only command that accepts text in place of an id, because it is
+ * what an agent runs before it knows any ids. Everything downstream takes ids
+ * only.
  *
  * Two constraints shape the output: ids come first so they can be copied
  * straight into the next command, and node text is flattened to one line so a
@@ -34,7 +35,6 @@ const DEFAULT_MAX_TEXT = 40;
  * global, like every output-format switch.
  */
 export const CONTEXT_OPTIONS = [
-    'focus',
     'depth',
     'max-text',
     'full-text',
@@ -45,7 +45,6 @@ export const CONTEXT_OPTIONS = [
 /** Options accepted by the context command. */
 export interface ContextOptions {
     file: string;
-    focus?: string;
     depth: number;
     maxText: number;
     fullText: boolean;
@@ -170,9 +169,9 @@ interface Highlight {
  * @param requests - Labels to look up, already de-duplicated.
  * @returns One result per request, in the order asked.
  * @remarks
- * Matching is whole-label but not case-sensitive. Case folding is the same as
- * `--focus`, but the comparison is not: `--focus` looks for the needle as a
- * substring, while here the whole flattened label must equal the request.
+ * Matching is whole-label but not case-sensitive: the whole flattened label
+ * must equal the request once both are case-folded. The needle is never looked
+ * for as a substring — `customer serv` does not match `Customer Service`.
  * Labels are typed by people, and `Customer Service` and `customer service`
  * are one label with two capitalisations, not two labels.
  * A near-miss in any other respect is reported as a miss rather than guessed
@@ -225,19 +224,6 @@ function outline(root: JmNode, depth: number): ContextEntry[] {
 }
 
 /**
- * Finds nodes whose text contains the focus string, case-insensitively.
- *
- * @param nodes - Every node to consider.
- * @param focus - Needle.
- * @returns Matches in document order.
- */
-function matchNodes(nodes: JmNode[], focus: string): JmNode[] {
-    const needle = focus.toLowerCase();
-    return nodes.filter(node => flatten(textOf(node)).toLowerCase()
-        .includes(needle));
-}
-
-/**
  * Collects every node reachable from the root.
  *
  * @param root - Root node.
@@ -253,50 +239,6 @@ function allNodes(root: JmNode): JmNode[] {
     };
     walk(root);
     return out;
-}
-
-/**
- * Ranks suggestions for a focus string that matched nothing.
- *
- * @remarks
- * Scored by how many characters of the needle appear in order in the label —
- * a cheap resemblance measure that needs no dictionary and still puts the
- * obviously-closest candidates first.
- *
- * @param nodes - Candidates.
- * @param focus - The needle that missed.
- * @returns Up to five nodes, closest first.
- */
-function suggest(nodes: JmNode[], focus: string): JmNode[] {
-    const needle = focus.toLowerCase();
-
-    const scored = nodes
-        .map(node => {
-            const label = flatten(textOf(node)).toLowerCase();
-            let cursor = 0;
-            let hits = 0;
-            for (const char of needle) {
-                const at = label.indexOf(char, cursor);
-                if (at >= 0) {
-                    hits += 1;
-                    cursor = at + 1;
-                }
-            }
-            return { node, hits };
-        })
-        .filter(entry => entry.hits > 0)
-        .sort((a, b) => b.hits - a.hits || a.node.id.localeCompare(b.node.id))
-        .map(entry => entry.node);
-
-    if (scored.length > 0) {
-        return scored.slice(0, 5);
-    }
-
-    // Nothing resembles the needle at all. Returning an empty list would leave
-    // the agent with no ids and no next move, so fall back to the top of the
-    // tree: shallow nodes are the most likely starting points for a second
-    // attempt, and they are always cheap to show.
-    return nodes.slice(0, 8);
 }
 
 /**
@@ -552,9 +494,8 @@ function renderHighlights(highlights: Highlight[]): string[] {
  *
  * @param highlights - Resolved requests, in the order asked.
  * @remarks
- * One writer for both text layouts: the plain tree and the `--focus` view.
- * The block is the answer to the question the caller asked, so it leads in
- * either one; the trailing blank line keeps it from running into whatever
+ * The block is the answer to the question the caller asked, so it leads the
+ * output; the trailing blank line keeps it from running into the tree that
  * follows.
  */
 function writeHighlightBlock(highlights: Highlight[]): void {
@@ -666,79 +607,6 @@ export function runContext(options: ContextOptions): number {
         );
     }
 
-    // --focus: show matches and their surrounding structure. Deprecated, and
-    // still runs unchanged: it answers with ancestors and a fuzzy candidate
-    // list, neither of which an agent can turn into an id, which is exactly
-    // what `--highlight` does. The two are no longer exclusive — each flag
-    // keeps its own promise, and the highlighted block still leads.
-    if (options.focus !== undefined && options.focus.length > 0) {
-        const matches = matchNodes(every, options.focus);
-
-        if (matches.length === 0) {
-            const candidates = suggest(every, options.focus);
-            if (options.asJson) {
-                const payload: Record<string, unknown> = {};
-                if (highlights.length > 0) {
-                    payload.highlighted = highlightPayload(highlights, options);
-                }
-                payload.matched = false;
-                payload.focus = options.focus;
-                payload.candidates = candidates.map(node => ({
-                    id: node.id,
-                    text: clip(flatten(textOf(node)), options.maxText, options.fullText),
-                }));
-                process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
-            } else {
-                writeHighlightBlock(highlights);
-                process.stderr.write(`No node matches "${options.focus}".`);
-                if (candidates.length > 0) {
-                    process.stderr.write(' Candidates from the top of the tree:\n');
-                    for (const node of candidates) {
-                        const label = clip(flatten(textOf(node)), options.maxText, options.fullText);
-                        process.stderr.write(`  ${node.id.padEnd(6)} ${label}\n`);
-                    }
-                } else {
-                    process.stderr.write('\n');
-                }
-            }
-            // A miss is not a data error: the file is fine, the search found
-            // nothing. Usage stays 0 so an agent can read the candidates and
-            // carry on rather than treating it as a failed run.
-            return CliExit.Ok;
-        }
-
-        // Show each match plus its ancestors, so the agent sees where it sits.
-        const shown = new Set<string>();
-        const entries: ContextEntry[] = [];
-        for (const match of matches) {
-            const chain: JmNode[] = [];
-            let cursor: JmNode | null = match;
-            while (cursor !== null) {
-                chain.unshift(cursor);
-                cursor = cursor.parent;
-            }
-            chain.forEach((node, level) => {
-                if (shown.has(node.id)) {
-                    return;
-                }
-                shown.add(node.id);
-                entries.push({ node, level });
-            });
-        }
-
-        // `emit` puts `highlighted` first in the payload, exactly as it does
-        // for the plain tree. Only the text form needs the block written here,
-        // and without a `fullmap:` heading: this tree is the matches and their
-        // ancestors, not the whole document.
-        if (options.asJson) {
-            emit(entries, options, documentStyle, highlights);
-        } else {
-            writeHighlightBlock(highlights);
-            emit(entries, options, documentStyle, []);
-        }
-        return CliExit.Ok;
-    }
-
     emit(outline(root, options.depth), options, documentStyle, highlights);
     return CliExit.Ok;
 }
@@ -813,7 +681,6 @@ export const contextHelp = `jsmind context <file> [options]
 
 Discovery step: shows the tree so an agent can find the ids it needs.
 
-  --focus <text>      Deprecated: use --highlight
   --highlight <text>  Match a label (case-insensitive) and print its id path;
                       repeatable
   --depth <n>         Levels below the root to show (default ${DEFAULT_DEPTH})
@@ -839,11 +706,6 @@ locator: later commands still take --node-id / --parent-id. --ids-only cannot
 join --highlight in text mode: one prints bare ids, the other prints an id path
 per label. Use --json --ids-only to get the highlighted ids without the labels.
 
---focus is deprecated: fuzzy matching with an ancestor view and a candidate
-list tells an agent where a label might be, not which id to act on, and the id
-is what --highlight answers. It still runs unchanged, and it can be combined
-with --highlight: the highlighted block leads, the focus view follows.
-
 A file that declares its own style is announced above the tree:
   style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 --json returns { nodes: [...] } instead of a bare array, and adds that same
@@ -851,6 +713,4 @@ summary as a style block. Neither appears when the file carries no style, and
 the line is suppressed under --ids-only. Every node in --json carries
 parentId (null on the root), so the flat array states the structure instead of
 leaving it to be inferred from level; under --highlight it also carries the
-requested labels as a highlighted block, first.
-
-When --focus matches nothing, the closest candidates are listed instead.`;
+requested labels as a highlighted block, first.`;

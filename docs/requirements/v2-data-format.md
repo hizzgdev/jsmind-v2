@@ -491,7 +491,7 @@ class SimpleIdGenerator {
 
 **所以：修改类命令只接受 `--node-id` / `--parent-id` 这类精确参数。**
 
-### 8.2 查可以模糊，改必须精确
+### 8.2 查可以宽松，改必须精确
 
 **两件事的精确度要求分开：**
 
@@ -509,14 +509,6 @@ class SimpleIdGenerator {
 
 ② 精确改：  jsmind mind add-child mind.json --parent-id n5 --text "去重"
    ← ✓ added "去重" under 清洗规则 (id: n47)
-```
-
-**`--focus`（已废弃）匹配不到时给候选：**
-
-```
-No node matches "粗暴". Closest:
-  n4   数据清洗
-  n20  数据准备
 ```
 
 ### 8.3 `context` 的输出约束

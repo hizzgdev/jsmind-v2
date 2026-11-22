@@ -90,7 +90,6 @@ export const OPTION_SPEC: ParseArgsOptionsConfig = {
     // document style (mind set-style)
     'default-tone': { type: 'string' },
     // context
-    'focus': { type: 'string' },
     // Repeatable: one flag per label, so a label containing a comma needs no
     // escaping and a caller can assemble the arguments without joining.
     'highlight': { type: 'string', multiple: true },
