@@ -402,12 +402,10 @@ Clearing, when the theme's value should come back:
   --reset                     Drop every override on this node
 
 A style block records only what differs from the theme, so removing a key is what
-restores the theme's value. There is no \`unset\` sentinel - an absent key means an
+restores the theme's value. There is no \`unset\` sentinel — an absent key means an
 absent override. \`--reset\` cannot be combined with fields or \`--clear\`.
 
-Colours are not checked beyond being strings; the theme accepts any CSS colour.
-Tones, patterns and weights are checked here so a bad value names the flag you
-typed rather than a JSON path.`;
+Colours accept any CSS colour: \`#f97316\`, \`rgb(249 115 22)\`, \`orange\`.`;
 
 /**
  * Describes the `node` command group for `--help`.
@@ -426,14 +424,7 @@ side moves anything, and every node below one inherits it. Passing it for the
 root (always center) or for a deeper node is a usage error naming the first-level
 branch, not a write the picture ignores.
 
-${STYLE_FIELDS_HELP}
-
-Why the split: id, parent and children are readonly on the model, so they are only
-reachable through JmMind methods (\`jsmind mind\`). These fields are plain assignments,
-and so is the document's \`mind.style\` written by \`mind set-style\` — the group name
-says which object owns the field, not whether it is a method.
-
-Every subcommand validates the result and rolls back on failure.`;
+${STYLE_FIELDS_HELP}`;
 
 /**
  * Describes the `set-style` subcommand for `--help`.

@@ -8,7 +8,7 @@ import { writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { runCreate, createHelp } from '../../src/cli/commands/create.ts';
-import { HELP } from '../../src/cli/index.ts';
+import { MANUAL } from '../../src/cli/index.ts';
 import { runValidate } from '../../src/cli/commands/validate.ts';
 import { CliError, CliExit } from '../../src/cli/exit.ts';
 import { scratch, capture } from './helpers.ts';
@@ -196,7 +196,7 @@ test('create - the main help summary names the same flag as createHelp', () => {
     // they have already drifted once: --title landed in createHelp while the
     // summary still said --text. Comparing them here makes that a test failure
     // instead of something a reader has to notice.
-    const summary = /jsmind create <file> --(\w[\w-]*)/.exec(HELP);
+    const summary = /jsmind create <file> --(\w[\w-]*)/.exec(MANUAL);
     const detailed = /jsmind create <file> --(\w[\w-]*)/.exec(createHelp);
 
     assert.ok(summary, 'the main help should show a create line');
