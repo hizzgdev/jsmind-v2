@@ -1,12 +1,7 @@
 ---
 name: jsmind
 display_name: jsMind mind maps
-description: >-
-  A work order for drawing or editing a jsmind mind map with the jsmind CLI.
-  Every user-level action is one small recipe: find the node, run one write,
-  validate. Use whenever the task produces or changes a map — building, editing,
-  restyling, exporting, or answering a question about one. Flags are in
-  `jsmind --help`.
+description: "A work order for drawing or editing a jsmind mind map with the jsmind CLI. Every user-level action is one small recipe: find the node, run one write, validate. Use whenever the task produces or changes a map — building, editing, restyling, exporting, or answering a question about one. Flags are in `jsmind --help`."
 version: 2.1.0
 metadata:
   jsmind:
@@ -25,23 +20,23 @@ bypasses `write → validate → rollback`, the only thing between you and a cor
 as `npx jsmind@2`; bare `npx jsmind` resolves to 1.x, which ships no `bin`. Installation is in
 [INSTALL.md](INSTALL.md).
 
-Which command owns what: `mind` owns structure and edges — add a child, move, remove, add or remove an
-edge — plus the document style; `node` owns one node's own fields — text, side, folded, style;
-`create`, `validate`, `export` and `context` sit at the top level. If you are looking for a command and
-it is not in the table below, that split is usually why.
+Which command owns what: `mind` owns structure — add a child, move, remove — plus the document style;
+`node` owns one node's own fields — text, side, folded, style; `create`, `validate`, `export` and
+`context` sit at the top level. If you are looking for a command and it is not in the table below,
+that split is usually why.
 
 ## Find: a label the user said → the id a command needs
 
 ```
-$ jsmind context map.json --highlight "地球"
+$ jsmind context map.json --highlight "Earth"
 highlighted:
-  "地球" -> "root"/"jm-mws4xqjr"
+  "Earth" -> "root"/"jm-mws4xqjr"
 
 fullmap:
-root          太阳系 {side=center}
-jm-mws4xqjr     地球 {side=left}
-jm-mws4xr1g       月球（卫星）
-jm-mws4xrqq     火星 {side=left}
+root            Solar system {side=center}
+jm-mws4xqjr       Earth {side=left}
+jm-mws4xr1g         Moon
+jm-mws4xrqq       Mars {side=left}
 ```
 
 - The id is **the last one on the line**. Everything before it is the path, not the answer.
@@ -52,7 +47,7 @@ jm-mws4xrqq     火星 {side=left}
   `fullmap:`.
 - `(+N more)`: several nodes share the label, and the id given is the first in document order. Use a
   longer label that only one node has.
-- Repeatable: `--highlight "地球" --highlight "火星"` answers both, one line each.
+- Repeatable: `--highlight "Earth" --highlight "Mars"` answers both, one line each.
 - `--ids-only` cannot be combined with `--highlight` in text mode (exit 2); add `--json` for ids
   without labels.
 - Labels over 40 characters print with an ellipsis; `--full-text` when the long label is the target.
@@ -74,8 +69,6 @@ earlier round, and never take one from a tree you remember.
 | a first-level branch on the other side | `node set-side map.json --node-id <id> --side left\|right` |
 | collapse or expand X | `node set-folded map.json --node-id <id> --folded true\|false` |
 | delete X | `mind remove-node map.json --node-id <id>` |
-| a relation between X and Y | `mind add-edge map.json --source-id <id> --target-id <id> [--type link] [--label "..."]` |
-| remove a relation | `mind remove-edge map.json --edge-id <id>` |
 | colour one node | `node set-style map.json --node-id <id> --tone <tone>` |
 | restyle the whole map | `mind set-style map.json --default-tone <tone>` |
 | a picture | `validate map.json`, then `export map.json out.png` |
@@ -93,7 +86,7 @@ Five of those need more than the table says:
 - **move**: *find* twice, once for the node and once for the parent. `--position` is an index among
   the parent's children; past the end it appends. `--side` writes a side on anything that is not a
   root child and changes the file without changing the picture — `mind move` is the command there.
-- **delete**: takes the subtree and every edge touching any of it. Nothing asks twice.
+- **delete**: takes the subtree with it — children and grandchildren go too, and nothing asks twice.
 - **answer**: `--json` obeys the same `--depth` limit as the printed tree, so a node count taken
   without it loses the deepest level; pass `--depth <n>` when the answer needs the whole tree. Reading
   is not a change: no write in a question.
@@ -103,9 +96,9 @@ Five of those need more than the table says:
 - A tone is the theme's named pair — a box fill plus the text colour drawn on it. Seven of them:
   `default primary success warning danger info accent`. "Make Earth blue" is `--tone primary`: the box
   turns blue and the label stays legible.
-- `--background` fills the box, `--color` paints the text, `--border-color` draws the edge. Each
-  overrides one part and leaves the rest to the tone, so `--color blue` on a `primary` box is blue
-  text on blue. Reach for them when the user names a colour no tone has, or when two nodes must
+- `--background` fills the box, `--color` paints the text, `--border-color` draws the box outline.
+  Each overrides one part and leaves the rest to the tone, so `--color blue` on a `primary` box is
+  blue text on blue. Reach for them when the user names a colour no tone has, or when two nodes must
   differ inside one tone.
 - Precedence is node `tone` > document `defaultTone` > `default`, so a node's tone is visible only
   when it differs from the document's. "Make the whole map warm" is `mind set-style`, not an override
@@ -160,8 +153,6 @@ node set-style <file> --node-id <id> --font-size <n>
 node set-text <file> --node-id <id> --text <label>
 mind remove-node <file> --node-id <id>
 mind move <file> --node-id <id> --parent-id <id> [--position <n>]
-mind add-edge <file> --source-id <id> --target-id <id> [--type link] [--label <label>]
-mind remove-edge <file> --edge-id <id>
 ```
 
 ## Not on this page
