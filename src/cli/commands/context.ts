@@ -52,12 +52,14 @@ export interface ContextOptions {
     idsOnly: boolean;
     asJson: boolean;
     /**
-     * Labels to locate by exact text, in the order they were given.
+     * Labels to locate by their text, in the order they were given.
      *
      * @remarks
      * Repeated `--highlight` flags arrive here as a list. Locating by text is
      * the one thing an agent knows before it knows any id; it does not change
      * what any later command targets, so ids are still what gets copied out.
+     * Matching ignores case, so one label asked for in two spellings is one
+     * question and is answered once.
      */
     highlight?: string[];
 }
@@ -155,9 +157,9 @@ function idPath(node: JmNode): string {
 interface Highlight {
     /** The text the caller asked for, echoed unchanged. */
     text: string;
-    /** The first node carrying that exact label, or `null` on a miss. */
+    /** The first node carrying that label, or `null` on a miss. */
     entry: ContextEntry | null;
-    /** How many nodes carry that exact label. */
+    /** How many nodes carry that label, in any capitalisation. */
     matches: number;
 }
 
@@ -168,20 +170,25 @@ interface Highlight {
  * @param requests - Labels to look up, already de-duplicated.
  * @returns One result per request, in the order asked.
  * @remarks
- * Matching is exact and case-sensitive against the label as printed (flattened
- * whitespace): a near-miss is reported as a miss rather than guessed at, since
- * the caller's next move is an id and a guessed id edits the wrong node.
+ * Matching is whole-label but not case-sensitive, the same way `--focus`
+ * matches: labels are typed by people, and `Customer Service` and
+ * `customer service` are one label with two capitalisations, not two labels.
+ * A near-miss in any other respect is reported as a miss rather than guessed
+ * at, since the caller's next move is an id and a guessed id edits the wrong
+ * node.
  *
  * The search is the whole document, not the levels `--depth` prints. That is
  * the point of the flag: the target may be deeper than a readable tree.
  *
  * A label carried by more than one node resolves to the first in document
  * order. The count travels with the result so callers can tell a unique hit
- * from an ambiguous one and go narrow it down with `--focus`.
+ * from an ambiguous one and go narrow it down with `--highlight` on a more
+ * specific label.
  */
 function resolveHighlights(nodes: JmNode[], requests: string[]): Highlight[] {
     return requests.map(text => {
-        const hits = nodes.filter(node => flatten(textOf(node)) === text);
+        const needle = text.toLowerCase();
+        const hits = nodes.filter(node => flatten(textOf(node)).toLowerCase() === needle);
         const first = hits[0];
         return {
             text,
@@ -538,6 +545,28 @@ function renderHighlights(highlights: Highlight[]): string[] {
 }
 
 /**
+ * Writes the text form of the highlighted block, heading and trailing blank
+ * line included, or nothing when the flag was not given.
+ *
+ * @param highlights - Resolved requests, in the order asked.
+ * @remarks
+ * One writer for both text layouts: the plain tree and the `--focus` view.
+ * The block is the answer to the question the caller asked, so it leads in
+ * either one; the trailing blank line keeps it from running into whatever
+ * follows.
+ */
+function writeHighlightBlock(highlights: Highlight[]): void {
+    if (highlights.length === 0) {
+        return;
+    }
+    process.stdout.write('highlighted:\n');
+    for (const line of renderHighlights(highlights)) {
+        process.stdout.write(`${line}\n`);
+    }
+    process.stdout.write('\n');
+}
+
+/**
  * Builds the `highlighted` object for `--json`.
  *
  * @param highlights - Resolved requests, in the order asked.
@@ -604,9 +633,22 @@ export function runContext(options: ContextOptions): number {
     // --highlight: locate labels by their text. Resolved here rather than in
     // the emitters because the answer does not depend on which levels the tree
     // is about to print — the search always covers the whole document.
-    const requested = [...new Set(options.highlight ?? [])];
-    if (requested.some(text => text.length === 0)) {
-        throw usageError('--highlight needs a text to match');
+    //
+    // De-duplicated on the folded label rather than the raw string: matching
+    // ignores case, so `earth` and `Earth` are one question and asking twice
+    // would print the same answer twice.
+    const requested: string[] = [];
+    const seen = new Set<string>();
+    for (const text of options.highlight ?? []) {
+        if (text.length === 0) {
+            throw usageError('--highlight needs a text to match');
+        }
+        const key = text.toLowerCase();
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        requested.push(text);
     }
     const highlights = resolveHighlights(every, requested);
 
@@ -622,37 +664,30 @@ export function runContext(options: ContextOptions): number {
         );
     }
 
-    // --focus: show matches and their surrounding structure.
+    // --focus: show matches and their surrounding structure. Deprecated, and
+    // still runs unchanged: it answers with ancestors and a fuzzy candidate
+    // list, neither of which an agent can turn into an id, which is exactly
+    // what `--highlight` does. The two are no longer exclusive — each flag
+    // keeps its own promise, and the highlighted block still leads.
     if (options.focus !== undefined && options.focus.length > 0) {
-        if (highlights.length > 0) {
-            // `--focus` already answers where a label sits, together with its
-            // ancestors and a fuzzy fallback. Running both would print two
-            // different answers to the same question, and a caller reading only
-            // the first would conclude the map has one shape.
-            throw usageError(
-                '--focus and --highlight answer the same question; use one of them'
-            );
-        }
         const matches = matchNodes(every, options.focus);
 
         if (matches.length === 0) {
             const candidates = suggest(every, options.focus);
             if (options.asJson) {
-                process.stdout.write(
-                    `${JSON.stringify(
-                        {
-                            matched: false,
-                            focus: options.focus,
-                            candidates: candidates.map(node => ({
-                                id: node.id,
-                                text: clip(flatten(textOf(node)), options.maxText, options.fullText),
-                            })),
-                        },
-                        null,
-                        2
-                    )}\n`
-                );
+                const payload: Record<string, unknown> = {};
+                if (highlights.length > 0) {
+                    payload.highlighted = highlightPayload(highlights, options);
+                }
+                payload.matched = false;
+                payload.focus = options.focus;
+                payload.candidates = candidates.map(node => ({
+                    id: node.id,
+                    text: clip(flatten(textOf(node)), options.maxText, options.fullText),
+                }));
+                process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
             } else {
+                writeHighlightBlock(highlights);
                 process.stderr.write(`No node matches "${options.focus}".`);
                 if (candidates.length > 0) {
                     process.stderr.write(' Candidates from the top of the tree:\n');
@@ -689,7 +724,16 @@ export function runContext(options: ContextOptions): number {
             });
         }
 
-        emit(entries, options, documentStyle, []);
+        // `emit` puts `highlighted` first in the payload, exactly as it does
+        // for the plain tree. Only the text form needs the block written here,
+        // and without a `fullmap:` heading: this tree is the matches and their
+        // ancestors, not the whole document.
+        if (options.asJson) {
+            emit(entries, options, documentStyle, highlights);
+        } else {
+            writeHighlightBlock(highlights);
+            emit(entries, options, documentStyle, []);
+        }
         return CliExit.Ok;
     }
 
@@ -736,13 +780,10 @@ function emit(
     }
 
     if (highlights.length > 0) {
-        process.stdout.write('highlighted:\n');
-        for (const line of renderHighlights(highlights)) {
-            process.stdout.write(`${line}\n`);
-        }
-        // A blank line between the answer and the map it was found in, then the
-        // tree under its own heading so the two sections cannot be confused.
-        process.stdout.write('\nfullmap:\n');
+        writeHighlightBlock(highlights);
+        // The tree under its own heading, so the answer and the map it was
+        // found in cannot be confused.
+        process.stdout.write('fullmap:\n');
     }
 
     // Not under --ids-only: that flag asks for ids and nothing else, and a
@@ -770,8 +811,9 @@ export const contextHelp = `jsmind context <file> [options]
 
 Discovery step: shows the tree so an agent can find the ids it needs.
 
-  --focus <text>      Fuzzy-match node text; shows matches with their ancestors
-  --highlight <text>  Exact-match a label and print its id path (repeatable)
+  --focus <text>      Deprecated: use --highlight
+  --highlight <text>  Match a label (case-insensitive) and print its id path;
+                      repeatable
   --depth <n>         Levels below the root to show (default ${DEFAULT_DEPTH})
   --max-text <n>      Truncate labels at n characters (default ${DEFAULT_MAX_TEXT})
   --full-text         Do not truncate
@@ -784,16 +826,21 @@ Each line may end with a {…} block. side is shown only for the root and the
 root's direct children. folded appears when the node is collapsed, and style
 overrides appear when the node differs from the theme.
 
---highlight takes a label you already know and answers with the id: the text
-is compared exactly against the whole document (not truncated, not just the
-levels --depth prints) and a miss prints (no match) rather than a guess. Repeat
-the flag for several labels; each gets its own line. The block leads the
-output, above the tree, and a label carried by more than one node resolves to
-the first in document order and is marked as shared. It is a locator: later
-commands still take --node-id / --parent-id. --focus and --highlight answer the
-same question, so only one of them may be given, and --ids-only cannot join
---highlight in text mode: one prints bare ids, the other prints an id path per
-label. Use --json --ids-only to get the highlighted ids without the labels.
+--highlight takes a label you already know and answers with the id: the text is
+compared whole-label and case-insensitively against the whole document (not
+truncated, not just the levels --depth prints), and a miss prints (no match)
+rather than a guess. Repeat the flag for several labels; each gets its own
+line, and one label asked for in two spellings is answered once. The block
+leads the output, above the tree, and a label carried by more than one node
+resolves to the first in document order and is marked as shared. It is a
+locator: later commands still take --node-id / --parent-id. --ids-only cannot
+join --highlight in text mode: one prints bare ids, the other prints an id path
+per label. Use --json --ids-only to get the highlighted ids without the labels.
+
+--focus is deprecated: fuzzy matching with an ancestor view and a candidate
+list tells an agent where a label might be, not which id to act on, and the id
+is what --highlight answers. It still runs unchanged, and it can be combined
+with --highlight: the highlighted block leads, the focus view follows.
 
 A file that declares its own style is announced above the tree:
   style: theme=default defaultTone=primary overrides=defaultTone,tones,node

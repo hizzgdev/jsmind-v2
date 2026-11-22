@@ -1418,28 +1418,141 @@ test('cli - context says nothing about highlighting when the flag is absent', ()
     }
 });
 
-test('cli - context refuses --focus together with --highlight', () => {
+test('cli - context --highlight ignores case, and asks one question once', () => {
+    // Labels are typed by people: `Customer Service` and `customer service`
+    // are one label with two capitalisations, not two labels. A case-sensitive
+    // match would answer (no match) and send the caller hunting for a node
+    // that is right there. And because matching folds case, asking for both
+    // spellings is one question, so the same answer is not printed twice.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+    doc.nodes['jm-b1'].content.value = 'Customer Service';
+    writeFileSync(file, JSON.stringify(doc, null, 4));
+    try {
+        const text = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+                highlight: ['customer service', 'CUSTOMER SERVICE'],
+            });
+        });
+        const block = text.out.slice(text.out.indexOf('highlighted:'), text.out.indexOf('fullmap:'));
+        const answers = block.split('\n').filter(line => line.includes('->'));
+        assert.strictEqual(answers.length, 1, 'two spellings of one label are one question');
+        assert.match(answers[0], /"customer service" -> "root"\/"jm-a1"\/"jm-b1"/);
+
+        const json = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+                highlight: ['CUSTOMER SERVICE'],
+            });
+        });
+        const hit = JSON.parse(json.out).highlighted['CUSTOMER SERVICE'];
+        assert.strictEqual(hit.id, 'jm-b1', 'the stored capitalisation is not the needle');
+        assert.ok(!('matches' in hit), 'a unique label carries no count');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context keeps --highlight when --focus is also given', () => {
+    // --focus is deprecated and no longer exclusive. Dropping --highlight
+    // silently would be the "flag accepted but did nothing" trap the reviewer
+    // named for `export --output`; each flag keeps its own promise instead.
     const dir = scratch();
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
     try {
-        assert.throws(
-            () => {
-                capture(() => {
-                    runContext({
-                        file,
-                        focus: '清洗',
-                        depth: 2,
-                        maxText: 40,
-                        fullText: false,
-                        idsOnly: false,
-                        asJson: false,
-                        highlight: ['清洗规则'],
-                    });
-                });
-            },
-            (err: unknown) => err instanceof CliError && err.exit === CliExit.Usage
+        const { out } = capture(() => {
+            runContext({
+                file,
+                focus: '清洗',
+                depth: 2,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+                highlight: ['模型选择'],
+            });
+        });
+        assert.strictEqual(out.split('\n')[0], 'highlighted:', 'the answer still leads');
+        assert.match(out, /"模型选择" -> "root"\/"jm-a2"/);
+        assert.ok(out.includes('jm-b1'), 'the focus view still shows the match and its ancestors');
+        assert.ok(!out.includes('fullmap:'), 'the focus view is not the whole map');
+
+        const json = capture(() => {
+            runContext({
+                file,
+                focus: '清洗',
+                depth: 2,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+                highlight: ['模型选择'],
+            });
+        });
+        const payload = JSON.parse(json.out);
+        assert.strictEqual(payload.highlighted['模型选择'].id, 'jm-a2');
+        assert.ok(!('focus' in payload), 'a focus hit keeps the tree shape');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context keeps --highlight when --focus matches nothing', () => {
+    // The miss payload answers the focus question; the highlighted block still
+    // answers the one the caller asked with --highlight. Dropping it here would
+    // make the answer depend on an unrelated flag missing.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const text = capture(() => {
+            runContext({
+                file,
+                focus: 'zzzzz-no-such-text',
+                depth: 2,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+                highlight: ['模型选择'],
+            });
+        });
+        assert.match(text.out, /"模型选择" -> "root"\/"jm-a2"/);
+        assert.match(text.err, /No node matches/);
+
+        const json = capture(() => {
+            runContext({
+                file,
+                focus: 'zzzzz-no-such-text',
+                depth: 2,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+                highlight: ['模型选择'],
+            });
+        });
+        const payload = JSON.parse(json.out);
+        assert.deepStrictEqual(
+            Object.keys(payload),
+            ['highlighted', 'matched', 'focus', 'candidates'],
+            'the block leads, the miss payload follows'
         );
+        assert.strictEqual(payload.highlighted['模型选择'].id, 'jm-a2');
+        assert.strictEqual(payload.matched, false);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
