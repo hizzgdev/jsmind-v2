@@ -126,7 +126,7 @@ Discovery step: shows the tree so you (or an agent) can find the ids needed for 
 
 Ids are printed in a left-aligned column so they can be copied into the next command. Multi-line labels are flattened, and truncation ends in an ellipsis. Each line may end with a `{…}` block. `side` is shown only for the root and the root's direct children. `folded` appears when the node is collapsed, and style overrides appear when the node differs from the theme.
 
-`--highlight` covers the step where the label is already known and only the id is missing: the text is compared **exactly** against the printed label (not the truncated form, no fuzzy matching), across the whole document rather than just the levels `--depth` shows. A hit is listed first as `"text" -> "root"/"id"`; a miss prints `(no match)` instead of a guess or a candidate list. A label carried by more than one node resolves to the first in document order and is marked `(+N more)`. `--focus` and `--highlight` answer the same question, so only one may be given.
+`--highlight` covers the step where the label is already known and only the id is missing: the text is compared **exactly** against the printed label (not the truncated form, no fuzzy matching), across the whole document rather than just the levels `--depth` shows. A hit is listed first as `"text" -> "root"/"id"`; a miss prints `(no match)` instead of a guess or a candidate list. A label carried by more than one node resolves to the first in document order and is marked `(+N more)`. `--focus` and `--highlight` answer the same question, so only one may be given. `--highlight` also refuses `--ids-only` in text mode: `--ids-only` prints one bare id per line, `--highlight` prints an id path per label, and the block cannot sit inside that shape. Add `--json` to get the highlighted ids without the labels.
 
 A file that declares its own document style is announced above the tree, so the theme is discoverable before any node is read (`Since: 2.1.0`):
 
@@ -134,7 +134,7 @@ A file that declares its own document style is announced above the tree, so the 
 style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 ```
 
-`--json` returns an object with a `nodes` array, where every node carries `parentId` (`null` on the root), so the parent-child relation does not have to be inferred from the order of `level` (`Since: 2.2.0`). With `--highlight` it also carries a `highlighted` block first, whose hits are the same node object as in `nodes` and whose misses keep their key with `null`. It adds the same summary as a top-level `style` block (`theme`, `defaultTone`, `overrides`) when the file carries one. Neither appears for a file with no document style, and the text line is suppressed under `--ids-only`.
+`--json` returns an object with a `nodes` array, where every node carries `parentId` (`null` on the root), so the parent-child relation does not have to be inferred from the order of `level` (`Since: 2.2.0`). With `--highlight` it also carries a `highlighted` block first, whose hits have the same shape as a node in `nodes` and whose misses keep their key with `null`. Same shape, not necessarily the same entry: a label found below `--depth` is not listed under `nodes`, and a shared label adds a `matches` count. It adds the same summary as a top-level `style` block (`theme`, `defaultTone`, `overrides`) when the file carries one. Neither appears for a file with no document style, and the text line is suppressed under `--ids-only`.
 
 When `--focus` matches nothing, the closest candidates are listed instead.
 

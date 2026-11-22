@@ -504,7 +504,9 @@ function isWide(code: number): boolean {
         (code >= 0xff00 && code <= 0xff60) ||
         (code >= 0xffe0 && code <= 0xffe6) ||
         (code >= 0x1f300 && code <= 0x1f64f) ||
+        (code >= 0x1f680 && code <= 0x1f6ff) ||
         (code >= 0x1f900 && code <= 0x1f9ff) ||
+        (code >= 0x1fa70 && code <= 0x1faff) ||
         (code >= 0x20000 && code <= 0x3fffd)
     );
 }
@@ -555,19 +557,24 @@ function highlightPayload(
     highlights: Highlight[],
     options: ContextOptions
 ): Record<string, unknown> {
-    const payload: Record<string, unknown> = {};
+    // Entries rather than assignment onto `{}`: a requested label is arbitrary
+    // user text, and `payload['__proto__'] = null` on a plain object runs the
+    // prototype setter instead of creating a key, so that miss would vanish and
+    // break both promises above. `Object.fromEntries` defines own properties,
+    // which is what `JSON.stringify` reads.
+    const pairs: [string, unknown][] = [];
     for (const hit of highlights) {
         if (hit.entry === null) {
-            payload[hit.text] = null;
+            pairs.push([hit.text, null]);
             continue;
         }
         const described = describeEntry(hit.entry, options);
         if (hit.matches > 1) {
             described.matches = hit.matches;
         }
-        payload[hit.text] = described;
+        pairs.push([hit.text, described]);
     }
-    return payload;
+    return Object.fromEntries(pairs);
 }
 
 /**
@@ -602,6 +609,18 @@ export function runContext(options: ContextOptions): number {
         throw usageError('--highlight needs a text to match');
     }
     const highlights = resolveHighlights(every, requested);
+
+    // --ids-only asks for ids and nothing else: one bare id per line, the one
+    // shape a script can feed to `xargs` without parsing. The highlighted block
+    // is a heading, indented quoted paths and a blank line, so the two cannot
+    // share stdout. Rejected as a usage error rather than resolved into a third
+    // output shape; `--json --ids-only` keeps the highlighted ids and drops
+    // only the labels.
+    if (options.idsOnly && !options.asJson && highlights.length > 0) {
+        throw usageError(
+            '--ids-only prints one id per line and --highlight prints an id path per label; drop one of them, or add --json to keep the highlighted block'
+        );
+    }
 
     // --focus: show matches and their surrounding structure.
     if (options.focus !== undefined && options.focus.length > 0) {
@@ -772,7 +791,9 @@ the flag for several labels; each gets its own line. The block leads the
 output, above the tree, and a label carried by more than one node resolves to
 the first in document order and is marked as shared. It is a locator: later
 commands still take --node-id / --parent-id. --focus and --highlight answer the
-same question, so only one of them may be given.
+same question, so only one of them may be given, and --ids-only cannot join
+--highlight in text mode: one prints bare ids, the other prints an id path per
+label. Use --json --ids-only to get the highlighted ids without the labels.
 
 A file that declares its own style is announced above the tree:
   style: theme=default defaultTone=primary overrides=defaultTone,tones,node

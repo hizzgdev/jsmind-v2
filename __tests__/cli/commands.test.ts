@@ -1387,7 +1387,9 @@ test('cli - context --highlight reuses the node shape, parentId included', () =>
         const payload = JSON.parse(out);
         const hit = payload.highlighted['清洗规则'];
         const sameNode = payload.nodes.find((entry: { id: string }) => entry.id === hit.id);
-        assert.deepStrictEqual(hit, sameNode, 'the highlighted value is the same node object');
+        // The same shape, not necessarily the same entry: a hit deeper than
+        // --depth is absent from `nodes`, and a shared label adds `matches`.
+        assert.deepStrictEqual(hit, sameNode, 'the highlighted value has the same shape as the node');
         assert.strictEqual(hit.parentId, 'jm-a1');
         assert.strictEqual(hit.level, 2);
         assert.ok(!('matches' in hit), 'a unique label carries no count');
@@ -1465,6 +1467,154 @@ test('cli - context refuses an empty --highlight', () => {
                 });
             },
             (err: unknown) => err instanceof CliError && err.exit === CliExit.Usage
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context --ids-only keeps one bare id per line and refuses --highlight', () => {
+    // --ids-only is the one output a script can hand to xargs without parsing,
+    // and the highlighted block is headings, quoted paths and a blank line. The
+    // two cannot share stdout, so the combination is a usage error rather than
+    // a third shape nothing can rely on.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({ file, depth: 3, maxText: 40, fullText: false, idsOnly: true, asJson: false });
+        });
+        assert.deepStrictEqual(
+            out.split('\n').filter(line => line !== ''),
+            ['root', 'jm-a1', 'jm-b1', 'jm-a2'],
+            'each line is exactly one id: no heading, no quoted path, no blank line'
+        );
+
+        assert.throws(
+            () => {
+                capture(() => {
+                    runContext({
+                        file,
+                        depth: 3,
+                        maxText: 40,
+                        fullText: false,
+                        idsOnly: true,
+                        asJson: false,
+                        highlight: ['清洗规则'],
+                    });
+                });
+            },
+            (err: unknown) => err instanceof CliError && err.exit === CliExit.Usage,
+            'the two flags ask for different shapes of stdout'
+        );
+
+        // The machine-readable path keeps working: the ids are there, the
+        // labels are what --ids-only drops.
+        const json = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: true,
+                asJson: true,
+                highlight: ['清洗规则'],
+            });
+        });
+        const hit = JSON.parse(json.out).highlighted['清洗规则'];
+        assert.strictEqual(hit.id, 'jm-b1');
+        assert.ok(!('text' in hit), '--ids-only still drops labels under --json');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context --json keeps a __proto__ miss as an own key', () => {
+    // A label is arbitrary user text, and `__proto__` is the one key plain
+    // assignment swallows: the miss would be dropped and read as "never asked",
+    // which is exactly the distinction the keep-the-key-with-null rule carries.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+                highlight: ['__proto__', 'constructor', 'toString', '清洗规则'],
+            });
+        });
+        const payload = JSON.parse(out);
+        assert.deepStrictEqual(
+            Object.keys(payload.highlighted),
+            ['__proto__', 'constructor', 'toString', '清洗规则'],
+            'every request keeps its key, in the order asked'
+        );
+        assert.strictEqual(
+            Object.getOwnPropertyDescriptor(payload.highlighted, '__proto__')?.value,
+            null,
+            'the miss is an own property, not the prototype'
+        );
+        assert.strictEqual(payload.highlighted['清洗规则'].id, 'jm-b1');
+
+        const text = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+                highlight: ['__proto__'],
+            });
+        });
+        assert.match(text.out, /^ {2}"__proto__" -> \(no match\)$/m, 'the text form reports it too');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context lines the highlight arrows up across CJK and latin labels', () => {
+    // The padding exists for the arrows only, and a CJK character is two
+    // columns wide: padding by string length would leave the block ragged. One
+    // latin miss between two CJK hits exercises both the wide measure and the
+    // short line that gets padded.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+                highlight: ['清洗规则', 'earth', '模型选择'],
+            });
+        });
+        const block = out.slice(out.indexOf('highlighted:'), out.indexOf('fullmap:'));
+        const lines = block.split('\n').filter(line => line.startsWith('  '));
+        assert.deepStrictEqual(lines, [
+            '  "清洗规则" -> "root"/"jm-a1"/"jm-b1"',
+            '  "earth"    -> (no match)',
+            '  "模型选择" -> "root"/"jm-a2"',
+        ]);
+        // Compare columns, not string indexes: one CJK character is one JS
+        // character but two terminal columns, so widen each of them before
+        // asking indexOf where the arrow starts.
+        const columns = (text: string): number =>
+            text.replace(/[\u2e80-\u9fff\uff00-\uffef]/g, char => `${char} `).indexOf(' -> ');
+        const arrows = lines.map(columns);
+        assert.ok(
+            arrows.every(at => at === arrows[0]),
+            `every arrow starts in the same column: ${JSON.stringify(arrows)}`
         );
     } finally {
         rmSync(dir, { recursive: true, force: true });
