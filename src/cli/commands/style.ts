@@ -170,6 +170,11 @@ export function runSetStyle(
 export const STYLE_FIELDS_HELP = `Accepted tone names are read from the model's own enum, so this list cannot fall
 behind it:
 
+\`--default-tone\` picks one of the theme's named pairs: a box fill, and the text
+colour drawn on it, so labels stay readable on the fill. The colour flags of
+\`node set-style\` override a single part instead — \`--background\` does not
+adjust the text colour.
+
   --default-tone <tone>       ${TONE_WORDS.join(' | ')}
 
 A node's own \`style.tone\` wins over \`defaultTone\`. Every node without an explicit

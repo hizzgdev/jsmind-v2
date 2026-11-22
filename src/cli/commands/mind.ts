@@ -339,7 +339,7 @@ are ids only.
   add-edge      --source-id <id> --target-id <id>    Add a relation (JmMind.addEdge)
                 [--type link] [--label <text>]
   remove-edge   --edge-id <id>                       Remove a relation
-  set-style     --default-tone <tone>                The document's style (mind.style)
+  set-style     --default-tone <tone>                The tone every untoned node inherits (mind.style)
 
 --side applies only when the parent is the root node. A side is the placement of
 a root child, and every node below one inherits it, so a side written anywhere
