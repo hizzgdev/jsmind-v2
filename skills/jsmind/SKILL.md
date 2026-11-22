@@ -1,135 +1,100 @@
 ---
 name: jsmind
 display_name: jsMind mind maps
-description: >-
-  Guardrails and a checklist for drawing or editing a jsMind mind map with the
-  jsmind CLI. Use whenever the task produces or changes a mind map: a new map
-  (BUILD), a change to an existing one (CHANGE), and a bare "draw me a picture
-  of X" that names no path and does not say BUILD or CHANGE. Not a CLI manual —
-  do not use it to look up flags that --help already covers. `jsmind --help`
-  prints every subcommand in one place, so when you need one, read that
-  subcommand's section of it.
-version: 2.0.4
+description: "A work order for drawing or editing a jsmind mind map with the jsmind CLI. Every user-level action is one small recipe: find the node, run one write, validate. Use whenever the task produces or changes a map — building, editing, restyling, exporting, or answering a question about one. Flags are in `jsmind --help`."
+version: 2.1.0
 metadata:
   jsmind:
     cli: ">=2.1.0 <3"
 ---
 
-# jsmind — bans and a checklist
+# jsmind — one recipe per action
 
-Not a CLI manual. Does not replace `jsmind --help`. Does not decide structure — you do that before you call. It only sets three things: what you must not do, which steps you must not skip, and what to look for in the picture.
+Everything this CLI does is three steps: **find the node, write, validate**. The actions below differ only in the middle step, so finding is described once and then referred to as *find*.
 
-The bans and the checkpoints below are the body. The command list at the end is not a tutorial and not optional background. It is the few lines you are most likely to forget. Do not skip it because you already know the CLI.
+**Do not write the map file yourself** — no editor, redirect, script, or read-modify-write. That bypasses `write → validate → rollback`, the only thing between you and a corrupted map.
 
-Installing this skill, and the CLI it calls, is in [INSTALL.md](INSTALL.md).
+`jsmind` below is the CLI on your PATH. Installed as a project dependency instead, run every command as `npx jsmind@2`; bare `npx jsmind` resolves to 1.x, which ships no `bin`. Installation is in [INSTALL.md](INSTALL.md).
 
-## Inputs (missing either one: fill it in before you start)
+Which command owns what: `mind` owns structure — add a child, move, remove — plus the document style; `node` owns one node's own fields — text, side, folded, style; `create`, `validate`, `export` and `context` sit at the top level. If you are looking for a command and it is not in the table below, that split is usually why.
 
-- **Path**: one `.json`, and the corresponding `.png` for export.
-- **Intent**: `BUILD` (new structure on an empty map) or `CHANGE` (edit an existing map). If the user does not name either, pick the one that fits: no existing map, or they asked you to draw a new picture → `BUILD`; they asked you to change a map that already exists → `CHANGE`.
-
-The user gave a path: use it. A path given in the task description counts as the user's path — use it as given, and do not redirect it.
-
-The user gave no path: write both files in the current working directory, named after the topic. "Draw me a map of the three storage tiers" becomes `storage-tiers.json` and `storage-tiers.png` — lower-case words joined by hyphens, one topic, one name. Do not reach for the system temporary directory, and do not invent a subdirectory for them.
-
-File does not exist, and the intent is `BUILD`: `create` that path. `create` does not make the parent directory, so a path whose directory is missing fails with `ENOENT` and exit code 3 — create the directory first. Do not write the JSON yourself. File already exists: do not `create --force`. That overwrites. It is not an edit.
-
-## Structure (short)
-
-- Keep node text short. Avoid long sentences.
-- Do not give the root too many direct children. Suggest no more than 7.
-- A count or a depth the user asked for ("three branches", "two levels") wins over that 7: build what they asked for, not what you would have chosen.
-
-## Bans
-
-- **Do not write the JSON file directly.** No editor, redirect, script, or read-modify-write. That bypasses `write → validate → rollback`.
-- **Do not bypass `jsmind`.** Add or remove nodes, change text, change side, fold, change style: all through `jsmind` subcommands.
-- **Do not continue while `validate` is failing.** Exit code is not 0: stop. Do not `export`. Do not start the next round of edits. Get `validate` to pass first.
-- **Read the exit code before you decide what is broken.** Non-zero does not always mean the data is bad, and guessing wrong sends you to edit a file that was never the problem. `1` is invalid data: the report names the nodes, fix those. `2` is a usage error — missing argument, an unknown option under `--strict`, value out of range — so the command is wrong, fix the command and leave the file alone. `3` is an IO or runtime failure, such as a file that does not exist or a missing parent directory: fix the environment, not the mind map.
-
-## Hard checkpoints (in order, do not skip)
-
-One sequence. Nothing later in this file repeats it in short form.
-
-### 1. `context` before any edit
-
-Get the ids, and see what the file contains now. The tree you remember and the tree in the file are often not the same one.
-
-`BUILD`: `context` immediately after `create`. Use the root id it prints. Do not guess an id. `CHANGE`: `context` before you edit. **To locate a node, do not read the tree by eye — run `context --json --highlight "<label>"` and take the id from the answer.** Matching ignores case and covers the whole document, not just the levels printed, and a miss comes back as `null` instead of a guess. Repeatable: `--highlight A --highlight B` answers both. It is a locator, so later commands still take `--node-id` / `--parent-id`. Deeper than the default: add `--depth`.
-
-**Do not skip:** without the ids from this `context`, later commands edit the wrong node, or a node that is already gone.
-
-Do not copy an id yet. The next heading is still this checkpoint.
-
-#### Read that `context` before you copy an id
-
-How to read the CLI output. Not a new step. Skip this and checkpoint 1 is not done.
-
-An id, `folded` or a style override taken out of the text tree is a field parsed from a format built for eyes, and every bullet below is a way that parse goes wrong. When you need the data rather than the picture, run `context --json`: it returns `{ nodes, style? }`, and with `--highlight` a `highlighted` block first that maps each requested label to its node object or `null`. Under `nodes` every node has `id`, `parentId` (`null` on the root), `level` and `text`, plus `side` for the root and its direct children, `folded` when the node is folded, and `style` when the node overrides the theme. `parentId` is the parent link: use it instead of inferring the tree from the order of `level`. The document-level `style` block (when the file declares one) carries `theme`, `defaultTone` and `overrides` — a file that names a `defaultTone` is coloured by it, so an untoned node is not necessarily `default`. The text form below is for seeing the tree.
-
-- The id is at the start of the line. The text on that same line is that id's label. The status block at the end of the line contains `side` only for the root and the root's direct children, and `folded` when the node is folded. This only locates a node. It does not replace looking at the picture.
-- `--highlight` prints `"label" -> "root"/…/<id>`. The id to act on is **the last one on that line**. `(no match)` means the file has no such label: search again with a shorter or differently spelled label, and never fall back to an id you remember from an earlier round. `(+N more)` means several nodes share the label — the id given is the first in document order, so choose a more specific label rather than assuming that is the node you meant.
-- The label is cut to an ellipsis, and you are about to change that text: run `context` again with `--full-text`. Still checkpoint 1.
-- After `validate` passes (checkpoint 2), run `context` again. A child must be indented under its parent. Wrong indent means the pair is not the one you wanted. Back to checkpoint 1. Do not `export`.
-
-#### This round of `mind` / `node` edits
-
-After checkpoint 1, before checkpoint 2. A round may be several commands. The round is over when you are about to look at the picture, or about to start a different kind of edit. Then checkpoint 2.
-
-### 2. `validate` after the round
-
-**Do not skip:** a broken file does not show in the command echo. Exit code is not 0: stop. See the bans.
-
-Passing only means the file is legal. It does not mean the parent and child are the pair you wanted. Immediately `context` again and check the indent (previous heading, last bullet). Wrong indent: back to checkpoint 1. Do not `export`.
-
-A failure prints one block per problem — the error code, the path inside the document, and one sentence saying what is wrong there. `validate` reports every problem it finds, not just the first, so the count in the first line is the number of blocks you have to work through:
+## Find: a label the user said → the id a command needs
 
 ```
-$ jsmind validate bad.json
-bad.json: 4 problem(s)
+$ jsmind context map.json --highlight "Earth"
+highlighted:
+  "Earth" -> "root"/"jm-mws4xqjr"
 
-  E_FORMAT  format
-    Expected format "jsmind_v2", got "jsmind".
-  E_META  meta
-    Missing "meta" object.
-  E_NODES_MISSING  nodes
-    Missing "nodes" object.
-  E_EDGES_MISSING  edges
-    Missing "edges" object.
+fullmap:
+root            Solar system {side=center}
+jm-mws4xqjr       Earth {side=left}
+jm-mws4xr1g         Moon
+jm-mws4xrqq       Mars {side=left}
 ```
 
-Fix along the path each block names, then run `validate` on the whole file again. The second run is what counts: a fix can clear one problem and leave the rest.
+- The id is **the last one on the line**. Everything before it is the path, not the answer.
+- Whole label, case-insensitive: `hot` finds `Hot`, `H` finds nothing. Use the label as the tree spells it — `fullmap:` prints the tree in the same output.
+- Searches the whole document regardless of `--depth`, so a deep node is findable without raising it.
+- `(no match)`: the file has no such label. Do not retry a shorter guess; take a label from `fullmap:`.
+- `(+N more)`: several nodes share the label, and the id given is the first in document order. Use a longer label that only one node has.
+- Repeatable: `--highlight "Earth" --highlight "Mars"` answers both, one line each.
+- `--ids-only` cannot be combined with `--highlight` in text mode (exit 2); add `--json` for ids without labels.
+- Labels over 40 characters print with an ellipsis; `--full-text` when the long label is the target.
+- `context` prints two levels and stops. `--depth <n>` raises the limit — `--highlight` ignores it — and nothing warns you when the tree was cut, so a missing grandchild looks like missing data rather than like a display limit.
 
-### 3. `export` and look, once this round's structure is done
+**An id belongs to this version of the file.** After any write, find again; never reuse an id from an earlier round, and never take one from a tree you remember.
 
-This round changed structure (add or remove a node, reparent, change side, fold) and `validate` has passed: `export` a png and open it.
+## The actions
 
-**Do not skip:** a passing `validate` only means the data is legal. It does not mean the picture looks right.
+| the user wants | the command, after *find* |
+|---|---|
+| a new map | `jsmind create map.json --title "..."` |
+| a child under X | `mind add-child map.json --parent-id <id> --text "..." [--side left\|right]` |
+| rename X | `node set-text map.json --node-id <id> --text "..."` |
+| move X under Y | `mind move map.json --node-id <id> --parent-id <id> [--position <n>]` |
+| a first-level branch on the other side | `node set-side map.json --node-id <id> --side left\|right` |
+| collapse or expand X | `node set-folded map.json --node-id <id> --folded true\|false` |
+| delete X | `mind remove-node map.json --node-id <id>` |
+| colour one node | `node set-style map.json --node-id <id> --tone <tone>` |
+| restyle the whole map | `mind set-style map.json --default-tone <tone>` |
+| a picture | `validate map.json`, then `export map.json out.png` |
+| an answer about the map | `context map.json --json [--depth <n>]`, or `mind find map.json --node-id <id>` |
 
-Style only, structure untouched: still `export` once, and confirm the color or font size is actually on the picture.
+Five of those need more than the table says:
 
-Two things about `export` that read like failures and are not. It starts a browser process, so an execution environment that sandboxes child processes may ask for permission, or offer to leave the sandbox, the first time it runs — that is Chromium starting. And it **overwrites an existing output file in place**: running it twice on the same path silently replaces the picture, with no copy kept. Give the second positional a different path, or rename the old file, when both images are wanted. `--output` does not redirect it; `export` takes its output path from the second positional only.
+- **New map**: build the root first, then branch by branch — every `--parent-id` needs an id you already have. Around 7 root children at most, unless the user asked for a count or a depth. Choose the side as you add: `--side` is one word now, one `node set-side` per branch later, and a new root child defaults to the right. `create` does not make parent directories, and `--force` over an existing file is not an edit.
+- **add-child**: the reply `added jm-xxxx under <parent>` carries the new id — use it for the next command instead of finding that node again.
+- **move**: *find* twice, once for the node and once for the parent. `--position` is an index among the parent's children; past the end it appends. `--side` writes a side on anything that is not a root child and changes the file without changing the picture — `mind move` is the command there.
+- **delete**: takes the subtree with it — children and grandchildren go too, and nothing asks twice.
+- **answer**: `--json` obeys the same `--depth` limit as the printed tree, so a node count taken without it loses the deepest level; pass `--depth <n>` when the answer needs the whole tree. Reading is not a change: no write in a question.
 
-### 4. A failed look → back to checkpoint 1
+## Colour: tone first, raw colours are the exception
 
-Any item below fails: `context` again, edit, `validate`, `export`. Do not keep using ids you remember from the previous round.
+- A tone is the theme's named pair — a box fill plus the text colour drawn on it. Seven of them: `default primary success warning danger info accent`. "Make Earth blue" is `--tone primary`: the box turns blue and the label stays legible.
+- `--background` fills the box, `--color` paints the text, `--border-color` draws the box outline. Each overrides one part and leaves the rest to the tone, so `--color blue` on a `primary` box is blue text on blue. Reach for them when the user names a colour no tone has, or when two nodes must differ inside one tone.
+- Precedence is node `tone` > document `defaultTone` > `default`, so a node's tone is visible only when it differs from the document's. "Make the whole map warm" is `mind set-style`, not an override on every node.
+- A style block stores only what differs from the theme: `--clear <flag names, comma-separated>` is how one override comes back, `--reset` drops all of them.
 
-## How to read the picture
+## Rules that outlive one action
 
-Open the png. Each of the four gets a pass or a fail. "Looks fine" and "overall ok" do not count.
+- Every write validates and rolls back on failure. `validate` before `export` is still worth running: it names what is wrong, one block per problem, and lists all of them.
+- Exit codes: `0` done, `1` invalid data or an id not in the file, `2` the command line is wrong, `3` IO or environment. Read the code before deciding what broke.
+- `--backup` keeps `map.json.bak` before writing; `--dry-run` prints what it would write and writes nothing. Both apply to `create`, `mind` and `node`, not to `export`.
+- An option the command does not take is reported on stderr and **ignored**, and the command still exits 0 — a misspelt flag still produces a map. `--strict` turns that into exit 2.
+- `export` takes its output path as the second positional and overwrites it in place; `--output` does not redirect it. Use a second path when both pictures are wanted. It needs Chromium (`CHROME_PATH` for a binary outside the standard locations); a permission prompt on the first run is the browser starting, not a failure.
 
-1. **Crushed text** — Fail: glyphs overlap, or text draws outside the node box. Fix: `node set-style` with a smaller `--font-size` on that node, or split the long label into shorter nodes (change text, remove, add — all through the CLI).
-2. **One side overloaded** — Fail: one side is crowded and deep, the other is almost empty. Fix: `node set-side` moves one of the root's direct children to the lighter side (`left` or `right`), and that whole branch follows; `mind add-child --side left` places the next child there.
-3. **Folded when this task needs it open** — Fail: a branch this task has to show is collapsed (only the parent is on the picture, or the `context` line ends with `folded`). Fix: `node set-folded --folded false`.
-4. **Lines cross** — Fail: lines pass through each other or knot, instead of leaving the parent toward the children. Fix: only the root's direct children have a side that moves anything, so find the root-level child the crossing branch hangs off and move that one with `node set-side`. Under any other parent `--side` is a usage error (exit 2) naming the first-level branch, so a deeper node cannot take a side that quietly does nothing. Not enough: `mind move` changes the parent and child instead. Do not edit coordinates.
+## After an export: four checks
 
-All four pass, or this look is not done.
+Open the png and score each pass or fail. "Looks fine" is not a pass.
+
+1. **Crushed text** — glyphs overlap or draw outside the box: smaller `--font-size` on that node, or split the label.
+2. **One side overloaded** — `node set-side` moves a first-level branch and everything under it.
+3. **A branch this task needs open is folded** — `node set-folded --folded false`.
+4. **Lines cross** — move the first-level branch the crossing hangs off; `mind move` when the parent is really the wrong one.
 
 ## Commands you are most likely to forget
 
-`jsmind` here is the CLI on your PATH. Installed as a project dependency instead: run every command on this page as `npx jsmind@2`. Never bare `npx jsmind` — it resolves to 1.x, and 1.x ships no `bin`, so the failure is about a missing executable and says nothing about the version.
-
-Not `jsmind --help`. Not a tutorial. One list, most-used first. Read every line. The lines after `export` are what you need when the picture fails — do not stop at `export`.
+One list, most-used first. Every line names a command this CLI has; do not retype one from memory if it is not here.
 
 ```
 context <file> [--highlight <text>]... [--depth <n>] [--full-text] [--json]
@@ -137,6 +102,7 @@ mind find <file> --node-id <id>
 mind add-child <file> --parent-id <id> --text <label> [--side left|right] [--position <n>] [--folded true|false]
 mind set-style <file> --default-tone <tone>
 node set-style <file> --node-id <id> --tone <name>
+node set-style <file> --node-id <id> --background <css-colour>
 node set-folded <file> --node-id <id> --folded true|false
 validate <file>
 export <file> <out.png>
@@ -148,55 +114,8 @@ mind remove-node <file> --node-id <id>
 mind move <file> --node-id <id> --parent-id <id> [--position <n>]
 ```
 
-`add-child` places the node in the same command. `--side left|right` works only when the parent is the root — a side is the placement of a first-level node and everything under it inherits — and on any other parent it is a usage error naming the branch the new node would land in. `--position <n>` is an index among the parent's children, appended when omitted. `--folded true|false` creates the node collapsed. All three change the picture, and none of them is visible in the tree you sketched before you started.
+## Not on this page
 
-`context --json` reads the document-level style too: `{ nodes, style? }`, where `style` carries `theme`, the resolved `defaultTone`, and the sections the file overrides. A file with a `defaultTone` wears it on every node that has no tone of its own, so an untoned node is not necessarily `default`. `mind set-style <file> --default-tone <tone>` is the command that writes it.
+Run `jsmind <command> --help`. It prints that command's own block, not the whole manual, so it is cheap. Do not guess a flag — see the `--strict` note above for why a wrong one is silent.
 
-`side` is only meaningful for the root's direct children. A new child of the root defaults to the right side. The check is `side=` at the end of that node's `context` line, which the text output prints for the root and its direct children only — the command echo says nothing about it.
-
-`--backup` keeps a `.bak` copy of the file before overwriting it, and `--dry-run` prints the document it would write and writes nothing. Both apply to the commands that write the mind map — `create`, `mind`, `node` — and not to `export`, which writes only the image. In a `CHANGE` task they are the cheap way to see a round's result before trusting it: `--dry-run` for the next command, `--backup` before the round.
-
-A misspelt option is a warning, not a failure: an option the command does not take is reported on stderr and the command still runs, with exit code 0. `--json` on stdout stays clean, so a caller that reads only stdout and the exit code never learns the flag did nothing — the map is built, in the shape you did not ask for. Pass `--strict` to make an unknown option a usage error (exit 2) instead, and read that exit code as the signal.
-
-## Example
-
-A short build, end to end. The ids and the file size come from one real run: yours will differ, so take them from your own `context`. The transcript calls `jsmind` directly; if you installed it as a project dependency, read each line as `npx jsmind@2` followed by the same arguments — nothing else changes.
-
-**Request:** "draw me a map of the three storage tiers." **Intent:** `BUILD`. No path given, so the files are `storage-tiers.json` and `storage-tiers.png` in the working directory.
-
-```
-$ jsmind create storage-tiers.json --title "Storage tiers"
-created storage-tiers.json
-
-# checkpoint 1: context first, then copy the id
-$ jsmind context storage-tiers.json
-root   Storage tiers {side=center}
-
-$ jsmind mind add-child storage-tiers.json --parent-id root --text "Hot" --side left
-added jm-mwpaz4zu under root (side=left)
-$ jsmind mind add-child storage-tiers.json --parent-id root --text "Warm"
-added jm-mwpaz51x under root
-$ jsmind mind add-child storage-tiers.json --parent-id root --text "Cold" --side left
-added jm-mwpaz53v under root (side=left)
-$ jsmind mind add-child storage-tiers.json --parent-id jm-mwpaz4zu --text "In-memory"
-added jm-mwpaz6c8 under jm-mwpaz4zu
-
-# checkpoint 2: validate, then context again for the indent
-$ jsmind validate storage-tiers.json
-storage-tiers.json: valid
-
-$ jsmind context storage-tiers.json
-root          Storage tiers {side=center}
-jm-mwpaz4zu     Hot {side=left}
-jm-mwpaz6c8       In-memory
-jm-mwpaz51x     Warm {side=right}
-jm-mwpaz53v     Cold {side=left}
-
-# checkpoint 3: export and open the png
-$ jsmind export storage-tiers.json storage-tiers.png
-storage-tiers.png: 2400x1600 (92.7 KB)
-```
-
-Score the four checks above. All four pass, or back to checkpoint 1.
-
-Two full sessions — a build that fails a picture check and repeats the round, and a change that adds, renames and removes — are in [references/build-session.md](references/build-session.md) and [references/change-session.md](references/change-session.md). This short one is here because some harnesses inject `SKILL.md` and cannot open another file.
+Two worked sessions are in [references/build-session.md](references/build-session.md) and [references/change-session.md](references/change-session.md). This page is self-contained; they show the shape of a whole round.
