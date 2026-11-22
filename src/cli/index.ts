@@ -314,8 +314,13 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
                 idsOnly: parsed.values['ids-only'] === true,
                 asJson,
             };
-            if (typeof parsed.values.focus === 'string') {
-                options.focus = parsed.values.focus;
+            // `multiple: true` makes this a list; a single flag arrives as a
+            // one-element list, so both shapes read the same way.
+            const highlight = parsed.values.highlight;
+            if (Array.isArray(highlight) && highlight.length > 0) {
+                options.highlight = highlight.filter(
+                    (text): text is string => typeof text === 'string'
+                );
             }
             return runContext(options);
         }

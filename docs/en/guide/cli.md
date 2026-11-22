@@ -116,7 +116,7 @@ Discovery step: shows the tree so you (or an agent) can find the ids needed for 
 
 | Option | Meaning |
 | --- | --- |
-| `--focus <text>` | Fuzzy-match node text; shows matches with their ancestors |
+| `--highlight <text>` | Match a label (case-insensitive) and print its id path; repeatable (`Since: 2.2.0`) |
 | `--depth <n>` | Levels below the root to show (default `2`) |
 | `--max-text <n>` | Truncate labels at `n` characters (default `40`) |
 | `--full-text` | Do not truncate |
@@ -125,15 +125,15 @@ Discovery step: shows the tree so you (or an agent) can find the ids needed for 
 
 Ids are printed in a left-aligned column so they can be copied into the next command. Multi-line labels are flattened, and truncation ends in an ellipsis. Each line may end with a `{…}` block. `side` is shown only for the root and the root's direct children. `folded` appears when the node is collapsed, and style overrides appear when the node differs from the theme.
 
+`--highlight` covers the step where the label is already known and only the id is missing: the whole label is compared, **ignoring case**, against the printed label (not the truncated form, no fuzzy matching), across the whole document rather than just the levels `--depth` shows. A hit is listed first as `"text" -> "root"/"id"`; a miss prints `(no match)` instead of a guess or a candidate list. A label carried by more than one node resolves to the first in document order and is marked `(+N more)`. `--highlight` also refuses `--ids-only` in text mode: `--ids-only` prints one bare id per line, `--highlight` prints an id path per label, and the block cannot sit inside that shape. Add `--json` to get the highlighted ids without the labels.
+
 A file that declares its own document style is announced above the tree, so the theme is discoverable before any node is read (`Since: 2.1.0`):
 
 ```
 style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 ```
 
-`--json` returns an object with a `nodes` array, and adds the same summary as a top-level `style` block (`theme`, `defaultTone`, `overrides`) when the file carries one. Neither appears for a file with no document style, and the text line is suppressed under `--ids-only`.
-
-When `--focus` matches nothing, the closest candidates are listed instead.
+`--json` returns an object with a `nodes` array, where every node carries `parentId` (`null` on the root), so the parent-child relation does not have to be inferred from the order of `level` (`Since: 2.2.0`). With `--highlight` it also carries a `highlighted` block first, whose hits have the same shape as a node in `nodes` and whose misses keep their key with `null`. Same shape, not necessarily the same entry: a label found below `--depth` is not listed under `nodes`, and a shared label adds a `matches` count. It adds the same summary as a top-level `style` block (`theme`, `defaultTone`, `overrides`) when the file carries one. Neither appears for a file with no document style, and the text line is suppressed under `--ids-only`.
 
 ## `export`
 
@@ -144,6 +144,10 @@ jsmind export <file> <out.png> [options]
 Renders a mind map to an image. The size is the map's own size: whitespace inside the viewport is kept, and a map larger than the viewport is not cropped.
 
 `export` requires a Chromium browser. Set `CHROME_PATH` if it is not in a standard location, and `JSMIND_BROWSER_START_MS` (`Since: 2.1.0`) if the browser needs longer than the default 60 seconds to start.
+
+Rendering happens inside a browser process, so an execution environment that sandboxes child processes may ask for permission — or offer to leave the sandbox — when `export` runs. That is Chromium starting, not a failure; if it asks every time, put the output directory on the environment's allow-list.
+
+The output file is **overwritten in place**: an existing image at that path is rewritten, with no copy kept and no delete first. To keep the old one, give the second positional a different path, or rename the old file first — note that `--output` belongs to the commands that edit a mind map file, and `export` only reads its output path from the second positional.
 
 | Option | Meaning | Version |
 | --- | --- | --- |

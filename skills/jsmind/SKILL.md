@@ -55,7 +55,7 @@ One sequence. Nothing later in this file repeats it in short form.
 
 Get the ids, and see what the file contains now. The tree you remember and the tree in the file are often not the same one.
 
-`BUILD`: `context` immediately after `create`. Use the root id it prints. Do not guess an id. `CHANGE`: `context` before you edit. Label does not match: add `--focus`. Deeper than the default: add `--depth`.
+`BUILD`: `context` immediately after `create`. Use the root id it prints. Do not guess an id. `CHANGE`: `context` before you edit. **To locate a node, do not read the tree by eye — run `context --json --highlight "<label>"` and take the id from the answer.** Matching ignores case and covers the whole document, not just the levels printed, and a miss comes back as `null` instead of a guess. Repeatable: `--highlight A --highlight B` answers both. It is a locator, so later commands still take `--node-id` / `--parent-id`. Deeper than the default: add `--depth`.
 
 **Do not skip:** without the ids from this `context`, later commands edit the wrong node, or a node that is already gone.
 
@@ -65,10 +65,10 @@ Do not copy an id yet. The next heading is still this checkpoint.
 
 How to read the CLI output. Not a new step. Skip this and checkpoint 1 is not done.
 
-An id, `folded` or a style override taken out of the text tree is a field parsed from a format built for eyes, and every bullet below is a way that parse goes wrong. When you need the data rather than the picture, run `context --json`: it returns `{ nodes, style? }`. Under `nodes` every node has `id`, `level` and `text`, plus `side` for the root and its direct children, `folded` when the node is folded, and `style` when the node overrides the theme. The document-level `style` block (when the file declares one) carries `theme`, `defaultTone` and `overrides` — a file that names a `defaultTone` is coloured by it, so an untoned node is not necessarily `default`. The text form below is for seeing the tree.
+An id, `folded` or a style override taken out of the text tree is a field parsed from a format built for eyes, and every bullet below is a way that parse goes wrong. When you need the data rather than the picture, run `context --json`: it returns `{ nodes, style? }`, and with `--highlight` a `highlighted` block first that maps each requested label to its node object or `null`. Under `nodes` every node has `id`, `parentId` (`null` on the root), `level` and `text`, plus `side` for the root and its direct children, `folded` when the node is folded, and `style` when the node overrides the theme. `parentId` is the parent link: use it instead of inferring the tree from the order of `level`. The document-level `style` block (when the file declares one) carries `theme`, `defaultTone` and `overrides` — a file that names a `defaultTone` is coloured by it, so an untoned node is not necessarily `default`. The text form below is for seeing the tree.
 
 - The id is at the start of the line. The text on that same line is that id's label. The status block at the end of the line contains `side` only for the root and the root's direct children, and `folded` when the node is folded. This only locates a node. It does not replace looking at the picture.
-- `--focus` prints the match together with its ancestors. Take the id from **the line whose label matches**. Do not take the first line (that is usually an ancestor, or the root).
+- `--highlight` prints `"label" -> "root"/…/<id>`. The id to act on is **the last one on that line**. `(no match)` means the file has no such label: search again with a shorter or differently spelled label, and never fall back to an id you remember from an earlier round. `(+N more)` means several nodes share the label — the id given is the first in document order, so choose a more specific label rather than assuming that is the node you meant.
 - The label is cut to an ellipsis, and you are about to change that text: run `context` again with `--full-text`. Still checkpoint 1.
 - After `validate` passes (checkpoint 2), run `context` again. A child must be indented under its parent. Wrong indent means the pair is not the one you wanted. Back to checkpoint 1. Do not `export`.
 
@@ -108,6 +108,8 @@ This round changed structure (add or remove a node, reparent, change side, fold)
 
 Style only, structure untouched: still `export` once, and confirm the color or font size is actually on the picture.
 
+Two things about `export` that read like failures and are not. It starts a browser process, so an execution environment that sandboxes child processes may ask for permission, or offer to leave the sandbox, the first time it runs — that is Chromium starting. And it **overwrites an existing output file in place**: running it twice on the same path silently replaces the picture, with no copy kept. Give the second positional a different path, or rename the old file, when both images are wanted. `--output` does not redirect it; `export` takes its output path from the second positional only.
+
 ### 4. A failed look → back to checkpoint 1
 
 Any item below fails: `context` again, edit, `validate`, `export`. Do not keep using ids you remember from the previous round.
@@ -130,7 +132,7 @@ All four pass, or this look is not done.
 Not `jsmind --help`. Not a tutorial. One list, most-used first. Read every line. The lines after `export` are what you need when the picture fails — do not stop at `export`.
 
 ```
-context <file> [--focus <text>] [--depth <n>] [--full-text] [--json]
+context <file> [--highlight <text>]... [--depth <n>] [--full-text] [--json]
 mind find <file> --node-id <id>
 mind add-child <file> --parent-id <id> --text <label> [--side left|right] [--position <n>] [--folded true|false]
 mind set-style <file> --default-tone <tone>
