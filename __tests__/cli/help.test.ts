@@ -293,7 +293,7 @@ test('help - both set-style blocks say which style they write', () => {
     assert.match(setStyleHelp, /node\.style/, 'and names node.style');
     assert.ok(nodeHelp.includes('Override the theme for one node'), 'node --help states the scope too');
     assert.ok(
-        mindHelp.includes('The tone every untoned node inherits (mind.style)'),
+        mindHelp.includes('The document\'s style (mind.style)'),
         'mind --help states the scope too'
     );
 });
