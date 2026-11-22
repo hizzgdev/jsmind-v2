@@ -1206,6 +1206,271 @@ test('cli - context JSON side is a word, not a number', () => {
     }
 });
 
+test('cli - context JSON gives every node a parentId', () => {
+    // The array is flat and carries only `level`, so a consumer had to rebuild
+    // the tree from the order of the levels. The link states it directly.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({ file, depth: 3, maxText: 40, fullText: false, idsOnly: false, asJson: true });
+        });
+        const entries: { id: string; parentId?: string | null; level: number }[] = JSON.parse(
+            out
+        ).nodes;
+        const root = entries.find(entry => entry.id === 'root')!;
+        assert.strictEqual(root.parentId, null, 'the root has no parent, and says so');
+        const a1 = entries.find(entry => entry.id === 'jm-a1')!;
+        assert.strictEqual(a1.parentId, 'root');
+        const b1 = entries.find(entry => entry.id === 'jm-b1')!;
+        assert.strictEqual(b1.parentId, 'jm-a1', 'a deeper node points at its own parent');
+        for (const entry of entries) {
+            assert.ok('parentId' in entry, `${entry.id} must carry parentId`);
+        }
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context --highlight answers with the id path and leads the output', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+                highlight: ['清洗规则'],
+            });
+        });
+        const lines = out.split('\n');
+        assert.strictEqual(lines[0], 'highlighted:', 'the answer leads, the tree follows');
+        assert.strictEqual(lines[1], '  "清洗规则" -> "root"/"jm-a1"/"jm-b1"');
+        const mapAt = lines.indexOf('fullmap:');
+        assert.ok(mapAt > 1, 'the tree sits under its own heading');
+        assert.ok(lines.slice(mapAt).some(line => line.startsWith('root')), 'the map is still there');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context --highlight says (no match) instead of guessing', () => {
+    // The whole point of the flag is that an id is about to be copied out of
+    // it. A candidate list here would be an invitation to copy the wrong one.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const text = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+                highlight: ['earth'],
+            });
+        });
+        assert.match(text.out, /^  "earth" -> \(no match\)$/m);
+        assert.ok(!text.out.includes('Candidate'), 'no candidates, no suggestion');
+
+        const json = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+                highlight: ['earth'],
+            });
+        });
+        const payload = JSON.parse(json.out);
+        assert.ok('earth' in payload.highlighted, 'a miss keeps its key');
+        assert.strictEqual(payload.highlighted.earth, null);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context --highlight searches the whole document, not just --depth', () => {
+    // The label an agent knows is often deeper than a readable tree; that is
+    // what makes the flag worth having.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 0,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+                highlight: ['清洗规则'],
+            });
+        });
+        assert.match(out, /"清洗规则" -> "root"\/"jm-a1"\/"jm-b1"/);
+        const tree = out.slice(out.indexOf('fullmap:'));
+        assert.ok(!tree.includes('jm-b1'), 'the tree itself stops at the root');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context --highlight marks a label that several nodes share', () => {
+    // A first match with no signal would send the caller to edit one of two
+    // nodes and never mention the other.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+    doc.nodes['jm-dupe'] = { ...doc.nodes['jm-a2'], id: 'jm-dupe' };
+    doc.nodes.root.children = [...doc.nodes.root.children, 'jm-dupe'];
+    writeFileSync(file, JSON.stringify(doc, null, 4));
+    try {
+        const text = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: false,
+                highlight: ['模型选择'],
+            });
+        });
+        assert.match(text.out, /"模型选择" -> "root"\/"jm-a2" \(\+1 more\)/);
+
+        const json = capture(() => {
+            runContext({
+                file,
+                depth: 1,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+                highlight: ['模型选择'],
+            });
+        });
+        const hit = JSON.parse(json.out).highlighted['模型选择'];
+        assert.strictEqual(hit.id, 'jm-a2', 'the first in document order');
+        assert.strictEqual(hit.matches, 2);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context --highlight reuses the node shape, parentId included', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const { out } = capture(() => {
+            runContext({
+                file,
+                depth: 3,
+                maxText: 40,
+                fullText: false,
+                idsOnly: false,
+                asJson: true,
+                highlight: ['清洗规则'],
+            });
+        });
+        const payload = JSON.parse(out);
+        const hit = payload.highlighted['清洗规则'];
+        const sameNode = payload.nodes.find((entry: { id: string }) => entry.id === hit.id);
+        assert.deepStrictEqual(hit, sameNode, 'the highlighted value is the same node object');
+        assert.strictEqual(hit.parentId, 'jm-a1');
+        assert.strictEqual(hit.level, 2);
+        assert.ok(!('matches' in hit), 'a unique label carries no count');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context says nothing about highlighting when the flag is absent', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        const text = capture(() => {
+            runContext({ file, depth: 1, maxText: 40, fullText: false, idsOnly: false, asJson: false });
+        });
+        assert.ok(!text.out.includes('highlighted:'), 'no empty section in the text output');
+        assert.ok(!text.out.includes('fullmap:'), 'the tree keeps its old shape');
+
+        const json = capture(() => {
+            runContext({ file, depth: 1, maxText: 40, fullText: false, idsOnly: false, asJson: true });
+        });
+        assert.ok(!('highlighted' in JSON.parse(json.out)), 'no key when nothing was asked');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context refuses --focus together with --highlight', () => {
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runContext({
+                        file,
+                        focus: '清洗',
+                        depth: 2,
+                        maxText: 40,
+                        fullText: false,
+                        idsOnly: false,
+                        asJson: false,
+                        highlight: ['清洗规则'],
+                    });
+                });
+            },
+            (err: unknown) => err instanceof CliError && err.exit === CliExit.Usage
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - context refuses an empty --highlight', () => {
+    // An empty needle would compare equal to every node with an empty label,
+    // which is a locator answering with a node nobody asked about.
+    const dir = scratch();
+    const file = join(dir, 'm.json');
+    copyFileSync(FIXTURE, file);
+    try {
+        assert.throws(
+            () => {
+                capture(() => {
+                    runContext({
+                        file,
+                        depth: 1,
+                        maxText: 40,
+                        fullText: false,
+                        idsOnly: false,
+                        asJson: false,
+                        highlight: [''],
+                    });
+                });
+            },
+            (err: unknown) => err instanceof CliError && err.exit === CliExit.Usage
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('cli - context text shows side only for the root and its direct children', () => {
     // side is only meaningful on those nodes. Deeper lines may still show
     // folded or style, but they must not carry side=.

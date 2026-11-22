@@ -211,4 +211,7 @@ viewport is not cropped.
   --json            Machine-readable output
 
 Requires a Chromium binary. Set CHROME_PATH if it is not in a
-standard location.`;
+standard location. Rendering starts a browser process, so a sandboxed
+environment may ask for permission the first time; that is the browser
+starting, not a failure. An existing output file is overwritten in place —
+give a different output path to keep the old image.`;

@@ -263,6 +263,7 @@ jsmind context <file> [选项]
 | 选项 | 默认 | 说明 |
 |---|---|---|
 | `--focus <text>` | 无 | 模糊匹配节点文本，只显示命中的及其周边 |
+| `--highlight <text>` | 无 | 按节点文本精确匹配，给出它的 id 路径；可重复传参、在整份文档里查找（`Since: 2.2.0`） |
 | `--depth <n>` | `2` | 从根往下展示几层 |
 | `--max-text <n>` | `40` | 节点文本截断长度 |
 | `--full-text` | 关 | 不截断 |
@@ -289,11 +290,13 @@ n18     供应商清洗成本
 `--json` 时是同样的事实，形状是可解析的对象：
 
 ```json
-{ "id": "n7", "level": 1, "text": "清洗规则（Q3）",
+{ "id": "n7", "parentId": "n5", "level": 2, "text": "清洗规则（Q3）",
   "style": { "tone": "warning", "incoming": { "pattern": "dashed" } } }
 ```
 
 没有覆盖的节点**不带 `style` 键**，而不是带一个 `{}`。
+
+**每个节点都带 `parentId`，根节点为 `null`**（`Since: 2.2.0`）。展平的数组只有 `level`，父子关系得靠“level 2 紧跟 level 1 后面”的位置去推，每个消费方都要重造一遍；直接给出父节点 id 就消除这笔隐性成本。它和 `level` 并列，随节点一起出现，不设覆盖的节点同样有。
 
 **文档级样式摘要是另一层，`--json` 里与 `nodes` 平级**（`Since: 2.1.0`）。文件声明了 `mind.style` 时，文本输出在树的上方多一行：
 
@@ -305,7 +308,7 @@ style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 
 ```json
 {
-  "nodes": [ { "id": "n1", "level": 0, "text": "根" } ],
+  "nodes": [ { "id": "n1", "parentId": null, "level": 0, "text": "根" } ],
   "style": {
     "theme": "default",
     "defaultTone": "primary",
@@ -329,6 +332,29 @@ No node matches "粗暴". Closest:
   n4   数据清洗
   n20  数据准备
 ```
+
+**`--highlight` 把已知文本换成 id**（`Since: 2.2.0`）。agent 天然掌握的是节点文本，而所有改动命令都以 id 定位；两者之间隔着一个无规律的随机串。这个参数就是那座桥：
+
+```bash
+jsmind context mind.json --highlight 地球 --highlight 清洗规则
+```
+
+```
+highlighted:
+  "地球"     -> "root"/"jm-a1"
+  "清洗规则" -> "root"/"jm-a4"/"jm-c2" (+1 more)
+
+fullmap:
+...
+```
+
+- **重复传参，不用逗号分隔**：每个值一个 flag，值本身含逗号时没有转义歧义，调用方拼参数也不必先 join。
+- **严格匹配**：按打印出来的文本（已压平空白）全等比较，不做模糊、不比对截断后的文本。
+- **查整份文档**，不受 `--depth` 限制：命中目标往往比一次可读的树更深，这正是它的用处。
+- **结果放最前面**（`--json` 里是顶层 `highlighted`，在 `nodes` 之前），值是**与 `nodes` 同构的节点对象**（同样带 `parentId`），拿到就不必二次查找。
+- **无命中写 `(no match)`**：`--json` 里保留键并置 `null`——“查了没命中”和“压根没查”是两种状态。不给候选、不猜。
+- **同一文本被多个节点共用**时取文档顺序里的第一个，并标注还有几个（文本 `(+N more)`，`--json` 里是 `matches`）。这不是替 agent 消歧，是告诉它该用 `--focus` 收窄。
+- **只定位，不改变操作目标**：后续命令照旧走 `--node-id` / `--parent-id`。`--focus` 与它回答同一个问题，同时给出是用法错误（退出码 `2`）。
 
 ### 5.2 `validate`
 

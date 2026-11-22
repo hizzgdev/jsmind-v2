@@ -380,6 +380,51 @@ test('cli - the same command line with --strict exits 2 and writes nothing', () 
     }
 });
 
+test('cli - a repeated value option arrives as a list, in order', () => {
+    // `--highlight` is the first option in the parser table with
+    // `multiple: true`. Without it the parser keeps only the last value, so a
+    // caller asking for two labels would silently get an answer about one —
+    // and the run would still exit 0.
+    const { file, dir } = fixtureCopy();
+
+    try {
+        const run = runCli([
+            'context',
+            file,
+            '--highlight',
+            '清洗规则',
+            '--highlight',
+            'earth',
+            '--json',
+        ]);
+
+        assert.strictEqual(run.code, CliExit.Ok);
+        const parsed = JSON.parse(run.stdout) as {
+            highlighted: Record<string, { id: string } | null>;
+        };
+        assert.deepStrictEqual(Object.keys(parsed.highlighted), ['清洗规则', 'earth']);
+        assert.strictEqual(parsed.highlighted['清洗规则']?.id, 'jm-b1');
+        assert.strictEqual(parsed.highlighted.earth, null);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - a repeated value option given another flag as its value is refused', () => {
+    // `--highlight --json` is a missing value, not a request to highlight the
+    // string `--json`. The lenient parser would take the flag as the value.
+    const { file, dir } = fixtureCopy();
+
+    try {
+        const run = runCli(['context', file, '--highlight', '--json']);
+
+        assert.strictEqual(run.code, CliExit.Usage);
+        assert.match(run.stderr, /Option '--highlight' argument is ambiguous/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('cli - --json output stays parseable when an option is unknown', () => {
     const { file, dir } = fixtureCopy();
 

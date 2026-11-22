@@ -55,7 +55,7 @@ One sequence. Nothing later in this file repeats it in short form.
 
 Get the ids, and see what the file contains now. The tree you remember and the tree in the file are often not the same one.
 
-`BUILD`: `context` immediately after `create`. Use the root id it prints. Do not guess an id. `CHANGE`: `context` before you edit. Label does not match: add `--focus`. Deeper than the default: add `--depth`.
+`BUILD`: `context` immediately after `create`. Use the root id it prints. Do not guess an id. `CHANGE`: `context` before you edit. Label does not match: add `--focus`. You already know the label and only need its id: add `--highlight "<label>"` and take it from the answer, instead of reading the whole tree again. Deeper than the default: add `--depth`.
 
 **Do not skip:** without the ids from this `context`, later commands edit the wrong node, or a node that is already gone.
 
@@ -65,7 +65,7 @@ Do not copy an id yet. The next heading is still this checkpoint.
 
 How to read the CLI output. Not a new step. Skip this and checkpoint 1 is not done.
 
-An id, `folded` or a style override taken out of the text tree is a field parsed from a format built for eyes, and every bullet below is a way that parse goes wrong. When you need the data rather than the picture, run `context --json`: it returns `{ nodes, style? }`. Under `nodes` every node has `id`, `level` and `text`, plus `side` for the root and its direct children, `folded` when the node is folded, and `style` when the node overrides the theme. The document-level `style` block (when the file declares one) carries `theme`, `defaultTone` and `overrides` — a file that names a `defaultTone` is coloured by it, so an untoned node is not necessarily `default`. The text form below is for seeing the tree.
+An id, `folded` or a style override taken out of the text tree is a field parsed from a format built for eyes, and every bullet below is a way that parse goes wrong. When you need the data rather than the picture, run `context --json`: it returns `{ nodes, style? }`. Under `nodes` every node has `id`, `parentId` (`null` on the root), `level` and `text`, plus `side` for the root and its direct children, `folded` when the node is folded, and `style` when the node overrides the theme. `parentId` is the parent link: use it instead of inferring the tree from the order of `level`. The document-level `style` block (when the file declares one) carries `theme`, `defaultTone` and `overrides` — a file that names a `defaultTone` is coloured by it, so an untoned node is not necessarily `default`. The text form below is for seeing the tree.
 
 - The id is at the start of the line. The text on that same line is that id's label. The status block at the end of the line contains `side` only for the root and the root's direct children, and `folded` when the node is folded. This only locates a node. It does not replace looking at the picture.
 - `--focus` prints the match together with its ancestors. Take the id from **the line whose label matches**. Do not take the first line (that is usually an ancestor, or the root).
@@ -130,7 +130,7 @@ All four pass, or this look is not done.
 Not `jsmind --help`. Not a tutorial. One list, most-used first. Read every line. The lines after `export` are what you need when the picture fails — do not stop at `export`.
 
 ```
-context <file> [--focus <text>] [--depth <n>] [--full-text] [--json]
+context <file> [--focus <text>] [--highlight <text>] [--depth <n>] [--full-text] [--json]
 mind find <file> --node-id <id>
 mind add-child <file> --parent-id <id> --text <label> [--side left|right] [--position <n>] [--folded true|false]
 mind set-style <file> --default-tone <tone>
