@@ -159,24 +159,22 @@ export function runSetStyle(
 }
 
 /**
- * The field table, printed by `mind set-style --help`.
+ * The `set-style` field table, printed by both the group help and the
+ * subcommand help.
  *
  * @remarks
- * One copy, for the same reason `node set-style` keeps one: two hand-written
+ * One copy, for the same reason `node set-style` keeps one: `jsmind mind --help`
+ * and `jsmind mind set-style --help` both show this table, and two hand-written
  * copies is how a flag goes missing from one of them.
  */
-const STYLE_FIELDS_HELP = `mind.style fields (any combination, applied in one write). Accepted tone names
-are read from the model's own enum, so this list cannot fall behind it:
+export const STYLE_FIELDS_HELP = `Accepted tone names are read from the model's own enum, so this list cannot fall
+behind it:
 
   --default-tone <tone>       ${TONE_WORDS.join(' | ')}
 
-The other sections of \`mind.style\` (tones / background / node / line / expander)
-have no writer yet — read them through \`context\`. Each joins this table as a
-dotted flag when it gets one (\`--node.font-size\`, \`--line.color\`), and brings
-\`--clear <fields>\` / \`--reset\` with it, the shape \`node set-style\` already uses.
-
-A node's own \`style.tone\` still wins over \`defaultTone\`; use it to single out one
-node, and this command to change what the rest of the map looks like.`;
+A node's own \`style.tone\` wins over \`defaultTone\`. Every node without an explicit
+tone follows this one, lines included; pass \`default\` to go back to the built-in
+look.`;
 
 /**
  * Describes `mind set-style` for `--help`.
@@ -193,7 +191,4 @@ export const mindSetStyleHelp = `jsmind mind set-style <file> --default-tone <to
 The document's style (mind.style): one declaration every node without an
 override inherits. Overriding the theme for one node is \`node set-style\`.
 
-${STYLE_FIELDS_HELP}
-
-Every node without an explicit tone follows this one, lines included. Pass
-\`default\` to go back to the built-in look.`;
+${STYLE_FIELDS_HELP}`;

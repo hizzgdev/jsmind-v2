@@ -695,22 +695,18 @@ Each line may end with a {…} block. side is shown only for the root and the
 root's direct children. folded appears when the node is collapsed, and style
 overrides appear when the node differs from the theme.
 
---highlight takes a label you already know and answers with the id: the text is
-compared whole-label and case-insensitively against the whole document (not
-truncated, not just the levels --depth prints), and a miss prints (no match)
-rather than a guess. Repeat the flag for several labels; each gets its own
-line, and one label asked for in two spellings is answered once. The block
-leads the output, above the tree, and a label carried by more than one node
-resolves to the first in document order and is marked as shared. It is a
-locator: later commands still take --node-id / --parent-id. --ids-only cannot
-join --highlight in text mode: one prints bare ids, the other prints an id path
-per label. Use --json --ids-only to get the highlighted ids without the labels.
+--highlight answers with the id of a label you already know: whole-label,
+case-insensitive, across the whole document and not just the levels --depth
+prints; a miss prints (no match). Repeat the flag for several labels; a label
+asked twice prints once, and one carried by several nodes resolves to the first
+and is marked shared. The block sits above the tree and is a locator only —
+later commands still take --node-id / --parent-id. --ids-only cannot join it in
+text mode; use --json --ids-only for the ids without the labels.
 
 A file that declares its own style is announced above the tree:
   style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 --json returns { nodes: [...] } instead of a bare array, and adds that same
 summary as a style block. Neither appears when the file carries no style, and
 the line is suppressed under --ids-only. Every node in --json carries
-parentId (null on the root), so the flat array states the structure instead of
-leaving it to be inferred from level; under --highlight it also carries the
-requested labels as a highlighted block, first.`;
+parentId (null on the root); under --highlight it also carries the requested
+labels as a highlighted block, first.`;

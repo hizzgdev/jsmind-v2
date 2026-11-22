@@ -44,7 +44,18 @@ import { packageVersion } from './version.ts';
 
 const PROGRAM = 'jsmind';
 
-export const HELP = `${PROGRAM} v2 — mind map data commands
+/**
+ * The index: what a bare `jsmind` prints.
+ *
+ * @remarks
+ * Two entry points, two questions. A bare invocation asks "what is there?" and
+ * gets the command table, the global options, one sentence about writes and the
+ * exit codes. `help` / `--help` asks for the whole reference, which is this
+ * index plus {@link MANUAL}'s option-by-option section and one block per
+ * first-level command — so the index stays a page a reader can take in at once,
+ * and the manual is the one an agent reads end to end.
+ */
+export const INDEX = `${PROGRAM} v2 — mind map data commands
 
 Usage: ${PROGRAM} <command> [options]
 
@@ -67,22 +78,46 @@ Options:
   --backup                        Keep a .bak copy before overwriting
   --strict                        Treat an unknown option as a usage error
   --version                       Print the version and exit
-  -h, --help                      Show this help
+  -h, --help                      Show the complete reference
 
-An option the named command does not take is reported on stderr and ignored, so
-a misspelt flag no longer looks like a successful run. The warning never goes to
-stdout, which keeps --json output parseable — and also means a consumer that
-reads only stdout does not see it. Pass --strict when that blind spot matters.
+Every write is validated first; a failed mutation leaves the file unchanged.
 
 Exit codes:
   0  success
   1  invalid data
   2  usage error
-  3  IO or runtime error
+  3  IO or runtime error`;
+
+/**
+ * The complete reference: what `help` and `--help` print.
+ *
+ * @remarks
+ * The index, then what each global option does, then one block per first-level
+ * command in the order the index lists them. Every block is imported from the
+ * module that owns the command, so a block cannot say one thing here and
+ * another under `<command> --help`.
+ */
+export const MANUAL = `${INDEX}
+
+Options in full
+
+  --json            Print a result object instead of the confirmation line: the
+                    node or edge the command touched, e.g. {"id": "jm-3f2a"}.
+                    context, validate and export print their own shapes.
+  --dry-run         Print the document that would be written, and write nothing.
+  --output <path>   Write to this file instead of the input file, which is left
+                    untouched. \`create\` takes its path as an argument.
+  --backup          Keep the file being overwritten as <file>.bak.
+  --strict          Refuse an option this command does not take, with exit 2.
+                    Without it such an option is reported on stderr and ignored:
+                    the run continues, stdout stays parseable, and a caller that
+                    reads only stdout cannot see the warning.
 
 ${createHelp}
 
 ${validateHelp}
+
+${exportHelp}
 
 ${contextHelp}
 
@@ -176,20 +211,18 @@ function writeOptions(values: Record<string, unknown>): WriteOptions {
  *
  * @param positionals - Command and, optionally, subcommand: `['mind']`,
  *                      `['node', 'set-style']`, and so on.
- * @returns The focused block, or `undefined` when the full index is the right
+ * @returns The focused block, or `undefined` when the root page is the right
  *          answer.
  * @remarks
- * `--help` used to print the root block before the command was looked at, so
- * `jsmind mind --help` handed back the same 134 lines the root help points
+ * `--help` used to print the root page before the command was looked at, so
+ * `jsmind mind --help` handed back the whole reference the root page points
  * away from. The ladder is written out rather than derived from a registry:
  * `set-style` is the only subcommand whose field table is long enough to swamp
  * the group block it sits in, and it has that block in both groups.
  *
  * Every command has its own block at the first level, so `--help` never has to
- * fall back to the index: `create`, `validate`, `context` and `export` are
- * single pages whose block was already embedded in `HELP` (or, for `export`,
- * written but never reached) — printing the index for them asked the reader to
- * find the one part that answers their question inside 134 lines.
+ * fall back to a page the caller then has to search: `create`, `validate`,
+ * `export` and `context` are single pages whose block is part of the manual.
  */
 function focusedHelp(positionals: string[]): string | undefined {
     const [command, subcommand] = positionals;
@@ -240,11 +273,13 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
     }
 
     // `help <command>` asks the same question as `<command> --help`, so both
-    // resolve through the same ladder. With no topic at all, the full index is
-    // the answer.
+    // resolve through the same ladder. With no topic at all the two entry
+    // points part ways: a bare `jsmind` asks what there is and gets the index,
+    // while `help` / `--help` asks for the whole reference.
     if (command === undefined || command === 'help' || parsed.values.help === true) {
         const topic = command === 'help' ? rest : parsed.positionals;
-        process.stdout.write(`${focusedHelp(topic) ?? HELP}\n`);
+        const bare = command === undefined && parsed.values.help !== true;
+        process.stdout.write(`${focusedHelp(topic) ?? (bare ? INDEX : MANUAL)}\n`);
         return CliExit.Ok;
     }
 

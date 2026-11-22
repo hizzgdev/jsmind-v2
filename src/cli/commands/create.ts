@@ -116,5 +116,4 @@ Start a new mind map containing a single root node.
   --backup           Keep a .bak copy of the file being overwritten
   --dry-run          Print the document instead of writing it
 
-Refuses to overwrite an existing file without --force. Every other command
-assumes a file exists; this is where one comes from.`;
+Refuses to overwrite an existing file without --force.`;

@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HELP } from '../../src/cli/index.ts';
+import { INDEX, MANUAL } from '../../src/cli/index.ts';
 import { createHelp } from '../../src/cli/commands/create.ts';
 import { validateHelp } from '../../src/cli/commands/validate.ts';
 import { contextHelp } from '../../src/cli/commands/context.ts';
@@ -43,14 +43,62 @@ function runCli(args: string[]): { code: number; stdout: string } {
     return { code: result.status ?? -1, stdout: result.stdout ?? '' };
 }
 
-test('help - the root help is what no command, `help` and `--help` print', () => {
-    // The index is the only complete page and stays untouched, so all three
-    // entry points must keep producing exactly it — including the trailing
-    // newline the dispatcher adds.
-    for (const args of [[], ['help'], ['--help']]) {
+/**
+ * The six first-level blocks, by the command that owns each.
+ *
+ * @remarks
+ * One list, used twice: the manual must carry every block, and a bare `jsmind`
+ * must carry none of them. `export` had a block of its own but was never
+ * concatenated into the root page, so the "complete" reference was missing its
+ * flags for as long as it existed — a drift the set comparison below catches
+ * and a spot check would not.
+ */
+const COMMANDS = [
+    { name: 'create', block: createHelp },
+    { name: 'validate', block: validateHelp },
+    { name: 'export', block: exportHelp },
+    { name: 'context', block: contextHelp },
+    { name: 'mind', block: mindHelp },
+    { name: 'node', block: nodeHelp },
+];
+
+test('help - a bare `jsmind` prints the index and no command block', () => {
+    // A bare invocation asks "what is there?" — the command table, the global
+    // options, one sentence about writes and the exit codes. It used to hand
+    // back the whole manual, which is the opposite of what the caller asked.
+    const run = runCli([]);
+
+    assert.strictEqual(run.code, 0, 'jsmind should succeed');
+    assert.strictEqual(run.stdout, `${INDEX}\n`, 'jsmind should print the index');
+    for (const { name, block } of COMMANDS) {
+        assert.ok(!run.stdout.includes(block), `the index should not carry the ${name} block`);
+    }
+    assert.ok(!run.stdout.includes('Options in full'), 'the option-by-option section is the manual');
+});
+
+test('help - `help` and `--help` print the complete manual', () => {
+    // The other entry point: one page an agent can read end to end. Both
+    // spellings resolve through the same dispatcher branch, so they are
+    // asserted against the same text.
+    for (const args of [['help'], ['--help']]) {
         const run = runCli(args);
+
         assert.strictEqual(run.code, 0, `jsmind ${args.join(' ')} should succeed`);
-        assert.strictEqual(run.stdout, `${HELP}\n`, `jsmind ${args.join(' ')} should print the index`);
+        assert.strictEqual(run.stdout, `${MANUAL}\n`, `jsmind ${args.join(' ')} should print the manual`);
+    }
+});
+
+test('help - the manual carries a block for every first-level command', () => {
+    // The manual's whole promise is that one read covers the surface. Nothing
+    // compared it against the set of blocks before, which is exactly how
+    // `export` stayed out of `jsmind --help` unnoticed: its block was written
+    // and reachable from its own `--help`, but absent from the assembly. The
+    // comparison is against the block a caller gets from `jsmind <command>
+    // --help`, so an assembly that drops one fails here.
+    const manual = runCli(['--help']).stdout;
+
+    for (const { name, block } of COMMANDS) {
+        assert.ok(manual.includes(block), `the manual should carry the ${name} block verbatim`);
     }
 });
 
@@ -110,7 +158,7 @@ test('help - a mind subcommand other than set-style still gets the group block',
 test('help - the retired add-node subcommand appears nowhere in the help', () => {
     // `add-node` was merged into `add-child`; a preview release leaves no alias
     // behind, so listing it would advertise a command that exits 2.
-    assert.ok(!HELP.includes('add-node'), 'the index must not list add-node');
+    assert.ok(!INDEX.includes('add-node'), 'the index must not list add-node');
     assert.ok(!mindHelp.includes('add-node'), 'the mind block must not list add-node');
     assert.ok(
         runCli(['mind', 'add-node', '--help']).stdout.includes(mindHelp),
@@ -191,6 +239,25 @@ test('help - `mind set-style --help` prints the document-style field table', () 
     );
 });
 
+test('help - the mind group and `mind set-style` share one field table', () => {
+    // One copy in the source, two pages that show it: the group block inlines
+    // the table where the subcommand gets a page of its own. Pinned because two
+    // hand-written copies is how a flag goes missing from one of them.
+    const table = [
+        'Accepted tone names are read from the model',
+        '  --default-tone <tone>       default | primary | success | warning | danger | info | accent',
+        'tone follows this one, lines included; pass `default` to go back to the built-in',
+    ];
+
+    for (const line of table) {
+        assert.ok(mindHelp.includes(line), `the mind group block should carry: ${line}`);
+    }
+    // The standalone page is its own title and scope, then the same table.
+    const groupTable = mindHelp.slice(mindHelp.indexOf(table[0]!));
+    const pageTable = mindSetStyleHelp.slice(mindSetStyleHelp.indexOf(table[0]!));
+    assert.strictEqual(pageTable, groupTable, 'both pages should print the same field table verbatim');
+});
+
 test('help - the document-style row reads the same in both guides and the mind block', () => {
     // The row this rename added is one option string in three places: the mind
     // block an agent reads, and the two published tables. A drift there sends
@@ -233,7 +300,7 @@ test('help - both set-style blocks say which style they write', () => {
 
 test('help - every single-page command prints only its own block', () => {
     // `create`, `validate`, `context` and `export` have no second level, so
-    // their block is the whole answer. They used to get the 134-line index:
+    // their block is the whole answer. They used to get the whole index:
     // the block was in there, but the caller had to find it.
     const cases = [
         { topic: 'create', block: createHelp, foreign: 'set-style' },

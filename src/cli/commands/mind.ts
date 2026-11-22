@@ -29,7 +29,7 @@ import {
     type WriteOptions,
 } from '../io.ts';
 import { CliExit, usageError, dataError } from '../exit.ts';
-import { runSetStyle, STYLE_OPTIONS } from './style.ts';
+import { runSetStyle, STYLE_OPTIONS, STYLE_FIELDS_HELP } from './style.ts';
 import {
     formatSide,
     ignoredSideBranchUnder,
@@ -354,8 +354,4 @@ children array, not one side's list.
 
 --folded creates the node collapsed.
 
-Every mutating subcommand validates the result and rolls back on failure.
-
-set-style writes the document's style (mind.style), not a node's: one declaration
-every node without an override inherits. Its field table gets a block of its own
-— jsmind mind set-style --help — the same way node set-style keeps one.`;
+${STYLE_FIELDS_HELP}`;
