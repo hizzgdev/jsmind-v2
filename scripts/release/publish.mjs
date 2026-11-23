@@ -37,7 +37,7 @@ import {
     notesPathFor,
     tagName,
 } from './checks.mjs';
-import { capture, fail, git, note, readPackage, repoRoot, step } from './lib.mjs';
+import { capture, fail, git, isTracked, note, readPackage, repoRoot, step } from './lib.mjs';
 
 const USAGE = 'usage: npm run release:publish [--notes-file <path>]';
 
@@ -71,17 +71,6 @@ function repositoryUrl() {
     }
     catch {
         return 'https://github.com/hizzgdev/jsmind-v2';
-    }
-}
-
-/** Is this path in the commit the tag will name? An untracked file is not. */
-function isTracked(path) {
-    try {
-        git(['ls-files', '--error-unmatch', path], { stdio: ['ignore', 'ignore', 'ignore'] });
-        return true;
-    }
-    catch {
-        return false;
     }
 }
 

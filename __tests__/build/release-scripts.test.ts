@@ -380,6 +380,37 @@ function sandboxRepository(scripts: Record<string, string>) {
     return { root, work, bin, env, git };
 }
 
+/**
+ * The notes file's commit status is gathered in `lib.mjs` rather than inside
+ * `publish`, so the fact and the rule it feeds can both be tested. Here it is
+ * asked of real git in a real repository, in both directions: a committed file
+ * has to read as committed, and a file the tag would not carry has to read as
+ * untracked. The second assertion is the one that keeps an implementation that
+ * always answers "yes" from passing.
+ */
+describe('whether a path is in the commit the tag will name', () => {
+    it('reads a committed file as committed and an unadded one as untracked', () => {
+        const sandbox = sandboxRepository(PASSING_CHECKS);
+        const here = process.cwd();
+        try {
+            mkdirSync(join(sandbox.work, 'releases'), { recursive: true });
+            writeFileSync(join(sandbox.work, 'releases/2.0.2.md'), '# jsMind 2.0.2\n');
+            sandbox.git('add', 'releases/2.0.2.md');
+            sandbox.git('commit', '-q', '-m', 'release: 2.0.2');
+            // Same shape as 2.2.0: in the tree, never added, so not in the tag.
+            writeFileSync(join(sandbox.work, 'releases/2.0.3.md'), '# jsMind 2.0.3\n');
+
+            process.chdir(sandbox.work);
+            assert.equal(lib.isTracked('releases/2.0.2.md'), true);
+            assert.equal(lib.isTracked('releases/2.0.3.md'), false);
+        }
+        finally {
+            process.chdir(here);
+            rmSync(sandbox.root, { recursive: true, force: true });
+        }
+    });
+});
+
 /** Run `release:prepare patch` in the sandbox until it fails. */
 function failedPrepare(options: { scripts?: Record<string, string>; rejectCommit?: boolean } = {}) {
     const sandbox = sandboxRepository(options.scripts ?? PASSING_CHECKS);

@@ -38,6 +38,34 @@ export function git(args, options = {}) {
         .trim();
 }
 
+/**
+ * Is this path in the commit the tag will name? `git ls-files --error-unmatch`
+ * exits 1 for a path it does not know and 0 for one it carries.
+ *
+ * The stdout is deliberately not ignored. `git()` trims whatever
+ * `execFileSync` returns, and an ignored stdout makes that `null`, so the trim
+ * throws a `TypeError` - which a `catch` around the call cannot tell apart from
+ * "git said no". That is how a `releases/<version>.md` committed on master came
+ * to be refused as uncommitted, with the check unable to ever pass. Capturing
+ * the path it echoes back costs one string and keeps the helper's contract.
+ *
+ * Only exit 1 is a verdict. Anything else (git missing, not a repository) is a
+ * broken environment rather than an answer about this path, and has to surface
+ * instead of being read as "not tracked".
+ */
+export function isTracked(path) {
+    try {
+        git(['ls-files', '--error-unmatch', path]);
+        return true;
+    }
+    catch (error) {
+        if (error.status === 1) {
+            return false;
+        }
+        throw error;
+    }
+}
+
 /** Run a command with its output going straight to the terminal. */
 export function run(command, args, options = {}) {
     execFileSync(command, args, {
