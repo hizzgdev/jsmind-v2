@@ -3,7 +3,7 @@ name: jsmind-skill-sim
 description: 跑 jsmind skill 模拟测试时使用。
 type: workflow
 lifecycle: active
-version: 0.7.0
+version: 0.8.0
 metadata:
   hermes:
     tags: [jsmind, skill-testing, simulation]
@@ -130,15 +130,11 @@ R6 答完就停。不要多跑一轮，不要顺手把图改好，不要把提�
 
 ## Runner 准备（不是被测者的说明，交接前把这节删掉）
 
-### 环境与判读
+### 环境
 
 - 全新 profile；skills root 下只有两个技能：锁定 sha 的 `jsmind`，和这一份。仓库里它在 `team/automations/skills/jsmind-skill-sim/`，装法是把整个目录拷成 `<skills root>/jsmind-skill-sim/` ——目录名就是 skill 名，SKILL.md 必须在那一层，塞进 `jsmind/tests/` 之类的地方就不算 skill。不要有任何别的可能回答项目问题的东西。
 - 工作目录：只做修改的跑法给一张输入图；建图的跑法给空目录；不要有仓库检出。
 - CLI 用 `npm i -g jsmind@2` 装，装完 `command -v jsmind` 必须非空，再跑 `jsmind --version` 确认是 2.x。**不要手工打包 `dist/` 塞进 `node_modules`**：tar 会带走文件权限，`dist/cli.js` 变成 644，`node_modules/.bin` 的软链就不可执行，接着整轮都被这个环境问题污染。版本号记进运行日志；被测者不装、不升、不查，也不要把 `npx` 当成调用方式交给它——npx 是下载路径，网络一慢就会变成一条跟 skill 无关的卡点。
 - 轮次可以一轮一轮外部喂，而不是从本文件读——外部给的 prompt 优先于这里的文字。外面喂能避免轮次之间互相污染；从文件读测的是一整个上下文里的完整流程。
 - 把 `friction.md`、`proposals.md`、`map.json` 和产物归档到 `runs/<日期>-<sha>/`，两次迭代才好对比。
-- 跑完之后：每条自述卡点都先当命令重放一遍再信，然后归成"skill 缺失 / skill 说错 / CLI 缺陷"三类。只有前两类进 skill。凡是自述"CLI 缺陷"的，先怀疑被测者自己的测量方法：快照顺序、md5 比错了文件、拿旧副本导出，这三种比真缺陷常见得多。
-- 落了提案之后的复测是**新 profile、新上下文**，绝不用刚跑完的那个 agent：它已经知道坑在哪，不会再踩，它说的"修好了"是假绿。同样的轮次、同样的 prompt，然后对比两份 `friction.md`——只有新被测者的行变了，才算真修好。
-- 判断一条提案看的是：它针对的卡点消失了，**而且没有引入新的一类**。一个缺陷换成另一个，总数上看起来像进步。
-- **不要把 R2 的 prompt 写细。** "整张图统一调一下"没说调成什么色、也没说文档级还是节点级，这个模糊就是考题。skill 的职责是让**层级**变清楚（文档默认还是单个节点），不是替用户猜颜色。写成 "用 `--default-tone warning`"就变成了拼写练习。
-- **让被测者看不到分析内容。** 不要给上一轮的卡点表、不要给 owner 的讨论记录、不要在 prompt 或工作目录里放 issue 正文：一个读过"定位功能没被发现"的被测者会专门去找它，那样的运行什么都测不出来。
+
