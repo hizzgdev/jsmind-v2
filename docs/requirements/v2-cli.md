@@ -424,7 +424,7 @@ jsmind convert <input> --from v1 --to v2 [--output <path>]
 
 ### 6.4 未知选项
 
-**每个子命令声明自己的允许选项集合。全局选项（`--json`、`--dry-run`、`--output`、`--backup`、`--strict`、`--version`、`-h` / `--help`）单列，对所有子命令合法。**
+**每个子命令声明自己的允许选项集合。全局选项（`--json`、`--strict`、`--version`、`-h` / `--help`）单列，对所有子命令合法。写入选项（`--dry-run`、`--output`、`--backup`）不在全局集合里：它们由会写文件的命令各自声明，只在 `create` 和会写文件的 `mind` / `node` 子命令上合法。`validate`、`context`、`export` 以及只读的 `mind find`、`mind list-edges` 一律把它们当未知选项。`--output` 只落在会写文件的 `mind` / `node` 子命令上 —— `create` 和 `export` 的输出路径是位置参数。**
 
 未知选项（拼错的 flag，或只对另一个子命令有意义的 flag）默认**只警告**（`Since: 2.1.0`）：往 stderr 打一行，命令照常执行，退出码不变。
 

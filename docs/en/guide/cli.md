@@ -31,7 +31,7 @@ These options are accepted by every command and subcommand.
 
 ## Write options
 
-These three describe a write — where it lands, and whether it happens — so only the commands that write accept them: `create`, and every `mind` and `node` subcommand. `validate`, `context` and `export` report them as unknown options instead.
+These three describe a write — where it lands, and whether it happens — so only the commands that write accept them: `create`, and the `mind` and `node` subcommands that write. `validate`, `context` and `export` report them as unknown options instead, and so do the read-only `mind find` and `mind list-edges`.
 
 | Option | Meaning | Version |
 | --- | --- | --- |
@@ -39,7 +39,7 @@ These three describe a write — where it lands, and whether it happens — so o
 | `--output <path>` | Write somewhere other than the input file | — |
 | `--backup` | Keep a `.bak` copy before overwriting | — |
 
-`--output` belongs to `mind` and `node` only: `create` and `export` take their output path as a positional argument, so `create x.json --output y.json` is reported as an unknown option rather than quietly ignored.
+`--output` belongs only to the `mind` and `node` subcommands that write: `create` and `export` take their output path as a positional argument, so `create x.json --output y.json` is reported as an unknown option rather than quietly ignored.
 
 Every other option belongs to a specific subcommand; the sections below list them. An option a command does not take is reported instead of being ignored — see [Unknown options](#unknown-options).
 

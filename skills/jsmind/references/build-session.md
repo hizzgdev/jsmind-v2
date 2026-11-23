@@ -30,53 +30,53 @@ jsMind v2 architecture
 
 ```
 $ jsmind create jsmind-arch.json --title "jsMind v2 architecture"
-created jsmind-arch.json
+created jsmind-arch.json (root node id root)
 ```
 
-## 2. Checkpoint 1: run `context` first, then copy the id
+That reply carries the root's id. In this run it is the default word `root`, but the id is data, not a constant — an existing document can name its root anything. Take the id from the reply; do not assume `root` and do not guess an id.
+
+## 2. Checkpoint 1: run `context` to see the tree
 
 ```
 $ jsmind context jsmind-arch.json
 root   jsMind v2 architecture {side=center}
 ```
 
-The root id is `root`. Do not guess an id.
-
 ## 3. First round of edits: build the structure
 
 ```
 $ jsmind mind add-child jsmind-arch.json --parent-id root --text "Model"
-added jm-mwgox1ig under root
+added node (id jm-mwgox1ig) under root
 
 $ jsmind mind add-child jsmind-arch.json --parent-id root --text "View"
-added jm-mwgox1js under root
+added node (id jm-mwgox1js) under root
 
 $ jsmind mind add-child jsmind-arch.json --parent-id root --text "CLI"
-added jm-mwgox1l1 under root
+added node (id jm-mwgox1l1) under root
 
 $ jsmind mind add-child jsmind-arch.json --parent-id jm-mwgox1ig --text "Nodes and edges"
-added jm-mwgox1o9 under jm-mwgox1ig
+added node (id jm-mwgox1o9) under jm-mwgox1ig
 
 $ jsmind mind add-child jsmind-arch.json --parent-id jm-mwgox1ig --text "Validation"
-added jm-mwgox1pe under jm-mwgox1ig
+added node (id jm-mwgox1pe) under jm-mwgox1ig
 
 $ jsmind mind add-child jsmind-arch.json --parent-id jm-mwgox1js --text "Layout"
-added jm-mwgox1qr under jm-mwgox1js
+added node (id jm-mwgox1qr) under jm-mwgox1js
 
 $ jsmind mind add-child jsmind-arch.json --parent-id jm-mwgox1js --text "Rendering"
-added jm-mwgox1rv under jm-mwgox1js
+added node (id jm-mwgox1rv) under jm-mwgox1js
 
 $ jsmind mind add-child jsmind-arch.json --parent-id jm-mwgox1l1 --text "context"
-added jm-mwgox1t3 under jm-mwgox1l1
+added node (id jm-mwgox1t3) under jm-mwgox1l1
 
 $ jsmind mind add-child jsmind-arch.json --parent-id jm-mwgox1l1 --text "edit commands"
-added jm-mwgox1uc under jm-mwgox1l1
+added node (id jm-mwgox1uc) under jm-mwgox1l1
 
 $ jsmind mind add-child jsmind-arch.json --parent-id jm-mwgox1l1 --text "validate"
-added jm-mwgox1vh under jm-mwgox1l1
+added node (id jm-mwgox1vh) under jm-mwgox1l1
 
 $ jsmind mind add-child jsmind-arch.json --parent-id jm-mwgox1l1 --text "export"
-added jm-mwgox1wl under jm-mwgox1l1
+added node (id jm-mwgox1wl) under jm-mwgox1l1
 ```
 
 ## 4. Checkpoint 2: `validate`, then `context` to check indent

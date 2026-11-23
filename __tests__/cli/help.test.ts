@@ -350,5 +350,10 @@ test('help - the manual separates global options from write options', () => {
     for (const flag of ['--dry-run', '--output', '--backup']) {
         assert.ok(writeSection.includes(flag), `${flag} belongs in the write section`);
     }
-    assert.match(writeSection, /create, and every mind and node subcommand/);
+    // The claim has to be the narrow one: `find` and `list-edges` sit under
+    // `mind` but only read, so a blanket "every mind and node subcommand" is the
+    // same over-promise this section is meant to end.
+    assert.match(writeSection, /the mind and node subcommands that\s+write/);
+    assert.doesNotMatch(writeSection, /every mind and node subcommand/);
+    assert.match(writeSection, /find and list-edges/);
 });

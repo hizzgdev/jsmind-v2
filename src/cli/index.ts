@@ -77,7 +77,7 @@ Options:
   --version                       Print the version and exit
   -h, --help                      Show the complete reference
 
-Write options (create, and every mind and node subcommand):
+Write options (create, and the mind and node subcommands that write):
   --dry-run                       Show what would change, write nothing
   --output <path>                 Write somewhere other than the input file
   --backup                        Keep a .bak copy before overwriting
@@ -115,13 +115,14 @@ Options in full
 Write options
 
 These three describe a write — where it lands, whether it happens — so only the
-commands that write take them: create, and every mind and node subcommand.
-validate, context and export reject them as unknown options.
+commands that write take them: create, and the mind and node subcommands that
+write. validate, context and export reject them as unknown options, and so do
+the read-only mind subcommands, find and list-edges.
 
   --dry-run         Print the document that would be written, and write nothing.
   --output <path>   Write to this file instead of the input file, which is left
-                    untouched. mind and node only: create and export take their
-                    path as a positional argument.
+                    untouched. The writing mind and node subcommands only:
+                    create and export take their path as a positional argument.
   --backup          Keep the file being overwritten as <file>.bak.
 
 ${createHelp}

@@ -31,7 +31,7 @@ jsmind <command> [options]
 
 ## 写入选项
 
-这三个选项描述一次写入——写到哪里、是否真的发生——所以只有会写文件的命令接受它们：`create`，以及所有 `mind` 和 `node` 子命令。`validate`、`context` 和 `export` 会把它们当作未知选项报告出来。
+这三个选项描述一次写入——写到哪里、是否真的发生——所以只有会写文件的命令接受它们：`create`，以及会写文件的 `mind` 和 `node` 子命令。`validate`、`context` 和 `export` 会把它们当作未知选项报告出来，只读的 `mind find` 和 `mind list-edges` 同样如此。
 
 | 选项 | 含义 | 版本 |
 | --- | --- | --- |
@@ -39,7 +39,7 @@ jsmind <command> [options]
 | `--output <path>` | 写入到输入文件以外的路径 | — |
 | `--backup` | 覆盖前保留一份 `.bak` 备份 | — |
 
-`--output` 只属于 `mind` 和 `node`：`create` 和 `export` 的输出路径是位置参数，因此 `create x.json --output y.json` 会被报告为未知选项，而不是默默忽略。
+`--output` 只属于会写文件的 `mind` 和 `node` 子命令：`create` 和 `export` 的输出路径是位置参数，因此 `create x.json --output y.json` 会被报告为未知选项，而不是默默忽略。
 
 其余选项归属具体的子命令，见下面各节。某个命令不接受的选项会被报告出来，而不是默默忽略——见 [未知选项](#未知选项)。
 

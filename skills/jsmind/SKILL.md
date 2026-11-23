@@ -79,7 +79,7 @@ Five of those need more than the table says:
 
 - Every write validates and rolls back on failure. `validate` before `export` is still worth running: it names what is wrong, one block per problem, and lists all of them.
 - Exit codes: `0` done, `1` invalid data or an id not in the file, `2` the command line is wrong, `3` IO or environment. Read the code before deciding what broke.
-- `--backup` keeps `map.json.bak` before writing; `--dry-run` prints what it would write and writes nothing. Both apply to `create`, `mind` and `node`, not to `export`.
+- `--backup` keeps `map.json.bak` before writing; `--dry-run` prints what it would write and writes nothing. Both apply to `create` and to the `mind` and `node` subcommands that write — `find` and `list-edges` only read — but not to `export`.
 - An option the command does not take is reported on stderr and **ignored**, and the command still exits 0 — a misspelt flag still produces a map. `--strict` turns that into exit 2.
 - `export` takes its output path as the second positional and overwrites it in place; `--output` does not redirect it. Use a second path when both pictures are wanted. It needs Chromium (`CHROME_PATH` for a binary outside the standard locations); a permission prompt on the first run is the browser starting, not a failure.
 
