@@ -129,5 +129,6 @@ Start a new mind map containing a single root node.
   --force            Overwrite the file if it already exists
   --backup           Keep a .bak copy of the file being overwritten
   --dry-run          Print the document instead of writing it
+  --json             Print {file, rootNodeId} instead of the confirmation line
 
 Refuses to overwrite an existing file without --force.`;

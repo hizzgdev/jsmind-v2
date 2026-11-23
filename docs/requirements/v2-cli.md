@@ -234,6 +234,7 @@ jsmind create <file> --title <title> [options]
 | `--force` | 否 | 覆盖已存在的文件 |
 | `--backup` | 否 | 覆盖前把原文件复制成 `.bak` |
 | `--dry-run` | 否 | 只打印生成的文档，不写盘 |
+| `--json` | 否 | 打印 `{file, rootNodeId}`，替代确认行 |
 
 **`--title` 而不是 `--text`**：这一层面对的是「这张图叫什么」，不是「某个节点的文字」，
 所以用标题的词。`--name` 不传时自动取 `--title` 的值 —— 一张图通常就以根节点命名，

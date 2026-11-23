@@ -96,6 +96,7 @@ Start a new mind map containing a single root node.
 | `--force` | Overwrite the file if it already exists |
 | `--backup` | Keep a `.bak` copy of the file being overwritten |
 | `--dry-run` | Print the document instead of writing it |
+| `--json` | Print `{file, rootNodeId}` instead of the confirmation line |
 
 `create` refuses to overwrite an existing file without `--force`. Every other command assumes a file already exists; this is where one comes from.
 

@@ -318,6 +318,20 @@ test('help - every single-page command prints only its own block', () => {
     }
 });
 
+test('help - every single-page command documents --json', () => {
+    // `--json` is a global flag, but a reader asking one command what it takes
+    // should find it there. `create` gained a JSON shape in 2.2 while its block
+    // still listed six flags and no `--json` — the reference lagging the command.
+    for (const [name, block] of [
+        ['create', createHelp],
+        ['validate', validateHelp],
+        ['context', contextHelp],
+        ['export', exportHelp],
+    ] as const) {
+        assert.ok(block.includes('--json'), `${name} --help should list --json`);
+    }
+});
+
 test('help - `--help` after the file argument still answers for the command', () => {
     // Asking what a command takes should never run it: with `--help` present
     // the dispatcher answers and stops, whether or not a path was typed first.
