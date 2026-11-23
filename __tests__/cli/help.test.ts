@@ -326,3 +326,29 @@ test('help - `--help` after the file argument still answers for the command', ()
     assert.strictEqual(run.code, 0);
     assert.strictEqual(run.stdout, `${createHelp}\n`);
 });
+
+test('help - the manual separates global options from write options', () => {
+    // The three write flags used to sit in "Options in full" beside `--json`,
+    // which is the page claiming they are global — the same claim that made
+    // `validate x.json --output y.json` look accepted.
+    const fullAt = MANUAL.indexOf('Options in full');
+    const writeAt = MANUAL.indexOf('Write options', fullAt);
+    const createAt = MANUAL.indexOf('jsmind create', writeAt);
+
+    assert.ok(fullAt !== -1, 'the manual should carry an "Options in full" section');
+    assert.ok(writeAt > fullAt, 'a "Write options" section should follow it');
+    assert.ok(createAt > writeAt, 'the write section should close before the command blocks');
+
+    const globalSection = MANUAL.slice(fullAt, writeAt);
+    for (const flag of ['--dry-run', '--output', '--backup']) {
+        assert.ok(!globalSection.includes(flag), `${flag} must not be listed as a global option`);
+    }
+    assert.ok(globalSection.includes('--json'), 'the genuinely global flags stay');
+    assert.ok(globalSection.includes('--strict'));
+
+    const writeSection = MANUAL.slice(writeAt, createAt);
+    for (const flag of ['--dry-run', '--output', '--backup']) {
+        assert.ok(writeSection.includes(flag), `${flag} belongs in the write section`);
+    }
+    assert.match(writeSection, /create, and every mind and node subcommand/);
+});

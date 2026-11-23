@@ -502,3 +502,141 @@ test('cli - the root help lists the new global options', () => {
     assert.ok(run.stdout.includes('--strict'), 'the help explains how to refuse an unknown option');
     assert.ok(run.stdout.includes('--version'));
 });
+
+/**
+ * The warning one unknown flag produces for a command.
+ *
+ * @param command - The command key the invocation is filed under.
+ * @param flag - The option name, without its leading dashes.
+ * @returns The exact stderr line.
+ */
+function warning(command: string, flag: string): string {
+    return `jsmind: warning: unknown option for "${command}": --${flag} ` +
+        '(--strict makes this an error)\n';
+}
+
+test('cli - the write flags are unknown to the commands that only read', () => {
+    // The defect this closes: `--output` / `--dry-run` / `--backup` were
+    // listed as global, so `validate x.json --output y.json` printed "valid",
+    // exited 0, left stderr empty, and never wrote y.json. A caller reading
+    // only the exit code could not tell that apart from working.
+    const { file, dir, before } = fixtureCopy();
+    const target = join(dir, 'redirect.json');
+
+    try {
+        for (const command of ['validate', 'context']) {
+            for (const flag of ['dry-run', 'output', 'backup']) {
+                const flags = flag === 'output' ? ['--output', target] : [`--${flag}`];
+                const run = runCli([command, file, ...flags]);
+
+                assert.strictEqual(run.code, CliExit.Ok, `${command} still runs and reports`);
+                assert.strictEqual(run.stderr, warning(command, flag));
+                assert.ok(run.stdout.length > 0, 'the command result still reaches stdout');
+                assert.strictEqual(existsSync(target), false, 'nothing is written to the redirect');
+                assert.strictEqual(readFileSync(file, 'utf8'), before, 'the input stays untouched');
+            }
+        }
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - the same write flags under --strict exit 2, export included', () => {
+    const { file, dir, before } = fixtureCopy();
+    const target = join(dir, 'redirect.json');
+
+    try {
+        // `export` is checked here rather than in the warning test above: under
+        // --strict the refusal happens before the renderer is reached, so the
+        // assertion does not depend on a browser being installed. Same
+        // `checkOptions` branch either way.
+        const commandLines: { args: string[]; command: string; flag: string }[] = [
+            { args: ['validate', file], command: 'validate', flag: 'output' },
+            { args: ['context', file], command: 'context', flag: 'dry-run' },
+            { args: ['context', file], command: 'context', flag: 'backup' },
+            { args: ['export', file, join(dir, 'p.png')], command: 'export', flag: 'output' },
+        ];
+
+        for (const { args, command, flag } of commandLines) {
+            const flags = flag === 'output' ? ['--output', target] : [`--${flag}`];
+            const run = runCli([...args, ...flags, '--strict']);
+
+            assert.strictEqual(run.code, CliExit.Usage, `--strict must refuse ${command} --${flag}`);
+            assert.strictEqual(run.stdout, '', 'a refused command prints no result');
+            assert.strictEqual(run.stderr, `Unknown option for "${command}": --${flag}\n`);
+            assert.strictEqual(existsSync(target), false, 'a refused command writes nothing');
+            assert.strictEqual(readFileSync(file, 'utf8'), before, 'the input stays untouched');
+        }
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - a writing subcommand still takes --output and writes there', () => {
+    const { file, dir, before } = fixtureCopy();
+    const target = join(dir, 'redirect.json');
+
+    try {
+        const run = runCli(['mind', 'move', file, '--node-id', 'jm-b1', '--parent-id', 'jm-a2', '--output', target]);
+
+        assert.strictEqual(run.code, CliExit.Ok, run.stderr);
+        assert.strictEqual(run.stderr, '', 'the flag belongs to this subcommand');
+        const written = JSON.parse(readFileSync(target, 'utf8')) as {
+            nodes: Record<string, { parent: string | null }>;
+        };
+        assert.strictEqual(written.nodes['jm-b1']?.parent, 'jm-a2', 'the write landed in --output');
+        assert.strictEqual(readFileSync(file, 'utf8'), before, 'the input file is left alone');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - create takes --dry-run and --backup, and rejects --output', () => {
+    const dir = scratch();
+    const file = join(dir, 'new.json');
+    const target = join(dir, 'redirect.json');
+
+    try {
+        // --dry-run prints the document and creates nothing.
+        const dry = runCli(['create', file, '--title', '试运行', '--dry-run']);
+        assert.strictEqual(dry.code, CliExit.Ok, dry.stderr);
+        assert.strictEqual(dry.stderr, '', '--dry-run is a flag create accepts');
+        assert.strictEqual(existsSync(file), false);
+        assert.ok(dry.stdout.includes('jsmind_v2'), 'the document is printed');
+
+        // --backup is accepted too; on a fresh path it has nothing to copy.
+        const backup = runCli(['create', file, '--title', '备份', '--backup']);
+        assert.strictEqual(backup.code, CliExit.Ok, backup.stderr);
+        assert.strictEqual(backup.stderr, '');
+        assert.ok(existsSync(file));
+
+        // --output is not: the path is already the positional argument, so the
+        // flag would be a second, competing answer to "where does this go".
+        const out = runCli(['create', join(dir, 'second.json'), '--title', 'x', '--output', target]);
+        assert.strictEqual(out.code, CliExit.Ok);
+        assert.strictEqual(out.stderr, warning('create', 'output'));
+        assert.ok(existsSync(join(dir, 'second.json')), 'the positional path is the one written');
+        assert.strictEqual(existsSync(target), false, 'the redirect is not obeyed');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('cli - a read-only mind subcommand rejects the write flags', () => {
+    // `find` and `list-edges` touch no file, so `--output` there is the same
+    // silent no-op the allow-lists exist to prevent.
+    const { file, dir } = fixtureCopy();
+    const target = join(dir, 'redirect.json');
+
+    try {
+        for (const subcommand of ['find', 'list-edges']) {
+            const run = runCli(['mind', subcommand, file, '--node-id', 'root', '--output', target]);
+
+            assert.strictEqual(run.code, CliExit.Ok, `${subcommand} still runs`);
+            assert.strictEqual(run.stderr, warning(`mind ${subcommand}`, 'output'));
+            assert.strictEqual(existsSync(target), false);
+        }
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});

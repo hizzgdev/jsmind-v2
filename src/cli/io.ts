@@ -69,6 +69,29 @@ export interface WriteOptions {
 }
 
 /**
+ * Flags that describe a write: where it lands, and whether it happens.
+ *
+ * @remarks
+ * Declared next to {@link WriteOptions}, the shape they fill in, and handed to
+ * the commands that write through `../options.ts`. They are not global: a
+ * command that only reads a file does not take them, so `validate x.json
+ * --output y.json` is an unknown option instead of a flag that looks accepted
+ * and is never read.
+ */
+export const WRITE_OPTIONS = ['dry-run', 'output', 'backup'] as const;
+
+/**
+ * The subset of {@link WRITE_OPTIONS} that applies to `create`.
+ *
+ * @remarks
+ * `create` names the file it writes as its positional argument, so `--output`
+ * would be a second answer to "where does this go". The other two still apply:
+ * `--dry-run` prints the document instead of writing it, and `--backup` keeps a
+ * copy of the file `--force` is about to replace.
+ */
+export const CREATE_WRITE_OPTIONS = ['dry-run', 'backup'] as const;
+
+/**
  * Writes a document to disk.
  *
  * @remarks

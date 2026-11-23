@@ -26,6 +26,7 @@ import {
     numberOption,
     requireBooleanOption,
     requireOption,
+    WRITE_OPTIONS,
     type WriteOptions,
 } from '../io.ts';
 import {
@@ -114,10 +115,16 @@ type NodeSubcommand = (typeof SUBCOMMANDS)[number];
  * they are named here instead.
  */
 export const NODE_OPTIONS: Record<NodeSubcommand, readonly string[]> = {
-    'set-text': ['node-id', 'text'],
-    'set-folded': ['node-id', 'folded'],
-    'set-side': ['node-id', 'side'],
-    'set-style': ['node-id', ...STYLE_FIELDS.map(field => field.flag), 'clear', 'reset'],
+    'set-text': ['node-id', 'text', ...WRITE_OPTIONS],
+    'set-folded': ['node-id', 'folded', ...WRITE_OPTIONS],
+    'set-side': ['node-id', 'side', ...WRITE_OPTIONS],
+    'set-style': [
+        'node-id',
+        ...STYLE_FIELDS.map(field => field.flag),
+        'clear',
+        'reset',
+        ...WRITE_OPTIONS,
+    ],
 };
 
 /**

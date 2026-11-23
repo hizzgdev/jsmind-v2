@@ -37,17 +37,17 @@ From the repository root, run the local CLI with `npx jsmind` or `node dist/cli.
 
 ## Create a first map
 
-Create a map, read the root id from `context`, add a child, validate, and export a PNG:
+Create a map, add a child, validate, and export a PNG. `create` prints the root node id it made, and `context` shows the tree:
 
 ```
 $ npx jsmind create tmp/hello.json --title "Hello"
-created tmp/hello.json
+created tmp/hello.json (root node id root)
 
 $ npx jsmind context tmp/hello.json
 root   Hello {side=center}
 
 $ npx jsmind mind add-child tmp/hello.json --parent-id root --text "World"
-added jm-mwh96wk6 under root
+added node (id jm-mwh96wk6) under root
 
 $ npx jsmind validate tmp/hello.json
 tmp/hello.json: valid
@@ -56,7 +56,7 @@ $ npx jsmind export tmp/hello.json tmp/hello.png
 tmp/hello.png: 2400x1600 (85.0 KB)
 ```
 
-The root id in this example is `root`. Child ids are generated; when you run these commands, use the ids from your current `context` output, and do not copy example ids.
+The root id in this example is `root`, which is the default `create` picks. Take the id from the reply instead of assuming it: the root's id is data, and a document written or edited elsewhere can name it anything. Child ids are generated; when you run these commands, use the ids from your current output, and do not copy example ids.
 
 `export` needs a Chromium browser. If it is not in a standard location, set `CHROME_PATH`. See the [CLI](/en/guide/cli) page for options and the rest of the commands.
 
