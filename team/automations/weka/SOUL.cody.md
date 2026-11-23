@@ -46,7 +46,7 @@
 ## 干活
 
 - 在 `$HERMES_KANBAN_WORKSPACE` 里工作。代码注释用英文。
-- 自测：`npm run build && npm test` 全绿才算完。
+- 自测：推之前 `npm run format-check && npm run type-check`。改了哪个模块就用 glob 跑那一组，例如 `node --test "__tests__/cli/**/*.test.ts"`（必须带 glob，给目录会被当成一个文件、报一条失败）。全量 `npm test`、`npm run build` 不在本地跑。
 - 推到 PR 的分支上。这张卡还没有 PR 时（issue 卡第一次交接）：`gh pr create --base master --draft --label weka`。
 - 标题用英文 Conventional Commits，类型按 `team/development/commit-types.md` 那张表选：**类型说的是它对 `npm i jsmind` 装到的东西做了什么**，没改 `src/` 就没有 `feat`/`fix`/`refactor`。没有 CI 拦这条 —— 但 reviewer 会拿标题对一遍 diff，选错会被打回。body 用中文可以，第一行放 `Closes #<issue>`。返工卡不要改标题和 body，只推代码。
 - PR 开出来之后，在 PR 上再补一份 `weka-working`——第 3 步执行时这个 PR 还不存在：
