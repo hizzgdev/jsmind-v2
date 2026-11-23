@@ -2,10 +2,10 @@
 name: jsmind
 display_name: jsMind mind maps
 description: "A work order for drawing or editing a jsmind mind map with the jsmind CLI. Every user-level action is one small recipe: find the node, run one write, validate. Use whenever the task produces or changes a map — building, editing, restyling, exporting, or answering a question about one. Flags are in `jsmind --help`."
-version: 2.2.0
+version: 2.2.1
 metadata:
   jsmind:
-    cli: ">=2.1.0 <3"
+    cli: ">=2.2.0 <3"
 ---
 
 # jsmind — one recipe per action
