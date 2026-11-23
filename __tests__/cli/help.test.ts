@@ -357,3 +357,26 @@ test('help - the manual separates global options from write options', () => {
     assert.doesNotMatch(writeSection, /every mind and node subcommand/);
     assert.match(writeSection, /find and list-edges/);
 });
+
+test('help - the index states which write commands take --output', () => {
+    // A bare `jsmind` prints only the index, so the exception the manual makes
+    // for `--output` has to appear here too: `create` refuses the flag (its path
+    // is positional), and a reader who never runs `--help` would otherwise take
+    // the index at its word. This is the same surface stated in two places, so
+    // both are pinned.
+    const writeAt = INDEX.indexOf('Write options');
+    const exitAt = INDEX.indexOf('Exit codes', writeAt);
+
+    assert.ok(writeAt !== -1, 'the index should carry its own write options block');
+    assert.ok(exitAt > writeAt, 'the write block should close before the exit codes');
+
+    const writeSection = INDEX.slice(writeAt, exitAt);
+    for (const flag of ['--dry-run', '--output', '--backup']) {
+        assert.ok(writeSection.includes(flag), `${flag} belongs in the index's write block`);
+    }
+    // Narrow claim only: the index must not repeat the blanket "create, and
+    // every mind and node subcommand" wording that `create --output` falsifies.
+    assert.match(writeSection, /mind and node subcommands that\s+write/);
+    assert.match(writeSection, /create and export take their path/);
+    assert.doesNotMatch(writeSection, /create, and the mind and node subcommands that write/);
+});

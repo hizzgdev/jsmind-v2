@@ -77,9 +77,12 @@ Options:
   --version                       Print the version and exit
   -h, --help                      Show the complete reference
 
-Write options (create, and the mind and node subcommands that write):
+Write options (for the commands that write):
   --dry-run                       Show what would change, write nothing
-  --output <path>                 Write somewhere other than the input file
+  --output <path>                 Write somewhere other than the input file.
+                                  Only the mind and node subcommands that write
+                                  take it; create and export take their path as
+                                  a positional argument.
   --backup                        Keep a .bak copy before overwriting
 
 Every write is validated first; a failed mutation leaves the file unchanged.
