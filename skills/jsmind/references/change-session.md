@@ -50,7 +50,7 @@ jm-mwgox1wl       export
 
 ```
 $ jsmind mind add-child jsmind-arch.json --parent-id jm-mwgox1ig --text "Events"
-added jm-mwgox3gs under jm-mwgox1ig
+added node (id jm-mwgox3gs) under jm-mwgox1ig
 
 $ jsmind node set-text jsmind-arch.json --node-id jm-mwgox1rv --text "Drawing"
 set text of jm-mwgox1rv

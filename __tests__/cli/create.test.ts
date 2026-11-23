@@ -19,7 +19,7 @@ test('create - produces a file that validates immediately', () => {
 
     let code = -1;
     capture(() => {
-        code = runCreate({ file, title: '根节点', force: false, dryRun: false, backup: false });
+        code = runCreate({ file, title: '根节点', force: false, dryRun: false, backup: false, asJson: false });
     });
 
     assert.strictEqual(code, CliExit.Ok);
@@ -40,7 +40,7 @@ test('create - the document has one root with the given text', () => {
     const file = join(dir, 'new.json');
 
     capture(() => {
-        runCreate({ file, title: '起点', name: '我的图', author: 'someone', force: false, dryRun: false, backup: false });
+        runCreate({ file, title: '起点', name: '我的图', author: 'someone', force: false, dryRun: false, backup: false, asJson: false });
     });
 
     const doc = JSON.parse(readFileSync(file, 'utf8'));
@@ -63,7 +63,7 @@ test('create - refuses to overwrite without --force', () => {
     assert.throws(
         () => {
             capture(() => {
-                runCreate({ file, title: 'x', force: false, dryRun: false, backup: false });
+                runCreate({ file, title: 'x', force: false, dryRun: false, backup: false, asJson: false });
             });
         },
         (err: unknown) => {
@@ -85,7 +85,7 @@ test('create - --force replaces the file', () => {
     writeFileSync(file, '{"old":true}');
 
     capture(() => {
-        runCreate({ file, title: '新的', force: true, dryRun: false, backup: false });
+        runCreate({ file, title: '新的', force: true, dryRun: false, backup: false, asJson: false });
     });
 
     const doc = JSON.parse(readFileSync(file, 'utf8'));
@@ -98,7 +98,7 @@ test('create - --dry-run prints the document and writes nothing', () => {
     const file = join(dir, 'new.json');
 
     const { out } = capture(() => {
-        runCreate({ file, title: '只看不写', force: false, dryRun: true, backup: false });
+        runCreate({ file, title: '只看不写', force: false, dryRun: true, backup: false, asJson: false });
     });
 
     assert.ok(!existsSync(file), 'dry-run must not create the file');
@@ -112,7 +112,7 @@ test('create - name defaults to the title when --name is omitted', () => {
     const file = join(dir, 'new.json');
 
     capture(() => {
-        runCreate({ file, title: '我的图', force: false, dryRun: false, backup: false });
+        runCreate({ file, title: '我的图', force: false, dryRun: false, backup: false, asJson: false });
     });
 
     const doc = JSON.parse(readFileSync(file, 'utf8'));
@@ -137,6 +137,7 @@ test('create - --name overrides the title for meta.name', () => {
             force: false,
             dryRun: false,
             backup: false,
+            asJson: false,
         });
     });
 
@@ -153,7 +154,7 @@ test('create - --force --backup keeps a copy of the replaced file', () => {
     writeFileSync(file, '{"previous":"content"}');
 
     capture(() => {
-        runCreate({ file, title: '覆盖后的', force: true, dryRun: false, backup: true });
+        runCreate({ file, title: '覆盖后的', force: true, dryRun: false, backup: true, asJson: false });
     });
 
     // The flag used to be hardcoded to false, so --backup was silently ignored
@@ -169,7 +170,7 @@ test('create - --backup on a fresh path creates no .bak', () => {
     const file = join(dir, 'new.json');
 
     capture(() => {
-        runCreate({ file, title: '全新的', force: false, dryRun: false, backup: true });
+        runCreate({ file, title: '全新的', force: false, dryRun: false, backup: true, asJson: false });
     });
 
     // Nothing was overwritten, so there is nothing to back up.
@@ -184,10 +185,38 @@ test('create - without --backup the previous file is not kept', () => {
     writeFileSync(file, '{"previous":"content"}');
 
     capture(() => {
-        runCreate({ file, title: '覆盖', force: true, dryRun: false, backup: false });
+        runCreate({ file, title: '覆盖', force: true, dryRun: false, backup: false, asJson: false });
     });
 
     assert.ok(!existsSync(`${file}.bak`));
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('create - the confirmation line carries the root node id', () => {
+    const dir = scratch();
+    const file = join(dir, 'new.json');
+
+    const { out } = capture(() => {
+        runCreate({ file, title: '回报', force: false, dryRun: false, backup: false, asJson: false });
+    });
+
+    // The id is what the next command needs as --parent-id. Printing only the
+    // path made the caller run `context` to discover an id create already had.
+    assert.strictEqual(out, `created ${file} (root node id root)\n`);
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('create - --json prints the file and the root node id', () => {
+    const dir = scratch();
+    const file = join(dir, 'new.json');
+
+    const { out } = capture(() => {
+        runCreate({ file, title: '机器人', force: false, dryRun: false, backup: false, asJson: true });
+    });
+
+    // Shape only: `root` is the default this command chooses, and the point of
+    // the field is that a caller reads the id instead of assuming the word.
+    assert.deepStrictEqual(JSON.parse(out), { file, rootNodeId: 'root' });
     rmSync(dir, { recursive: true, force: true });
 });
 

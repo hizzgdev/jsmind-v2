@@ -26,6 +26,7 @@ import {
     optionalOption,
     readJsonFile,
     requireOption,
+    WRITE_OPTIONS,
     type WriteOptions,
 } from '../io.ts';
 import { CliExit, usageError, dataError } from '../exit.ts';
@@ -66,15 +67,20 @@ type MindSubcommand = (typeof SUBCOMMANDS)[number];
  *
  * `add-child` takes `--side`; `move` does not, because a side belongs to a
  * first-level node and moving one under a different parent does not change it.
+ *
+ * The write flags (`--dry-run`, `--output`, `--backup`) are spread into every
+ * subcommand that writes and into neither read-only one: `find` and
+ * `list-edges` touch no file, so accepting them there would be the same silent
+ * no-op this table exists to prevent.
  */
 export const MIND_OPTIONS: Record<MindSubcommand, readonly string[]> = {
     'find': ['node-id'],
     'list-edges': ['node-id'],
-    'add-child': ['parent-id', 'text', 'side', 'position', 'folded'],
-    'move': ['node-id', 'parent-id', 'position'],
-    'remove-node': ['node-id'],
-    'add-edge': ['source-id', 'target-id', 'type', 'label'],
-    'remove-edge': ['edge-id'],
+    'add-child': ['parent-id', 'text', 'side', 'position', 'folded', ...WRITE_OPTIONS],
+    'move': ['node-id', 'parent-id', 'position', ...WRITE_OPTIONS],
+    'remove-node': ['node-id', ...WRITE_OPTIONS],
+    'add-edge': ['source-id', 'target-id', 'type', 'label', ...WRITE_OPTIONS],
+    'remove-edge': ['edge-id', ...WRITE_OPTIONS],
     // The document-style fields, owned by `./style.ts`: one list, joined to the
     // `mind` group here, so `mind set-style` is keyed like every sibling.
     'set-style': STYLE_OPTIONS,
@@ -235,7 +241,7 @@ export function runMind(
             if (folded !== undefined) {
                 payload.folded = folded;
             }
-            report(asJson, `added ${created} under ${parentId}${note}`, payload);
+            report(asJson, `added node (id ${created}) under ${parentId}${note}`, payload);
             return CliExit.Ok;
         }
 

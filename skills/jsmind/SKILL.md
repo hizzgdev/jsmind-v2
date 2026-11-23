@@ -2,7 +2,7 @@
 name: jsmind
 display_name: jsMind mind maps
 description: "A work order for drawing or editing a jsmind mind map with the jsmind CLI. Every user-level action is one small recipe: find the node, run one write, validate. Use whenever the task produces or changes a map — building, editing, restyling, exporting, or answering a question about one. Flags are in `jsmind --help`."
-version: 2.1.1
+version: 2.2.0
 metadata:
   jsmind:
     cli: ">=2.1.0 <3"
@@ -62,8 +62,8 @@ jm-mws4xrqq       Mars {side=left}
 
 Five of those need more than the table says:
 
-- **New map**: build the root first, then branch by branch — every `--parent-id` needs an id you already have. Around 7 root children at most, unless the user asked for a count or a depth. Choose the side as you add: `--side` is one word now, one `node set-side` per branch later, and a new root child defaults to the right. `create` does not make parent directories, and `--force` over an existing file is not an edit. It replies `created <file>` and nothing else; the root it makes is id `root`, so the first `add-child` needs no find.
-- **add-child**: the reply `added jm-xxxx under <parent>` carries the new id — use it for the next command instead of finding that node again. One node per call: there is no batch form, so five parameters under one parent is five commands. `--side` applies only when the parent is the root; below that the side is inherited, and passing it exits 2 with a message naming the first-level branch to move instead.
+- **New map**: build the root first, then branch by branch — every `--parent-id` needs an id you already have. Around 7 root children at most, unless the user asked for a count or a depth. Choose the side as you add: `--side` is one word now, one `node set-side` per branch later, and a new root child defaults to the right. `create` does not make parent directories, and `--force` over an existing file is not an edit. It replies `created <file> (root node id <id>)`: take that id as the first `add-child`'s `--parent-id` instead of running `context` to find it. The root's id is data, not the word `root` — a document written or edited elsewhere can name it anything.
+- **add-child**: the reply `added node (id jm-xxxx) under <parent>` carries the new id — use it for the next command instead of finding that node again. One node per call: there is no batch form, so five parameters under one parent is five commands. `--side` applies only when the parent is the root; below that the side is inherited, and passing it exits 2 with a message naming the first-level branch to move instead.
 - **move**: *find* twice, once for the node and once for the parent. `--position` is an index among the parent's children, counted across both sides in the order `fullmap:` prints them; past the end it appends. `move` takes no `--side` — an unknown flag is only warned about — so a side is set with `node set-side`, which itself applies to first-level nodes only.
 - **delete**: takes the subtree with it — children and grandchildren go too, and nothing asks twice.
 - **answer**: `--json` obeys the same `--depth` limit as the printed tree, so a node count taken without it loses the deepest level; pass `--depth <n>` when the answer needs the whole tree. Reading is not a change: no write in a question.
@@ -79,7 +79,7 @@ Five of those need more than the table says:
 
 - Every write validates and rolls back on failure. `validate` before `export` is still worth running: it names what is wrong, one block per problem, and lists all of them.
 - Exit codes: `0` done, `1` invalid data or an id not in the file, `2` the command line is wrong, `3` IO or environment. Read the code before deciding what broke.
-- `--backup` keeps `map.json.bak` before writing; `--dry-run` prints what it would write and writes nothing. Both apply to `create`, `mind` and `node`, not to `export`.
+- `--backup` keeps `map.json.bak` before writing; `--dry-run` prints what it would write and writes nothing. Both apply to `create` and to the `mind` and `node` subcommands that write — `find` and `list-edges` only read — but not to `export`.
 - An option the command does not take is reported on stderr and **ignored**, and the command still exits 0 — a misspelt flag still produces a map. `--strict` turns that into exit 2.
 - `export` takes its output path as the second positional and overwrites it in place; `--output` does not redirect it. Use a second path when both pictures are wanted. It needs Chromium (`CHROME_PATH` for a binary outside the standard locations); a permission prompt on the first run is the browser starting, not a failure.
 

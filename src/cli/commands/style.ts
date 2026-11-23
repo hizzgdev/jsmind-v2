@@ -29,7 +29,7 @@
 import type { JmMind } from '../../model/mind.ts';
 import { JmTone, type JmStyle } from '../../model/data/style.ts';
 import { runMutation } from '../mutate.ts';
-import { enumOption, type WriteOptions } from '../io.ts';
+import { enumOption, WRITE_OPTIONS, type WriteOptions } from '../io.ts';
 import { report } from '../shared.ts';
 import { flagToPath, setAtPath } from '../field-path.ts';
 import { CliExit, usageError } from '../exit.ts';
@@ -75,8 +75,16 @@ const STYLE_FIELDS: StyleField[] = [
  * accepts is automatically an option it allows. `../options.ts` reaches this
  * list through `MIND_OPTIONS`, the same table every other `mind` subcommand
  * uses.
+ *
+ * The write flags are appended for the same reason every other writing `mind`
+ * subcommand lists them: this command rewrites the document. `node set-style`
+ * builds its own list from {@link STYLE_FIELDS} and appends them separately,
+ * because its node-id locator is not a document-style field.
  */
-export const STYLE_OPTIONS: readonly string[] = STYLE_FIELDS.map(field => field.flag);
+export const STYLE_OPTIONS: readonly string[] = [
+    ...STYLE_FIELDS.map(field => field.flag),
+    ...WRITE_OPTIONS,
+];
 
 /**
  * Reads the field flags into a list of values to write.

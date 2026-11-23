@@ -73,12 +73,17 @@ Node attributes:
 
 Options:
   --json                          Machine-readable output
-  --dry-run                       Show what would change, write nothing
-  --output <path>                 Write somewhere other than the input file
-  --backup                        Keep a .bak copy before overwriting
   --strict                        Treat an unknown option as a usage error
   --version                       Print the version and exit
   -h, --help                      Show the complete reference
+
+Write options (for the commands that write):
+  --dry-run                       Show what would change, write nothing
+  --output <path>                 Write somewhere other than the input file.
+                                  Only the mind and node subcommands that write
+                                  take it; create and export take their path as
+                                  a positional argument.
+  --backup                        Keep a .bak copy before overwriting
 
 Every write is validated first; a failed mutation leaves the file unchanged.
 
@@ -103,15 +108,25 @@ Options in full
 
   --json            Print a result object instead of the confirmation line: the
                     node or edge the command touched, e.g. {"id": "jm-3f2a"}.
-                    context, validate and export print their own shapes.
-  --dry-run         Print the document that would be written, and write nothing.
-  --output <path>   Write to this file instead of the input file, which is left
-                    untouched. \`create\` takes its path as an argument.
-  --backup          Keep the file being overwritten as <file>.bak.
+                    context, validate and export print their own shapes; create
+                    prints {"file": ..., "rootNodeId": ...}.
   --strict          Refuse an option this command does not take, with exit 2.
                     Without it such an option is reported on stderr and ignored:
                     the run continues, stdout stays parseable, and a caller that
                     reads only stdout cannot see the warning.
+
+Write options
+
+These three describe a write — where it lands, whether it happens — so only the
+commands that write take them: create, and the mind and node subcommands that
+write. validate, context and export reject them as unknown options, and so do
+the read-only mind subcommands, find and list-edges.
+
+  --dry-run         Print the document that would be written, and write nothing.
+  --output <path>   Write to this file instead of the input file, which is left
+                    untouched. The writing mind and node subcommands only:
+                    create and export take their path as a positional argument.
+  --backup          Keep the file being overwritten as <file>.bak.
 
 ${createHelp}
 
@@ -320,10 +335,8 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
                 title: requireOption(parsed.values, 'title'),
                 force: parsed.values.force === true,
                 dryRun: parsed.values['dry-run'] === true,
-                // --output is deliberately not forwarded: for create the path
-                // is already a positional argument, and an output redirect
-                // would give two competing answers to "where does this go".
                 backup: parsed.values.backup === true,
+                asJson,
             };
             if (typeof parsed.values.name === 'string') {
                 options.name = parsed.values.name;

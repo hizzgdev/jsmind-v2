@@ -20,7 +20,8 @@ import { JmMind } from '../../model/mind.ts';
 import { JmNodeContent } from '../../model/data/node-content.ts';
 import { validateMindData } from '../../serialization/validation.ts';
 import { formatIssues } from '../format.ts';
-import { renderJson, writeJsonFile } from '../io.ts';
+import { renderJson, writeJsonFile, CREATE_WRITE_OPTIONS } from '../io.ts';
+import { report } from '../shared.ts';
 import { CliExit, dataError, usageError } from '../exit.ts';
 
 /**
@@ -29,8 +30,12 @@ import { CliExit, dataError, usageError } from '../exit.ts';
  * @remarks
  * Declared for the allow-list in `../options.ts`: a flag that is not here is
  * one this command would silently drop.
+ *
+ * The write flags come from `../io.ts` and exclude `--output`: this command
+ * already names its file as a positional argument, and a redirect would be a
+ * second, competing answer to "where does this go".
  */
-export const CREATE_OPTIONS = ['title', 'name', 'author', 'force'] as const;
+export const CREATE_OPTIONS = ['title', 'name', 'author', 'force', ...CREATE_WRITE_OPTIONS] as const;
 
 /** Options accepted by the create command. */
 export interface CreateOptions {
@@ -41,6 +46,8 @@ export interface CreateOptions {
     force: boolean;
     dryRun: boolean;
     backup: boolean;
+    /** Emit `{file, rootNodeId}` instead of the confirmation line. */
+    asJson: boolean;
 }
 
 /**
@@ -98,7 +105,14 @@ export function runCreate(options: CreateOptions): number {
     }
 
     writeJsonFile(doc, options.file, { dryRun: false, backup: options.backup });
-    process.stdout.write(`created ${options.file}\n`);
+    // The root's id is data: it comes from the `root` field of the document,
+    // and `'root'` is only the default the constructor picks. Hand it back so
+    // the next command does not have to run `context` to learn it.
+    report(
+        options.asJson,
+        `created ${options.file} (root node id ${mind.root.id})`,
+        { file: options.file, rootNodeId: mind.root.id }
+    );
     return CliExit.Ok;
 }
 
@@ -115,5 +129,6 @@ Start a new mind map containing a single root node.
   --force            Overwrite the file if it already exists
   --backup           Keep a .bak copy of the file being overwritten
   --dry-run          Print the document instead of writing it
+  --json             Print {file, rootNodeId} instead of the confirmation line
 
 Refuses to overwrite an existing file without --force.`;

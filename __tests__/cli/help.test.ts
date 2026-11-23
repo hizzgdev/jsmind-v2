@@ -318,6 +318,20 @@ test('help - every single-page command prints only its own block', () => {
     }
 });
 
+test('help - every single-page command documents --json', () => {
+    // `--json` is a global flag, but a reader asking one command what it takes
+    // should find it there. `create` gained a JSON shape in 2.2 while its block
+    // still listed six flags and no `--json` — the reference lagging the command.
+    for (const [name, block] of [
+        ['create', createHelp],
+        ['validate', validateHelp],
+        ['context', contextHelp],
+        ['export', exportHelp],
+    ] as const) {
+        assert.ok(block.includes('--json'), `${name} --help should list --json`);
+    }
+});
+
 test('help - `--help` after the file argument still answers for the command', () => {
     // Asking what a command takes should never run it: with `--help` present
     // the dispatcher answers and stops, whether or not a path was typed first.
@@ -325,4 +339,58 @@ test('help - `--help` after the file argument still answers for the command', ()
 
     assert.strictEqual(run.code, 0);
     assert.strictEqual(run.stdout, `${createHelp}\n`);
+});
+
+test('help - the manual separates global options from write options', () => {
+    // The three write flags used to sit in "Options in full" beside `--json`,
+    // which is the page claiming they are global — the same claim that made
+    // `validate x.json --output y.json` look accepted.
+    const fullAt = MANUAL.indexOf('Options in full');
+    const writeAt = MANUAL.indexOf('Write options', fullAt);
+    const createAt = MANUAL.indexOf('jsmind create', writeAt);
+
+    assert.ok(fullAt !== -1, 'the manual should carry an "Options in full" section');
+    assert.ok(writeAt > fullAt, 'a "Write options" section should follow it');
+    assert.ok(createAt > writeAt, 'the write section should close before the command blocks');
+
+    const globalSection = MANUAL.slice(fullAt, writeAt);
+    for (const flag of ['--dry-run', '--output', '--backup']) {
+        assert.ok(!globalSection.includes(flag), `${flag} must not be listed as a global option`);
+    }
+    assert.ok(globalSection.includes('--json'), 'the genuinely global flags stay');
+    assert.ok(globalSection.includes('--strict'));
+
+    const writeSection = MANUAL.slice(writeAt, createAt);
+    for (const flag of ['--dry-run', '--output', '--backup']) {
+        assert.ok(writeSection.includes(flag), `${flag} belongs in the write section`);
+    }
+    // The claim has to be the narrow one: `find` and `list-edges` sit under
+    // `mind` but only read, so a blanket "every mind and node subcommand" is the
+    // same over-promise this section is meant to end.
+    assert.match(writeSection, /the mind and node subcommands that\s+write/);
+    assert.doesNotMatch(writeSection, /every mind and node subcommand/);
+    assert.match(writeSection, /find and list-edges/);
+});
+
+test('help - the index states which write commands take --output', () => {
+    // A bare `jsmind` prints only the index, so the exception the manual makes
+    // for `--output` has to appear here too: `create` refuses the flag (its path
+    // is positional), and a reader who never runs `--help` would otherwise take
+    // the index at its word. This is the same surface stated in two places, so
+    // both are pinned.
+    const writeAt = INDEX.indexOf('Write options');
+    const exitAt = INDEX.indexOf('Exit codes', writeAt);
+
+    assert.ok(writeAt !== -1, 'the index should carry its own write options block');
+    assert.ok(exitAt > writeAt, 'the write block should close before the exit codes');
+
+    const writeSection = INDEX.slice(writeAt, exitAt);
+    for (const flag of ['--dry-run', '--output', '--backup']) {
+        assert.ok(writeSection.includes(flag), `${flag} belongs in the index's write block`);
+    }
+    // Narrow claim only: the index must not repeat the blanket "create, and
+    // every mind and node subcommand" wording that `create --output` falsifies.
+    assert.match(writeSection, /mind and node subcommands that\s+write/);
+    assert.match(writeSection, /create and export take their path/);
+    assert.doesNotMatch(writeSection, /create, and the mind and node subcommands that write/);
 });

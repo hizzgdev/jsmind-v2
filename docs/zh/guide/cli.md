@@ -25,14 +25,21 @@ jsmind <command> [options]
 | 选项 | 含义 | 版本 |
 | --- | --- | --- |
 | `--json` | 以机器可读格式输出 | — |
-| `--dry-run` | 只显示将要发生的改动，不写入文件 | — |
-| `--output <path>` | 写入到输入文件以外的路径 | — |
-| `--backup` | 覆盖前保留一份 `.bak` 备份 | — |
 | `--strict` | 把未知选项当作用法错误 | `Since: 2.1.0` |
 | `--version` | 打印版本号后退出 | `Since: 2.1.0` |
 | `-h`, `--help` | 显示内置帮助 | — |
 
-`--dry-run`、`--output` 和 `--backup` 适用于会改写文件的 `mind` 和 `node` 子命令。`create` 支持 `--dry-run` 和 `--backup`，但输出路径就是位置参数里的文件，因此不使用 `--output`。
+## 写入选项
+
+这三个选项描述一次写入——写到哪里、是否真的发生——所以只有会写文件的命令接受它们：`create`，以及会写文件的 `mind` 和 `node` 子命令。`validate`、`context` 和 `export` 会把它们当作未知选项报告出来，只读的 `mind find` 和 `mind list-edges` 同样如此。
+
+| 选项 | 含义 | 版本 |
+| --- | --- | --- |
+| `--dry-run` | 只显示将要发生的改动，不写入文件 | — |
+| `--output <path>` | 写入到输入文件以外的路径 | — |
+| `--backup` | 覆盖前保留一份 `.bak` 备份 | — |
+
+`--output` 只属于会写文件的 `mind` 和 `node` 子命令：`create` 和 `export` 的输出路径是位置参数，因此 `create x.json --output y.json` 会被报告为未知选项，而不是默默忽略。
 
 其余选项归属具体的子命令，见下面各节。某个命令不接受的选项会被报告出来，而不是默默忽略——见 [未知选项](#未知选项)。
 
@@ -89,6 +96,7 @@ jsmind create <file> --title <title> [options]
 | `--force` | 若文件已存在则覆盖 |
 | `--backup` | 覆盖前保留一份 `.bak` 备份 |
 | `--dry-run` | 打印文档内容，不写入文件 |
+| `--json` | 打印 `{file, rootNodeId}`，替代确认行 |
 
 没有 `--force` 时，`create` 不会覆盖已有文件。其他命令都假定文件已经存在；新文件由这条命令创建。
 

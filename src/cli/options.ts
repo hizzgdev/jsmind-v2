@@ -116,20 +116,13 @@ export const OPTION_SPEC: ParseArgsOptionsConfig = {
  * `--help` and `--version` are here rather than in any command's list: they
  * answer for the whole program, so they can never be the wrong flag.
  *
- * `--output` is global even though `create` does not read it — it names the
- * file the command writes, and `create` already takes that as its positional.
- * Treating it as an error there would turn a reasonable-but-pointless flag into
- * a failed run; the command's own help says where the path goes.
+ * `--dry-run`, `--output` and `--backup` are deliberately *not* here. They
+ * describe a write, and only some commands write; listing them globally is what
+ * let `jsmind validate x.json --output y.json` exit 0 with the flag unread and
+ * no warning — the class of silent no-op this module exists to close. They come
+ * from `./io.ts` through the allow-lists of the commands that write.
  */
-export const GLOBAL_OPTIONS = [
-    'json',
-    'dry-run',
-    'output',
-    'backup',
-    'strict',
-    'version',
-    'help',
-] as const;
+export const GLOBAL_OPTIONS = ['json', 'strict', 'version', 'help'] as const;
 
 /**
  * Adds the group name to every key of a subcommand table.

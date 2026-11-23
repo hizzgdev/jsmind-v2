@@ -229,9 +229,17 @@ test('cli - mind add-child writes and validates', () => {
     const file = join(dir, 'm.json');
     copyFileSync(FIXTURE, file);
 
-    capture(() => {
+    const { out } = capture(() => {
         runMind(file, 'add-child', { 'parent-id': 'root', 'text': '新节点' }, WRITE);
     });
+
+    // The reply is where the next command gets its --parent-id, so the id has
+    // to be legible in it rather than a bare token between two words.
+    assert.match(
+        out,
+        /^added node \(id jm-[0-9a-z]+\) under root\n$/,
+        'the reply should say it added a node and name its id'
+    );
 
     const after = JSON.parse(readFileSync(file, 'utf8'));
     const rootChildren = after.nodes.root.children;

@@ -37,17 +37,17 @@ npm run build
 
 ## 创建第一张图
 
-创建一张图，用 `context` 拿到根节点 id，添加子节点，校验，再导出 PNG：
+创建一张图，添加子节点，校验，再导出 PNG。`create` 会打印它创建的根节点 id，`context` 用来查看整棵树：
 
 ```
 $ npx jsmind create tmp/hello.json --title "Hello"
-created tmp/hello.json
+created tmp/hello.json (root node id root)
 
 $ npx jsmind context tmp/hello.json
 root   Hello {side=center}
 
 $ npx jsmind mind add-child tmp/hello.json --parent-id root --text "World"
-added jm-mwh96wk6 under root
+added node (id jm-mwh96wk6) under root
 
 $ npx jsmind validate tmp/hello.json
 tmp/hello.json: valid
@@ -56,7 +56,7 @@ $ npx jsmind export tmp/hello.json tmp/hello.png
 tmp/hello.png: 2400x1600 (85.0 KB)
 ```
 
-这个示例里的根节点 id 是 `root`。子节点 id 是生成的；执行时请使用当前 `context` 输出的 id，不要照抄示例 id。
+这个示例里的根节点 id 是 `root`，那只是 `create` 采用的默认值。执行时请直接使用回复里的 id，不要假定它一定叫 `root`：根节点 id 是数据，在别处生成或手改过的文档可以叫任何名字。子节点 id 是生成的；执行时请使用当前输出的 id，不要照抄示例 id。
 
 `export` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`。更多选项和其他命令见 [CLI](/zh/guide/cli) 页面。
 

@@ -25,14 +25,21 @@ These options are accepted by every command and subcommand.
 | Option | Meaning | Version |
 | --- | --- | --- |
 | `--json` | Machine-readable output | — |
-| `--dry-run` | Show what would change, write nothing | — |
-| `--output <path>` | Write somewhere other than the input file | — |
-| `--backup` | Keep a `.bak` copy before overwriting | — |
 | `--strict` | Treat an unknown option as a usage error | `Since: 2.1.0` |
 | `--version` | Print the version and exit | `Since: 2.1.0` |
 | `-h`, `--help` | Show the built-in help | — |
 
-`--dry-run`, `--output`, and `--backup` apply to the mutating `mind` and `node` subcommands. `create` supports `--dry-run` and `--backup`, but the output path is the positional file argument, so `--output` is not used there.
+## Write options
+
+These three describe a write — where it lands, and whether it happens — so only the commands that write accept them: `create`, and the `mind` and `node` subcommands that write. `validate`, `context` and `export` report them as unknown options instead, and so do the read-only `mind find` and `mind list-edges`.
+
+| Option | Meaning | Version |
+| --- | --- | --- |
+| `--dry-run` | Show what would change, write nothing | — |
+| `--output <path>` | Write somewhere other than the input file | — |
+| `--backup` | Keep a `.bak` copy before overwriting | — |
+
+`--output` belongs only to the `mind` and `node` subcommands that write: `create` and `export` take their output path as a positional argument, so `create x.json --output y.json` is reported as an unknown option rather than quietly ignored.
 
 Every other option belongs to a specific subcommand; the sections below list them. An option a command does not take is reported instead of being ignored — see [Unknown options](#unknown-options).
 
@@ -89,6 +96,7 @@ Start a new mind map containing a single root node.
 | `--force` | Overwrite the file if it already exists |
 | `--backup` | Keep a `.bak` copy of the file being overwritten |
 | `--dry-run` | Print the document instead of writing it |
+| `--json` | Print `{file, rootNodeId}` instead of the confirmation line |
 
 `create` refuses to overwrite an existing file without `--force`. Every other command assumes a file already exists; this is where one comes from.
 
