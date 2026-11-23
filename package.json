@@ -57,7 +57,8 @@
         "url": "git+https://github.com/hizzgdev/jsmind-v2.git"
     },
     "author": {
-        "name": "hizzgdev@163.com"
+        "name": "Zhigang Zhang",
+        "email": "hizzgdev@163.com"
     },
     "license": "BSD-3-Clause",
     "publishConfig": {
@@ -74,12 +75,6 @@
         "cli",
         "ai-agents",
         "typescript"
-    ],
-    "maintainers": [
-        {
-            "name": "hizzgdev",
-            "email": "hizzgdev@163.com"
-        }
     ],
     "devDependencies": {
         "@eslint/css": "^0.14.1",
