@@ -13,7 +13,7 @@
 | `hubie/` | 基于例程监听与内部消息的团队协作流程：组织分工、工作流程、沟通约定与重建清单。 |
 | `weka/` | 基于 GitHub webhook + Kanban 的开发流程：webhook 脚本、SOUL、部署步骤与重建清单。 |
 | `bots/` | 早期 bot 文档。其中 `bots/legacy/` 已废弃，只作历史参考，不要照它开工。 |
-| `skills/` | 供 agent 使用的 skill，例如 `skills/jsmind-review/`（PR 审查方法）、`skills/jsmind-skill-sim/`（用多轮真实任务跑 jsmind skill，产出卡点表）。 |
+| `skills/` | 供 agent 使用的 skill，例如 `skills/jsmind-review/`（PR 审查方法）、`skills/jsmind-skill-sim/`（用多轮真实任务跑 jsmind skill，产出卡点记录）。 |
 
 ## 目录约定
 

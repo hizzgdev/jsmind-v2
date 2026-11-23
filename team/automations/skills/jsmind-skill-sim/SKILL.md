@@ -76,7 +76,7 @@ metadata:
 文件开头先写三行来源（数字分别取自两个 `SKILL.md` 的 frontmatter 和 `package.json`），然后一轮一块：
 
 ```
-skill:   jsmind <version>   (<commit sha，或 working tree)
+skill:   jsmind <version>   (<commit sha，或 working tree>)
 cli:     <jsmind --version 的输出>
 sim:     jsmind-skill-sim <version>
 
