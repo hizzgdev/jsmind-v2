@@ -70,7 +70,7 @@ Five of those need more than the table says:
 
 ## Colour: tone first, raw colours are the exception
 
-- A tone is the theme's named pair — a box fill plus the text colour drawn on it — and the colour the user names is usually the whole question. In the stock palette: `primary` blue, `success` green, `warning` orange, `danger` red, `info` light blue, `accent` purple, `default` white. "Make Earth blue" is `--tone primary`: the box turns blue and the label stays legible.
+- A tone is the theme's named pair — a box fill plus the text colour drawn on it — and the colour the user names is usually the whole question. In the stock palette: `primary` blue, `success` green, `warning` orange, `danger` red, `info` light blue, `accent` purple, `default` white.
 - `--background` fills the box, `--color` paints the text, `--border-color` draws the box outline. Each overrides one part and leaves the rest to the tone, so `--color blue` on a `primary` box is blue text on blue. Reach for them when the user names a colour no tone has, or when two nodes must differ inside one tone.
 - Precedence is node `tone` > document `defaultTone` > `default`, so a node's tone is visible only when it differs from the document's. "Make the whole map warm" is `mind set-style`, not an override on every node.
 - A style block stores only what differs from the theme: `--clear <flag names, comma-separated>` is how one override comes back, `--reset` drops all of them and cannot be combined with `--clear` or with a field flag.
