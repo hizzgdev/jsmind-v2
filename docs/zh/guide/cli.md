@@ -96,7 +96,7 @@ jsmind create <file> --title <title> [options]
 | `--force` | 若文件已存在则覆盖 |
 | `--backup` | 覆盖前保留一份 `.bak` 备份 |
 | `--dry-run` | 打印文档内容，不写入文件 |
-| `--json` | 打印 `{file, rootNodeId}`，替代确认行 |
+| `--json` | 打印 `{file, rootNodeId}`，替代确认行（`Since: 2.2.0`） |
 
 没有 `--force` 时，`create` 不会覆盖已有文件。其他命令都假定文件已经存在；新文件由这条命令创建。
 
