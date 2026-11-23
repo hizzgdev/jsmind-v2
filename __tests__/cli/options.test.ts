@@ -541,6 +541,34 @@ test('cli - the write flags are unknown to the commands that only read', () => {
     }
 });
 
+test('cli - export warns about a write flag rather than refusing it', () => {
+    // `export` cannot join the loop above: a successful export needs a browser.
+    // A missing input still shows the policy — the flag is reported and
+    // ignored, and the run ends with the IO error the missing file earns
+    // instead of the usage error `--strict` would produce. Same technique as
+    // export.test.ts's `--transparent` case.
+    const dir = scratch();
+
+    try {
+        const target = join(dir, 'redirect.png');
+        const run = runCli(['export', 'missing.json', join(dir, 'p.png'), '--output', target]);
+
+        assert.strictEqual(
+            run.code,
+            CliExit.IoError,
+            'without --strict an unknown flag is not a usage error'
+        );
+        assert.strictEqual(
+            run.stderr,
+            `${warning('export', 'output')}File not found: missing.json\n`
+        );
+        assert.strictEqual(run.stdout, '', 'the failed export prints no result');
+        assert.strictEqual(existsSync(target), false, 'nothing is written to the redirect');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('cli - the same write flags under --strict exit 2, export included', () => {
     const { file, dir, before } = fixtureCopy();
     const target = join(dir, 'redirect.json');
