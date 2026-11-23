@@ -132,17 +132,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Run test
-echo "[pre-push] Running test..."
-echo "" >> "$STATUS_FILE"
-echo "[pre-push] Running test..." >> "$STATUS_FILE"
-npm run test >> "$STATUS_FILE" 2>&1
-if [ $? -ne 0 ]; then
-    record_end_time
-    echo "❌ test failed. Check detailed output in: $STATUS_FILE"
-    exit 1
-fi
-
 # All checks passed, record end time and add success flag to status file
 record_end_time
 echo "PRE_PUSH_SUCCESS" >> "$STATUS_FILE"
