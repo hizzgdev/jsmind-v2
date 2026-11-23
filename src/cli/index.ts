@@ -335,9 +335,6 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
                 title: requireOption(parsed.values, 'title'),
                 force: parsed.values.force === true,
                 dryRun: parsed.values['dry-run'] === true,
-                // --output is not in create's allow-list: the path is already a
-                // positional argument, so the flag is reported as unknown
-                // rather than accepted and unread.
                 backup: parsed.values.backup === true,
                 asJson,
             };
