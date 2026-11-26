@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jsMind V2 — a mind-map kernel for people and agents</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="favicon.png">
+<style>
+:root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1b1b1f;
+    --muted: #5c5f66;
+    --line: #e2e2e6;
+    --card: #f6f6f7;
+    --accent: #3451b2;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1b1b1f;
+        --fg: #e5e5e6;
+        --muted: #a8abb2;
+        --line: #2e2e32;
+        --card: #202024;
+        --accent: #a8b8f0;
+    }
+}
+* {
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+}
+a {
+    color: var(--accent);
+}
+.wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+.site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--line);
+}
+.brand {
+    font-size: 18px;
+    font-weight: 700;
+    color: inherit;
+    text-decoration: none;
+}
+.site-header nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 14px;
+}
+.lang-switch {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.lang-switch button {
+    padding: 4px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.lang-switch button[aria-pressed="true"] {
+    background: var(--card);
+    color: var(--fg);
+    font-weight: 600;
+}
+.hero {
+    padding: 48px 0 8px;
+}
+h1 {
+    margin: 0 0 12px;
+    font-size: 40px;
+    line-height: 1.2;
+}
+.tagline {
+    margin: 0 0 16px;
+    max-width: 44em;
+    font-size: 18px;
+    color: var(--muted);
+}
+.preview {
+    display: inline-block;
+    margin: 0;
+    padding: 2px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--muted);
+}
+.entries {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 32px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.entry {
+    display: block;
+    height: 100%;
+    padding: 20px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--card);
+    color: inherit;
+    text-decoration: none;
+}
+.entry:hover {
+    border-color: var(--accent);
+}
+.entry-title {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+}
+.entry-text {
+    display: block;
+    font-size: 14px;
+    color: var(--muted);
+}
+section {
+    padding: 32px 0 0;
+}
+h2 {
+    margin: 0 0 12px;
+    font-size: 20px;
+}
+.install code {
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--card);
+    font-size: 15px;
+}
+.recent-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.recent-empty {
+    margin: 0;
+    color: var(--muted);
+}
+.site-footer {
+    margin-top: 48px;
+    padding: 20px 0 40px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--muted);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+    <header class="site-header">
+        <a class="brand" href="./">jsMind V2</a>
+        <nav>
+            <a href="https://github.com/hizzgdev/jsmind-v2">GitHub</a>
+            <span class="lang-switch" role="group">
+                <button type="button" data-lang="en" aria-pressed="true">English</button>
+                <button type="button" data-lang="zh" aria-pressed="false">中文</button>
+            </span>
+        </nav>
+    </header>
+    <main>
+        <section class="hero">
+            <h1>jsMind V2</h1>
+            <p class="tagline" data-en="A mind-map kernel for people and agents: people can view, edit and export maps; agents can reliably create, read and modify them." data-zh="面向人与 agent 的思维导图内核：人能查看、编辑、导出导图，agent 能可靠地生成、读取、修改结构化的脑图数据。">A mind-map kernel for people and agents: people can view, edit and export maps; agents can reliably create, read and modify them.</p>
+            <p class="preview" data-en="2.x preview — the API may still change between minor releases." data-zh="2.x 预览版 —— 次版本之间仍可能有不兼容改动。">2.x preview — the API may still change between minor releases.</p>
+        </section>
+
+        <ul class="entries">
+            <li>
+                <a class="entry" href="docs/">
+                    <span class="entry-title" data-en="Documentation" data-zh="文档">Documentation</span>
+                    <span class="entry-text" data-en="Installation, the API reference and the design notes." data-zh="安装、API 参考与设计说明。">Installation, the API reference and the design notes.</span>
+                </a>
+            </li>
+            <li>
+                <a class="entry" href="tutorials/">
+                    <span class="entry-title" data-en="Tutorials" data-zh="教程">Tutorials</span>
+                    <span class="entry-text" data-en="One task, start to finish, with example files." data-zh="带示例文件，把一件事从头做一遍。">One task, start to finish, with example files.</span>
+                </a>
+            </li>
+            <li>
+                <a class="entry" href="playground.html">
+                    <span class="entry-title" data-en="Playground" data-zh="Playground">Playground</span>
+                    <span class="entry-text" data-en="Open a mind map in the browser and edit it." data-zh="在浏览器里打开一张脑图并直接编辑。">Open a mind map in the browser and edit it.</span>
+                </a>
+            </li>
+        </ul>
+
+        <section class="install">
+            <h2 data-en="Install" data-zh="安装">Install</h2>
+            <p><code>npm i jsmind@2</code></p>
+            <p>
+                <a href="docs/en/guide/getting-started" data-href-en="docs/en/guide/getting-started" data-href-zh="docs/zh/guide/getting-started" data-en="Quick start" data-zh="快速上手">Quick start</a>
+                <span data-en="has the full steps; this page does not repeat them." data-zh="里有完整步骤，这里不再重复。">has the full steps; this page does not repeat them.</span>
+            </p>
+        </section>
+
+        <section class="recent">
+            <h2 data-en="Recent tutorials" data-zh="最近教程">Recent tutorials</h2>
+            <!-- Reserved for the two or three newest posts. Empty until the
+                 first tutorial ships; the tutorials site owns the full list. -->
+            <ul class="recent-list" id="recent-tutorials"></ul>
+            <p class="recent-empty" data-en="The first tutorials are being written. They will be listed on the tutorials page once published." data-zh="第一批教程正在撰写，发布后会出现在教程栏目里。">The first tutorials are being written. They will be listed on the tutorials page once published.</p>
+        </section>
+    </main>
+    <footer class="site-footer">
+        <p data-en="jsMind is BSD-3-Clause licensed." data-zh="jsMind 采用 BSD-3-Clause 许可。">jsMind is BSD-3-Clause licensed.</p>
+    </footer>
+</div>
+<script>
+(function () {
+    var KEY = '{{DOCS_LANG_STORAGE_KEY}}';
+    var lang = 'en';
+    try {
+        if (localStorage.getItem(KEY) === 'zh') {
+            lang = 'zh';
+        }
+    } catch (error) {
+        lang = 'en';
+    }
+
+    function apply(next) {
+        lang = next;
+        document.documentElement.lang = next === 'zh' ? 'zh-CN' : 'en';
+        document.title = next === 'zh'
+            ? 'jsMind V2 —— 面向人与 agent 的思维导图内核'
+            : 'jsMind V2 — a mind-map kernel for people and agents';
+
+        var group = document.querySelector('.lang-switch');
+        if (group) {
+            group.setAttribute('aria-label', next === 'zh' ? '语言' : 'Language');
+        }
+
+        var texts = document.querySelectorAll('[data-en], [data-zh]');
+        for (var i = 0; i < texts.length; i += 1) {
+            var value = texts[i].getAttribute('data-' + next);
+            if (value !== null) {
+                texts[i].textContent = value;
+            }
+        }
+
+        var links = document.querySelectorAll('[data-href-en], [data-href-zh]');
+        for (var j = 0; j < links.length; j += 1) {
+            var href = links[j].getAttribute('data-href-' + next);
+            if (href !== null) {
+                links[j].setAttribute('href', href);
+            }
+        }
+
+        var buttons = document.querySelectorAll('.lang-switch button');
+        for (var k = 0; k < buttons.length; k += 1) {
+            buttons[k].setAttribute('aria-pressed', buttons[k].getAttribute('data-lang') === next ? 'true' : 'false');
+        }
+    }
+
+    var buttons = document.querySelectorAll('.lang-switch button');
+    for (var b = 0; b < buttons.length; b += 1) {
+        buttons[b].addEventListener('click', function (event) {
+            var next = event.currentTarget.getAttribute('data-lang');
+            try {
+                localStorage.setItem(KEY, next);
+            } catch (error) {
+                // Storage can be disabled; the page still switches for this visit.
+            }
+            apply(next);
+        });
+    }
+
+    apply(lang);
+})();
+</script>
+</body>
+</html>

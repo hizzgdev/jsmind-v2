@@ -2,19 +2,20 @@
 
 A mind-map kernel for people and agents — people can view, edit, and export maps; agents can reliably create, read, and modify structured maps.
 
-[Documentation](https://hizzgdev.github.io/jsmind-v2/docs/) ([Quick start](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/getting-started) / [Skill](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/skill) / [CLI](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/cli)) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html)
+[Documentation](https://hizzgdev.github.io/jsmind-v2/docs/) ([Quick start](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/getting-started) / [Skill](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/skill) / [CLI](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/cli)) · [Tutorials](https://hizzgdev.github.io/jsmind-v2/tutorials/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html)
 
 [![npm v2-preview](https://img.shields.io/npm/v/jsmind/v2-preview)](https://www.npmjs.com/package/jsmind?activeTab=versions)
 
 中文说明见 [README.zh.md](README.zh.md)。
 
-<!-- The documentation and playground links are absolute, because both leave
-     the repository when this README is read on GitHub. The documentation
-     link is the published docs site entry, which restores the last language
-     choice (or English by default). A language-prefixed docs URL is not used
-     here. The playground only exists on the published site - it is copied
-     there from example/ with its script path rewritten during deployment -
-     so a relative link would 404 when this README is read on GitHub. -->
+<!-- The documentation, tutorial and playground links are absolute, because all
+     three leave the repository when this README is read on GitHub. The
+     documentation and tutorial links are the published site entries, which
+     restore the last language choice (or English by default). A
+     language-prefixed URL is not used here. The playground only exists on the
+     published site - it is copied there from example/ with its script path
+     rewritten during deployment - so a relative link would 404 when this
+     README is read on GitHub. -->
 
 ## Install
 
@@ -61,6 +62,10 @@ The root id in this example is `root`, which is the default `create` picks. Take
 ## Documentation
 
 The public documentation site is at [https://hizzgdev.github.io/jsmind-v2/docs/](https://hizzgdev.github.io/jsmind-v2/docs/). English and Chinese are both available; the entry URL remembers the last language you chose, or defaults to English.
+
+## Tutorials
+
+The tutorial column is at [https://hizzgdev.github.io/jsmind-v2/tutorials/](https://hizzgdev.github.io/jsmind-v2/tutorials/). It is being built: the first tutorials are being written and will be listed there. The language rule is the same as the documentation.
 
 ## Playground
 

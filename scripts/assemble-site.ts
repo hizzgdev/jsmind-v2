@@ -1,11 +1,11 @@
 /**
  * @fileoverview Builds the GitHub Pages directory.
  *
- * The workflow only publishes `_site`. This command writes the root index as
- * a redirect to the docs site, copies the playground, the bundle, the browser
- * icon and the `skills/` directory, points the playground at the bundle and
- * the icon that sit beside it, and builds the VitePress documentation site
- * into `_site/docs`.
+ * The workflow only publishes `_site`. This command writes the root product
+ * page, copies the playground, the bundle, the browser icon and the `skills/`
+ * directory, points the playground at the bundle and the icon that sit beside
+ * it, builds the VitePress documentation site into `_site/docs`, and builds
+ * the tutorials site into `_site/tutorials`.
  *
  * `docs/public/` is the repository's one copy of the browser icon. VitePress
  * copies that directory into the docs output by itself, and the root site
@@ -17,9 +17,11 @@
  * It is not part of the npm package: the directory may later carry scripts
  * and fixtures that npm has no business shipping.
  *
- * The site root is a redirect, not a page: `/docs/` is the project front
- * page, so a second copy of the project description at the root would only
- * drift from it. The index is generated, not checked in.
+ * The site root is a product page, not a redirect: the documentation, the
+ * tutorials and the playground each get an entry there. The page itself is
+ * `site/index.html`, a source file that reads like a page; this command renders
+ * it into `_site/index.html`, so the markup is edited in one place and the
+ * published root is never a second, hand-kept copy.
  *
  * `example/playground.html` keeps `../dist/jsmind.js`. That path is what
  * `npm run server` needs, because the page lives in `example/`. On the site
@@ -30,6 +32,12 @@
  *
  * The docs site is bilingual (`/docs/en/`, `/docs/zh/`). `/docs/` is a
  * language redirect that reads `jsmind-docs-lang` from localStorage.
+ *
+ * The tutorials are a second VitePress site, published at `/tutorials/` with
+ * its own base: the documentation URLs are already published under
+ * `/jsmind-v2/docs/` and must not move, so the two sites cannot share one
+ * `base`. `/tutorials/` is the same language redirect as `/docs/`, reading
+ * the same key.
  * Existing markdown under `docs/requirements/` stays in the repository
  * but is not published here. Architecture and feature articles now live
  * under the bilingual `docs/en/` and `docs/zh/` trees.
@@ -43,29 +51,107 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * Site root index: a redirect to the documentation, which is the project
- * front page. Nothing else lives here - no title, no styles, no feature list.
- *
- * `location.replace` keeps the redirect out of history so the back button
- * does not land on it again. The search and hash are carried over, so old
- * links that arrived with a query or an anchor keep their information, and
- * the `<noscript>` link is the way in without JavaScript.
+ * localStorage key shared by `/docs/`, `/tutorials/`, the root page and every
+ * language switcher: a reader picks a language once, and each entry restores
+ * it. Declared before the templates that interpolate it.
  */
-export const LANDING_REDIRECT_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<script>
-location.replace('docs/' + location.search + location.hash);
-</script>
-</head>
-<body>
-<noscript>
-    <p><a href="docs/">jsMind V2 documentation</a></p>
-</noscript>
-</body>
-</html>
-`;
+export const DOCS_LANG_STORAGE_KEY = 'jsmind-docs-lang';
+
+/**
+ * Source directory of the published site's own pages.
+ *
+ * It is `site/`, not `_site/`: `_site` is the build output, wiped and rewritten
+ * on every `npm run assemble-site` and ignored by git. `site/` is the source
+ * that is checked in, so editing the front page means editing a file here and
+ * not a string inside this command.
+ *
+ * Only the pages the command writes from scratch live here. Anything with a
+ * source tree of its own keeps it: `docs/` and `tutorials/` are VitePress
+ * sources, `example/playground.html` is the playground `npm run server` serves,
+ * `docs/public/` holds the icons and `dist/` the bundle.
+ */
+export const SITE_SRC_DIR = 'site';
+
+/** The product front page, published as the site root `index.html`. */
+export const SITE_INDEX_PAGE = 'index.html';
+
+/** Template of the `/docs/` and `/tutorials/` language redirects. */
+export const LANGUAGE_REDIRECT_PAGE = 'language-redirect.html';
+
+/** Template of the retired-doc-path redirects. */
+export const PAGE_REDIRECT_PAGE = 'page-redirect.html';
+
+/**
+ * Renders a page from {@link SITE_SRC_DIR}.
+ *
+ * A page source is plain HTML with `{{NAME}}` slots for the few values that
+ * come from the build rather than from the page: the language key, the
+ * redirect title, the redirect destination. Plain HTML is the point — a page
+ * opens, reads and diffs like a page, and this function only fills the slots.
+ *
+ * A slot left unfilled fails the build instead of shipping a literal `{{...}}`
+ * to readers, and a missing source names the file it looked for instead of
+ * failing somewhere deeper on ENOENT.
+ *
+ * @param root - Repository root.
+ * @param name - File name inside {@link SITE_SRC_DIR}.
+ * @param values - Slot name to value.
+ * @returns The page to publish.
+ */
+export function renderSitePage(root: string, name: string, values: Record<string, string>): string {
+    const path = join(root, SITE_SRC_DIR, name);
+    if (!existsSync(path)) {
+        throw new Error(`missing site page source: ${SITE_SRC_DIR}/${name}`);
+    }
+
+    let html = readFileSync(path, 'utf8');
+    for (const [slot, value] of Object.entries(values)) {
+        // A function replacement, so a value containing `$&` or `$1` is
+        // inserted literally instead of being read as a replacement pattern.
+        html = html.replaceAll(`{{${slot}}}`, () => value);
+    }
+
+    const open = html.indexOf('{{');
+    if (open !== -1) {
+        const close = html.indexOf('}}', open);
+        throw new Error(
+            `${SITE_SRC_DIR}/${name} has an unfilled slot: ${html.slice(open, close === -1 ? undefined : close + 2)}`
+        );
+    }
+    return html;
+}
+
+/**
+ * The product front page, rendered from {@link SITE_INDEX_PAGE}.
+ *
+ * Three entries — documentation, tutorials, playground — plus the install
+ * line, the GitHub link and the 2.x preview notice. The "recent tutorials"
+ * slot is deliberately empty until the first post ships: it is a reserved
+ * structure, not a stand-in for something else.
+ *
+ * The page lives in `site/index.html`. That is a source file, not the
+ * published page: nothing sits at the repository root, and the assembly writes
+ * `_site/index.html` from this page, so the checkout holds one copy of the
+ * markup and the published site holds one copy of the same markup.
+ *
+ * Language comes from `jsmind-docs-lang`, the key `/docs/`, `/tutorials/` and
+ * both switchers already share, defaulting to English when nothing is stored.
+ * Both languages sit in the markup as `data-en` / `data-zh`, so the page is
+ * still readable with JavaScript disabled (English, the default), and the
+ * switcher only rewrites text, the one language-dependent href and the
+ * document language.
+ *
+ * The icons are relative names because the page and the copied icons share
+ * the site root; the paths to `docs/`, `tutorials/` and `playground.html` are
+ * relative for the same reason, and so the page works from the site root
+ * wherever that root is mounted.
+ *
+ * @param root - Repository root.
+ * @returns The page to publish.
+ */
+export function landingPageHtml(root: string = ROOT): string {
+    return renderSitePage(root, SITE_INDEX_PAGE, { DOCS_LANG_STORAGE_KEY });
+}
 
 /** Script src while the page still lives under `example/`. */
 export const LOCAL_BUNDLE_SRC = '../dist/jsmind.js';
@@ -89,9 +175,6 @@ export const SITE_ICON_FILES = ['favicon.svg', 'favicon.png'] as const;
 /** Icon href prefix while the page still lives under `example/`. */
 export const LOCAL_ICON_HREF_PREFIX = `../${PUBLIC_DIR}/`;
 
-/** localStorage key used by `/docs/` and the docs language switcher. */
-export const DOCS_LANG_STORAGE_KEY = 'jsmind-docs-lang';
-
 /**
  * Source directory of the agent skill, copied whole to the site root.
  *
@@ -105,6 +188,17 @@ export const SKILL_DIR = 'skills';
 /** The one file inside {@link SKILL_DIR} that proves the copy happened. */
 export const SKILL_SITE_FILE = `${SKILL_DIR}/jsmind/SKILL.md`;
 
+/**
+ * Source directory of the tutorials, a second VitePress site published at
+ * `/tutorials/`.
+ *
+ * It sits beside `docs/`, not inside it: the docs sidebars are product
+ * documentation, and the tutorials are a separate column that must not appear
+ * in them. The two sites also cannot share one VitePress `base` — the docs
+ * URLs under `/jsmind-v2/docs/` are already published.
+ */
+export const TUTORIALS_DIR = 'tutorials';
+
 const SITE_FILES = [
     'index.html',
     'playground.html',
@@ -114,32 +208,39 @@ const SITE_FILES = [
 ] as const;
 
 /**
- * Language redirect written to `_site/docs/index.html` after the VitePress
- * build, replacing any root index the generator may have emitted.
+ * A language redirect for a bilingual site root, rendered from
+ * {@link LANGUAGE_REDIRECT_PAGE}.
+ *
+ * `/docs/` and `/tutorials/` share one rule: read `jsmind-docs-lang`, default
+ * to English, and forward to the stored language with the query and hash
+ * intact. It is written after the VitePress build, replacing any root index
+ * the generator may have emitted. A page that already names its language
+ * (`/docs/zh/`, `/tutorials/en/`) is a real page and is never rewritten.
+ *
+ * @param title - Page title, so a reader who lands here knows which site it is.
+ * @param root - Repository root.
  */
-export const DOCS_LANGUAGE_REDIRECT_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>jsMind V2 Documentation</title>
-<script>
-(function () {
-    var lang = localStorage.getItem('${DOCS_LANG_STORAGE_KEY}');
-    if (lang !== 'en' && lang !== 'zh') {
-        lang = 'en';
-    }
-    location.replace(lang + '/' + location.search + location.hash);
-})();
-</script>
-</head>
-<body>
-<noscript>
-    <p><a href="en/">English</a> · <a href="zh/">中文</a></p>
-</noscript>
-</body>
-</html>
-`;
+export function languageRedirectHtml(title: string, root: string = ROOT): string {
+    return renderSitePage(root, LANGUAGE_REDIRECT_PAGE, { TITLE: title, DOCS_LANG_STORAGE_KEY });
+}
+
+/**
+ * Language redirect written to `_site/docs/index.html`.
+ *
+ * @param root - Repository root.
+ */
+export function docsLanguageRedirectHtml(root: string = ROOT): string {
+    return languageRedirectHtml('jsMind V2 Documentation', root);
+}
+
+/**
+ * Language redirect written to `_site/tutorials/index.html`.
+ *
+ * @param root - Repository root.
+ */
+export function tutorialsLanguageRedirectHtml(root: string = ROOT): string {
+    return languageRedirectHtml('jsMind V2 Tutorials', root);
+}
 
 /** Src of every `<script type="module" src="...">`, whatever the attribute order. */
 export function moduleScriptSrcs(html: string): string[] {
@@ -200,9 +301,9 @@ export function rewritePlayground(html: string): string {
 }
 
 /**
- * Writes the site root index, the playground, the bundle, the icons and the
+ * Writes the root product page, the playground, the bundle, the icons and the
  * skill directory into an already-created site directory. Does not wipe the
- * directory or build the docs site.
+ * directory or build either VitePress site.
  *
  * The icons are copied from {@link PUBLIC_DIR} rather than read from the page:
  * the playground's href is the repository path, and the published name is
@@ -219,7 +320,7 @@ export function rewritePlayground(html: string): string {
 export function assembleRootSite(root: string, siteDir: string): void {
     mkdirSync(siteDir, { recursive: true });
 
-    writeFileSync(join(siteDir, 'index.html'), LANDING_REDIRECT_HTML);
+    writeFileSync(join(siteDir, 'index.html'), landingPageHtml(root));
     copyFileSync(join(root, 'dist', 'jsmind.js'), join(siteDir, 'jsmind.js'));
 
     for (const name of SITE_ICON_FILES) {
@@ -241,13 +342,34 @@ export function assembleRootSite(root: string, siteDir: string): void {
 }
 
 /**
+ * Writes a bilingual site's language redirect index.
+ *
+ * @param dir - Site output directory (`_site/docs`, `_site/tutorials`).
+ * @param html - The redirect page to write.
+ */
+function writeLanguageRedirect(dir: string, html: string): void {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), html);
+}
+
+/**
  * Writes the `/docs/` language redirect index.
  *
  * @param docsDir - Docs output directory (`_site/docs`).
+ * @param root - Repository root.
  */
-export function writeDocsLanguageRedirect(docsDir: string): void {
-    mkdirSync(docsDir, { recursive: true });
-    writeFileSync(join(docsDir, 'index.html'), DOCS_LANGUAGE_REDIRECT_HTML);
+export function writeDocsLanguageRedirect(docsDir: string, root: string = ROOT): void {
+    writeLanguageRedirect(docsDir, docsLanguageRedirectHtml(root));
+}
+
+/**
+ * Writes the `/tutorials/` language redirect index.
+ *
+ * @param tutorialsDir - Tutorials output directory (`_site/tutorials`).
+ * @param root - Repository root.
+ */
+export function writeTutorialsLanguageRedirect(tutorialsDir: string, root: string = ROOT): void {
+    writeLanguageRedirect(tutorialsDir, tutorialsLanguageRedirectHtml(root));
 }
 
 /**
@@ -264,46 +386,58 @@ export const DOCS_PAGE_REDIRECTS = [
 ] as const;
 
 /**
- * A static redirect page. GitHub Pages serves `name.html` for `/name`,
- * so these cover both the extensionless bookmark and the `.html` URL.
+ * A static redirect page, rendered from {@link PAGE_REDIRECT_PAGE}. GitHub
+ * Pages serves `name.html` for `/name`, so these cover both the extensionless
+ * bookmark and the `.html` URL.
  *
  * @param to - Relative destination, without a query or hash.
+ * @param root - Repository root.
  */
-export function docsPageRedirectHtml(to: string): string {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Page moved</title>
-<meta http-equiv="refresh" content="0; url=${to}">
-<script>
-(function () {
-    location.replace('${to}' + location.search + location.hash);
-})();
-</script>
-</head>
-<body>
-<noscript>
-    <p><a href="${to}">This page has moved</a></p>
-</noscript>
-</body>
-</html>
-`;
+export function docsPageRedirectHtml(to: string, root: string = ROOT): string {
+    return renderSitePage(root, PAGE_REDIRECT_PAGE, { TO: to });
 }
 
 /**
  * Writes retired-path redirects under `en/` and `zh/`.
  *
  * @param docsDir - Docs output directory (`_site/docs`).
+ * @param root - Repository root.
  */
-export function writeDocsPageRedirects(docsDir: string): void {
+export function writeDocsPageRedirects(docsDir: string, root: string = ROOT): void {
     for (const locale of ['en', 'zh'] as const) {
         for (const { from, to } of DOCS_PAGE_REDIRECTS) {
             const path = join(docsDir, locale, from);
             mkdirSync(dirname(path), { recursive: true });
-            writeFileSync(path, docsPageRedirectHtml(to));
+            writeFileSync(path, docsPageRedirectHtml(to, root));
         }
+    }
+}
+
+/**
+ * Runs one VitePress build.
+ *
+ * Both sites are built the same way and both fail loudly: a missing install
+ * or a non-zero exit stops the assembly instead of publishing a site with a
+ * hole in it.
+ *
+ * @param root - Repository root, where `node_modules/` lives.
+ * @param srcDir - Site source directory (`docs`, `tutorials`).
+ * @param outDir - Output directory.
+ * @param label - Site name for the failure message.
+ */
+function buildVitepressSite(root: string, srcDir: string, outDir: string, label: string): void {
+    const vitepressBin = join(root, 'node_modules', 'vitepress', 'bin', 'vitepress.js');
+    if (!existsSync(vitepressBin)) {
+        throw new Error(`vitepress is not installed at ${vitepressBin}`);
+    }
+
+    const result = spawnSync(
+        process.execPath,
+        [vitepressBin, 'build', join(root, srcDir), '--outDir', outDir],
+        { cwd: root, stdio: 'inherit' }
+    );
+    if (result.status !== 0) {
+        throw new Error(`VitePress ${label} build failed with exit code ${result.status ?? 'null'}`);
     }
 }
 
@@ -316,30 +450,41 @@ export function writeDocsPageRedirects(docsDir: string): void {
  * @param docsDir - Docs output directory (`_site/docs`).
  */
 export function assembleDocsSite(root: string, docsDir: string): void {
-    const vitepressBin = join(root, 'node_modules', 'vitepress', 'bin', 'vitepress.js');
-    if (!existsSync(vitepressBin)) {
-        throw new Error(`vitepress is not installed at ${vitepressBin}`);
-    }
+    buildVitepressSite(root, 'docs', docsDir, 'docs');
+    writeDocsLanguageRedirect(docsDir, root);
+    writeDocsPageRedirects(docsDir, root);
+}
 
-    const result = spawnSync(
-        process.execPath,
-        [vitepressBin, 'build', join(root, 'docs'), '--outDir', docsDir],
-        { cwd: root, stdio: 'inherit' }
-    );
-    if (result.status !== 0) {
-        throw new Error(`VitePress docs build failed with exit code ${result.status ?? 'null'}`);
+/**
+ * Builds the tutorials site into `tutorialsDir`, writes the language redirect
+ * at its root, and copies the site icons beside it.
+ *
+ * The icons come from {@link PUBLIC_DIR}, the repository's one checked-in
+ * copy, so the tutorials site does not keep a second copy of the same file.
+ * The tutorials `head` hrefs are built from that site's `base`, so the files
+ * have to land in the tutorials output.
+ *
+ * `tutorials/_template.md` is excluded by the site's `srcExclude`: it is a
+ * source for the next batch of articles, not a page in the column.
+ *
+ * @param root - Repository root.
+ * @param tutorialsDir - Tutorials output directory (`_site/tutorials`).
+ */
+export function assembleTutorialsSite(root: string, tutorialsDir: string): void {
+    buildVitepressSite(root, TUTORIALS_DIR, tutorialsDir, 'tutorials');
+    writeTutorialsLanguageRedirect(tutorialsDir, root);
+    for (const name of SITE_ICON_FILES) {
+        copyFileSync(join(root, PUBLIC_DIR, name), join(tutorialsDir, name));
     }
-
-    writeDocsLanguageRedirect(docsDir);
-    writeDocsPageRedirects(docsDir);
 }
 
 /**
  * Writes `_site` (or `siteDir`) from a repository checkout.
  *
  * Wipes the output directory first, then writes the root site files, then
- * builds the docs site into `<siteDir>/docs` so the VitePress output is not
- * deleted after it is written.
+ * builds the docs site into `<siteDir>/docs` and the tutorials site into
+ * `<siteDir>/tutorials`, so no VitePress output is deleted after it is
+ * written.
  *
  * @param root - Repository root. Defaults to this repo.
  * @param siteDir - Output directory. Defaults to `<root>/_site`.
@@ -349,6 +494,7 @@ export function assembleSite(root: string = ROOT, siteDir: string = join(root, '
     mkdirSync(siteDir, { recursive: true });
     assembleRootSite(root, siteDir);
     assembleDocsSite(root, join(siteDir, 'docs'));
+    assembleTutorialsSite(root, join(siteDir, TUTORIALS_DIR));
 }
 
 const entry = process.argv[1];
