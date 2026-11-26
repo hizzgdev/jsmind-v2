@@ -113,10 +113,10 @@ jm-mwxkp35j         Hiking shoes, water, and sunscreen
 jm-mwxkp3ay         Check trail difficulty and the weather
 ```
 
-`export` writes a PNG next to the map. The default viewport is 1200×800 at scale 2, so a typical export is 2400×1600 pixels; if the map is wider, the image grows with it. This run came out at 4374×1600, because some labels were a little long. If Chromium is not in a standard location, set `CHROME_PATH`.
+`export image` writes a PNG next to the map. The default viewport is 1200×800 at scale 2, so a typical export is 2400×1600 pixels; if the map is wider, the image grows with it. This run came out at 4374×1600, because some labels were a little long. If Chromium is not in a standard location, set `CHROME_PATH`.
 
 ```
-$ npx jsmind@2 export weekend-outing.json weekend-outing.png
+$ npx jsmind@2 export image weekend-outing.json weekend-outing.png
 weekend-outing.png: 4374x1600 (379.5 KB)
 ```
 
@@ -126,7 +126,7 @@ The picture at this point is the first draft from this run, still in the default
 
 ## Keep chatting if you want to change something
 
-If something is missing, or you want to add or adjust an item, you can keep chatting and ask the agent to update the map, then export again. `export` overwrites the PNG in place. If you want to keep the earlier picture, give the next export a different filename, or rename the first file first.
+If something is missing, or you want to add or adjust an item, you can keep chatting and ask the agent to update the map, then export again. `export image` overwrites the PNG in place. If you want to keep the earlier picture, give the next export a different filename, or rename the first file first.
 
 This page leaves the tree as the agent first built it, and only changes the colour in the next step.
 
@@ -146,7 +146,7 @@ The default white looks a bit plain. Could you make the whole map blue (the prim
 $ npx jsmind@2 mind set-style weekend-outing.json --default-tone primary
 set style of weekend-outing.json: default-tone=primary
 
-$ npx jsmind@2 export weekend-outing.json weekend-outing.png
+$ npx jsmind@2 export image weekend-outing.json weekend-outing.png
 weekend-outing.png: 4374x1600 (398.0 KB)
 ```
 

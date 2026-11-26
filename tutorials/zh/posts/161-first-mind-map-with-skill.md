@@ -113,10 +113,10 @@ jm-mwxkp35j         登山鞋、水、防晒
 jm-mwxkp3ay         查路线难度和天气
 ```
 
-`export` 会在导图旁边写出一张 PNG。默认视口是 1200×800、缩放为 2，所以常见的导出尺寸是 2400×1600 像素；如果导图更宽，图片会跟着变大。这次导出是 2924×1600，因为有些标签稍长。如果 Chromium 不在常见位置，需要设置 `CHROME_PATH`。
+`export image` 会在导图旁边写出一张 PNG。默认视口是 1200×800、缩放为 2，所以常见的导出尺寸是 2400×1600 像素；如果导图更宽，图片会跟着变大。这次导出是 2924×1600，因为有些标签稍长。如果 Chromium 不在常见位置，需要设置 `CHROME_PATH`。
 
 ```
-$ npx jsmind@2 export weekend-outing.json weekend-outing.png
+$ npx jsmind@2 export image weekend-outing.json weekend-outing.png
 weekend-outing.png: 2924x1600 (270.7 KB)
 ```
 
@@ -126,7 +126,7 @@ weekend-outing.png: 2924x1600 (270.7 KB)
 
 ## 想改的话可以继续聊
 
-如果漏了什么，或想增减、调整某个条目，可以继续跟 agent 说，让它改导图，然后再导出一次。`export` 会原地覆盖原来的 PNG。如果想保留前面那张图，下一次导出时换一个文件名，或者先把旧文件改个名字。
+如果漏了什么，或想增减、调整某个条目，可以继续跟 agent 说，让它改导图，然后再导出一次。`export image` 会原地覆盖原来的 PNG。如果想保留前面那张图，下一次导出时换一个文件名，或者先把旧文件改个名字。
 
 本页保留了 agent 第一次生成的这棵树，只在下一步换了颜色。
 
@@ -146,7 +146,7 @@ weekend-outing.png: 2924x1600 (270.7 KB)
 $ npx jsmind@2 mind set-style weekend-outing.json --default-tone primary
 set style of weekend-outing.json: default-tone=primary
 
-$ npx jsmind@2 export weekend-outing.json weekend-outing.png
+$ npx jsmind@2 export image weekend-outing.json weekend-outing.png
 weekend-outing.png: 2924x1600 (287.5 KB)
 ```
 
