@@ -3,7 +3,7 @@
  * that failed to start.
  *
  * @remarks
- * The render itself is `jsmind export`, unchanged. This wrapper exists because
+ * The render itself is `jsmind export image`, unchanged. This wrapper exists because
  * of what that command depends on: a Chrome launch on a shared CI runner. The
  * same image took ~3s to print `google-chrome --version` on one run and ~10s on
  * the next, and a start that ran out of budget failed the whole job for a reason
@@ -54,15 +54,15 @@ export function isRetryableStartFailure(outcome: RenderOutcome): boolean {
 }
 
 /**
- * Runs `jsmind export` once.
+ * Runs `jsmind export image` once.
  *
- * @param args - Arguments after `export`, i.e. file, output and options.
+ * @param args - Arguments after `export image`, i.e. file, output and options.
  * @returns Exit code and captured stderr; stdout is left inherited so the
  * rendered-image line reaches the job log as it is produced.
  */
 export function renderOnce(args: string[]): RenderOutcome {
     const cli = join(ROOT, 'dist', 'cli.js');
-    const result = spawnSync(process.execPath, [cli, 'export', ...args], {
+    const result = spawnSync(process.execPath, [cli, 'export', 'image', ...args], {
         stdio: ['ignore', 'inherit', 'pipe'],
         encoding: 'utf8',
     });
@@ -75,7 +75,7 @@ export function renderOnce(args: string[]): RenderOutcome {
 /**
  * Runs the render, retrying a failed browser start once.
  *
- * @param args - Arguments after `export`.
+ * @param args - Arguments after `export image`.
  * @param attempt - One attempt; injectable so the retry policy can be tested
  * without a browser or a build.
  * @param log - Where the retry annotation goes; stderr by default.

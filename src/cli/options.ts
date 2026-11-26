@@ -30,7 +30,7 @@ import type { ParseArgsOptionsConfig } from 'node:util';
 import { CREATE_OPTIONS } from './commands/create.ts';
 import { VALIDATE_OPTIONS } from './commands/validate.ts';
 import { CONTEXT_OPTIONS } from './commands/context.ts';
-import { EXPORT_OPTIONS } from './commands/export.ts';
+import { EXPORT_KIND_OPTIONS } from './commands/export.ts';
 import { MIND_OPTIONS } from './commands/mind.ts';
 import { NODE_OPTIONS } from './commands/node.ts';
 import { usageError } from './exit.ts';
@@ -156,8 +156,8 @@ export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
     create: CREATE_OPTIONS,
     validate: VALIDATE_OPTIONS,
     context: CONTEXT_OPTIONS,
-    export: EXPORT_OPTIONS,
     help: [],
+    ...prefixed('export', EXPORT_KIND_OPTIONS),
     ...prefixed('mind', MIND_OPTIONS),
     ...prefixed('node', NODE_OPTIONS),
 };
@@ -170,21 +170,22 @@ export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
  * @returns The key to look up in {@link COMMAND_OPTIONS}, or `undefined` when
  *          the command line does not name a command at all.
  * @remarks
- * Only the words that select a command are read. Both groups are one level
- * deep — `mind set-style`, `node set-text` — so the word after the group is the
- * whole subcommand and a file path sits where this function stops looking.
+ * Only the words that select a command are read. Every group is one level
+ * deep — `mind set-style`, `node set-text`, `export image` — so the word after
+ * the group is the whole subcommand and a file path sits where this function
+ * stops looking.
  *
  * There is no depth case to keep in step with the dispatcher any more. When
  * `mind style set` wrote the document style, `style` was a level of its own and
  * this function had to know that; now the same command is one word, and a
- * subcommand added to either group needs no change here.
+ * subcommand added to any group needs no change here.
  */
 export function commandKey(positionals: readonly string[]): string | undefined {
     const [command, second] = positionals;
     if (command === undefined) {
         return undefined;
     }
-    if (command === 'mind' || command === 'node') {
+    if (command === 'mind' || command === 'node' || command === 'export') {
         return second === undefined ? undefined : `${command} ${second}`;
     }
     return command;

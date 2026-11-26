@@ -1,5 +1,5 @@
 /**
- * @fileoverview Startup policy for the browser that `jsmind export` drives.
+ * @fileoverview Startup policy for the browser that `jsmind export image` drives.
  *
  * @remarks
  * `browser.ts` is a driver: it spawns a process, speaks CDP over a socket, and

@@ -218,7 +218,7 @@ test('agent workflow - a topic becomes a validated file and an image, CLI only',
 
         // ---- 6. Render it ---------------------------------------------------
         const exported = step('export', runCli([
-            'export', file, png,
+            'export', 'image', file, png,
             '--width', '1200',
             '--height', '800',
             '--json',
