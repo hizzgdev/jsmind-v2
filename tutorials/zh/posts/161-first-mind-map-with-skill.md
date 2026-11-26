@@ -37,7 +37,7 @@ import exampleMap from '../../assets/161-example.jm?url';
 - jsMind 2.x
 - 同一台机器上有基于 Chromium 的浏览器（CLI 导出 PNG 时要用它来渲染）
 
-请明确安装 2.x 这一条线：
+请明确安装 2.x 版本：
 
 ```bash
 npm i jsmind@2
