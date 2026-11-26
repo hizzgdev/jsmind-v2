@@ -187,13 +187,83 @@ Structure, edges, and the document's style. Locators are ids only. Use ids from 
 | `remove-edge` | `--edge-id <id>` | Remove a relation | — |
 | `set-style` | `--default-tone <tone>` | The document's style (`mind.style`): the tone untoned nodes wear | `Since: 2.1.0` |
 
+Every mutating subcommand validates the result and rolls back on failure. `--dry-run`, `--output`, and `--backup` are available on these writes.
+
+### `mind find`
+
+```
+jsmind mind find <file> --node-id <id>
+```
+
+Show one node: its id, label, parent, the ids of its children, and its side. Read-only — it goes through no write pipeline, so the write options above do not apply.
+
+`--node-id` is required. The output is JSON whether or not `--json` is given: `parent` is `null` on the root, `folded: true` appears only when the node is collapsed, and a `style` block appears only when the node overrides the theme. An id that is not in the file is an invalid-data error (`1`), not a usage error.
+
+### `mind list-edges`
+
+```
+jsmind mind list-edges <file> --node-id <id>
+```
+
+List every edge that touches the node, as source or as target. Read-only, like `find`: no write pipeline, and the write options above do not apply.
+
+`--node-id` is required. The output is a JSON array of `{id, source, target, type, label}`, printed with or without `--json` — `label` is `null` when the edge carries none, and a node with no edges prints `[]`. These are the ids `remove-edge` takes. A node id that is not in the file is an invalid-data error (`1`).
+
+### `mind add-child`
+
+```
+jsmind mind add-child <file> --parent-id <id> --text <text> [--side left|right] [--position <n>] [--folded true|false]
+```
+
+Add a new child under an existing node. `--parent-id` and `--text` are required, and an empty `--text` counts as missing (usage error).
+
 `--side` applies only when the parent is the root node. A side is the placement of a root child, and every node below one inherits it, so a side written deeper would change the file and not the picture — that is a usage error naming the first-level branch, not a silent no-op. Only the root is center, so `--side` takes `left` or `right`.
 
-`--position` is an index into the parent's children array. A value at or past the end appends, and omitting it appends too. The root's children are counted across both sides: the index addresses that one array, not one side's list.
+`--position` is a non-negative index into the parent's children array. A value at or past the end appends, and omitting it appends too. The root's children are counted across both sides: the index addresses that one array, not one side's list.
 
-`--folded true` creates the node collapsed.
+`--folded true` creates the node collapsed; leaving the flag out creates it unfolded. The confirmation line repeats the side and the folded state when they were given.
 
-Every mutating subcommand validates the result and rolls back on failure. `--dry-run`, `--output`, and `--backup` are available on these writes.
+### `mind move`
+
+```
+jsmind mind move <file> --node-id <id> --parent-id <id> [--position <n>]
+```
+
+Reparent a node, or reorder it among its siblings when `--parent-id` is already its parent. `--node-id` and `--parent-id` are required; `--position` takes the same children-array index as `add-child`.
+
+A move into the node's own subtree is refused as invalid data (`1`): naming the node as its own parent, or a parent that is one of its descendants, fails with both ids in the message. The root cannot be moved — every other node is its descendant.
+
+### `mind remove-node`
+
+```
+jsmind mind remove-node <file> --node-id <id>
+```
+
+Remove a node and its whole subtree, plus every edge touching any node in that subtree. `--node-id` is required.
+
+The root is refused: removing it is an invalid-data error (`1`) naming the node and the file, and nothing is written.
+
+### `mind add-edge`
+
+```
+jsmind mind add-edge <file> --source-id <id> --target-id <id> [--type link] [--label <text>]
+```
+
+Add a relation between two existing nodes, independent of the parent-child tree. `--source-id` and `--target-id` are required, and both endpoints must be in the file — an id that is not is an invalid-data error (`1`) naming which end it was.
+
+`--type` takes `link` today: the only value the format defines, and the default. Any other word is not refused before the write — the post-write validation rejects it (`Unknown edge type`, exit `1`) and the file is rolled back, so the edge never lands.
+
+`--label` is optional; without it the edge carries no label. The command prints the new edge id, which is also what `list-edges` reports for it.
+
+### `mind remove-edge`
+
+```
+jsmind mind remove-edge <file> --edge-id <id>
+```
+
+Remove one relation by id; the nodes at its ends stay. `--edge-id` is required, and its value comes from `list-edges` output — an edge has an id of its own, not one of the node ids `context` prints.
+
+An id that is not in the file is an invalid-data error (`1`). The command reports the edge id it removed.
 
 ### `mind set-style`
 
@@ -226,9 +296,41 @@ Node attributes. Structure changes go through `jsmind mind`.
 | `set-side` | `--node-id <id> --side left\|right` | Set the node's side |
 | `set-style` | `--node-id <id> [style fields]` | Override the theme for one node |
 
-`set-side` applies only to a direct child of the root, for the same reason as `add-child --side`: those are the only nodes whose side moves anything. The root itself is always center, so `--side` takes `left` or `right`; on any deeper node it is a usage error naming the first-level branch, not a write the picture ignores.
+Node id, parent, and children are changed only through `jsmind mind`. Every `node` subcommand validates the result and rolls back on failure. `--dry-run`, `--output`, and `--backup` are available on these writes.
 
-`set-style` fields can be combined in one write. A dot marks a level, so `--incoming.color` addresses `style.incoming.color`.
+### `node set-text`
+
+```
+jsmind node set-text <file> --node-id <id> --text <text>
+```
+
+Change one node's label. `--node-id` and `--text` are both required, and an empty `--text` counts as missing (usage error). A node id that is not in the file is an invalid-data error (`1`).
+
+### `node set-folded`
+
+```
+jsmind node set-folded <file> --node-id <id> --folded true|false
+```
+
+Collapse or expand one node. `--folded` is required and takes only the words `true` and `false` — there is no `--no-folded`, and anything else is a usage error (`2`) naming the flag. `--node-id` is required.
+
+### `node set-side`
+
+```
+jsmind node set-side <file> --node-id <id> --side left|right
+```
+
+Place a direct child of the root on the other side. `--node-id` and `--side` are required, and `--side` takes `left` or `right`: `center` is the root's own state and is refused as a usage error.
+
+It accepts only a direct child of the root, for the same reason as `add-child --side` — those are the only nodes whose side moves anything, and every node below one inherits it. The root itself is a usage error (`2`) because it is always center, and so is a deeper node: that message names the first-level branch and points at the node whose side actually carries the change.
+
+### `node set-style`
+
+```
+jsmind node set-style <file> --node-id <id> [style fields]
+```
+
+Override the theme for one node (`node.style`); the document-wide default these fall back to is `mind set-style`. Fields can be combined in one write. A dot marks a level, so `--incoming.color` addresses `style.incoming.color`.
 
 | Field | Accepted values |
 | --- | --- |
@@ -249,14 +351,14 @@ To restore the theme's value:
 
 | Option | Meaning |
 | --- | --- |
-| `--clear <fields>` | Comma-separated field names in the same spelling as the flags |
+| `--clear <fields>` | Comma-separated field names in the flag spelling or the file's camelCase (`font-size` or `fontSize`) |
 | `--reset` | Drop every override on this node |
 
 A style block records only what differs from the theme, so removing a key restores the theme's value. There is no `unset` sentinel — an absent key means an absent override. `--reset` cannot be combined with fields or `--clear`.
 
-Colors are not checked beyond being strings; the theme accepts any CSS color. Tones, patterns, and weights are checked so a bad value names the flag you typed rather than a JSON path.
+At least one field, `--clear`, or `--reset` is required: called with none of them, it is a usage error (`2`) that lists the fields. A name `--clear` does not know is a usage error listing the ones it accepts.
 
-Node id, parent, and children are changed only through `jsmind mind`. Every `node` subcommand validates the result and rolls back on failure. `--dry-run`, `--output`, and `--backup` are available on these writes.
+Colors are not checked beyond being strings; the theme accepts any CSS color. Tones, patterns, and weights are checked so a bad value names the flag you typed rather than a JSON path.
 
 ## See also
 
