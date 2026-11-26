@@ -41,17 +41,18 @@ export default defineConfig({
         '_template.md',
     ],
     vite: {
-        // `.jm` example maps are downloaded from the article, so they have
-        // to be treated as assets the same way the PNGs are. The override
-        // plugin rewrites a shared `assets/` path to a locale file when
-        // one exists, without touching the checked-in shared copy.
-        // Vite would otherwise inline a small `.jm` as a data: URL, which
+        // `.json` example maps are downloaded from the article, so they have
+        // to be emitted as assets instead of inlined. The `.json` extension
+        // itself needs no `assetsInclude` entry: an explicit `?url` import
+        // already asks Vite for the URL. The override plugin rewrites a shared
+        // `assets/` path to a locale file when one exists, without touching
+        // the checked-in shared copy.
+        // Vite would otherwise inline a small `.json` as a data: URL, which
         // is a poor download target, so those files are always emitted.
-        assetsInclude: ['**/*.jm'],
         plugins: [tutorialAssetOverrides()],
         build: {
             assetsInlineLimit(filePath) {
-                if (filePath.endsWith('.jm')) {
+                if (filePath.endsWith('.json')) {
                     return false;
                 }
                 return undefined;

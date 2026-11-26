@@ -13,7 +13,7 @@ tags:
 这篇文章会带你请 AI agent 安装 jsMind Skill，用它整理这个周末的出游选项，做成思维导图，并导出成 PNG。下面的 prompt 可以直接复制使用。导图的具体内容由 agent 来想：你得到的树不必和本页这张一样。
 
 <script setup>
-import exampleMap from '../../assets/161-example.jm?url';
+import exampleMap from '../../assets/161-example.json?url';
 </script>
 
 ![完成后的周末出游思维导图](../../assets/161-result.png)
@@ -22,7 +22,7 @@ import exampleMap from '../../assets/161-example.jm?url';
 
 一张整理周末出游选项的思维导图，并在每个选项下列出需要做的准备。上面这张图来自一次真实运行，中间还换过颜色。你用同一段 prompt，agent 完全可能排出不一样的树——这很正常。你要学的是流程（安装、提出需求、让 CLI 生成导图，再换色、导出），而不是抄一份固定大纲。
 
-这次运行做成的导图可以在这里下载：<a :href="exampleMap" download="weekend-outing.jm">161-example.jm</a>。
+这次运行做成的导图可以在这里下载：<a :href="exampleMap" download="weekend-outing.json">weekend-outing.json</a>。
 
 ## 你需要准备什么
 
@@ -67,13 +67,13 @@ agent 应当通过 jsMind CLI 来创建和修改文件，不要亲手去写这�
 
 本页的图片和下载来自上面这类 prompt 的一次真实运行，用来说明流程，并不是标准答案。每次写入之后，请用刚刚那条命令返回的 id，或者再运行一次 `context`，不要把下面这些 id 抄进自己的命令里。
 
-Skill 里写的是 `jsmind`。下面的会话用 `npx jsmind@2`，这是 CLI 还不在 PATH 里时更稳妥的写法。这次运行里，导图保存为 `weekend-outing.jm`（后来还有 `weekend-outing.png`）；你那边可能会不一样。
+Skill 里写的是 `jsmind`。下面的会话用 `npx jsmind@2`，这是 CLI 还不在 PATH 里时更稳妥的写法。这次运行里，导图保存为 `weekend-outing.json`（后来还有 `weekend-outing.png`）；你那边可能会不一样。
 
 它先创建导图。`create` 会打印根节点 id——这里是 `root`，也就是默认值，但仍然要从回复里读，不要直接假定。根节点的 id 是数据，在别处生成或编辑过的文件完全可能叫别的名字。
 
 ```
-$ npx jsmind@2 create weekend-outing.jm --title "周末出去转转"
-created weekend-outing.jm (root node id root)
+$ npx jsmind@2 create weekend-outing.json --title "周末出去转转"
+created weekend-outing.json (root node id root)
 ```
 
 接着用 `mind add-child` 添加分支，每次只能加一个节点：`add-child` 没有批量写法。`--side left` 或 `--side right` 只在父节点是根节点时才允许使用。如果省略 `--side`，新的根子节点默认放在右侧。更深层的节点会继承所属一级分支的侧向，在那里再传 `--side` 会报错。
@@ -85,10 +85,10 @@ created weekend-outing.jm (root node id root)
 然后 agent 会校验文件，并查看整棵树。`context` 默认只显示两层，所以这次加了 `--depth 3`，才能看到准备工作；又加了 `--full-text`，以免较长的标签被截断：
 
 ```
-$ npx jsmind@2 validate weekend-outing.jm
-weekend-outing.jm: valid
+$ npx jsmind@2 validate weekend-outing.json
+weekend-outing.json: valid
 
-$ npx jsmind@2 context weekend-outing.jm --depth 3 --full-text
+$ npx jsmind@2 context weekend-outing.json --depth 3 --full-text
 root          周末出去转转 {side=center}
 jm-mwxkp09e     逛新开的早市 {side=left}
 jm-mwxkp0q3       逛早市
@@ -116,7 +116,7 @@ jm-mwxkp3ay         查路线难度和天气
 `export` 会在导图旁边写出一张 PNG。默认视口是 1200×800、缩放为 2，所以常见的导出尺寸是 2400×1600 像素；如果导图更宽，图片会跟着变大。这次导出是 2924×1600，因为有些标签稍长。如果 Chromium 不在常见位置，需要设置 `CHROME_PATH`。
 
 ```
-$ npx jsmind@2 export weekend-outing.jm weekend-outing.png
+$ npx jsmind@2 export weekend-outing.json weekend-outing.png
 weekend-outing.png: 2924x1600 (270.7 KB)
 ```
 
@@ -143,10 +143,10 @@ weekend-outing.png: 2924x1600 (270.7 KB)
 ```
 
 ```
-$ npx jsmind@2 mind set-style weekend-outing.jm --default-tone primary
-set style of weekend-outing.jm: default-tone=primary
+$ npx jsmind@2 mind set-style weekend-outing.json --default-tone primary
+set style of weekend-outing.json: default-tone=primary
 
-$ npx jsmind@2 export weekend-outing.jm weekend-outing.png
+$ npx jsmind@2 export weekend-outing.json weekend-outing.png
 weekend-outing.png: 2924x1600 (287.5 KB)
 ```
 
@@ -154,12 +154,12 @@ weekend-outing.png: 2924x1600 (287.5 KB)
 
 ## 文件写在哪里
 
-这两个文件通常会出现在这次对话的工作目录里，除非 agent 另外告诉了你别的位置。这次运行里，文件名是 `weekend-outing.jm` 和 `weekend-outing.png`；你的 agent 可能会取不一样的名字。
+这两个文件通常会出现在这次对话的工作目录里，除非 agent 另外告诉了你别的位置。这次运行里，文件名是 `weekend-outing.json` 和 `weekend-outing.png`；你的 agent 可能会取不一样的名字。
 
-- `.jm` 文件是导图本身。它是一份 JSON 文档，用 `.jm` 做扩展名完全可以，CLI 也接受这种写法。
+- `.json` 文件是导图本身，内容是一份 JSON 文档。
 - `.png` 文件是图片。用任何看图软件或浏览器打开即可。
 
-agent 还应当给出两个文件的绝对路径。本页也可以下载这次做成的示例：<a :href="exampleMap" download="weekend-outing.jm">161-example.jm</a>。
+agent 还应当给出两个文件的绝对路径。本页也可以下载这次做成的示例：<a :href="exampleMap" download="weekend-outing.json">weekend-outing.json</a>。
 
 ## 接下来可以看
 

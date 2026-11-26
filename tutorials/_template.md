@@ -24,7 +24,7 @@ tags:
 文件名：tutorials/<en|zh>/posts/<编号>-<english-slug>.md
 编号至少三位，不足补前导零；中英文同一篇使用同一编号和同一 slug。
 图片和示例文件放在 tutorials/assets/，文件名以该篇编号开头，
-例如 <编号>-intro.png、<编号>-example.jm；中英文引用同一路径。
+例如 <编号>-intro.png、<编号>-example.json；中英文引用同一路径。
 日期只写在 frontmatter 里，不进文件名。
 本文件是模板，不发布成栏目里的一页。
 -->

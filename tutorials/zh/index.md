@@ -7,12 +7,13 @@ title: 教程
 每篇教程带你把一件事做成：一个具体技巧，或者一个带示例文件的完整场景。jsMind 2.x 目前是 preview，内容可能随版本变化。
 
 <script setup>
+import { withBase } from 'vitepress';
 import { data as posts } from './posts.data.ts';
 </script>
 
 <ul v-if="posts.length" class="tutorial-list">
   <li v-for="post in posts" :key="post.url">
-    <a :href="post.url">{{ post.title }}</a>
+    <a :href="withBase(post.url)">{{ post.title }}</a>
     <time :datetime="post.date">{{ post.date }}</time>
     <span v-if="post.tags.length" class="tutorial-tags">{{ post.tags.join(' · ') }}</span>
   </li>
