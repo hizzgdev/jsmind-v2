@@ -1,0 +1,171 @@
+{
+  "format": "jsmind_v2",
+  "meta": {
+    "author": "hizzgdev@163.com",
+    "name": "周六出游",
+    "version": "1.0"
+  },
+  "root": "root",
+  "nodes": {
+    "root": {
+      "id": "root",
+      "content": {
+        "type": "text",
+        "value": "周六出游"
+      },
+      "parent": null,
+      "children": [
+        "jm-mwxb9ciw",
+        "jm-mwxb9cmk",
+        "jm-mwxb9cq9"
+      ],
+      "folded": false,
+      "side": 0,
+      "data": {}
+    },
+    "jm-mwxb9ciw": {
+      "id": "jm-mwxb9ciw",
+      "content": {
+        "type": "text",
+        "value": "上午"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mwxb9ck9",
+        "jm-mwxb9cld"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mwxb9ck9": {
+      "id": "jm-mwxb9ck9",
+      "content": {
+        "type": "text",
+        "value": "早市"
+      },
+      "parent": "jm-mwxb9ciw",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9cld": {
+      "id": "jm-mwxb9cld",
+      "content": {
+        "type": "text",
+        "value": "河边咖啡"
+      },
+      "parent": "jm-mwxb9ciw",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9cmk": {
+      "id": "jm-mwxb9cmk",
+      "content": {
+        "type": "text",
+        "value": "下午"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mwxb9cnu",
+        "jm-mwxb9cp2"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9cnu": {
+      "id": "jm-mwxb9cnu",
+      "content": {
+        "type": "text",
+        "value": "公园散步"
+      },
+      "parent": "jm-mwxb9cmk",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9cp2": {
+      "id": "jm-mwxb9cp2",
+      "content": {
+        "type": "text",
+        "value": "书店"
+      },
+      "parent": "jm-mwxb9cmk",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9cq9": {
+      "id": "jm-mwxb9cq9",
+      "content": {
+        "type": "text",
+        "value": "随身带"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mwxb9crl",
+        "jm-mwxb9cst",
+        "jm-mwxb9cu4",
+        "jm-mwxb9div"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mwxb9crl": {
+      "id": "jm-mwxb9crl",
+      "content": {
+        "type": "text",
+        "value": "水瓶"
+      },
+      "parent": "jm-mwxb9cq9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9cst": {
+      "id": "jm-mwxb9cst",
+      "content": {
+        "type": "text",
+        "value": "薄外套"
+      },
+      "parent": "jm-mwxb9cq9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9cu4": {
+      "id": "jm-mwxb9cu4",
+      "content": {
+        "type": "text",
+        "value": "购物袋"
+      },
+      "parent": "jm-mwxb9cq9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9div": {
+      "id": "jm-mwxb9div",
+      "content": {
+        "type": "text",
+        "value": "野餐垫"
+      },
+      "parent": "jm-mwxb9cq9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    }
+  },
+  "edges": {}
+}

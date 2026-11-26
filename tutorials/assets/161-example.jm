@@ -1,0 +1,171 @@
+{
+  "format": "jsmind_v2",
+  "meta": {
+    "author": "hizzgdev@163.com",
+    "name": "Saturday outing",
+    "version": "1.0"
+  },
+  "root": "root",
+  "nodes": {
+    "root": {
+      "id": "root",
+      "content": {
+        "type": "text",
+        "value": "Saturday outing"
+      },
+      "parent": null,
+      "children": [
+        "jm-mwxb9as9",
+        "jm-mwxb9aw3",
+        "jm-mwxb9azw"
+      ],
+      "folded": false,
+      "side": 0,
+      "data": {}
+    },
+    "jm-mwxb9as9": {
+      "id": "jm-mwxb9as9",
+      "content": {
+        "type": "text",
+        "value": "Morning"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mwxb9ath",
+        "jm-mwxb9aux"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mwxb9ath": {
+      "id": "jm-mwxb9ath",
+      "content": {
+        "type": "text",
+        "value": "Farmers' market"
+      },
+      "parent": "jm-mwxb9as9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9aux": {
+      "id": "jm-mwxb9aux",
+      "content": {
+        "type": "text",
+        "value": "Coffee by the river"
+      },
+      "parent": "jm-mwxb9as9",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9aw3": {
+      "id": "jm-mwxb9aw3",
+      "content": {
+        "type": "text",
+        "value": "Afternoon"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mwxb9axh",
+        "jm-mwxb9ayo"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9axh": {
+      "id": "jm-mwxb9axh",
+      "content": {
+        "type": "text",
+        "value": "Park walk"
+      },
+      "parent": "jm-mwxb9aw3",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9ayo": {
+      "id": "jm-mwxb9ayo",
+      "content": {
+        "type": "text",
+        "value": "Bookstore"
+      },
+      "parent": "jm-mwxb9aw3",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9azw": {
+      "id": "jm-mwxb9azw",
+      "content": {
+        "type": "text",
+        "value": "Things to bring"
+      },
+      "parent": "root",
+      "children": [
+        "jm-mwxb9b15",
+        "jm-mwxb9b27",
+        "jm-mwxb9b3e",
+        "jm-mwxb9bvh"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mwxb9b15": {
+      "id": "jm-mwxb9b15",
+      "content": {
+        "type": "text",
+        "value": "Water bottle"
+      },
+      "parent": "jm-mwxb9azw",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9b27": {
+      "id": "jm-mwxb9b27",
+      "content": {
+        "type": "text",
+        "value": "Light jacket"
+      },
+      "parent": "jm-mwxb9azw",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9b3e": {
+      "id": "jm-mwxb9b3e",
+      "content": {
+        "type": "text",
+        "value": "Reusable bag"
+      },
+      "parent": "jm-mwxb9azw",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxb9bvh": {
+      "id": "jm-mwxb9bvh",
+      "content": {
+        "type": "text",
+        "value": "Picnic blanket"
+      },
+      "parent": "jm-mwxb9azw",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    }
+  },
+  "edges": {}
+}

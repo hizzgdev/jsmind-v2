@@ -46,6 +46,13 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import {
+    listTutorialPosts,
+    recentTutorialPosts,
+    renderRecentTutorialItems,
+    RECENT_TUTORIALS_EMPTY_HTML,
+} from './tutorial-posts.ts';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -126,8 +133,8 @@ export function renderSitePage(root: string, name: string, values: Record<string
  *
  * Three entries — documentation, tutorials, playground — plus the install
  * line, the GitHub link and the 2.x preview notice. The "recent tutorials"
- * slot is deliberately empty until the first post ships: it is a reserved
- * structure, not a stand-in for something else.
+ * list is filled from the markdown files in tutorials/en/posts and tutorials/zh/posts at render time, newest first, and
+ * stays empty (with the reserved empty-state sentence) until a post ships.
  *
  * The page lives in `site/index.html`. That is a source file, not the
  * published page: nothing sits at the repository root, and the assembly writes
@@ -150,7 +157,12 @@ export function renderSitePage(root: string, name: string, values: Record<string
  * @returns The page to publish.
  */
 export function landingPageHtml(root: string = ROOT): string {
-    return renderSitePage(root, SITE_INDEX_PAGE, { DOCS_LANG_STORAGE_KEY });
+    const recent = recentTutorialPosts(listTutorialPosts(root));
+    return renderSitePage(root, SITE_INDEX_PAGE, {
+        DOCS_LANG_STORAGE_KEY,
+        RECENT_TUTORIALS: recent.length === 0 ? '' : `\n${renderRecentTutorialItems(recent)}\n        `,
+        RECENT_EMPTY: recent.length === 0 ? RECENT_TUTORIALS_EMPTY_HTML : '',
+    });
 }
 
 /** Script src while the page still lives under `example/`. */

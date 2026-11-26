@@ -1,6 +1,7 @@
 import { defineConfig, type DefaultTheme } from 'vitepress';
 
 import { DOCS_URL, TUTORIALS_BASE } from '../../site.config.mjs';
+import { tutorialAssetOverrides } from './asset-overrides';
 
 /**
  * The tutorials are a second VitePress site, published beside the docs site.
@@ -39,6 +40,24 @@ export default defineConfig({
     srcExclude: [
         '_template.md',
     ],
+    vite: {
+        // `.jm` example maps are downloaded from the article, so they have
+        // to be treated as assets the same way the PNGs are. The override
+        // plugin rewrites a shared `assets/` path to a locale file when
+        // one exists, without touching the checked-in shared copy.
+        // Vite would otherwise inline a small `.jm` as a data: URL, which
+        // is a poor download target, so those files are always emitted.
+        assetsInclude: ['**/*.jm'],
+        plugins: [tutorialAssetOverrides()],
+        build: {
+            assetsInlineLimit(filePath) {
+                if (filePath.endsWith('.jm')) {
+                    return false;
+                }
+                return undefined;
+            },
+        },
+    },
     title: 'jsMind V2 Tutorials',
     lastUpdated: false,
     locales: {
