@@ -623,11 +623,11 @@ describe('pages site assembly', () => {
 
     it('publishes the skill at the documented URL, and stops the build without it', () => {
         // docs/README.md and the skill guide quote this URL; it is the reason
-        // the directory is published at all. Both halves — the mount path and
-        // the repository path — come from their one source each, so the
-        // published address and the documented one cannot drift apart. The
-        // resolution also pins the trailing slash in `SITE_PATH`: without it
-        // the path below would be glued onto the last segment.
+        // the directory is published at all. Those copies are literal text in
+        // Markdown and nothing here reads them. What the two assertions below
+        // pin is the trailing slash in `SITE_PATH` — without it the resolution
+        // would glue the file path onto the last segment — and the shape of the
+        // published path: `SKILL_DIR` plus `jsmind/SKILL.md`.
         const skillUrl = `${SITE_ORIGIN}${SITE_PATH}${SKILL_SITE_FILE}`;
         assert.strictEqual(new URL(SKILL_SITE_FILE, SITE_ORIGIN + SITE_PATH).href, skillUrl);
         assert.strictEqual(SKILL_SITE_FILE, `${SKILL_DIR}/jsmind/SKILL.md`);

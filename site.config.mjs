@@ -1,9 +1,9 @@
 /**
  * @fileoverview Where the published site lives: one origin, one mount path.
  *
- * Two facts, everything else derived. Both VitePress configs, the build script
- * and the tests read them from here, so the address of the site has one source
- * instead of a copy per caller.
+ * Two facts, everything else derived. Both VitePress configs and
+ * `__tests__/build/pages-site.test.ts` read them from here, so the address of
+ * the site has one source instead of a copy per caller.
  *
  * Naming rule, and it is the whole point of this file:
  *
