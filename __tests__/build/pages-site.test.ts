@@ -839,7 +839,7 @@ describe('landing page', () => {
         // marking one of the entries as current.
         assert.ok(!page.includes('class="lang-switch"'));
         assert.ok(!page.includes('aria-pressed'));
-        assert.ok(!page.includes('aria-current'));
+        assert.ok(!page.includes('aria-current'), 'the language panel marks the current language with a title, not aria-current');
 
         // A page people look at, so it dresses the tab like the playground.
         assert.deepStrictEqual(iconHrefs(page), [...SITE_ICON_FILES]);
@@ -918,12 +918,14 @@ describe('landing page', () => {
             const svg = svgByClass(page, className);
             const paths = [...svg.body.matchAll(/ d="([^"]+)"/g)].map(([, path]) => path);
             assert.ok(paths.length > 0, `${icon} should carry a path`);
-            for (const path of paths) {
-                assert.ok(
-                    shipped.includes(path),
-                    `${icon} should be the path vitepress@1.6.4 ships, not a redrawn one`
-                );
-            }
+            // The whole path data, not a substring of it: a shorter redraw that
+            // happens to sit inside the theme's path would pass a `includes`
+            // check while drawing a different glyph.
+            assert.deepStrictEqual(
+                paths,
+                [...shipped.matchAll(/ d=['"]([^'"]+)['"]/g)].map(([, path]) => path),
+                `${icon} should be the path data vitepress@1.6.4 ships, not a redrawn one`
+            );
             // Same stroke as the docs: a filled or heavier version of the same
             // path is a different icon on screen.
             for (const attribute of [
@@ -972,6 +974,31 @@ describe('landing page', () => {
         const [entryLang = '', entryText = ''] = entry.slice(1);
         assert.strictEqual(entryLang, 'zh', 'English readers should be offered Chinese');
         assert.strictEqual(entryText, chinese, 'the entry should print the name the docs print');
+    });
+
+    it('shows the language panel on hover as well as on aria-expanded', () => {
+        const page = landingPageHtml();
+
+        // VPFlyout.vue's menu is shown by *either* condition — `:hover` on the
+        // flyout or `[aria-expanded="true"]` on the button. Both halves have to
+        // be here: the script flips the attribute on click, so a click landing
+        // while the pointer rests on the flyout sets it back to "false", and
+        // only the `:hover` rule keeps the panel up — which is also what makes
+        // the first tap of a touch screen (`mouseenter` then `click`) open it
+        // instead of cancelling itself out.
+        const shownBy = [...page.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+            .filter(([, , body = '']) => /visibility:\s*visible/.test(body))
+            .flatMap(([, selectors = '']) => selectors.split(',').map((selector) => selector.trim()))
+            .filter((selector) => selector.endsWith('.header-lang-menu'));
+
+        assert.ok(
+            shownBy.includes('.header-lang-button[aria-expanded="true"] + .header-lang-menu'),
+            'the panel should open when `aria-expanded` says so'
+        );
+        assert.ok(
+            shownBy.includes('.header-lang:hover .header-lang-menu'),
+            'the panel should open while the flyout is hovered, as VPFlyout.vue does'
+        );
     });
 });
 

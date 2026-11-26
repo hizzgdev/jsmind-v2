@@ -217,6 +217,18 @@ html.dark .header-lang-menu {
     opacity: 1;
     visibility: visible;
 }
+/*
+ * The other half of VPFlyout.vue's `:hover` / `[aria-expanded="true"]` pair.
+ * The two conditions are alternatives there, and they have to be here too: the
+ * script toggles `aria-expanded` on click while the pointer still rests on the
+ * flyout, so without this rule a hover-opened panel closes under the click that
+ * lands on it — and the first tap of a touch screen, which fires `mouseenter`
+ * and then `click`, cancels itself out.
+ */
+.header-lang:hover .header-lang-menu {
+    opacity: 1;
+    visibility: visible;
+}
 /* VPNavBarTranslations.vue: the language the reader is already in is a title;
  * only the other one is an entry in the list. */
 .header-lang-title {
@@ -640,9 +652,12 @@ h2 {
     var langOption = document.querySelector('.header-lang-option');
     var appearanceButton = document.querySelector('.appearance-switch');
 
-    // The panel is opened and closed by `aria-expanded` alone, exactly as
-    // VPFlyout.vue does: the CSS reads that attribute, so hover, click, Escape
-    // and focus leaving the flyout all leave one consistent state behind.
+    // The panel's visibility is a stylesheet decision, not this attribute's
+    // alone: the CSS shows it when the pointer is over the flyout *or* when
+    // `aria-expanded` is true, the two conditions VPFlyout.vue combines. So the
+    // attribute can say "closed" while the panel stays open under a resting
+    // pointer, which is exactly what makes a click — or the first tap of a
+    // touch screen, `mouseenter` then `click` — behave the way it does there.
     function setLangMenuOpen(open) {
         langButton.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
