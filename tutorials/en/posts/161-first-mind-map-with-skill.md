@@ -22,7 +22,7 @@ import exampleMap from '../../assets/161-example.json?url';
 
 A mind map that sorts out a few ways to spend the weekend, and under each option, what you need to prepare. The picture above comes from one real run, after a colour change. If you use the same prompt, the agent may build a different tree — that is expected. You are learning the flow (install, ask, let the CLI build the map, then recolour and export), not copying a fixed outline.
 
-You can download this run's finished map here: <a :href="exampleMap" download="weekend-outing.json">161-example.json</a>.
+You can download this run's finished map here: <a :href="exampleMap" download="weekend-outing.json">weekend-outing.json</a>.
 
 ## What you need
 
@@ -159,7 +159,7 @@ Both files typically land in the working directory of the conversation, unless t
 - The `.json` file is the map itself. It is a JSON document.
 - The `.png` file is the picture. Open it in any image viewer or browser.
 
-The agent should also print the absolute paths of both files. You can download this run's finished example from this page: <a :href="exampleMap" download="weekend-outing.json">161-example.json</a>.
+The agent should also print the absolute paths of both files. You can download this run's finished example from this page: <a :href="exampleMap" download="weekend-outing.json">weekend-outing.json</a>.
 
 ## Next steps
 

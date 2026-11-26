@@ -22,7 +22,7 @@ import exampleMap from '../../assets/161-example.json?url';
 
 一张整理周末出游选项的思维导图，并在每个选项下列出需要做的准备。上面这张图来自一次真实运行，中间还换过颜色。你用同一段 prompt，agent 完全可能排出不一样的树——这很正常。你要学的是流程（安装、提出需求、让 CLI 生成导图，再换色、导出），而不是抄一份固定大纲。
 
-这次运行做成的导图可以在这里下载：<a :href="exampleMap" download="weekend-outing.json">161-example.json</a>。
+这次运行做成的导图可以在这里下载：<a :href="exampleMap" download="weekend-outing.json">weekend-outing.json</a>。
 
 ## 你需要准备什么
 
@@ -159,7 +159,7 @@ weekend-outing.png: 2924x1600 (287.5 KB)
 - `.json` 文件是导图本身，内容是一份 JSON 文档。
 - `.png` 文件是图片。用任何看图软件或浏览器打开即可。
 
-agent 还应当给出两个文件的绝对路径。本页也可以下载这次做成的示例：<a :href="exampleMap" download="weekend-outing.json">161-example.json</a>。
+agent 还应当给出两个文件的绝对路径。本页也可以下载这次做成的示例：<a :href="exampleMap" download="weekend-outing.json">weekend-outing.json</a>。
 
 ## 接下来可以看
 
