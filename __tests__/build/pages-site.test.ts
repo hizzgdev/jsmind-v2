@@ -826,6 +826,21 @@ describe('landing page', () => {
                 `${url}zh/`,
                 `the ${label} link should follow the page into Chinese`
             );
+            // The label is text, not just a link: without a `data-en` /
+            // `data-zh` pair `applyLanguage()` leaves it in English while the
+            // rest of the page switches, so the two have to exist and differ.
+            assert.strictEqual(
+                attrs.get('data-en'),
+                label,
+                `the ${label} label should carry its English text`
+            );
+            const zhLabel = attrs.get('data-zh');
+            assert.ok(zhLabel, `the ${label} label should carry a Chinese counterpart`);
+            assert.notStrictEqual(
+                zhLabel,
+                label,
+                `the ${label} label should actually change with the language`
+            );
         }
     });
 });

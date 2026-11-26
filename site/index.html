@@ -138,17 +138,30 @@ a {
 .header-lang-button {
     gap: 4px;
 }
+/*
+ * The language panel and the appearance switch copy VitePress's own
+ * components (VPMenu.vue, VPMenuLink.vue, VPSwitch.vue). This page is a
+ * standalone static page and cannot import the theme's stylesheet, so the
+ * values are written out by hand; each one names the VitePress token it comes
+ * from, measured against vitepress@1.6.4. On a theme upgrade, re-read the
+ * tokens in `node_modules/vitepress/dist/client/theme-default/` and compare
+ * the two faces again.
+ */
 .header-lang-menu {
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
     z-index: 20;
-    min-width: 168px;
-    padding: 8px;
-    border: 1px solid var(--line);
+    min-width: 128px;
+    padding: 12px;
+    border: 1px solid #e2e2e3; /* --vp-c-divider */
     border-radius: 12px;
-    background: var(--bg);
-    box-shadow: 0 12px 32px rgb(0 0 0 / 16%);
+    background: #ffffff; /* --vp-c-bg-elv */
+    box-shadow: 0 12px 32px rgb(0 0 0 / 10%), 0 2px 6px rgb(0 0 0 / 8%); /* --vp-shadow-3 */
+}
+html.dark .header-lang-menu {
+    border-color: #2e2e32; /* --vp-c-divider (dark) */
+    background: #202127; /* --vp-c-bg-elv (dark) */
 }
 .header-lang-menu[hidden] {
     display: none;
@@ -156,24 +169,34 @@ a {
 .header-lang-option {
     display: block;
     width: 100%;
-    padding: 8px 12px;
+    padding: 0 12px;
     border: 0;
-    border-radius: 8px;
+    border-radius: 6px;
     background: transparent;
-    color: var(--muted);
+    color: #3c3c43; /* --vp-c-text-1 */
     font: inherit;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
+    line-height: 32px;
     text-align: left;
     cursor: pointer;
 }
+html.dark .header-lang-option {
+    color: #dfdfd6; /* --vp-c-text-1 (dark) */
+}
 .header-lang-option:hover {
-    background: var(--card);
-    color: var(--fg);
+    background: rgba(142, 150, 170, 0.14); /* --vp-c-default-soft → --vp-c-gray-soft */
+    color: #3451b2; /* --vp-c-brand-1 */
+}
+html.dark .header-lang-option:hover {
+    background: rgba(101, 117, 133, 0.16); /* --vp-c-default-soft (dark) */
+    color: #a8b1ff; /* --vp-c-brand-1 (dark) */
 }
 .header-lang-option[aria-current="true"] {
-    color: var(--accent);
-    font-weight: 600;
+    color: #3451b2; /* --vp-c-brand-1 */
+}
+html.dark .header-lang-option[aria-current="true"] {
+    color: #a8b1ff; /* --vp-c-brand-1 (dark) */
 }
 .appearance-switch {
     position: relative;
@@ -182,13 +205,20 @@ a {
     width: 40px;
     height: 22px;
     padding: 0;
-    border: 1px solid var(--line);
+    border: 1px solid #c2c2c4; /* --vp-input-border-color → --vp-c-border */
     border-radius: 11px;
-    background: var(--card);
+    background: rgba(142, 150, 170, 0.14); /* --vp-input-switch-bg-color → --vp-c-gray-soft */
     cursor: pointer;
 }
 .appearance-switch:hover {
-    border-color: var(--accent);
+    border-color: #3451b2; /* VPSwitch.vue's hover border: --vp-c-brand-1 */
+}
+html.dark .appearance-switch {
+    border-color: #3c3f44; /* --vp-c-border (dark) */
+    background: rgba(101, 117, 133, 0.16); /* --vp-c-gray-soft (dark) */
+}
+html.dark .appearance-switch:hover {
+    border-color: #a8b1ff; /* --vp-c-brand-1 (dark) */
 }
 .appearance-icon {
     position: absolute;
@@ -196,7 +226,10 @@ a {
     left: 3px;
     width: 12px;
     height: 12px;
-    color: var(--bg);
+    color: #67676c; /* VPSwitch.vue's icon: --vp-c-text-2 */
+}
+html.dark .appearance-icon {
+    color: #dfdfd6; /* VPSwitch.vue's icon in dark: --vp-c-text-1 */
 }
 .appearance-knob {
     position: absolute;
@@ -205,10 +238,12 @@ a {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: var(--fg);
+    background: #ffffff; /* VPSwitch.vue's .check: --vp-c-neutral-inverse */
+    box-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 1px 2px rgb(0 0 0 / 6%); /* --vp-shadow-1 */
     transition: transform 0.25s;
 }
 html.dark .appearance-knob {
+    background: #000000; /* --vp-c-neutral-inverse (dark) → --vp-c-black */
     transform: translateX(18px);
 }
 html.dark .appearance-sun,
@@ -357,8 +392,8 @@ h2 {
         <div class="header-tools">
             <!-- The two columns, in a new tab: the reader keeps this page. -->
             <nav class="site-nav" aria-label="Main navigation">
-                <a href="docs/en/" target="_blank" rel="noopener noreferrer" data-href-en="docs/en/" data-href-zh="docs/zh/">Docs</a>
-                <a href="tutorials/en/" target="_blank" rel="noopener noreferrer" data-href-en="tutorials/en/" data-href-zh="tutorials/zh/">Tutorials</a>
+                <a href="docs/en/" target="_blank" rel="noopener noreferrer" data-href-en="docs/en/" data-href-zh="docs/zh/" data-en="Docs" data-zh="文档">Docs</a>
+                <a href="tutorials/en/" target="_blank" rel="noopener noreferrer" data-href-en="tutorials/en/" data-href-zh="tutorials/zh/" data-en="Tutorials" data-zh="教程">Tutorials</a>
             </nav>
             <!--
                 The language menu is the one the VitePress sites render: a globe
