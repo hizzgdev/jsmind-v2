@@ -13,7 +13,7 @@ tags:
 In this tutorial you will ask an AI agent to install the jsMind Skill, sort out a few weekend options as a mind map, and export it as a PNG. You can follow along with the same kind of prompts. The map itself is up to the agent: yours does not have to match the one on this page.
 
 <script setup>
-import exampleMap from '../../assets/161-example.jm?url';
+import exampleMap from '../../assets/161-example.json?url';
 </script>
 
 ![The finished weekend outing mind map](../../assets/161-result.png)
@@ -22,7 +22,7 @@ import exampleMap from '../../assets/161-example.jm?url';
 
 A mind map that sorts out a few ways to spend the weekend, and under each option, what you need to prepare. The picture above comes from one real run, after a colour change. If you use the same prompt, the agent may build a different tree — that is expected. You are learning the flow (install, ask, let the CLI build the map, then recolour and export), not copying a fixed outline.
 
-You can download this run's finished map here: <a :href="exampleMap" download="weekend-outing.jm">161-example.jm</a>.
+You can download this run's finished map here: <a :href="exampleMap" download="weekend-outing.json">161-example.json</a>.
 
 ## What you need
 
@@ -67,13 +67,13 @@ The agent should use the jsMind CLI to create and edit the file. It should not w
 
 The pictures and download on this page come from one real run of a prompt like the one above. The English map uses the same tree, with translated labels. It is an illustration, not the required answer. After every write, take ids from the command that just ran, or run `context` again. Do not copy the ids below into your own commands.
 
-The skill writes `jsmind`. The session below uses `npx jsmind@2`, which is the safe form when the CLI is not already on your PATH. In this run the map was saved as `weekend-outing.jm` (and later `weekend-outing.png`); yours may differ.
+The skill writes `jsmind`. The session below uses `npx jsmind@2`, which is the safe form when the CLI is not already on your PATH. In this run the map was saved as `weekend-outing.json` (and later `weekend-outing.png`); yours may differ.
 
 First it creates the map. `create` prints the root id — here it is `root`, which is the default, but you should still read it from the reply. The root id is data, and a file written elsewhere can name it anything.
 
 ```
-$ npx jsmind@2 create weekend-outing.jm --title "Going out this weekend"
-created weekend-outing.jm (root node id root)
+$ npx jsmind@2 create weekend-outing.json --title "Going out this weekend"
+created weekend-outing.json (root node id root)
 ```
 
 Then it adds branches with `mind add-child`, one node per command — there is no batch form of `add-child`. `--side left` or `--side right` is only allowed when the parent is the root. A new root child defaults to the right if you omit `--side`. Deeper nodes inherit their branch's side; passing `--side` there is an error.
@@ -85,10 +85,10 @@ This run grouped the weekend into three options: visiting the new morning market
 Then the agent validates the file and looks at the tree. `context` shows two levels by default, so this session passes `--depth 3` to include the preparation items, and `--full-text` so longer labels are not truncated:
 
 ```
-$ npx jsmind@2 validate weekend-outing.jm
-weekend-outing.jm: valid
+$ npx jsmind@2 validate weekend-outing.json
+weekend-outing.json: valid
 
-$ npx jsmind@2 context weekend-outing.jm --depth 3 --full-text
+$ npx jsmind@2 context weekend-outing.json --depth 3 --full-text
 root          Going out this weekend {side=center}
 jm-mwxkp09e     Visit the new morning market {side=left}
 jm-mwxkp0q3       Browse the market
@@ -116,7 +116,7 @@ jm-mwxkp3ay         Check trail difficulty and the weather
 `export` writes a PNG next to the map. The default viewport is 1200×800 at scale 2, so a typical export is 2400×1600 pixels; if the map is wider, the image grows with it. This run came out at 4374×1600, because some labels were a little long. If Chromium is not in a standard location, set `CHROME_PATH`.
 
 ```
-$ npx jsmind@2 export weekend-outing.jm weekend-outing.png
+$ npx jsmind@2 export weekend-outing.json weekend-outing.png
 weekend-outing.png: 4374x1600 (379.5 KB)
 ```
 
@@ -143,10 +143,10 @@ The default white looks a bit plain. Could you make the whole map blue (the prim
 ```
 
 ```
-$ npx jsmind@2 mind set-style weekend-outing.jm --default-tone primary
-set style of weekend-outing.jm: default-tone=primary
+$ npx jsmind@2 mind set-style weekend-outing.json --default-tone primary
+set style of weekend-outing.json: default-tone=primary
 
-$ npx jsmind@2 export weekend-outing.jm weekend-outing.png
+$ npx jsmind@2 export weekend-outing.json weekend-outing.png
 weekend-outing.png: 4374x1600 (398.0 KB)
 ```
 
@@ -154,12 +154,12 @@ weekend-outing.png: 4374x1600 (398.0 KB)
 
 ## Where the files are
 
-Both files typically land in the working directory of the conversation, unless the agent tells you otherwise. In this run they were called `weekend-outing.jm` and `weekend-outing.png`; your agent may pick different names.
+Both files typically land in the working directory of the conversation, unless the agent tells you otherwise. In this run they were called `weekend-outing.json` and `weekend-outing.png`; your agent may pick different names.
 
-- The `.jm` file is the map itself. It is a JSON document; the `.jm` extension is fine, and the CLI accepts it.
+- The `.json` file is the map itself. It is a JSON document.
 - The `.png` file is the picture. Open it in any image viewer or browser.
 
-The agent should also print the absolute paths of both files. You can download this run's finished example from this page: <a :href="exampleMap" download="weekend-outing.jm">161-example.jm</a>.
+The agent should also print the absolute paths of both files. You can download this run's finished example from this page: <a :href="exampleMap" download="weekend-outing.json">161-example.json</a>.
 
 ## Next steps
 

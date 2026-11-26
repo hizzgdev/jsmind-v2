@@ -246,8 +246,13 @@ function publishedAsset(html: string, alt: string, pageUrl: string, root: string
 
 /**
  * Bytes of the published file a link whose text or href mentions `name` points at.
+ *
+ * The build renames an asset to `<stem>.<hash>.<ext>`, so the href cannot be
+ * compared with `name` as a whole. The comparison is on the stem instead, which
+ * keeps the matcher independent of the file extension.
  */
 function publishedHrefAsset(html: string, name: string, pageUrl: string, root: string): Buffer {
+    const stem = name.replace(/\.[^.]+$/, '');
     const hrefs: string[] = [];
     for (const tag of html.match(/<a\b[^>]*>/gi) ?? []) {
         const attrs = new Map<string, string>();
@@ -255,11 +260,7 @@ function publishedHrefAsset(html: string, name: string, pageUrl: string, root: s
             attrs.set(match[1].toLowerCase(), match[2]);
         }
         const href = attrs.get('href');
-        const stem = name.replace(/\.[^.]+$/, '');
-        if (
-            href !== undefined
-            && (href.includes(name) || tag.includes(name) || (href.includes(stem) && href.includes('.jm')))
-        ) {
+        if (href !== undefined && (tag.includes(name) || hrefHasStem(href, stem))) {
             hrefs.push(href);
         }
     }
@@ -267,6 +268,25 @@ function publishedHrefAsset(html: string, name: string, pageUrl: string, root: s
     const file = resolvePublishedHref(hrefs[0], pageUrl, TUTORIALS_BASE, root);
     assert.ok(existsSync(file), `${pageUrl}: ${hrefs[0]} should resolve to ${file}`);
     return readFileSync(file);
+}
+
+/** Whether a published href names the asset file that starts with `<stem>.`. */
+function hrefHasStem(href: string, stem: string): boolean {
+    const path = href.split('?')[0];
+    const base = path.slice(path.lastIndexOf('/') + 1);
+    return base === stem || base.startsWith(`${stem}.`);
+}
+
+/** Every `href` an `<a>` on the page points at. */
+function anchorHrefs(html: string): string[] {
+    const hrefs: string[] = [];
+    for (const tag of html.match(/<a\b[^>]*>/gi) ?? []) {
+        const match = /\bhref\s*=\s*"([^"]*)"/i.exec(tag);
+        if (match !== null) {
+            hrefs.push(match[1]);
+        }
+    }
+    return hrefs;
 }
 
 function imgSrcByAlt(html: string, alt: string): string | null {
@@ -896,6 +916,21 @@ describe('pages site assembly', () => {
                     assert.ok(existsSync(file), `${rel}: ${href} should resolve to ${file}`);
                 }
 
+                // The post list comes from a content loader, whose `url` is a
+                // clean path with no base. Rendered as-is it resolves under the
+                // domain root and 404s, so every link into `posts/` has to land
+                // inside this locale's posts directory.
+                const postHrefs = anchorHrefs(html).filter((href) => href.includes('/posts/'));
+                assert.ok(postHrefs.length > 0, `${rel} should link its posts`);
+                for (const href of postHrefs) {
+                    assert.ok(
+                        new URL(href, pageUrl).pathname.startsWith(`${TUTORIALS_BASE}${locale}/posts/`),
+                        `${rel}: ${href} should resolve under ${TUTORIALS_BASE}${locale}/posts/`
+                    );
+                    const file = resolvePublishedHref(href, pageUrl, TUTORIALS_BASE, tutorialsDir);
+                    assert.ok(existsSync(file), `${rel}: ${href} should resolve to ${file}`);
+                }
+
                 assertVisibleAiNotice(html, css, rel);
                 // The top bar hands the reader back to the docs site at its
                 // published address, not at a path inside this base.
@@ -952,15 +987,15 @@ describe('pages site assembly', () => {
                 'applying an override must not rewrite the shared source file'
             );
 
-            const enMap = publishedHrefAsset(enHtml, '161-example.jm', enPageUrl, tutorialsDir);
-            const zhMap = publishedHrefAsset(zhHtml, '161-example.jm', zhPageUrl, tutorialsDir);
+            const enMap = publishedHrefAsset(enHtml, '161-example.json', enPageUrl, tutorialsDir);
+            const zhMap = publishedHrefAsset(zhHtml, '161-example.json', zhPageUrl, tutorialsDir);
             assert.deepStrictEqual(
                 enMap,
-                readFileSync(join(ROOT, 'tutorials', 'assets', '161-example.jm'))
+                readFileSync(join(ROOT, 'tutorials', 'assets', '161-example.json'))
             );
             assert.deepStrictEqual(
                 zhMap,
-                readFileSync(join(ROOT, 'tutorials', 'zh', 'assets_override', '161-example.jm'))
+                readFileSync(join(ROOT, 'tutorials', 'zh', 'assets_override', '161-example.json'))
             );
         }
         finally {
