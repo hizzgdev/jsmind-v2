@@ -28,6 +28,8 @@ import exampleMap from '../../assets/161-example.jm?url';
   - **下午**（右侧）：公园散步、书店
   - **随身带**（左侧）：水瓶、薄外套、购物袋，改过一次之后再加上「野餐垫」
 
+然后再给整张导图换上蓝色（`primary`），成品就不再是默认的白色了。
+
 做好的导图可以在这里下载：<a :href="exampleMap" download="saturday-outing.jm">161-example.jm</a>。
 
 ## 你需要准备什么
@@ -191,6 +193,26 @@ saturday-outing.jm: valid
 
 $ npx jsmind@2 export saturday-outing.jm saturday-outing.png
 saturday-outing.png: 2400x1600 (144.6 KB)
+```
+
+## 给整张导图换个颜色
+
+默认色调是白色，第一次导出用的就是它。一条命令就能改掉所有还没有自己色调的节点。这条命令是 `mind set-style`，不必对每个节点再跑一遍 `node set-style`。
+
+现成的色调有 `default`（白）、`primary`（蓝）、`success`（绿）、`warning`（橙）、`danger`（红）、`info`（浅蓝）和 `accent`（紫）。这次演示用 `primary`。如果某个节点已经有自己的色调，仍然以节点自己的为准。
+
+把下面这段交给 agent：
+
+```
+请使用 jsMind skill，打开 saturday-outing.jm，把整张导图的默认色调设为 primary，并再次导出为 saturday-outing.png。
+```
+
+```
+$ npx jsmind@2 mind set-style saturday-outing.jm --default-tone primary
+set style of saturday-outing.jm: default-tone=primary
+
+$ npx jsmind@2 export saturday-outing.jm saturday-outing.png
+saturday-outing.png: 2400x1600 (150.2 KB)
 ```
 
 ![完成后的周六出游思维导图](../../assets/161-result.png)

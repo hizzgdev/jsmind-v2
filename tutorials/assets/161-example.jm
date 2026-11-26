@@ -167,5 +167,8 @@
       "data": {}
     }
   },
-  "edges": {}
+  "edges": {},
+  "style": {
+    "defaultTone": "primary"
+  }
 }

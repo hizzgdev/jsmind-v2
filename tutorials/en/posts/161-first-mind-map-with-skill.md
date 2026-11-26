@@ -28,6 +28,8 @@ A compact map with a root, three first-level branches, and a few children:
   - **Afternoon** (right): Park walk, Bookstore
   - **Things to bring** (left): Water bottle, Light jacket, Reusable bag, and — after a small edit — Picnic blanket
 
+After that, you give the whole map a blue (`primary`) tone, so the finished picture is no longer the plain white default.
+
 The finished map is here to download: <a :href="exampleMap" download="saturday-outing.jm">161-example.jm</a>.
 
 ## What you need
@@ -191,6 +193,26 @@ saturday-outing.jm: valid
 
 $ npx jsmind@2 export saturday-outing.jm saturday-outing.png
 saturday-outing.png: 2400x1600 (164.9 KB)
+```
+
+## Give the whole map a colour
+
+The default tone is white, which is what the first export used. One command can change the colour of every node that does not have its own tone. That command is `mind set-style`; you do not colour each node with `node set-style`.
+
+The stock tones include `default` (white), `primary` (blue), `success` (green), `warning` (orange), `danger` (red), `info` (light blue), and `accent` (purple). This walkthrough uses `primary`. If a node already had its own tone, that tone would still win.
+
+Ask the agent:
+
+```
+Using the jsMind skill, open saturday-outing.jm, set the document default tone to primary, and export it again as saturday-outing.png.
+```
+
+```
+$ npx jsmind@2 mind set-style saturday-outing.jm --default-tone primary
+set style of saturday-outing.jm: default-tone=primary
+
+$ npx jsmind@2 export saturday-outing.jm saturday-outing.png
+saturday-outing.png: 2400x1600 (174.5 KB)
 ```
 
 ![The finished Saturday outing mind map](../../assets/161-result.png)
