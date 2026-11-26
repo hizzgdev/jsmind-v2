@@ -19,3 +19,18 @@
     color: var(--vp-c-text-2);
     background-color: var(--vp-c-bg);
 }
+
+.tutorial-list {
+    margin: 1.5rem 0;
+    padding: 0;
+    list-style: none;
+}
+.tutorial-list li {
+    margin: 0 0 0.75rem;
+}
+.tutorial-list time,
+.tutorial-tags {
+    margin-left: 0.6rem;
+    color: var(--vp-c-text-2);
+    font-size: 14px;
+}

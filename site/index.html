@@ -163,6 +163,21 @@ h2 {
     margin: 0;
     color: var(--muted);
 }
+.recent-list li {
+    margin: 0 0 8px;
+}
+.recent-list a {
+    font-weight: 600;
+    text-decoration: none;
+}
+.recent-list a:hover {
+    text-decoration: underline;
+}
+.recent-date {
+    margin-left: 8px;
+    color: var(--muted);
+    font-size: 13px;
+}
 .site-footer {
     margin-top: 48px;
     padding: 20px 0 40px;
@@ -223,10 +238,10 @@ h2 {
 
         <section class="recent">
             <h2 data-en="Recent tutorials" data-zh="最近教程">Recent tutorials</h2>
-            <!-- Reserved for the two or three newest posts. Empty until the
-                 first tutorial ships; the tutorials site owns the full list. -->
-            <ul class="recent-list" id="recent-tutorials"></ul>
-            <p class="recent-empty" data-en="The first tutorials are being written. They will be listed on the tutorials page once published." data-zh="第一批教程正在撰写，发布后会出现在教程栏目里。">The first tutorials are being written. They will be listed on the tutorials page once published.</p>
+            <!-- Filled at assemble time from tutorials/*/posts/, newest first.
+                 The tutorials site owns the full list. -->
+            <ul class="recent-list" id="recent-tutorials">{{RECENT_TUTORIALS}}</ul>
+            {{RECENT_EMPTY}}
         </section>
     </main>
     <footer class="site-footer">

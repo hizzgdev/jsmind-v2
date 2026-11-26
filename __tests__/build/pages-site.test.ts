@@ -64,6 +64,11 @@ import {
     TUTORIALS_BASE,
     TUTORIALS_URL,
 } from '../../site.config.mjs';
+import {
+    listTutorialPosts,
+    parseTutorialFrontmatter,
+    recentTutorialPosts,
+} from '../../scripts/tutorial-posts.ts';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -226,6 +231,57 @@ function resolvePublishedHref(href: string, pageUrl: string, prefix: string, roo
     assert.ok(url.pathname.startsWith(prefix), `${pageUrl}: ${href} resolves outside ${prefix}`);
     return join(root, url.pathname.slice(prefix.length));
 }
+
+
+/**
+ * Bytes of the published file an `<img>` with this `alt` points at.
+ */
+function publishedAsset(html: string, alt: string, pageUrl: string, root: string): Buffer {
+    const href = imgSrcByAlt(html, alt);
+    assert.ok(href !== null, `${pageUrl} is missing an image with alt ${alt}`);
+    const file = resolvePublishedHref(href, pageUrl, TUTORIALS_BASE, root);
+    assert.ok(existsSync(file), `${pageUrl}: ${href} should resolve to ${file}`);
+    return readFileSync(file);
+}
+
+/**
+ * Bytes of the published file a link whose text or href mentions `name` points at.
+ */
+function publishedHrefAsset(html: string, name: string, pageUrl: string, root: string): Buffer {
+    const hrefs: string[] = [];
+    for (const tag of html.match(/<a\b[^>]*>/gi) ?? []) {
+        const attrs = new Map<string, string>();
+        for (const match of tag.matchAll(/\b([A-Za-z_:][\w:.-]*)\s*=\s*"([^"]*)"/g)) {
+            attrs.set(match[1].toLowerCase(), match[2]);
+        }
+        const href = attrs.get('href');
+        const stem = name.replace(/\.[^.]+$/, '');
+        if (
+            href !== undefined
+            && (href.includes(name) || tag.includes(name) || (href.includes(stem) && href.includes('.jm')))
+        ) {
+            hrefs.push(href);
+        }
+    }
+    assert.ok(hrefs.length > 0, `${pageUrl} should link ${name}`);
+    const file = resolvePublishedHref(hrefs[0], pageUrl, TUTORIALS_BASE, root);
+    assert.ok(existsSync(file), `${pageUrl}: ${hrefs[0]} should resolve to ${file}`);
+    return readFileSync(file);
+}
+
+function imgSrcByAlt(html: string, alt: string): string | null {
+    for (const tag of html.match(/<img\b[^>]*>/gi) ?? []) {
+        const attrs = new Map<string, string>();
+        for (const match of tag.matchAll(/\b([A-Za-z_:][\w:.-]*)\s*=\s*"([^"]*)"/g)) {
+            attrs.set(match[1].toLowerCase(), match[2]);
+        }
+        if (attrs.get('alt') === alt) {
+            return attrs.get('src') ?? null;
+        }
+    }
+    return null;
+}
+
 
 /**
  * The source page every root-site fixture starts from: the icons under
@@ -413,14 +469,28 @@ describe('landing page', () => {
         assert.ok(page.includes('2.x preview'));
         assert.ok(page.includes('https://github.com/hizzgdev/jsmind-v2'));
 
-        // The recent-tutorials slot is reserved and empty: a `<li>` inside it
-        // would mean something else was parked there.
+        // The source keeps slots; the rendered page lists the newest posts
+        // from tutorials/*/posts/, and must not keep the empty-state sentence
+        // under a real list.
+        assert.ok(source.includes('{{RECENT_TUTORIALS}}'));
+        assert.ok(source.includes('{{RECENT_EMPTY}}'));
+        assert.ok(!source.includes('161-first-mind-map-with-skill'));
+
         assert.ok(page.includes('id="recent-tutorials"'));
-        assert.doesNotMatch(
+        assert.match(
             page,
             /<ul class="recent-list"[^>]*>[\s\S]*?<li/,
-            'the recent-tutorials slot must stay empty until the first post ships'
+            'the first tutorial should appear in the recent-tutorials list'
         );
+        assert.ok(page.includes('Build your first mind map with the jsMind Skill'));
+        assert.ok(page.includes('用 jsMind Skill 做你的第一张思维导图'));
+        assert.ok(page.includes('tutorials/en/posts/161-first-mind-map-with-skill.html'));
+        assert.ok(page.includes('tutorials/zh/posts/161-first-mind-map-with-skill.html'));
+        assert.ok(
+            !page.includes('class="recent-empty"'),
+            'the empty-state sentence must not sit under a real list'
+        );
+        assert.ok(!page.includes('The first tutorials are being written.'));
 
         // Language switching shares the docs key and defaults to English.
         assert.ok(page.includes(`var KEY = '${DOCS_LANG_STORAGE_KEY}';`));
@@ -734,11 +804,26 @@ describe('pages site assembly', () => {
             assert.ok(existsSync(join(ROOT, path)), `${path} should exist`);
         }
 
-        // Assets are shared by both languages, and `assets_override/` is only
-        // created when an article actually needs a per-language file.
+        // Assets are shared by both languages in source. A language directory
+        // may have `assets_override/` only when it holds real, differing files;
+        // there is still no per-language `assets/` tree in the checkout.
         assert.ok(!existsSync(join(ROOT, 'tutorials', 'en', 'assets')), 'assets are shared, not per language');
         assert.ok(!existsSync(join(ROOT, 'tutorials', 'zh', 'assets')), 'assets are shared, not per language');
-        assert.ok(!existsSync(join(ROOT, 'tutorials', 'zh', 'assets_override')), 'no empty assets_override');
+        assert.ok(!existsSync(join(ROOT, 'tutorials', 'en', 'assets_override')), 'no empty en assets_override');
+        const zhOverride = join(ROOT, 'tutorials', 'zh', 'assets_override');
+        assert.ok(existsSync(zhOverride), 'the first article needs Chinese map and PNG overrides');
+        const overrideFiles = readdirSync(zhOverride);
+        assert.ok(overrideFiles.length > 0, 'assets_override must not be an empty directory');
+        for (const name of overrideFiles) {
+            const shared = join(ROOT, 'tutorials', 'assets', name);
+            const local = join(zhOverride, name);
+            assert.ok(existsSync(shared), `${name} should override a shared file of the same name`);
+            assert.notDeepStrictEqual(
+                readFileSync(shared),
+                readFileSync(local),
+                `${name}: an override must differ from the shared file, and must not overwrite it`
+            );
+        }
 
         // The template states the naming rule without pinning the first number:
         // that is decided when the first article is written.
@@ -831,8 +916,52 @@ describe('pages site assembly', () => {
 
             const enEntry = readFileSync(join(tutorialsDir, 'en', 'index.html'), 'utf8');
             const zhEntry = readFileSync(join(tutorialsDir, 'zh', 'index.html'), 'utf8');
-            assert.ok(enEntry.includes('being built'), 'the en entry page should say the column is being built');
-            assert.ok(zhEntry.includes('正在建设'), 'the zh entry page should say the column is being built');
+            assert.ok(
+                enEntry.includes('Build your first mind map with the jsMind Skill'),
+                'the en entry page should list the first tutorial'
+            );
+            assert.ok(
+                zhEntry.includes('用 jsMind Skill 做你的第一张思维导图'),
+                'the zh entry page should list the first tutorial'
+            );
+            assert.ok(enEntry.includes('161-first-mind-map-with-skill'));
+            assert.ok(zhEntry.includes('161-first-mind-map-with-skill'));
+
+            // The first article is built for both locales, and Chinese pages
+            // must receive the override assets without rewriting the shared
+            // files in tutorials/assets/.
+            const enArticle = 'en/posts/161-first-mind-map-with-skill.html';
+            const zhArticle = 'zh/posts/161-first-mind-map-with-skill.html';
+            assert.ok(files.includes(enArticle), `missing ${enArticle}`);
+            assert.ok(files.includes(zhArticle), `missing ${zhArticle}`);
+
+            const enHtml = readFileSync(join(tutorialsDir, enArticle), 'utf8');
+            const zhHtml = readFileSync(join(tutorialsDir, zhArticle), 'utf8');
+            const enPageUrl = new URL(enArticle, `${SITE_ORIGIN}${TUTORIALS_BASE}`).href;
+            const zhPageUrl = new URL(zhArticle, `${SITE_ORIGIN}${TUTORIALS_BASE}`).href;
+            const enResult = publishedAsset(enHtml, 'The finished weekend outing mind map', enPageUrl, tutorialsDir);
+            const zhResult = publishedAsset(zhHtml, '完成后的周末出游思维导图', zhPageUrl, tutorialsDir);
+            const sharedResult = readFileSync(join(ROOT, 'tutorials', 'assets', '161-result.png'));
+            const overrideResult = readFileSync(join(ROOT, 'tutorials', 'zh', 'assets_override', '161-result.png'));
+            assert.deepStrictEqual(enResult, sharedResult, 'the English page should use the shared PNG');
+            assert.deepStrictEqual(zhResult, overrideResult, 'the Chinese page should use the override PNG');
+            assert.notDeepStrictEqual(enResult, zhResult, 'the two language pages must not share one picture');
+            assert.deepStrictEqual(
+                readFileSync(join(ROOT, 'tutorials', 'assets', '161-result.png')),
+                sharedResult,
+                'applying an override must not rewrite the shared source file'
+            );
+
+            const enMap = publishedHrefAsset(enHtml, '161-example.jm', enPageUrl, tutorialsDir);
+            const zhMap = publishedHrefAsset(zhHtml, '161-example.jm', zhPageUrl, tutorialsDir);
+            assert.deepStrictEqual(
+                enMap,
+                readFileSync(join(ROOT, 'tutorials', 'assets', '161-example.jm'))
+            );
+            assert.deepStrictEqual(
+                zhMap,
+                readFileSync(join(ROOT, 'tutorials', 'zh', 'assets_override', '161-example.jm'))
+            );
         }
         finally {
             rmSync(dir, { recursive: true, force: true });
@@ -1147,6 +1276,46 @@ describe('pages site assembly', () => {
             assert.ok(!files.some((name) => /(^|\/)requirements\//.test(name)));
             assert.ok(!files.some((name) => name.includes('architecture-overview')));
             assert.ok(!files.some((name) => name.includes('AGENTS')));
+        }
+        finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+
+describe('tutorial post listing', () => {
+    it('reads frontmatter and lists posts newest first', () => {
+        const file = join(ROOT, 'tutorials', 'en', 'posts', '161-first-mind-map-with-skill.md');
+        const matter = parseTutorialFrontmatter(readFileSync(file, 'utf8'), file);
+        assert.strictEqual(matter.id, '161');
+        assert.strictEqual(matter.date, '2026-11-26');
+        assert.strictEqual(matter.title, 'Build your first mind map with the jsMind Skill');
+        assert.deepStrictEqual(matter.tags, ['How-to']);
+
+        const posts = listTutorialPosts(ROOT);
+        assert.ok(posts.length >= 1);
+        const first = posts[0];
+        assert.strictEqual(first.id, '161');
+        assert.strictEqual(first.slug, '161-first-mind-map-with-skill');
+        assert.strictEqual(first.date, '2026-11-26');
+        assert.strictEqual(first.titles.en, 'Build your first mind map with the jsMind Skill');
+        assert.strictEqual(first.titles.zh, '用 jsMind Skill 做你的第一张思维导图');
+        assert.strictEqual(first.hrefs.en, 'tutorials/en/posts/161-first-mind-map-with-skill.html');
+        assert.strictEqual(first.hrefs.zh, 'tutorials/zh/posts/161-first-mind-map-with-skill.html');
+
+        const dates = posts.map((post) => post.date);
+        const sorted = [...dates].sort((a, b) => b.localeCompare(a));
+        assert.deepStrictEqual(dates, sorted, 'posts should be sorted by date, newest first');
+        assert.strictEqual(recentTutorialPosts(posts).length, Math.min(3, posts.length));
+    });
+
+    it('leaves the recent list empty when a tree has no posts yet', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'jsmind-tutorial-posts-'));
+        try {
+            mkdirSync(join(dir, 'tutorials', 'en', 'posts'), { recursive: true });
+            mkdirSync(join(dir, 'tutorials', 'zh', 'posts'), { recursive: true });
+            assert.deepStrictEqual(listTutorialPosts(dir), []);
         }
         finally {
             rmSync(dir, { recursive: true, force: true });
