@@ -53,7 +53,7 @@ const EXPECTED_KEYS = [
     'create',
     'validate',
     'context',
-    'export',
+    'export image',
     'help',
     'mind find',
     'mind list-edges',
@@ -145,12 +145,16 @@ test('options - `commandKey` reads only the words that select a command', () => 
     assert.strictEqual(commandKey([]), undefined);
     assert.strictEqual(commandKey(['mind']), undefined);
     assert.strictEqual(commandKey(['node']), undefined);
+    // `export` is a group too, so its kind is the second word and the paths
+    // after it are not command words.
+    assert.strictEqual(commandKey(['export']), undefined);
+    assert.strictEqual(commandKey(['export', 'image', 'm.json', 'out.png']), 'export image');
 
     // A file path sits where the next word would be, and is not one.
     assert.strictEqual(commandKey(['context', 'm.json']), 'context');
     assert.strictEqual(commandKey(['node', 'set-text', 'm.json']), 'node set-text');
 
-    // Both groups are one level deep, so the second word is the whole
+    // Every group is one level deep, so the second word is the whole
     // subcommand and the file path after it is never read as a command word.
     assert.strictEqual(commandKey(['mind', 'set-style']), 'mind set-style');
     assert.strictEqual(commandKey(['mind', 'set-style', 'm.json']), 'mind set-style');
@@ -551,7 +555,7 @@ test('cli - export warns about a write flag rather than refusing it', () => {
 
     try {
         const target = join(dir, 'redirect.png');
-        const run = runCli(['export', 'missing.json', join(dir, 'p.png'), '--output', target]);
+        const run = runCli(['export', 'image', 'missing.json', join(dir, 'p.png'), '--output', target]);
 
         assert.strictEqual(
             run.code,
@@ -560,7 +564,7 @@ test('cli - export warns about a write flag rather than refusing it', () => {
         );
         assert.strictEqual(
             run.stderr,
-            `${warning('export', 'output')}File not found: missing.json\n`
+            `${warning('export image', 'output')}File not found: missing.json\n`
         );
         assert.strictEqual(run.stdout, '', 'the failed export prints no result');
         assert.strictEqual(existsSync(target), false, 'nothing is written to the redirect');
@@ -582,7 +586,7 @@ test('cli - the same write flags under --strict exit 2, export included', () => 
             { args: ['validate', file], command: 'validate', flag: 'output' },
             { args: ['context', file], command: 'context', flag: 'dry-run' },
             { args: ['context', file], command: 'context', flag: 'backup' },
-            { args: ['export', file, join(dir, 'p.png')], command: 'export', flag: 'output' },
+            { args: ['export', 'image', file, join(dir, 'p.png')], command: 'export image', flag: 'output' },
         ];
 
         for (const { args, command, flag } of commandLines) {

@@ -49,7 +49,7 @@ added node (id jm-mwh96wk6) under root
 $ npx jsmind validate tmp/hello.json
 tmp/hello.json: valid
 
-$ npx jsmind export tmp/hello.json tmp/hello.png
+$ npx jsmind export image tmp/hello.json tmp/hello.png
 tmp/hello.png: 2400x1600 (85.0 KB)
 ```
 

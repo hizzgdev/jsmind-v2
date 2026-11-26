@@ -299,14 +299,16 @@ test('help - both set-style blocks say which style they write', () => {
 });
 
 test('help - every single-page command prints only its own block', () => {
-    // `create`, `validate`, `context` and `export` have no second level, so
-    // their block is the whole answer. They used to get the whole index:
-    // the block was in there, but the caller had to find it.
+    // `create`, `validate` and `context` have no second level, so their block
+    // is the whole answer. They used to get the whole index: the block was in
+    // there, but the caller had to find it.
+    //
+    // `export` used to be in this list and is not any more: it became a group
+    // (`export <kind>`), so it is answered below as a group instead.
     const cases = [
         { topic: 'create', block: createHelp, foreign: 'set-style' },
         { topic: 'validate', block: validateHelp, foreign: '--title' },
         { topic: 'context', block: contextHelp, foreign: 'add-child' },
-        { topic: 'export', block: exportHelp, foreign: 'set-style' },
     ];
 
     for (const { topic, block, foreign } of cases) {
@@ -318,10 +320,52 @@ test('help - every single-page command prints only its own block', () => {
     }
 });
 
-test('help - every single-page command documents --json', () => {
+test('help - `export` answers as a group, at both levels it has', () => {
+    // `export` is the first command with a second level that is not a
+    // subcommand: the word after it picks what is produced. One kind is not
+    // enough to earn a page of its own, so the kind word is accepted and the
+    // group block answers — the half of the old "no second level" assumption
+    // that is still worth pinning is that the ladder must not fall back to the
+    // whole manual.
+    for (const args of [
+        ['export', '--help'],
+        ['export', 'image', '--help'],
+        ['help', 'export'],
+    ]) {
+        const run = runCli(args);
+
+        assert.strictEqual(run.code, 0, `jsmind ${args.join(' ')} should succeed`);
+        assert.strictEqual(run.stdout, `${exportHelp}\n`, `jsmind ${args.join(' ')} should print the group block`);
+        assert.ok(
+            !run.stdout.includes('Options in full'),
+            'the group block is the answer, not the complete reference'
+        );
+    }
+});
+
+test('help - the index advertises the group form of export', () => {
+    // The index is the page most readers see, and the old single-command form
+    // there would send them to a command line that now exits 2.
+    assert.ok(
+        INDEX.includes('export <kind> <file> [out]'),
+        'the index should show the kind word between export and the file'
+    );
+    assert.ok(
+        !INDEX.includes('export <file> <out.png>'),
+        'the index must not still advertise the retired single-command form'
+    );
+    assert.ok(
+        INDEX.includes('jsmind export --help'),
+        'the index should point at the group page, where the kinds are listed'
+    );
+});
+
+test('help - every command block documents --json', () => {
     // `--json` is a global flag, but a reader asking one command what it takes
     // should find it there. `create` gained a JSON shape in 2.2 while its block
     // still listed six flags and no `--json` — the reference lagging the command.
+    // `export` is in this list as a group page now: its kind word changed, not
+    // the flags its image kind takes.
     for (const [name, block] of [
         ['create', createHelp],
         ['validate', validateHelp],

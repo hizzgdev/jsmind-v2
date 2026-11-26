@@ -18,7 +18,6 @@
 import { parseArgs } from 'node:util';
 import { CliExit, CliError, describeFailure, usageError } from './exit.ts';
 import {
-    enumOption,
     intOption,
     numberOption,
     requireOption,
@@ -27,12 +26,12 @@ import {
 import {
     runExport,
     exportHelp,
-    EXPORT_TYPES,
+    exportTypeOption,
+    EXPORT_KINDS,
     DEFAULT_WIDTH,
     DEFAULT_HEIGHT,
     DEFAULT_SCALE,
 } from './commands/export.ts';
-import { JmImageType } from '../view/export.ts';
 import { runValidate, validateHelp, assertValidateArgs } from './commands/validate.ts';
 import { runMind, mindHelp, assertMindSubcommand } from './commands/mind.ts';
 import { mindSetStyleHelp } from './commands/style.ts';
@@ -62,7 +61,7 @@ Usage: ${PROGRAM} <command> [options]
 Cross-boundary commands:
   create <file> --title <title>   Start a new mind map
   validate <file>                 Check a file against the format spec
-  export <file> <out.png>         Render to an image  (needs a browser)
+  export <kind> <file> [out]      Produce a shareable file  (see: jsmind export --help)
   context <file> [options]        Discovery: show the tree and its ids
 
 Structure, edges and the document's style:
@@ -300,23 +299,41 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
 
     switch (command) {
         case 'export': {
-            const [file, output, ...extra] = rest;
-            if (file === undefined || output === undefined) {
-                throw usageError('export requires an input file and an output image path');
+            // `export` is a group: the first positional is the kind, and the
+            // words after it belong to that kind. No compatibility path — a
+            // bare `export a.json b.png` is a usage error, not an `image`
+            // export with the kind guessed, because guessing is how a caller
+            // learns the wrong command line and never finds out.
+            const kinds = EXPORT_KINDS.map(kind => kind.name).join(', ');
+            const [kind, ...args] = rest;
+            if (kind === undefined) {
+                throw usageError(`export requires a kind (kinds: ${kinds})\n\n${exportHelp}`);
             }
-            if (extra.length > 0) {
-                throw usageError(`Unexpected arguments: ${extra.join(' ')}`);
+            switch (kind) {
+                case 'image': {
+                    const [file, output, ...extra] = args;
+                    if (file === undefined || output === undefined) {
+                        throw usageError(
+                            'export image requires an input file and an output image path'
+                        );
+                    }
+                    if (extra.length > 0) {
+                        throw usageError(`Unexpected arguments: ${extra.join(' ')}`);
+                    }
+                    return runExport({
+                        file,
+                        output,
+                        width: numberOption(parsed.values.width, DEFAULT_WIDTH, 'width'),
+                        height: numberOption(parsed.values.height, DEFAULT_HEIGHT, 'height'),
+                        scale: numberOption(parsed.values.scale, DEFAULT_SCALE, 'scale'),
+                        type: exportTypeOption(parsed.values.type),
+                        asJson,
+                        transparent: parsed.values.transparent === true,
+                    });
+                }
+                default:
+                    throw usageError(`Unknown export kind: ${kind} (kinds: ${kinds})\n\n${exportHelp}`);
             }
-            return runExport({
-                file,
-                output,
-                width: numberOption(parsed.values.width, DEFAULT_WIDTH, 'width'),
-                height: numberOption(parsed.values.height, DEFAULT_HEIGHT, 'height'),
-                scale: numberOption(parsed.values.scale, DEFAULT_SCALE, 'scale'),
-                type: enumOption(parsed.values.type, JmImageType.Png, EXPORT_TYPES, 'type'),
-                asJson,
-                transparent: parsed.values.transparent === true,
-            });
         }
         case 'validate': {
             assertValidateArgs(rest);

@@ -7,7 +7,7 @@ There are two entry points, and they share one implementation:
 | Entry | Form |
 |---|---|
 | Browser | `await jm.exportImage(options)` → `Blob` |
-| Command line | `jsmind export <file> <out.png>` |
+| Command line | `jsmind export image <file> <out.png>` |
 
 See also the [image export](/en/reference/api/export) API reference and the [CLI](/en/guide/cli) page.
 
@@ -56,8 +56,10 @@ Calling this when no mind map is open throws `JsMindError`.
 
 ## 3. Command line
 
+`export` takes the kind of file to produce as its first word; `image` is the only kind so far.
+
 ```bash
-jsmind export <file> <out.png> [options]
+jsmind export image <file> <out.png> [options]
 ```
 
 | Option | Default | Description | Version |
@@ -65,15 +67,17 @@ jsmind export <file> <out.png> [options]
 | `--width <px>` | 1200 | Viewport width used for layout | — |
 | `--height <px>` | 800 | Viewport height used for layout | — |
 | `--scale <n>` | 2 | Output scale | — |
-| `--type <format>` | image/png | Output format | — |
+| `--type <format>` | png | Output encoding: `png`, `jpeg` or `webp`. `jpg` is accepted as another spelling of `jpeg`. | — |
 | `--transparent` | — | Transparent background (PNG and WebP; opt-in). For JPEG, the option is ignored and a warning is printed. | `Since: 2.1.0` |
 | `--json` | — | Machine-readable output | — |
 
+`--type` sets the encoding, not the file name: the bytes are the format it names, and the output path is written exactly as given. A path whose extension disagrees — `out.png --type jpeg` — is still exported, with one warning on stderr and exit code `0`, because an artifact is often named for the tool that consumes it and neither side is overridden. The comparison reads the extension only (`.png`, `.jpg` / `.jpeg`, `.webp`), and an extension that names no image format is not compared at all.
+
 ```bash
-$ jsmind export example/v2-features.json preview.png
+$ jsmind export image example/v2-features.json preview.png
 preview.png: 2400x1600 (174.9 KB)
 
-$ jsmind export example/v2-features.json small.png --width 400 --height 300
+$ jsmind export image example/v2-features.json small.png --width 400 --height 300
 small.png: 2095x1032 (145.0 KB)      # the viewport cannot hold it, so the image is larger, not cropped
 ```
 
@@ -131,6 +135,6 @@ Two more things are not pits, but are worth knowing: the container's own `overfl
 | `src/view/export.ts` | Clone, assemble the SVG, decode, encode |
 | `src/application/jsmind.ts` | Public `exportImage()` entry |
 | `src/cli/browser.ts` | Headless browser + DevTools protocol |
-| `src/cli/commands/export.ts` | `jsmind export` |
+| `src/cli/commands/export.ts` | `jsmind export image` |
 
-The preview image on a CI pull request is produced by `jsmind export`. There is no longer a separate screenshot script — the preview image and the image a user gets must come from the same path.
+The preview image on a CI pull request is produced by `jsmind export image`. There is no longer a separate screenshot script — the preview image and the image a user gets must come from the same path.

@@ -7,7 +7,7 @@
 | 入口 | 形态 |
 |---|---|
 | 浏览器 | `await jm.exportImage(options)` → `Blob` |
-| 命令行 | `jsmind export <file> <out.png>` |
+| 命令行 | `jsmind export image <file> <out.png>` |
 
 另见[图片导出](/zh/reference/api/export) API 参考和 [CLI](/zh/guide/cli) 页面。
 
@@ -56,8 +56,10 @@ const url = URL.createObjectURL(blob);
 
 ## 3. 命令行
 
+`export` 的第一个位置参数是产出种类；目前只有 `image` 一种。
+
 ```bash
-jsmind export <file> <out.png> [options]
+jsmind export image <file> <out.png> [options]
 ```
 
 | 选项 | 默认 | 说明 | 版本 |
@@ -65,15 +67,17 @@ jsmind export <file> <out.png> [options]
 | `--width <px>` | 1200 | 布局用的视口宽度 | — |
 | `--height <px>` | 800 | 布局用的视口高度 | — |
 | `--scale <n>` | 2 | 输出倍率 | — |
-| `--type <format>` | image/png | 输出格式 | — |
+| `--type <format>` | png | 输出编码：`png`、`jpeg` 或 `webp`。`jpg` 也接受，等同于 `jpeg`。 | — |
 | `--transparent` | — | 透明背景（PNG 和 WebP；需显式打开）。用于 JPEG 时会忽略该选项并给出警告。 | `Since: 2.1.0` |
 | `--json` | — | 机器可读输出 | — |
 
+`--type` 决定的是编码，不是文件名：写出的字节就是它指定的格式，输出路径则原样使用。两者不一致时（`out.png --type jpeg`）照样导出，stderr 打一行警告、退出码仍是 `0` —— 产物常常是按消费它的工具命名的，两边都不该被覆盖。比对只看扩展名（`.png`、`.jpg` / `.jpeg`、`.webp`）；认不出图片格式的扩展名不参与比对。
+
 ```bash
-$ jsmind export example/v2-features.json preview.png
+$ jsmind export image example/v2-features.json preview.png
 preview.png: 2400x1600 (174.9 KB)
 
-$ jsmind export example/v2-features.json small.png --width 400 --height 300
+$ jsmind export image example/v2-features.json small.png --width 400 --height 300
 small.png: 2095x1032 (145.0 KB)      # 视口装不下，图反而更大，没被裁
 ```
 
@@ -131,6 +135,6 @@ small.png: 2095x1032 (145.0 KB)      # 视口装不下，图反而更大，没�
 | `src/view/export.ts` | 克隆、拼 SVG、解码、编码 |
 | `src/application/jsmind.ts` | `exportImage()` 公共入口 |
 | `src/cli/browser.ts` | 无头浏览器 + DevTools 协议 |
-| `src/cli/commands/export.ts` | `jsmind export` |
+| `src/cli/commands/export.ts` | `jsmind export image` |
 
-CI 的 PR 预览图走的就是 `jsmind export`，不再有独立的截图脚本 —— 预览图和用户拿到的图必须是同一条路径产出的。
+CI 的 PR 预览图走的就是 `jsmind export image`，不再有独立的截图脚本 —— 预览图和用户拿到的图必须是同一条路径产出的。

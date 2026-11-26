@@ -92,7 +92,7 @@ export function pickTone(random: () => number = Math.random): JmTone {
  * Through {@link runMutation}, the same load → mutate → write → validate path
  * every writing command uses. The prepared file has to be a document the
  * renderer accepts, and the post-write check is what asserts that; a
- * hand-rolled read/parse/write here would skip it and hand `jsmind export` a
+ * hand-rolled read/parse/write here would skip it and hand `jsmind export image` a
  * file whose validity nothing had checked.
  *
  * The style block is spread rather than replaced: a document that already

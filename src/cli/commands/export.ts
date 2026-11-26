@@ -1,19 +1,24 @@
 /**
- * `jsmind export` — render a mind map file to a PNG.
+ * `jsmind export image` — render a mind map file to an image.
  *
  * The rendering itself happens in a browser, because the picture is produced by
  * handing the markup back to a rendering engine. This command only drives it:
  * load, open, ask the page for a blob, write the bytes.
  *
+ * `export` is a group: its first positional word names what is produced, and
+ * this module owns the only kind there is so far. {@link EXPORT_KINDS} is the
+ * list a caller sees, and {@link EXPORT_KIND_OPTIONS} says what each kind takes
+ * — so a second kind is a value in those two tables, not a command.
+ *
  * @packageDocumentation
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, extname } from 'node:path';
 
 import { validateMindData } from '../../serialization/validation.ts';
 import { readJsonFile } from '../io.ts';
-import { CliExit, CliError } from '../exit.ts';
+import { CliExit, CliError, usageError } from '../exit.ts';
 import { openBrowser, isPageError } from '../browser.ts';
 import { JmImageType, shouldExportTransparent } from '../../view/export.ts';
 
@@ -27,13 +32,102 @@ export const DEFAULT_HEIGHT = 800;
 export const DEFAULT_SCALE = 2;
 
 /**
- * Options `export` reads, beyond the global ones.
+ * What `export` can produce, in the order the group help lists it.
  *
  * @remarks
- * Declared for the allow-list in `../options.ts`: a flag missing here is one
- * this command would silently drop.
+ * The first positional word after `export` selects one of these. `usage` and
+ * `summary` are printed side by side on the group page, so a kind without a
+ * line here would be a value a caller can type and not read about.
  */
-export const EXPORT_OPTIONS = ['width', 'height', 'scale', 'type', 'transparent'] as const;
+export const EXPORT_KINDS = [
+    {
+        name: 'image',
+        usage: '<file> <out.png>',
+        summary: 'Render the map to an image  (PNG, JPEG or WebP)',
+    },
+] as const;
+
+/** A word the `export` group accepts as its kind. */
+export type ExportKind = (typeof EXPORT_KINDS)[number]['name'];
+
+/**
+ * Options each kind reads, beyond the global ones.
+ *
+ * @remarks
+ * Keyed by kind rather than kept as one flat list: a flag belongs to the kind
+ * that reads it, so `html` later brings its own set instead of a table that has
+ * to annotate which of its entries do nothing there.
+ *
+ * Declared for the allow-list in `../options.ts`: a flag missing from its
+ * kind's list is one that kind would silently drop.
+ */
+export const EXPORT_KIND_OPTIONS: Record<ExportKind, readonly string[]> = {
+    image: ['width', 'height', 'scale', 'type', 'transparent'],
+};
+
+/** The encodings `--type` accepts, as the words this CLI uses. */
+export const EXPORT_TYPES = ['png', 'jpeg', 'webp'] as const;
+
+/** One value of {@link EXPORT_TYPES}. */
+export type ExportType = (typeof EXPORT_TYPES)[number];
+
+/**
+ * Spellings accepted for a value of {@link EXPORT_TYPES}.
+ *
+ * @remarks
+ * `jpg` is what a camera writes, so callers reach for it; `jpeg` is the one
+ * spelling the help teaches, because a page that offers two for one format
+ * makes the reader wonder which is right. Both mean JPEG here and nowhere else
+ * in the program does the pair exist — {@link exportTypeOption} resolves it
+ * before any other code sees the value.
+ */
+const EXPORT_TYPE_ALIASES: Record<string, ExportType> = {
+    png: 'png',
+    jpeg: 'jpeg',
+    jpg: 'jpeg',
+    webp: 'webp',
+};
+
+/** What each CLI word means to the renderer. */
+const EXPORT_TYPE_MIME: Record<ExportType, JmImageType> = {
+    png: JmImageType.Png,
+    jpeg: JmImageType.Jpeg,
+    webp: JmImageType.Webp,
+};
+
+/** The CLI word for a MIME type, for the messages this module writes. */
+const EXPORT_TYPE_NAMES: Record<string, ExportType> = {
+    [JmImageType.Png]: 'png',
+    [JmImageType.Jpeg]: 'jpeg',
+    [JmImageType.Webp]: 'webp',
+};
+
+/**
+ * Reads `--type` in the CLI's own vocabulary and resolves it to a MIME type.
+ *
+ * @param raw - The parsed option, or `undefined` when it was not given.
+ * @returns The type to encode with; PNG when the flag is absent.
+ * @throws {@link CliError} With `Usage` when the value is not an accepted
+ *         spelling.
+ * @remarks
+ * The short names are command-line words only. `JmImageType` and the renderer
+ * behind it keep speaking MIME, so this is the single seam between the two and
+ * `src/view/` never learns that `--type png` exists.
+ */
+export function exportTypeOption(raw: unknown): JmImageType {
+    if (raw === undefined) {
+        return JmImageType.Png;
+    }
+    const value = String(raw);
+    // A bare `table[value]` also answers for the keys every object inherits:
+    // `--type constructor` came back as a function, slipped past the undefined
+    // check and reached the renderer as no encoding at all. Ask for an own
+    // property, the same way `parsePlacementSide` asks for one on `--side`.
+    if (!Object.prototype.hasOwnProperty.call(EXPORT_TYPE_ALIASES, value)) {
+        throw usageError(`--type must be one of ${EXPORT_TYPES.join(', ')}, got "${value}"`);
+    }
+    return EXPORT_TYPE_MIME[EXPORT_TYPE_ALIASES[value]];
+}
 
 /** Arguments accepted by {@link runExport}. */
 export interface ExportOptions {
@@ -47,8 +141,12 @@ export interface ExportOptions {
     height: number;
     /** Output pixel ratio. */
     scale: number;
-    /** One of {@link JmImageType}. */
-    type: string;
+    /**
+     * One of {@link JmImageType}. The CLI's own `--type` words (`png`, `jpeg`,
+     * `webp`) are resolved to these by {@link exportTypeOption} before the
+     * renderer sees them.
+     */
+    type: JmImageType;
     /** Emit machine-readable output. */
     asJson: boolean;
     /**
@@ -70,6 +168,49 @@ interface PageResult {
 }
 
 /**
+ * The encoding each output extension promises.
+ *
+ * @remarks
+ * Only extensions that name an image format appear here. Anything else —
+ * `.txt`, `.bin`, no extension at all — makes no promise, so there is nothing
+ * for `--type` to contradict and nothing to warn about.
+ */
+const EXTENSION_TYPES: Record<string, ExportType> = {
+    '.png': 'png',
+    '.jpg': 'jpeg',
+    '.jpeg': 'jpeg',
+    '.webp': 'webp',
+};
+
+/**
+ * Reports a `--type` that disagrees with the output path's extension.
+ *
+ * @param type - Encoding the caller asked for, in the renderer's vocabulary.
+ * @param output - Path the bytes are about to be written to.
+ * @remarks
+ * A warning, never a correction. `--type` decides the bytes and the path is
+ * what the caller typed, so neither answer is second-guessed: renaming the
+ * file would break a pipeline that expects the name it asked for, and obeying
+ * the extension would silently override the flag. One line on stderr, exit code
+ * untouched — the export is still what the caller asked for.
+ */
+function warnOnTypeMismatch(type: JmImageType, output: string): void {
+    const extension = extname(output).toLowerCase();
+    const promised = EXTENSION_TYPES[extension];
+    if (promised === undefined) {
+        return;
+    }
+    const name = EXPORT_TYPE_NAMES[type];
+    if (promised === name) {
+        return;
+    }
+    process.stderr.write(
+        `jsmind: warning: --type ${name} but the output is ${extension}; ` +
+            `writing ${name} bytes to ${output}\n`
+    );
+}
+
+/**
  * Renders a mind map file to an image.
  *
  * @param options - Paths, viewport, scale and format.
@@ -77,6 +218,10 @@ interface PageResult {
  * @throws {@link CliError} For usage, data, IO and browser failures.
  */
 export async function runExport(options: ExportOptions): Promise<number> {
+    // Judged from the command line, before anything is read or launched: the
+    // warning describes what was asked for, not what the run managed to do.
+    warnOnTypeMismatch(options.type, options.output);
+
     const transparent = shouldExportTransparent(options.type, options.transparent, message => {
         process.stderr.write(`${message}\n`);
     });
@@ -187,28 +332,42 @@ export async function runExport(options: ExportOptions): Promise<number> {
     }
 }
 
-/** The formats this command will accept on the command line. */
-export const EXPORT_TYPES: readonly string[] = Object.values(JmImageType);
-
 /**
- * Describes the `export` command for `--help`.
+ * Describes the `export` group for `--help`.
  *
  * @remarks
- * Defaults and the format list are interpolated rather than typed out, so the
- * help cannot quote a default the command no longer uses.
+ * One page for the group, not a page per kind: with a single kind there is
+ * nothing a second level could say, so `jsmind export image --help` answers
+ * with this block too. A kind is listed with the words it takes and one line
+ * about what it produces, then the option table of the kind that has one —
+ * a reader asking what `export` can do gets both answers at once.
+ *
+ * Defaults, the format list and the kind list are interpolated rather than
+ * typed out, so the help cannot quote a value the command no longer uses.
  */
-export const exportHelp = `jsmind export <file> <out.png> [options]
+export const exportHelp = `jsmind export <kind> <file> [out] [options]
 
-Renders a mind map to an image. The size is the map's own size:
-whitespace inside the viewport is kept, and a map larger than the
-viewport is not cropped.
+Writes a mind map out as a shareable file. The word after \`export\` is the kind —
+what the file is:
+
+${EXPORT_KINDS.map(kind => `  ${kind.name.padEnd(8)}${kind.usage.padEnd(21)}${kind.summary}`).join('\n')}
+
+image options
 
   --width <px>      Viewport width to lay the map out in   (default ${DEFAULT_WIDTH})
   --height <px>     Viewport height                        (default ${DEFAULT_HEIGHT})
   --scale <n>       Output pixel ratio                     (default ${DEFAULT_SCALE})
-  --type <format>   ${EXPORT_TYPES.join(', ')}      (default image/png)
+  --type <format>   ${EXPORT_TYPES.join(', ')}                        (default png)
   --transparent     Transparent background (PNG and WebP; opt-in; ignored for JPEG)
   --json            Machine-readable output
+
+The image is the map's own size: whitespace inside the viewport is kept, and a
+map larger than the viewport is not cropped.
+
+--type is the encoding, not the file name. The bytes are the format it names and
+the output path is written exactly as given, so \`out.png --type jpeg\` writes a
+JPEG to a file called out.png — with one warning on stderr, because the
+extension says otherwise.
 
 Requires a Chromium binary. Set CHROME_PATH if it is not in a
 standard location. Rendering starts a browser process, so a sandboxed
