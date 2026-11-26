@@ -10,27 +10,19 @@ tags:
 
 > 适用版本：2.x（当前为 preview，内容可能随版本变化）
 
-这篇文章会带你请 AI agent 安装 jsMind Skill，用它做一张「周六出游」计划的思维导图，并导出成 PNG。下面的 prompt 可以直接复制使用。
+这篇文章会带你请 AI agent 安装 jsMind Skill，用它计划一次周六出游，做成思维导图，并导出成 PNG。下面的 prompt 可以直接复制使用。导图的具体内容由 agent 来想：你得到的树不必和本页这张一样。
 
 <script setup>
 import exampleMap from '../../assets/161-example.jm?url';
 </script>
 
-
 ![完成后的周六出游思维导图](../../assets/161-result.png)
 
 ## 你将做成什么
 
-一张不大的导图：一个根节点、三个一级分支，每个分支下面再放几个子节点。
+一张周末出游计划的思维导图：上午和下午怎么安排，要带些什么。上面这张图是一次真实运行的结果，中间还改过一处、并换过颜色。你用同一段 prompt，agent 完全可能排出不一样的一天——这很正常。你要学的是流程（安装、提出需求、让 CLI 生成导图，再修改、换色、导出），而不是抄一份固定大纲。
 
-- **周六出游**（根节点）
-  - **上午**（左侧）：早市、河边咖啡
-  - **下午**（右侧）：公园散步、书店
-  - **随身带**（左侧）：水瓶、薄外套、购物袋，改过一次之后再加上「野餐垫」
-
-然后再给整张导图换上蓝色（`primary`），成品就不再是默认的白色了。
-
-做好的导图可以在这里下载：<a :href="exampleMap" download="saturday-outing.jm">161-example.jm</a>。
+这次运行做成的导图可以在这里下载：<a :href="exampleMap" download="saturday-outing.jm">161-example.jm</a>。
 
 ## 你需要准备什么
 
@@ -64,25 +56,16 @@ npm i jsmind@2
 skill 装好之后，把下面这段 prompt 贴给它：
 
 ```
-请使用 jsMind skill，围绕「周六出游」生成一张思维导图，并导出为 PNG。
-
-- 如果本会话已经加载过 jsMind skill，不要重复加载，直接用。
-- 输出到当前工作目录，文件名用 saturday-outing.jm 和 saturday-outing.png。不要用系统临时目录，也不要先问要不要移动。
-- 如果同名文件已存在，换个名字，不要覆盖。
-- 内容：根节点是「周六出游」。它下面有三个一级分支：「上午」放在左侧，「下午」放在右侧，「随身带」放在左侧。
-  - 「上午」下面：早市、河边咖啡
-  - 「下午」下面：公园散步、书店
-  - 「随身带」下面：水瓶、薄外套、购物袋
-- 完成的标准：两个文件都在；PNG 里层级分得清、左右不一边倒；完成后给出两个文件的绝对路径。
+请使用 jsMind skill，围绕周六出游做一张思维导图，并导出为 PNG。我们想计划一次周末出游：上午和下午怎么安排，要带些什么。文件写到当前工作目录。如果 skill 已经加载过，直接用。如果同名文件已存在，换个名字，不要覆盖。做完之后，两个文件都应该在，PNG 要看得清楚，并告诉我它们的绝对路径。
 ```
 
-agent 应当通过 jsMind CLI 来创建和修改文件，不要亲手去写这份导图。
+agent 应当通过 jsMind CLI 来创建和修改文件，不要亲手去写这份导图。分支和节点文字由它来想，所以你这边的树未必会和下面对得上。
 
 ## agent 实际会做什么
 
-下面是生成本页这张中文导图时的真实会话。你这边的节点 id 会不一样。每次写入之后，请用刚刚那条命令返回的 id，或者再运行一次 `context`，不要把下面这些 id 抄进自己的命令里。
+下面是生成本页这张中文导图时的一次真实会话，用来说明流程，并不是标准答案。每次写入之后，请用刚刚那条命令返回的 id，或者再运行一次 `context`，不要把下面这些 id 抄进自己的命令里。
 
-Skill 里写的是 `jsmind`。下面的会话用 `npx jsmind@2`，这是 CLI 还不在 PATH 里时更稳妥的写法。
+Skill 里写的是 `jsmind`。下面的会话用 `npx jsmind@2`，这是 CLI 还不在 PATH 里时更稳妥的写法。这次运行里，agent 选用的文件名是 `saturday-outing.jm` 和 `saturday-outing.png`；你那边可能会不一样。
 
 它先创建导图。`create` 会打印根节点 id——这里是 `root`，也就是默认值，但仍然要从回复里读，不要直接假定。根节点的 id 是数据，在别处生成或编辑过的文件完全可能叫别的名字。
 
@@ -95,42 +78,45 @@ created saturday-outing.jm (root node id root)
 
 ```
 $ npx jsmind@2 mind add-child saturday-outing.jm --parent-id root --text "上午" --side left
-added node (id jm-mwxb9ciw) under root (side=left)
+added node (id jm-mwxh4j3j) under root (side=left)
 ```
 
 这条回复里带有新节点的 id。把它当作后续子节点的 `--parent-id` 即可，不必再查一遍：
 
 ```
-$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxb9ciw --text "早市"
-added node (id jm-mwxb9ck9) under jm-mwxb9ciw
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxh4j3j --text "睡到自然醒"
+added node (id jm-mwxh4j4h) under jm-mwxh4j3j
 
-$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxb9ciw --text "河边咖啡"
-added node (id jm-mwxb9cld) under jm-mwxb9ciw
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxh4j3j --text "在附近吃早午餐"
+added node (id jm-mwxh4j5e) under jm-mwxh4j3j
+
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxh4j3j --text "逛植物园"
+added node (id jm-mwxh4j6b) under jm-mwxh4j3j
 ```
 
-另外两个分支也是同样的做法：
+另外两个分支也是同样的做法——这次 agent 安排了下午的行程，以及一份要带的东西：
 
 ```
 $ npx jsmind@2 mind add-child saturday-outing.jm --parent-id root --text "下午" --side right
-added node (id jm-mwxb9cmk) under root (side=right)
+added node (id jm-mwxh4j7b) under root (side=right)
 
-$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxb9cmk --text "公园散步"
-added node (id jm-mwxb9cnu) under jm-mwxb9cmk
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxh4j7b --text "湖边坐坐"
+added node (id jm-mwxh4j88) under jm-mwxh4j7b
 
-$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxb9cmk --text "书店"
-added node (id jm-mwxb9cp2) under jm-mwxb9cmk
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxh4j7b --text "顺路逛旧书店"
+added node (id jm-mwxh4j96) under jm-mwxh4j7b
 
-$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id root --text "随身带" --side left
-added node (id jm-mwxb9cq9) under root (side=left)
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id root --text "要带的东西" --side right
+added node (id jm-mwxh4ja4) under root (side=right)
 
-$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxb9cq9 --text "水瓶"
-added node (id jm-mwxb9crl) under jm-mwxb9cq9
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxh4ja4 --text "防晒霜"
+added node (id jm-mwxh4jb3) under jm-mwxh4ja4
 
-$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxb9cq9 --text "薄外套"
-added node (id jm-mwxb9cst) under jm-mwxb9cq9
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxh4ja4 --text "水杯"
+added node (id jm-mwxh4jbz) under jm-mwxh4ja4
 
-$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxb9cq9 --text "购物袋"
-added node (id jm-mwxb9cu4) under jm-mwxb9cq9
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxh4ja4 --text "一本书"
+added node (id jm-mwxh4jcw) under jm-mwxh4ja4
 ```
 
 每次只能加一个节点：`add-child` 没有批量写法。
@@ -143,35 +129,36 @@ saturday-outing.jm: valid
 
 $ npx jsmind@2 context saturday-outing.jm --depth 3
 root          周六出游 {side=center}
-jm-mwxb9ciw     上午 {side=left}
-jm-mwxb9ck9       早市
-jm-mwxb9cld       河边咖啡
-jm-mwxb9cmk     下午 {side=right}
-jm-mwxb9cnu       公园散步
-jm-mwxb9cp2       书店
-jm-mwxb9cq9     随身带 {side=left}
-jm-mwxb9crl       水瓶
-jm-mwxb9cst       薄外套
-jm-mwxb9cu4       购物袋
+jm-mwxh4j3j     上午 {side=left}
+jm-mwxh4j4h       睡到自然醒
+jm-mwxh4j5e       在附近吃早午餐
+jm-mwxh4j6b       逛植物园
+jm-mwxh4j7b     下午 {side=right}
+jm-mwxh4j88       湖边坐坐
+jm-mwxh4j96       顺路逛旧书店
+jm-mwxh4ja4     要带的东西 {side=right}
+jm-mwxh4jb3       防晒霜
+jm-mwxh4jbz       水杯
+jm-mwxh4jcw       一本书
 ```
 
-`export` 会在导图旁边写出一张 PNG。默认尺寸是 2400×1600 像素。如果 Chromium 不在常见位置，需要设置 `CHROME_PATH`。
+`export` 会在导图旁边写出一张 PNG。默认视口是 1200×800、缩放为 2，所以常见的导出尺寸是 2400×1600 像素；如果导图更宽，图片会跟着变大。如果 Chromium 不在常见位置，需要设置 `CHROME_PATH`。
 
 ```
 $ npx jsmind@2 export saturday-outing.jm saturday-outing.png
-saturday-outing.png: 2400x1600 (134.0 KB)
+saturday-outing.png: 2400x1600 (143.9 KB)
 ```
 
-这时的图片是第一次导出的结果，还没有「野餐垫」：
+这时的图片是这次运行的第一稿，还是默认的白色，也还没有「野餐垫」：
 
 ![第一次导出的图片，还没有「野餐垫」](../../assets/161-first-export.png)
 
 ## 再改一处，然后重新导出
 
-第一张图看起来已经完整了，不过出游还少一张野餐垫。请 agent 补上这个节点，再导出一次：
+第一张图已经像一份计划了，不过这次下午要去湖边坐坐，却忘了野餐垫。用这样的跟进就够了，不必替 agent 把命令写死：
 
 ```
-请使用 jsMind skill，打开 saturday-outing.jm，在「随身带」下面加上「野餐垫」。校验这张导图，并再次导出为 saturday-outing.png。
+我们忘了野餐垫，湖边坐着会用上。请在要带的东西里补上，再导出一次 PNG。
 ```
 
 `export` 会原地覆盖原来的 PNG。如果想保留第一张图，第二次导出时换一个文件名，或者先把旧文件改个名字。
@@ -179,20 +166,20 @@ saturday-outing.png: 2400x1600 (134.0 KB)
 agent 应当重新查找父节点，不要沿用更早记住的 id。`context --highlight` 可以把标签对应到当前的 id：
 
 ```
-$ npx jsmind@2 context saturday-outing.jm --highlight "随身带"
+$ npx jsmind@2 context saturday-outing.jm --highlight "要带的东西"
 highlighted:
-  "随身带" -> "root"/"jm-mwxb9cq9"
+  "要带的东西" -> "root"/"jm-mwxh4ja4"
 ```
 
 ```
-$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxb9cq9 --text "野餐垫"
-added node (id jm-mwxb9div) under jm-mwxb9cq9
+$ npx jsmind@2 mind add-child saturday-outing.jm --parent-id jm-mwxh4ja4 --text "野餐垫"
+added node (id jm-mwxh4jzl) under jm-mwxh4ja4
 
 $ npx jsmind@2 validate saturday-outing.jm
 saturday-outing.jm: valid
 
 $ npx jsmind@2 export saturday-outing.jm saturday-outing.png
-saturday-outing.png: 2400x1600 (144.6 KB)
+saturday-outing.png: 2400x1600 (154.5 KB)
 ```
 
 ## 给整张导图换个颜色
@@ -201,10 +188,10 @@ saturday-outing.png: 2400x1600 (144.6 KB)
 
 现成的色调有 `default`（白）、`primary`（蓝）、`success`（绿）、`warning`（橙）、`danger`（红）、`info`（浅蓝）和 `accent`（紫）。这次演示用 `primary`。如果某个节点已经有自己的色调，仍然以节点自己的为准。
 
-把下面这段交给 agent：
+用平常的话说给 agent 即可：
 
 ```
-请使用 jsMind skill，打开 saturday-outing.jm，把整张导图的默认色调设为 primary，并再次导出为 saturday-outing.png。
+默认的白色有点素。请把整张导图改成蓝色（用 primary 这个色调），再导出一次。
 ```
 
 ```
@@ -212,19 +199,19 @@ $ npx jsmind@2 mind set-style saturday-outing.jm --default-tone primary
 set style of saturday-outing.jm: default-tone=primary
 
 $ npx jsmind@2 export saturday-outing.jm saturday-outing.png
-saturday-outing.png: 2400x1600 (150.2 KB)
+saturday-outing.png: 2400x1600 (161.5 KB)
 ```
 
 ![完成后的周六出游思维导图](../../assets/161-result.png)
 
 ## 文件写在哪里
 
-这两个文件会出现在你指定的工作目录里——也就是你发出 prompt 时所在的目录，除非 agent 另外告诉了你别的位置。
+这两个文件会出现在你指定的工作目录里——也就是你发出 prompt 时所在的目录，除非 agent 另外告诉了你别的位置。这次运行里，文件名是 `saturday-outing.jm` 和 `saturday-outing.png`；你的 agent 可能会取不一样的名字。
 
-- `saturday-outing.jm` 是导图本身。它是一份 JSON 文档，用 `.jm` 做扩展名完全可以，CLI 也接受这种写法。
-- `saturday-outing.png` 是图片。用任何看图软件或浏览器打开即可。
+- `.jm` 文件是导图本身。它是一份 JSON 文档，用 `.jm` 做扩展名完全可以，CLI 也接受这种写法。
+- `.png` 文件是图片。用任何看图软件或浏览器打开即可。
 
-agent 还应当给出两个文件的绝对路径。本页也可以下载做好的示例：<a :href="exampleMap" download="saturday-outing.jm">161-example.jm</a>。
+agent 还应当给出两个文件的绝对路径。本页也可以下载这次做成的示例：<a :href="exampleMap" download="saturday-outing.jm">161-example.jm</a>。
 
 ## 接下来可以看
 
