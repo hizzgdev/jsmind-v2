@@ -21,6 +21,8 @@ export const AI_ASSISTANCE_NOTICE_CLASS = 'jsmind-docs-ai-notice';
  * The stylesheet and the notice element are copies of the docs theme; a page
  * that lost one of them fails `__tests__/build/pages-site.test.ts`.
  */
+
+/** The header of the tutorials site: the nav names this face and the columns. */
 const theme: Theme = {
     extends: DefaultTheme,
     Layout: () => h(DefaultTheme.Layout, null, {

@@ -1,12 +1,16 @@
 # 概述
 
+<script setup>
+import pkg from '../../../package.json'
+</script>
+
 jsMind V2 是 jsMind 的下一代。它仍然是大家熟悉的思维导图，但做了一次重写：API 更合理，架构也更好。
 
 它同时面向人和 agent。人可以查看、编辑和导出导图，例如在 [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html) 里试用。Agent 可以通过 [CLI](./cli) 和仓库里的 [skill](./skill) 来创建、读取和修改结构化导图。库本身是两者共用的内核。
 
 ## 与 v1 的关系
 
-2.x 是一次重写，通过 npm 的 `v2-preview` dist-tag 发布。它目前还不是 v1 的替代品。
+2.x 是一次重写，通过 npm 的 `v2-preview` dist-tag 发布。它目前还不是 v1 的替代品。当前预览版本是 v{{ pkg.version }}。
 
 - `npm i jsmind@2` 会安装这个 2.x 版本。
 - `npm i jsmind` 仍然会安装 v1（0.9.x）。

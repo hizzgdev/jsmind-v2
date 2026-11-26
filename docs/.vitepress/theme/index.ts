@@ -15,6 +15,7 @@ export const AI_ASSISTANCE_NOTICE = '本文档由 AI 协助生成 / This documen
 
 export const AI_ASSISTANCE_NOTICE_CLASS = 'jsmind-docs-ai-notice';
 
+/** The header of the docs site: the nav names this face and the columns. */
 const theme: Theme = {
     extends: DefaultTheme,
     Layout: () => h(DefaultTheme.Layout, null, {

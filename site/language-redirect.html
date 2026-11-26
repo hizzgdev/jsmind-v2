@@ -10,13 +10,13 @@
     if (lang !== 'en' && lang !== 'zh') {
         lang = 'en';
     }
-    location.replace(lang + '/' + location.search + location.hash);
+    location.replace(lang + '/{{ENTRY}}' + location.search + location.hash);
 })();
 </script>
 </head>
 <body>
 <noscript>
-    <p><a href="en/">English</a> · <a href="zh/">中文</a></p>
+    <p><a href="en/{{ENTRY}}">English</a> · <a href="zh/{{ENTRY}}">中文</a></p>
 </noscript>
 </body>
 </html>

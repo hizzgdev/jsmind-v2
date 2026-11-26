@@ -1,16 +1,31 @@
 import { defineConfig, type DefaultTheme } from 'vitepress';
 
-import { DOCS_BASE, TUTORIALS_URL } from '../../site.config.mjs';
+import { DOCS_BASE, HOME_URL, TUTORIALS_URL } from '../../site.config.mjs';
 
 /**
- * The tutorials are a separate site under the same GitHub Pages deployment.
+ * The header is the one on all three faces (product page, docs, tutorials):
+ * the title names the face, and the nav to the right carries everything the
+ * reader can reach from here.
  *
- * A nav `link` that starts with `/` is prefixed with this site's `base` by
- * VitePress, so `/jsmind-v2/tutorials/` would publish as
- * `/jsmind-v2/docs/jsmind-v2/tutorials/`. The entry therefore spells the
- * published address out in full, and each locale links its own language page.
- * The address comes from `site.config.mjs`, the one place that knows where the
- * site is published.
+ * The title leads into this face's own entry — the guide for the docs, the
+ * column index for the tutorials — and the way back to the product page is the
+ * Home entry in the nav. (The product page's own title leads to itself, so the
+ * rule is the same on all three.)
+ *
+ * The nav is the whole right-hand side, in this order: the four in-site
+ * sections, the other published column, then the way back to the product
+ * page. VitePress appends the language menu, the appearance switch and the
+ * GitHub link to the same row by itself, so nothing here has to place them.
+ *
+ * The tutorials entry and Home are absolute addresses from
+ * `site.config.mjs`. A nav `link` starting with `/` is prefixed with this
+ * site's `base`, so `/jsmind-v2/tutorials/` would publish as
+ * `/jsmind-v2/docs/jsmind-v2/tutorials/`; anything that leaves this site has
+ * to be written out in full.
+ *
+ * The tutorials entry opens in a new tab — a reader keeps the page they were
+ * reading when they glance at a tutorial — and the product page and the
+ * tutorials site carry the same `target`/`rel` on their cross-site entries.
  */
 
 const enNav: DefaultTheme.NavItem[] = [
@@ -18,7 +33,17 @@ const enNav: DefaultTheme.NavItem[] = [
     { text: 'Design', link: '/en/design/', activeMatch: '/en/design/' },
     { text: 'Reference', link: '/en/reference/', activeMatch: '/en/reference/' },
     { text: 'Community', link: '/en/community/', activeMatch: '/en/community/' },
-    { text: 'Tutorials', link: `${TUTORIALS_URL}en/` },
+    {
+        text: 'Tutorials',
+        link: `${TUTORIALS_URL}en/`,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+    },
+    // `target: '_self'` keeps Home in this tab. The address is absolute, and
+    // VPLink opens an external href in a new tab unless a `target` says
+    // otherwise; the attribute is also what stops VitePress's router from
+    // intercepting the click and routing the product page into this site.
+    { text: 'Home', link: HOME_URL, target: '_self' },
 ];
 
 const enSidebar: DefaultTheme.Sidebar = [
@@ -85,7 +110,13 @@ const zhNav: DefaultTheme.NavItem[] = [
     { text: '设计', link: '/zh/design/', activeMatch: '/zh/design/' },
     { text: '参考', link: '/zh/reference/', activeMatch: '/zh/reference/' },
     { text: '社区', link: '/zh/community/', activeMatch: '/zh/community/' },
-    { text: '教程', link: `${TUTORIALS_URL}zh/` },
+    {
+        text: '教程',
+        link: `${TUTORIALS_URL}zh/`,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+    },
+    { text: '首页', link: HOME_URL, target: '_self' },
 ];
 
 const zhSidebar: DefaultTheme.Sidebar = [
@@ -170,7 +201,7 @@ export default defineConfig({
         'requirements/**',
         'images/**',
     ],
-    title: 'jsMind V2',
+    title: 'jsMind V2 Docs',
     lastUpdated: false,
     locales: {
         en: {
@@ -181,6 +212,10 @@ export default defineConfig({
                 nav: enNav,
                 sidebar: enSidebar,
                 outline: { label: 'On this page' },
+                // The title leads into this locale's column entry. `logoLink`
+                // is used verbatim — VitePress does not run it through
+                // `withBase` — so the mount path has to be written out in full.
+                logoLink: { link: `${DOCS_BASE}en/guide/` },
             },
         },
         zh: {
@@ -191,6 +226,7 @@ export default defineConfig({
                 nav: zhNav,
                 sidebar: zhSidebar,
                 outline: { label: '本页目录' },
+                logoLink: { link: `${DOCS_BASE}zh/guide/` },
                 docFooter: {
                     prev: '上一页',
                     next: '下一页',
@@ -205,7 +241,18 @@ export default defineConfig({
         },
     },
     themeConfig: {
-        siteTitle: 'jsMind V2',
+        // Each face names itself in the title: the product page says jsMind V2,
+        // this site says jsMind V2 Docs, the tutorials say jsMind V2 Tutorials.
+        // A reader in a tab or a search result can tell the three apart, and
+        // the column the header used to mark with a link is now the title.
+        siteTitle: 'jsMind V2 Docs',
+        // The icon is `docs/public/favicon.svg`, published at this site's
+        // root. VitePress resolves a `logo` through `withBase`, so the base-less
+        // path is right here; the tutorials site gets the same file.
+        logo: '/favicon.svg',
+        // `logoLink` is not per-locale here: each locale's own `themeConfig`
+        // sets it, because the title leads into that locale's column entry and
+        // the two addresses differ.
         socialLinks: [
             { icon: 'github', link: 'https://github.com/hizzgdev/jsmind-v2' },
         ],
