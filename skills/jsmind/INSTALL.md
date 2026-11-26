@@ -21,7 +21,7 @@ The 2.x line is on a preview channel: `latest` on npm is still 0.9.1 (v1), which
 - The skill writes its commands as `jsmind <command>`; on this install route you actually type `npx jsmind@2 <command>`.
 - Node.js >= 22.12.
 
-`export` renders the PNG in a browser, so the machine needs a Chromium binary. Without one jsmind fails with `No Chromium found. Image export needs a browser`. That is a missing browser, not a missing skill file.
+`export image` renders the PNG in a browser, so the machine needs a Chromium binary. Without one jsmind fails with `No Chromium found. Image export needs a browser`. That is a missing browser, not a missing skill file.
 
 ## Placing the skill
 
