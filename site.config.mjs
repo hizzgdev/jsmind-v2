@@ -37,6 +37,16 @@ export const SITE_ORIGIN = 'https://hizzgdev.github.io';
 /** Mount path of the site inside the origin. Leading and trailing slash. */
 export const SITE_PATH = '/jsmind-v2/';
 
+/**
+ * Absolute address of the product front page.
+ *
+ * The three published faces (this page, the docs site, the tutorials column)
+ * share one header, and its brand links here: the header is the way back to
+ * the product page from either VitePress site, so the address cannot be
+ * written out in each of them.
+ */
+export const HOME_URL = new URL(SITE_PATH, SITE_ORIGIN).href;
+
 /** Mount path of the documentation site, a VitePress site. */
 export const DOCS_BASE = `${SITE_PATH}docs/`;
 

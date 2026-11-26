@@ -19,3 +19,41 @@
     color: var(--vp-c-text-2);
     background-color: var(--vp-c-bg);
 }
+
+/**
+ * Between 768px and 1024px the bar has one thing too many, and the search box
+ * is the one that yields.
+ *
+ * The nav is six entries here — the four sections, the tutorials in a new tab
+ * and Home — plus the icon and the site title, and the search box's label and
+ * shortcut hint take about 110px of the row that the entries need. VitePress
+ * already uses the icon-only button below 768px, so this applies the same
+ * shape a little earlier; the box is still a working search trigger, and the
+ * header keeps every entry it is responsible for. Hiding the nav instead would
+ * put the tutorials and Home entries out of reach at these widths, because the
+ * bar's menu is the only place they live above 767px.
+ */
+@media (min-width: 768px) and (max-width: 1023px) {
+    .VPNavBar .DocSearch-Button {
+        width: 40px;
+        justify-content: center;
+        padding: 0;
+        border: 0;
+        background-color: transparent;
+    }
+
+    .VPNavBar .DocSearch-Button-Placeholder,
+    .VPNavBar .DocSearch-Button-Keys {
+        display: none;
+    }
+
+    /**
+     * The six English entries need about 40px more than the three-word-plus
+     * widths give them at 768px. `!important` because VitePress scopes its own
+     * padding to a `data-v-*` attribute: the rule that loses here fails as a
+     * horizontal scrollbar on a tablet, not as anything a build would notice.
+     */
+    .VPNavBar .VPNavBarMenuLink {
+        padding: 0 8px !important;
+    }
+}

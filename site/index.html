@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="favicon.png">
 <style>
 :root {
-    color-scheme: light dark;
+    color-scheme: light;
     --bg: #ffffff;
     --fg: #1b1b1f;
     --muted: #5c5f66;
@@ -16,15 +16,23 @@
     --card: #f6f6f7;
     --accent: #3451b2;
 }
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #1b1b1f;
-        --fg: #e5e5e6;
-        --muted: #a8abb2;
-        --line: #2e2e32;
-        --card: #202024;
-        --accent: #a8b8f0;
-    }
+/*
+ * Appearance is the `dark` class on <html>, the same class the two VitePress
+ * sites toggle, read from the same storage key (`vitepress-theme-appearance`).
+ * A reader who picks dark on one face finds dark on the others, and the choice
+ * survives a reload. The class — not a `prefers-color-scheme` query — decides,
+ * so an explicit light choice on a dark desktop stays light. The head script
+ * sets the class before first paint; with JavaScript off the page is light,
+ * exactly as a VitePress page is.
+ */
+html.dark {
+    color-scheme: dark;
+    --bg: #1b1b1f;
+    --fg: #e5e5e6;
+    --muted: #a8abb2;
+    --line: #2e2e32;
+    --card: #202024;
+    --accent: #a8b8f0;
 }
 * {
     box-sizing: border-box;
@@ -44,45 +52,172 @@ a {
     margin: 0 auto;
     padding: 0 24px;
 }
+/*
+ * The header mirrors the bar the two VitePress sites render: the title with the
+ * icon on the left, then the menu, the language menu, the appearance switch and
+ * the GitHub link on the right, at the same sizes (16px title, 14px menu).
+ * Nothing here can use VitePress's own components, so the shape is repeated;
+ * `__tests__/build/pages-site.test.ts` reads the same things out of all three
+ * faces and fails when one of them drifts.
+ */
 .site-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 20px 0;
+    gap: 8px 16px;
+    min-height: 64px;
+    padding: 8px 0;
     border-bottom: 1px solid var(--line);
 }
 .brand {
-    font-size: 18px;
-    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
     color: inherit;
     text-decoration: none;
+    white-space: nowrap;
 }
-.site-header nav {
+.brand-icon {
+    display: block;
+    width: 24px;
+    height: 24px;
+}
+.header-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.site-nav {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 4px;
     font-size: 14px;
 }
-.lang-switch {
-    display: flex;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    overflow: hidden;
+.site-nav a {
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 6px;
+    color: var(--fg);
+    font-weight: 500;
+    text-decoration: none;
 }
-.lang-switch button {
-    padding: 4px 12px;
+.site-nav a:hover {
+    color: var(--accent);
+}
+.header-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    padding: 0 10px;
     border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--fg);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+}
+.header-tool:hover {
+    color: var(--accent);
+}
+.header-tool svg {
+    display: block;
+}
+.header-lang {
+    position: relative;
+}
+.header-lang-button {
+    gap: 4px;
+}
+.header-lang-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    min-width: 168px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 16%);
+}
+.header-lang-menu[hidden] {
+    display: none;
+}
+.header-lang-option {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 8px;
     background: transparent;
     color: var(--muted);
     font: inherit;
     font-size: 13px;
+    font-weight: 500;
+    text-align: left;
     cursor: pointer;
 }
-.lang-switch button[aria-pressed="true"] {
+.header-lang-option:hover {
     background: var(--card);
     color: var(--fg);
+}
+.header-lang-option[aria-current="true"] {
+    color: var(--accent);
     font-weight: 600;
+}
+.appearance-switch {
+    position: relative;
+    display: block;
+    flex-shrink: 0;
+    width: 40px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--card);
+    cursor: pointer;
+}
+.appearance-switch:hover {
+    border-color: var(--accent);
+}
+.appearance-icon {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    color: var(--bg);
+}
+.appearance-knob {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--fg);
+    transition: transform 0.25s;
+}
+html.dark .appearance-knob {
+    transform: translateX(18px);
+}
+html.dark .appearance-sun,
+html:not(.dark) .appearance-moon {
+    display: none;
+}
+.header-social {
+    width: 40px;
+    padding: 0;
 }
 .hero {
     padding: 48px 0 8px;
@@ -186,18 +321,88 @@ h2 {
     color: var(--muted);
 }
 </style>
+<script>
+/*
+ * Appearance before first paint.
+ *
+ * VitePress stores 'dark' / 'light' / 'auto' under this key and toggles the
+ * same `dark` class on <html>, so a reader who chose dark on either VitePress
+ * site arrives here in dark, and a choice made here carries back. It has to run
+ * in <head>: setting the class after the body paints is a white flash for a
+ * dark-mode reader. 'auto' (or nothing stored) follows the desktop.
+ */
+(function () {
+    var stored = null;
+    try {
+        stored = localStorage.getItem('vitepress-theme-appearance');
+    } catch (error) {
+        stored = null;
+    }
+    var dark = stored === 'dark' ||
+        (stored !== 'light' &&
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', dark);
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+})();
+</script>
 </head>
 <body>
 <div class="wrap">
     <header class="site-header">
-        <a class="brand" href="./">jsMind V2</a>
-        <nav>
-            <a href="https://github.com/hizzgdev/jsmind-v2">GitHub</a>
-            <span class="lang-switch" role="group">
-                <button type="button" data-lang="en" aria-pressed="true">English</button>
-                <button type="button" data-lang="zh" aria-pressed="false">中文</button>
-            </span>
-        </nav>
+        <a class="brand" href="./">
+            <img class="brand-icon" src="favicon.svg" alt="" width="24" height="24">
+            <span>jsMind V2</span>
+        </a>
+        <div class="header-tools">
+            <!-- The two columns, in a new tab: the reader keeps this page. -->
+            <nav class="site-nav" aria-label="Main navigation">
+                <a href="docs/en/" target="_blank" rel="noopener noreferrer" data-href-en="docs/en/" data-href-zh="docs/zh/">Docs</a>
+                <a href="tutorials/en/" target="_blank" rel="noopener noreferrer" data-href-en="tutorials/en/" data-href-zh="tutorials/zh/">Tutorials</a>
+            </nav>
+            <!--
+                The language menu is the one the VitePress sites render: a globe
+                button opening a short list. This page has one address for both
+                languages, so the entries switch the page in place instead of
+                navigating; the two names are the same in both lists.
+            -->
+            <div class="header-lang">
+                <button type="button" class="header-tool header-lang-button" aria-haspopup="true" aria-expanded="false" aria-label="Change language">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <path d="M3 12h18M12 3c2.6 2.8 2.6 15.2 0 18M12 3c-2.6 2.8-2.6 15.2 0 18"></path>
+                    </svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                        <path d="M6 9l6 6 6-6"></path>
+                    </svg>
+                </button>
+                <div class="header-lang-menu" hidden>
+                    <button type="button" class="header-lang-option" data-lang="en" aria-current="true">English</button>
+                    <button type="button" class="header-lang-option" data-lang="zh" aria-current="false">中文</button>
+                </div>
+            </div>
+            <!--
+                The appearance switch: same storage key and same `dark` class as
+                the VitePress sites, so the choice carries between the three
+                faces. The head script sets the class before first paint.
+            -->
+            <button type="button" class="appearance-switch" role="switch" aria-checked="false" title="Switch to dark theme">
+                <span class="appearance-knob">
+                    <svg class="appearance-icon appearance-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <circle cx="12" cy="12" r="4.5" fill="currentColor"></circle>
+                        <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                    </svg>
+                    <svg class="appearance-icon appearance-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"></path>
+                    </svg>
+                </span>
+            </button>
+            <a class="header-tool header-social" href="https://github.com/hizzgdev/jsmind-v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"></path>
+                </svg>
+            </a>
+        </div>
     </header>
     <main>
         <section class="hero">
@@ -250,27 +455,66 @@ h2 {
 </div>
 <script>
 (function () {
-    var KEY = '{{DOCS_LANG_STORAGE_KEY}}';
+    var LANG_KEY = '{{DOCS_LANG_STORAGE_KEY}}';
+    // VitePress's own appearance key. The page reads and writes it directly so
+    // the choice is shared with the docs and tutorials sites.
+    var APPEARANCE_KEY = 'vitepress-theme-appearance';
+    var root = document.documentElement;
+
+    // The two languages, as the page names them in the interface it already
+    // carries: the tab title and the two switch labels.
+    var TEXTS = {
+        en: {
+            title: 'jsMind V2 — a mind-map kernel for people and agents',
+            langMenu: 'Change language',
+            switchToDark: 'Switch to dark theme',
+            switchToLight: 'Switch to light theme',
+        },
+        zh: {
+            title: 'jsMind V2 —— 面向人与 agent 的思维导图内核',
+            langMenu: '切换语言',
+            switchToDark: '切换到深色模式',
+            switchToLight: '切换到浅色模式',
+        },
+    };
+
     var lang = 'en';
     try {
-        if (localStorage.getItem(KEY) === 'zh') {
+        if (localStorage.getItem(LANG_KEY) === 'zh') {
             lang = 'zh';
         }
     } catch (error) {
         lang = 'en';
     }
 
-    function apply(next) {
-        lang = next;
-        document.documentElement.lang = next === 'zh' ? 'zh-CN' : 'en';
-        document.title = next === 'zh'
-            ? 'jsMind V2 —— 面向人与 agent 的思维导图内核'
-            : 'jsMind V2 — a mind-map kernel for people and agents';
+    // The head script has already decided; read the class back rather than
+    // repeating the storage-vs-desktop logic in a second place.
+    var dark = root.classList.contains('dark');
 
-        var group = document.querySelector('.lang-switch');
-        if (group) {
-            group.setAttribute('aria-label', next === 'zh' ? '语言' : 'Language');
+    var langButton = document.querySelector('.header-lang-button');
+    var langMenu = document.querySelector('.header-lang-menu');
+    var appearanceButton = document.querySelector('.appearance-switch');
+
+    function closeLangMenu() {
+        if (!langMenu || langMenu.hidden) {
+            return;
         }
+        langMenu.hidden = true;
+        langButton.setAttribute('aria-expanded', 'false');
+    }
+
+    function applyAppearance() {
+        root.classList.toggle('dark', dark);
+        root.style.colorScheme = dark ? 'dark' : 'light';
+        appearanceButton.setAttribute('aria-checked', dark ? 'true' : 'false');
+        appearanceButton.setAttribute('title', dark ? TEXTS[lang].switchToLight : TEXTS[lang].switchToDark);
+    }
+
+    function applyLanguage(next) {
+        lang = next;
+        root.lang = next === 'zh' ? 'zh-CN' : 'en';
+        document.title = TEXTS[next].title;
+        langButton.setAttribute('aria-label', TEXTS[next].langMenu);
 
         var texts = document.querySelectorAll('[data-en], [data-zh]');
         for (var i = 0; i < texts.length; i += 1) {
@@ -288,26 +532,68 @@ h2 {
             }
         }
 
-        var buttons = document.querySelectorAll('.lang-switch button');
-        for (var k = 0; k < buttons.length; k += 1) {
-            buttons[k].setAttribute('aria-pressed', buttons[k].getAttribute('data-lang') === next ? 'true' : 'false');
+        var options = document.querySelectorAll('.header-lang-option');
+        for (var k = 0; k < options.length; k += 1) {
+            options[k].setAttribute(
+                'aria-current',
+                options[k].getAttribute('data-lang') === next ? 'true' : 'false'
+            );
         }
+
+        // The two switch labels exist in both languages, so they move with the
+        // page rather than staying in the language the markup was written in.
+        applyAppearance();
     }
 
-    var buttons = document.querySelectorAll('.lang-switch button');
-    for (var b = 0; b < buttons.length; b += 1) {
-        buttons[b].addEventListener('click', function (event) {
+    langButton.addEventListener('click', function (event) {
+        // The document handler below closes the panel; this click is the
+        // exception that opens it.
+        event.stopPropagation();
+        if (langMenu.hidden) {
+            langMenu.hidden = false;
+            langButton.setAttribute('aria-expanded', 'true');
+        } else {
+            closeLangMenu();
+        }
+    });
+
+    langMenu.addEventListener('click', function (event) {
+        event.stopPropagation();
+    });
+
+    document.addEventListener('click', closeLangMenu);
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeLangMenu();
+        }
+    });
+
+    var options = document.querySelectorAll('.header-lang-option');
+    for (var o = 0; o < options.length; o += 1) {
+        options[o].addEventListener('click', function (event) {
             var next = event.currentTarget.getAttribute('data-lang');
             try {
-                localStorage.setItem(KEY, next);
+                localStorage.setItem(LANG_KEY, next);
             } catch (error) {
                 // Storage can be disabled; the page still switches for this visit.
             }
-            apply(next);
+            applyLanguage(next);
+            closeLangMenu();
+            langButton.focus();
         });
     }
 
-    apply(lang);
+    appearanceButton.addEventListener('click', function () {
+        dark = !root.classList.contains('dark');
+        try {
+            localStorage.setItem(APPEARANCE_KEY, dark ? 'dark' : 'light');
+        } catch (error) {
+            // Storage can be disabled; the switch still works for this visit.
+        }
+        applyAppearance();
+    });
+
+    applyLanguage(lang);
 })();
 </script>
 </body>

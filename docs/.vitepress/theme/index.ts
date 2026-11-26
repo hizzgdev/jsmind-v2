@@ -30,6 +30,7 @@ function noticeForLocale(localeIndex: string): string {
     return AI_ASSISTANCE_NOTICE[localeIndex as keyof typeof AI_ASSISTANCE_NOTICE] ?? AI_ASSISTANCE_NOTICE.en;
 }
 
+/** The header of the docs site: the nav names this face and the columns. */
 const theme: Theme = {
     extends: DefaultTheme,
     Layout: () => {
