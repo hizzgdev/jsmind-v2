@@ -23,7 +23,7 @@ import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
     assembleDocsSite,
@@ -33,8 +33,11 @@ import {
     DOCS_PAGE_REDIRECTS,
     docsPageRedirectHtml,
     LANDING_REDIRECT_HTML,
+    LOCAL_ICON_HREF_PREFIX,
     moduleScriptSrcs,
+    PUBLIC_DIR,
     rewritePlayground,
+    SITE_ICON_FILES,
     SKILL_DIR,
     SKILL_SITE_FILE,
     writeDocsPageRedirects,
@@ -160,6 +163,92 @@ function hasHref(haystack: string, href: string): boolean {
     return haystack.includes(`](${href})`) || haystack.includes(`href="${href}"`);
 }
 
+/**
+ * Hrefs of every `<link>` whose `rel` names one of `rels`, in document order.
+ *
+ * Attribute order is not part of the HTML contract, so the tag is parsed
+ * rather than matched with one literal pattern.
+ */
+function linkHrefs(html: string, rels: readonly string[]): string[] {
+    const hrefs: string[] = [];
+    for (const tag of html.match(/<link\b[^>]*>/gi) ?? []) {
+        const attrs = new Map<string, string>();
+        for (const match of tag.matchAll(/\b([A-Za-z_:][\w:.-]*)\s*=\s*"([^"]*)"/g)) {
+            attrs.set(match[1].toLowerCase(), match[2]);
+        }
+        const names = (attrs.get('rel') ?? '').toLowerCase()
+            .split(/\s+/);
+        const href = attrs.get('href');
+        if (href !== undefined && names.some((name) => rels.includes(name))) {
+            hrefs.push(href);
+        }
+    }
+    return hrefs;
+}
+
+/** Every browser-tab icon href on a page: the tab icon and the touch icon. */
+function iconHrefs(html: string): string[] {
+    return linkHrefs(html, ['icon', 'apple-touch-icon']);
+}
+
+const SITE_ORIGIN = 'https://hizzgdev.github.io';
+const SITE_BASE = '/jsmind-v2/';
+const DOCS_SITE_BASE = `${SITE_BASE}docs/`;
+
+/**
+ * The file an href must resolve to in the published tree.
+ *
+ * The site is served under a URL prefix, not at the domain root, so the href
+ * is resolved against the page's own published address first: a base-less
+ * `/favicon.svg` resolves to `https://hizzgdev.github.io/favicon.svg`, lands
+ * outside the prefix and fails here. Asserting that a `link` tag exists would
+ * stay green on exactly that 404.
+ */
+function resolvePublishedHref(href: string, pageUrl: string, prefix: string, root: string): string {
+    const url = new URL(href, pageUrl);
+    assert.strictEqual(url.origin, SITE_ORIGIN, `${pageUrl}: ${href} is not a published address`);
+    assert.ok(url.pathname.startsWith(prefix), `${pageUrl}: ${href} resolves outside ${prefix}`);
+    return join(root, url.pathname.slice(prefix.length));
+}
+
+/**
+ * The source page every root-site fixture starts from: the icons under
+ * `docs/public/` and the bundle under `dist/`, both addressed as the repository
+ * checkout addresses them.
+ */
+function fixturePlayground(): string {
+    const icons = SITE_ICON_FILES.map((name) => `<link rel="icon" href="${LOCAL_ICON_HREF_PREFIX}${name}">`)
+        .join('\n');
+    return `${icons}\n<script src="../dist/jsmind.js" type="module"></script>\n`;
+}
+
+/**
+ * A minimal repository tree for `assembleRootSite`: the bundle, the playground
+ * and the one copy of the icons under `docs/public/`. This function reads
+ * nothing else.
+ *
+ * @param dir - Fixture root.
+ * @param options - `skill: false` leaves out `SKILL.md` but keeps the rest.
+ */
+function writeRootSiteFixture(dir: string, options: { skill?: boolean } = {}): void {
+    mkdirSync(join(dir, 'example'), { recursive: true });
+    mkdirSync(join(dir, 'dist'), { recursive: true });
+    mkdirSync(join(dir, PUBLIC_DIR), { recursive: true });
+    mkdirSync(join(dir, SKILL_DIR, 'jsmind', 'references'), { recursive: true });
+    writeFileSync(join(dir, 'dist', 'jsmind.js'), 'export {}\n');
+    writeFileSync(join(dir, 'example', 'playground.html'), fixturePlayground());
+    for (const name of SITE_ICON_FILES) {
+        writeFileSync(join(dir, PUBLIC_DIR, name), `${name} from ${PUBLIC_DIR}\n`);
+    }
+    if (options.skill !== false) {
+        writeFileSync(join(dir, SKILL_DIR, 'jsmind', 'SKILL.md'), '# Skill\n');
+        // A file one level deeper than SKILL.md: the step copies the directory,
+        // so a fixture that only proves SKILL.md would not catch a rewrite that
+        // stopped copying references/.
+        writeFileSync(join(dir, SKILL_DIR, 'jsmind', 'references', 'build-session.md'), 'reference\n');
+    }
+}
+
 function withoutVpFooter(html: string): string {
     return html.replace(/<footer\b[^>]*class="[^"]*\bVPFooter\b[^"]*"[^>]*>[\s\S]*?<\/footer>/g, '');
 }
@@ -247,6 +336,9 @@ describe('landing page', () => {
             /<title>|<style|<h1|<img/i,
             'the redirect should carry no title, styles, logo or feature list'
         );
+        // The redirect leaves immediately, so it is not a page a tab icon has
+        // to dress: the docs site it forwards to carries its own.
+        assert.deepStrictEqual(iconHrefs(LANDING_REDIRECT_HTML), []);
     });
 });
 
@@ -284,39 +376,61 @@ describe('pages site assembly', () => {
         assert.ok(!published.includes('../dist/jsmind.js'));
     });
 
+    it('points the playground at icons that exist beside it, in both layouts', () => {
+        const source = join(ROOT, 'example/playground.html');
+        const html = readFileSync(source, 'utf8');
+
+        // Opened straight from the repository, the page sits in `example/` and
+        // draws the icons from the one copy under `docs/public/`.
+        assert.deepStrictEqual(
+            iconHrefs(html),
+            SITE_ICON_FILES.map((name) => `${LOCAL_ICON_HREF_PREFIX}${name}`)
+        );
+        const pageUrl = pathToFileURL(source).href;
+        for (const href of iconHrefs(html)) {
+            const file = fileURLToPath(new URL(href, pageUrl));
+            assert.ok(existsSync(file), `example/playground.html icon ${href} should resolve to ${file}`);
+        }
+
+        // On the site the page and the copied icons share the root, so the
+        // published hrefs are names, not paths back into the repository.
+        const published = rewritePlayground(html);
+        assert.deepStrictEqual(iconHrefs(published), [...SITE_ICON_FILES]);
+        assert.ok(!published.includes(LOCAL_ICON_HREF_PREFIX));
+    });
+
     it('accepts type after src, and rejects a classic script', () => {
-        const reversed = '<script src="../dist/jsmind.js" type="module"></script>';
+        // The page must also link the icons: `rewritePlayground` refuses a
+        // published playground whose tab icon the site has no address for, so
+        // the fixture a minimal page is allowed to be still carries them.
+        const icons = SITE_ICON_FILES.map((name) => `<link rel="icon" href="${LOCAL_ICON_HREF_PREFIX}${name}">`)
+            .join('');
+        const publishedIcons = SITE_ICON_FILES.map((name) => `<link rel="icon" href="${name}">`)
+            .join('');
+        const reversed = `${icons}<script src="../dist/jsmind.js" type="module"></script>`;
         assert.strictEqual(
             rewritePlayground(reversed),
-            '<script src="jsmind.js" type="module"></script>'
+            `${publishedIcons}<script src="jsmind.js" type="module"></script>`
         );
 
         assert.throws(
-            () => rewritePlayground('<script src="../dist/jsmind.js"></script>'),
+            () => rewritePlayground(`${icons}<script src="../dist/jsmind.js"></script>`),
             /does not load jsmind\.js as a module/
         );
         assert.throws(
-            () => rewritePlayground('<script type="module" src="jsmind.js"></script>'),
+            () => rewritePlayground(`${icons}<script type="module" src="jsmind.js"></script>`),
             /has no script/
+        );
+        assert.throws(
+            () => rewritePlayground('<script src="../dist/jsmind.js" type="module"></script>'),
+            /does not link favicon\.svg/
         );
     });
 
-    it('writes the redirect index, the playground, the bundle and the skill into the site root', () => {
+    it('writes the redirect index, the playground, the bundle, the icons and the skill into the site root', () => {
         const dir = mkdtempSync(join(tmpdir(), 'jsmind-site-'));
         try {
-            mkdirSync(join(dir, 'example'), { recursive: true });
-            mkdirSync(join(dir, 'dist'), { recursive: true });
-            mkdirSync(join(dir, 'skills', 'jsmind', 'references'), { recursive: true });
-            writeFileSync(join(dir, 'dist', 'jsmind.js'), 'export {}\n');
-            writeFileSync(
-                join(dir, 'example', 'playground.html'),
-                '<script src="../dist/jsmind.js" type="module"></script>\n'
-            );
-            writeFileSync(join(dir, 'skills', 'jsmind', 'SKILL.md'), '# Skill\n');
-            // A file one level deeper than SKILL.md: the step copies the
-            // directory, so a fixture that only proves SKILL.md would not catch
-            // a rewrite that stopped copying references/.
-            writeFileSync(join(dir, 'skills', 'jsmind', 'references', 'build-session.md'), 'reference\n');
+            writeRootSiteFixture(dir);
 
             assembleRootSite(dir, join(dir, '_site'));
 
@@ -327,10 +441,23 @@ describe('pages site assembly', () => {
             assert.ok(index.includes('docs/'));
             assert.ok(index.length < 1024, 'the published index should stay under 1 KB');
             assert.strictEqual(readFileSync(join(dir, '_site', 'jsmind.js'), 'utf8'), 'export {}\n');
+            const publishedIcons = SITE_ICON_FILES.map((name) => `<link rel="icon" href="${name}">`)
+                .join('\n');
+            const publishedPlayground = readFileSync(join(dir, '_site', 'playground.html'), 'utf8');
             assert.strictEqual(
-                readFileSync(join(dir, '_site', 'playground.html'), 'utf8'),
-                '<script src="jsmind.js" type="module"></script>\n'
+                publishedPlayground,
+                `${publishedIcons}\n<script src="jsmind.js" type="module"></script>\n`
             );
+            assert.deepStrictEqual(iconHrefs(publishedPlayground), [...SITE_ICON_FILES]);
+            // Every published icon is the `docs/public/` file itself, so the two
+            // published locations cannot drift from one another.
+            for (const name of SITE_ICON_FILES) {
+                assert.strictEqual(
+                    readFileSync(join(dir, '_site', name), 'utf8'),
+                    readFileSync(join(dir, PUBLIC_DIR, name), 'utf8'),
+                    `${name} should be copied from ${PUBLIC_DIR}`
+                );
+            }
             assert.strictEqual(
                 readFileSync(join(dir, '_site', SKILL_SITE_FILE), 'utf8'),
                 readFileSync(join(dir, SKILL_SITE_FILE), 'utf8'),
@@ -375,14 +502,7 @@ describe('pages site assembly', () => {
         // publishing a site where the documented URL answers 404.
         const dir = mkdtempSync(join(tmpdir(), 'jsmind-site-noskill-'));
         try {
-            mkdirSync(join(dir, 'example'), { recursive: true });
-            mkdirSync(join(dir, 'dist'), { recursive: true });
-            mkdirSync(join(dir, SKILL_DIR), { recursive: true });
-            writeFileSync(join(dir, 'dist', 'jsmind.js'), 'export {}\n');
-            writeFileSync(
-                join(dir, 'example', 'playground.html'),
-                '<script src="../dist/jsmind.js" type="module"></script>\n'
-            );
+            writeRootSiteFixture(dir, { skill: false });
             assert.throws(
                 () => assembleRootSite(dir, join(dir, '_site')),
                 new RegExp(`missing or empty site file: ${SKILL_SITE_FILE}`)
@@ -489,6 +609,7 @@ describe('pages site assembly', () => {
             assert.ok(redirect.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
             assert.ok(redirect.includes('lang = \'en\''));
             assert.ok(redirect.includes('location.replace(lang + \'/\''));
+            assert.deepStrictEqual(iconHrefs(redirect), [], 'the language redirect should carry no icon');
 
             const files = collectFiles(docsDir);
             for (const locale of ['en', 'zh'] as const) {
@@ -505,6 +626,35 @@ describe('pages site assembly', () => {
                     const html = readFileSync(join(docsDir, locale, from), 'utf8');
                     assert.strictEqual(html, docsPageRedirectHtml(to), `${rel} should be a static redirect`);
                     assert.ok(!html.includes(FOOTER_TEXT), `${rel} should not be a VitePress content page`);
+                    assert.deepStrictEqual(iconHrefs(html), [], `${rel} is a redirect and should carry no icon`);
+                }
+            }
+
+            // Every generated page carries the tab icon, and its href resolves
+            // inside the published docs tree. Presence alone is not the check:
+            // a base-less `/favicon.svg` is a link tag pointing at a 404.
+            const redirectPages = new Set(
+                DOCS_PAGE_REDIRECTS.flatMap(({ from }) =>
+                    (['en', 'zh'] as const).map((locale) => `${locale}/${from}`))
+            );
+            const contentPages = files.filter((name) => /^(en|zh)\/.+\.html$/.test(name) && !redirectPages.has(name));
+            assert.strictEqual(
+                contentPages.length,
+                DOCS_PAGES.length * 2,
+                'every en/zh page should be covered by the icon check'
+            );
+            for (const rel of contentPages) {
+                const html = readFileSync(join(docsDir, rel), 'utf8');
+                const pageUrl = new URL(rel, `${SITE_ORIGIN}${DOCS_SITE_BASE}`).href;
+                const hrefs = iconHrefs(html);
+                assert.deepStrictEqual(
+                    hrefs,
+                    SITE_ICON_FILES.map((name) => `${DOCS_SITE_BASE}${name}`),
+                    `${rel} should link ${SITE_ICON_FILES.join(' and ')}`
+                );
+                for (const href of hrefs) {
+                    const file = resolvePublishedHref(href, pageUrl, DOCS_SITE_BASE, docsDir);
+                    assert.ok(existsSync(file), `${rel}: ${href} should resolve to ${file}`);
                 }
             }
 

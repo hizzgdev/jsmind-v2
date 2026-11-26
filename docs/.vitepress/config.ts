@@ -132,8 +132,26 @@ const zhSidebar: DefaultTheme.Sidebar = [
     },
 ];
 
+/**
+ * The site is published under a sub-path of `hizzgdev.github.io`, not at the
+ * domain root.
+ *
+ * VitePress prefixes only the assets it generates itself: a `head` entry's
+ * `href` is emitted verbatim (vitepress 1.6.4 `renderHead`). A bare
+ * `/favicon.svg` would therefore point at `https://hizzgdev.github.io/favicon.svg`
+ * and 404, so the one copy of the base below feeds both `base` and the icon
+ * hrefs.
+ */
+const BASE = '/jsmind-v2/docs/';
+
 export default defineConfig({
-    base: '/jsmind-v2/docs/',
+    base: BASE,
+    // The icons live in `docs/public/`, which VitePress copies to the output
+    // root, and are addressed from the base because of the note above.
+    head: [
+        ['link', { rel: 'icon', type: 'image/svg+xml', href: `${BASE}favicon.svg` }],
+        ['link', { rel: 'apple-touch-icon', href: `${BASE}favicon.png` }],
+    ],
     srcExclude: [
         'README.md',
         'requirements/**',
