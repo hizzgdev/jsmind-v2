@@ -135,6 +135,7 @@ export class JmView {
     private _settleNode(mind: JmMind, viewOffset: JmPoint): void {
         Object.values(mind._nodes).forEach((node: JmNode)=>{
             if(this.arranger.isNodeVisible(node)) {
+                // reset custom style
                 const nodePoint = this.arranger.calculateNodePoint(node);
                 const absolutePoint = nodePoint.offset(viewOffset);
                 this.nodeView.placeNode(node, absolutePoint);

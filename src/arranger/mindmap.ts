@@ -144,6 +144,7 @@ export class MindmapArranger implements Arranger {
         const heightRoot = rootNode._data.layout.size.height;
         const heightA = this._calculateNodesOffset(nodesOnSideA, true);
         const heightB = this._calculateNodesOffset(nodesOnSideB, true);
+        // debug('calculateOffset', heightRoot, heightA, heightB);
         rootNode._data.layout.withDescendantsSize.height = Math.max(heightRoot, heightA, heightB);
     }
 
@@ -157,6 +158,8 @@ export class MindmapArranger implements Arranger {
         let offsetY = 0;
         let totalHeight = 0;
         const visibleNodes = nodes.filter((node: JmNode)=>node._data.layout.visible);
+        // debug('visibleNodes', visibleNodes.length, isFirstLevelNodes);
+        // debug('calculateNodesOffset options', this.options);
         visibleNodes.forEach((node: JmNode)=>{
             const parentLayout = node.parent!._data.layout;
             const layoutData = node._data.layout;
@@ -168,6 +171,7 @@ export class MindmapArranger implements Arranger {
             ) + cousinSpace;
             layoutData.withDescendantsSize.height = height;
             layoutData.offsetToParent.y = offsetY + height / 2;
+            // debug(`calculateNodesOffset for node ${node.content.getText()}`, offsetY, height);
             layoutData.offsetToParent.x = this.options.parentChildSpace * layoutData.side + parentLayout.size.width * (parentLayout.side + layoutData.side) / 2 + expanderSpace;
             offsetY = offsetY + height + this.options.siblingSpace;
             totalHeight += height;
