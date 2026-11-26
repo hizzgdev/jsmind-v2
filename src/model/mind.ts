@@ -88,7 +88,6 @@ export class JmMind {
      * @throws {@link JsMindError} If the source or target node does not exist.
      */
     addEdge(sourceNodeId: string, targetNodeId: string, type: JmEdgeType, options?: EdgeCreationOptions): JmEdge {
-        // Validate nodes exist
         this._getNodeById(sourceNodeId);
         this._getNodeById(targetNodeId);
 
@@ -100,7 +99,6 @@ export class JmMind {
         }
         this._edges[edgeId] = edge;
 
-        // Emit event
         this.observerManager.notifyObservers(JmMindEvent.onEdgeAdded(edge));
 
         return edge;
@@ -146,29 +144,22 @@ export class JmMind {
      * @throws {@link JsMindError} If destOptions.parentId is missing.
      */
     addNode(content: JmNodeContent, destOptions: NodeDestinationOptions, nodeOptions?: NodeCreationOptions): JmNode {
-        // Validate destination options
         if (!destOptions || !destOptions.parentId) {
             throw new JsMindError('destOptions.parentId is required for addNode');
         }
 
-        // Get target parent
         const targetParent = this._getNodeById(destOptions.parentId);
 
-        // Create node content
         const nodeContent = content instanceof JmNodeContent ? content : JmNodeContent.fromObject(content);
 
-        // Create and initialize the node
         const node = this._newNode(nodeContent, nodeOptions);
 
-        // Use existing helper method for placement
         this._addNodeToParent(node, targetParent, destOptions.position);
 
-        // Apply destination side if specified
         if (destOptions.side !== undefined && destOptions.side !== null) {
             node.side = destOptions.side;
         }
 
-        // Emit event
         this.observerManager.notifyObservers(JmMindEvent.onNodeAdded(node));
 
         return this.lite(node);
@@ -217,52 +208,42 @@ export class JmMind {
             throw new JsMindError(`Node with ID '${nodeId}' not found`);
         }
 
-        // Skip all logic for root node - it cannot be moved
         if (node === this.root) {
             return this.lite(node);
         }
 
-        // Extract options
         const targetParentId = destOptions.parentId;
         const targetPosition = destOptions.position;
         const targetSide = destOptions.side;
 
-        // Capture original values before any changes
         const oldParent = node.parent;
         const oldPosition = node.parent ? node.parent.children.indexOf(node) : -1;
         const oldSide = node.side;
 
-        // 1. Update parent and position if the node parent is provided and changed
         if (targetParentId && (!node.parent || node.parent.id !== targetParentId)) {
             const targetParent = this._getNodeById(targetParentId);
             if (!targetParent) {
                 throw new JsMindError(`Target parent with ID '${targetParentId}' not found`);
             }
 
-            // Validate that we're not moving a node to be its own descendant
             if (targetParent.isDescendant(node)) {
                 throw new JsMindError('Cannot move a node to be its own descendant');
             }
 
-            // Remove from current parent
             this._removeNodeFromParent(node);
 
-            // Add to new parent at specified position and create edge
             this._addNodeToParent(node, targetParent, targetPosition);
         }
 
-        // 2. Reposition if the node parent is not provided or is not changed, and the targetPosition is provided and changed
         if ((!targetParentId || (node.parent && node.parent.id === targetParentId)) &&
             targetPosition !== undefined && targetPosition !== null) {
             this._repositionNode(node, targetPosition);
         }
 
-        // 3. Update side if the target side is provided and changed
         if (targetSide !== undefined && targetSide !== null) {
             node.side = targetSide;
         }
 
-        // 4. Emit event only if something actually changed
         this._emitNodeMovedEventIfChanged(node, oldParent, oldPosition, oldSide);
 
         return this.lite(node);
@@ -279,7 +260,6 @@ export class JmMind {
         if (edge) {
             delete this._edges[edgeId];
 
-            // Emit event
             this.observerManager.notifyObservers(JmMindEvent.onEdgeRemoved(edge));
             return true;
         }
@@ -298,24 +278,19 @@ export class JmMind {
             throw new JsMindError('root node can not be removed');
         }
 
-        // remove node from parent's children
         const nodeIndex = node.parent!.children.indexOf(node);
         node.parent!.children.splice(nodeIndex, 1);
 
-        // identify all nodes that need to be cleared
         const nodeIds = node.getAllSubnodeIds();
         nodeIds.push(node.id);
 
-        // remove those nodes
         nodeIds.forEach((id)=> delete this._nodes[id]);
 
-        // remove all relevant edges
         const edgeIds = Object.values(this._edges)
             .filter((e)=>nodeIds.includes(e.sourceNodeId) || nodeIds.includes(e.targetNodeId))
             .map((e) => e.id);
         edgeIds.forEach((id) => delete this._edges[id]);
 
-        // emit event
         this.observerManager.notifyObservers(JmMindEvent.onNodeRemoved(node, nodeIds, edgeIds));
     }
 
@@ -331,10 +306,8 @@ export class JmMind {
         node.parent = targetParent;
 
         if (targetPosition === undefined || targetPosition === null) {
-            // Add to the end if no position specified
             targetParent.children.push(node);
         } else {
-            // Insert at specific position
             const position = Math.max(0, Math.min(targetPosition, targetParent.children.length));
             targetParent.children.splice(position, 0, node);
         }
@@ -364,7 +337,6 @@ export class JmMind {
      * @param oldSide - The old side.
      */
     _emitNodeMovedEventIfChanged(node: JmNode, oldParent: JmNode | null, oldPosition: number, oldSide: JmNodeSide | null): void {
-        // Compare actual updated node properties with old values
         const parentChanged = oldParent!.id !== node.parent!.id;
         const positionChanged = oldPosition !== node.parent!.children.indexOf(node);
         const sideChanged = oldSide !== node.side;

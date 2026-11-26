@@ -54,9 +54,7 @@ export class JmMindFreeMindSerializer implements JmMindSerializer {
      * @returns True if the data is valid for this format.
      */
     validate(data: unknown): boolean {
-        // Basic validation - will be implemented later
         if (data) {
-            // This is a placeholder - will be implemented later
         }
         return false;
     }

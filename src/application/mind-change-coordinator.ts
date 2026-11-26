@@ -32,8 +32,6 @@ export class JmMindChangeCoordinator extends JmMindObserver {
     }
 
     onMindMapClosed(_mind: JmMind): void {
-        // Empty for now - can be extended in the future
-        // for cleanup operations like removing observers, clearing caches, etc.
     }
 
     async onNodeAdded(mind: JmMind, event: JmMindEventDataOnNodeAdded): Promise<void> {
