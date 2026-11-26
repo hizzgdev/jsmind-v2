@@ -2,9 +2,15 @@
  * @fileoverview Builds the GitHub Pages directory.
  *
  * The workflow only publishes `_site`. This command writes the root index as
- * a redirect to the docs site, copies the playground, the bundle and the
- * `skills/` directory, points the playground at the bundle that sits beside
- * it, and builds the VitePress documentation site into `_site/docs`.
+ * a redirect to the docs site, copies the playground, the bundle, the browser
+ * icon and the `skills/` directory, points the playground at the bundle and
+ * the icon that sit beside it, and builds the VitePress documentation site
+ * into `_site/docs`.
+ *
+ * `docs/public/` is the repository's one copy of the browser icon. VitePress
+ * copies that directory into the docs output by itself, and the root site
+ * takes the same file, so the two published locations have a single source and
+ * an edit cannot reach one and miss the other.
  *
  * The skill directory is published whole, at the site root, so an agent can
  * fetch `skills/jsmind/SKILL.md` over HTTPS without cloning the repository.
@@ -67,6 +73,22 @@ export const LOCAL_BUNDLE_SRC = '../dist/jsmind.js';
 /** Script src once the page and the bundle share the site root. */
 export const SITE_BUNDLE_SRC = 'jsmind.js';
 
+/**
+ * `docs/public/`: VitePress's static directory, and the repository's only copy
+ * of the site's static assets.
+ *
+ * VitePress copies it into the docs output root (`_site/docs/`), which is where
+ * the docs pages fetch the icon from; the root site takes the same files from
+ * here instead of keeping a second copy in the tree.
+ */
+export const PUBLIC_DIR = 'docs/public';
+
+/** Static files published at the site root, next to the playground. */
+export const SITE_ICON_FILES = ['favicon.svg', 'favicon.png'] as const;
+
+/** Icon href prefix while the page still lives under `example/`. */
+export const LOCAL_ICON_HREF_PREFIX = `../${PUBLIC_DIR}/`;
+
 /** localStorage key used by `/docs/` and the docs language switcher. */
 export const DOCS_LANG_STORAGE_KEY = 'jsmind-docs-lang';
 
@@ -83,7 +105,13 @@ export const SKILL_DIR = 'skills';
 /** The one file inside {@link SKILL_DIR} that proves the copy happened. */
 export const SKILL_SITE_FILE = `${SKILL_DIR}/jsmind/SKILL.md`;
 
-const SITE_FILES = ['index.html', 'playground.html', 'jsmind.js', SKILL_SITE_FILE] as const;
+const SITE_FILES = [
+    'index.html',
+    'playground.html',
+    'jsmind.js',
+    ...SITE_ICON_FILES,
+    SKILL_SITE_FILE,
+] as const;
 
 /**
  * Language redirect written to `_site/docs/index.html` after the VitePress
@@ -134,6 +162,11 @@ export function moduleScriptSrcs(html: string): string[] {
  * Rewrites the playground for the site root and rejects a page that would
  * render nothing: a missed path, or a bundle loaded as a classic script.
  *
+ * The bundle and the icons move from repository-relative paths to the site
+ * root, where the page sits beside them. Both rewritten things are checked
+ * after the fact, so a renamed file or a page that lost its icon stops the
+ * build instead of publishing a request that 404s.
+ *
  * @param html - The source page.
  * @returns The page to publish.
  */
@@ -142,20 +175,39 @@ export function rewritePlayground(html: string): string {
     if (!html.includes(localSrc)) {
         throw new Error(`playground.html has no script ${localSrc}`);
     }
-    const rewritten = html.replaceAll(localSrc, `src="${SITE_BUNDLE_SRC}"`);
+    let rewritten = html.replaceAll(localSrc, `src="${SITE_BUNDLE_SRC}"`);
+    for (const name of SITE_ICON_FILES) {
+        rewritten = rewritten.replaceAll(
+            `href="${LOCAL_ICON_HREF_PREFIX}${name}"`,
+            `href="${name}"`
+        );
+    }
     if (rewritten.includes(LOCAL_BUNDLE_SRC)) {
         throw new Error('playground.html still points at ../dist/jsmind.js');
     }
+    if (rewritten.includes(LOCAL_ICON_HREF_PREFIX)) {
+        throw new Error(`playground.html still points at ${LOCAL_ICON_HREF_PREFIX}`);
+    }
     if (!moduleScriptSrcs(rewritten).includes(SITE_BUNDLE_SRC)) {
         throw new Error('playground.html does not load jsmind.js as a module');
+    }
+    for (const name of SITE_ICON_FILES) {
+        if (!rewritten.includes(`href="${name}"`)) {
+            throw new Error(`playground.html does not link ${name}`);
+        }
     }
     return rewritten;
 }
 
 /**
- * Writes the site root index, the playground, the bundle and the skill
- * directory into an already-created site directory. Does not wipe the
+ * Writes the site root index, the playground, the bundle, the icons and the
+ * skill directory into an already-created site directory. Does not wipe the
  * directory or build the docs site.
+ *
+ * The icons are copied from {@link PUBLIC_DIR} rather than read from the page:
+ * the playground's href is the repository path, and the published name is
+ * decided here, so renaming an icon on the site is this function's job and not
+ * a second file to edit.
  *
  * The skill is copied as a directory, not file by file: its `references/`,
  * `INSTALL.md` and test fixtures are part of what an agent fetches, and a list
@@ -169,6 +221,10 @@ export function assembleRootSite(root: string, siteDir: string): void {
 
     writeFileSync(join(siteDir, 'index.html'), LANDING_REDIRECT_HTML);
     copyFileSync(join(root, 'dist', 'jsmind.js'), join(siteDir, 'jsmind.js'));
+
+    for (const name of SITE_ICON_FILES) {
+        copyFileSync(join(root, PUBLIC_DIR, name), join(siteDir, name));
+    }
 
     const playground = readFileSync(join(root, 'example', 'playground.html'), 'utf8');
     writeFileSync(join(siteDir, 'playground.html'), rewritePlayground(playground));
