@@ -128,6 +128,25 @@ test('cli - --type rejects a word that is not one of its values', () => {
     assert.strictEqual(run.stdout, '');
 });
 
+test('cli - --type rejects the keys every object inherits', () => {
+    // `EXPORT_TYPE_ALIASES` is a lookup table, and a bare `table[value]` answers
+    // for `constructor`, `__proto__`, `toString` and friends too: the value is
+    // truthy, so it slipped past the `undefined` check and reached the renderer
+    // as no encoding at all — exit 0, PNG bytes, `--json` without `type`. These
+    // words are as wrong as `gif` and have to fail the same way.
+    for (const value of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) {
+        const run = runCli(['export', 'image', 'missing.json', 'out.png', '--type', value]);
+
+        assert.strictEqual(run.code, CliExit.Usage, `--type ${value} should be a usage error`);
+        assert.strictEqual(
+            run.stderr,
+            `--type must be one of png, jpeg, webp, got "${value}"\n`,
+            `--type ${value} should be rejected like any other unknown word`
+        );
+        assert.strictEqual(run.stdout, '');
+    }
+});
+
 test('cli - --type disagrees with the output extension and says so once', () => {
     // Neither side is corrected: the flag decides the bytes, the path is what
     // the caller typed. One line on stderr, and the run continues.

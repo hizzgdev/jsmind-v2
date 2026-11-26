@@ -119,11 +119,14 @@ export function exportTypeOption(raw: unknown): JmImageType {
         return JmImageType.Png;
     }
     const value = String(raw);
-    const name = EXPORT_TYPE_ALIASES[value];
-    if (name === undefined) {
+    // A bare `table[value]` also answers for the keys every object inherits:
+    // `--type constructor` came back as a function, slipped past the undefined
+    // check and reached the renderer as no encoding at all. Ask for an own
+    // property, the same way `parsePlacementSide` asks for one on `--side`.
+    if (!Object.prototype.hasOwnProperty.call(EXPORT_TYPE_ALIASES, value)) {
         throw usageError(`--type must be one of ${EXPORT_TYPES.join(', ')}, got "${value}"`);
     }
-    return EXPORT_TYPE_MIME[name];
+    return EXPORT_TYPE_MIME[EXPORT_TYPE_ALIASES[value]];
 }
 
 /** Arguments accepted by {@link runExport}. */
