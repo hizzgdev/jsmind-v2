@@ -105,7 +105,7 @@ Children are indented under the correct parents, so the structure is right. Ever
 ## 5. Checkpoint 3: export and look
 
 ```
-$ jsmind export jsmind-arch.json jsmind-arch.png
+$ jsmind export image jsmind-arch.json jsmind-arch.png
 jsmind-arch.png: 2400x1600 (166.9 KB)
 ```
 
@@ -158,7 +158,7 @@ jm-mwgox1wl       export
 ## 7. Export again
 
 ```
-$ jsmind export jsmind-arch.json jsmind-arch.png
+$ jsmind export image jsmind-arch.json jsmind-arch.png
 jsmind-arch.png: 2400x1600 (154.2 KB)
 ```
 

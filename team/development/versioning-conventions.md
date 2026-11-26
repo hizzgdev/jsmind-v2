@@ -31,7 +31,7 @@
 | 命令 | 作用 | 版本 |
 |---|---|---|
 | `jsmind validate <file>` | 校验 | — |
-| `jsmind export <file> <out.png>` | 渲染出图 | — |
+| `jsmind export image <file> <out.png>` | 渲染出图 | — |
 | `jsmind convert <input> --from v1 --to v2` | 格式转换 | `Since: 2.1.0` |
 
 > 表里的版本号是示意；真实标注按该功能实际出现的版本写。`convert` 目前只有设计（`5.4`，不在 S7 实现），正属于「后补的项」这一类。

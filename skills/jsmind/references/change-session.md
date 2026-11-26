@@ -85,7 +85,7 @@ Children are indented under the correct parents. The tree is Model (Nodes and ed
 ## 4. Checkpoint 3: export and look
 
 ```
-$ jsmind export jsmind-arch.json jsmind-arch.png
+$ jsmind export image jsmind-arch.json jsmind-arch.png
 jsmind-arch.png: 2400x1600 (152.6 KB)
 ```
 

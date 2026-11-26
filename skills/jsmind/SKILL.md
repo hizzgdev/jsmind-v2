@@ -57,7 +57,7 @@ jm-mws4xrqq       Mars {side=left}
 | delete X | `mind remove-node map.json --node-id <id>` |
 | colour one node | `node set-style map.json --node-id <id> --tone <tone>` |
 | restyle the whole map | `mind set-style map.json --default-tone <tone>` |
-| a picture | `validate map.json`, then `export map.json out.png` |
+| a picture | `validate map.json`, then `export image map.json out.png` |
 | an answer about the map | `context map.json --json [--depth <n>]`, or `mind find map.json --node-id <id>` |
 
 Five of those need more than the table says:
@@ -81,7 +81,7 @@ Five of those need more than the table says:
 - Exit codes: `0` done, `1` invalid data or an id not in the file, `2` the command line is wrong, `3` IO or environment. Read the code before deciding what broke.
 - `--backup` keeps `map.json.bak` before writing; `--dry-run` prints what it would write and writes nothing. Both apply to `create` and to the `mind` and `node` subcommands that write — `find` and `list-edges` only read — but not to `export`.
 - An option the command does not take is reported on stderr and **ignored**, and the command still exits 0 — a misspelt flag still produces a map. `--strict` turns that into exit 2.
-- `export` takes its output path as the second positional and overwrites it in place; `--output` does not redirect it. Use a second path when both pictures are wanted. It needs Chromium (`CHROME_PATH` for a binary outside the standard locations); a permission prompt on the first run is the browser starting, not a failure.
+- `export image` takes its output path as the positional after the kind and overwrites it in place; `--output` does not redirect it. Use a second path when both pictures are wanted. It needs Chromium (`CHROME_PATH` for a binary outside the standard locations); a permission prompt on the first run is the browser starting, not a failure.
 
 ## After an export: four checks
 
@@ -105,7 +105,7 @@ node set-style <file> --node-id <id> --tone <name>
 node set-style <file> --node-id <id> --background <css-colour>
 node set-folded <file> --node-id <id> --folded true|false
 validate <file>
-export <file> <out.png>
+export image <file> <out.png>
 create <file> --title <title>
 node set-side <file> --node-id <id> --side left|right
 node set-style <file> --node-id <id> --font-size <n>

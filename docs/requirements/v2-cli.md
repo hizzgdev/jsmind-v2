@@ -370,8 +370,10 @@ Wrote mind.json
 ### 5.3 `export`
 
 ```bash
-jsmind export <file> <out.png> [--width N] [--height N] [--scale N] [--type F] [--json]
+jsmind export image <file> <out.png> [--width N] [--height N] [--scale N] [--type F] [--json]
 ```
+
+**`export` 是一个组，第一个位置参数是产出种类。** 目前只有 `image` 一种（`--type` 才是编码：png / jpeg / webp）；种类词不可省略，裸写 `jsmind export <file> <out.png>` 是参数错误，不会猜成 `image`。
 
 **出图需要浏览器，所以它不再是纯数据命令。** 早期设计里这个位置留给 `render`，只打印布局调试信息；真要出图就得有渲染引擎，改名成 `export` 以对齐它的实际职责，也和 JS API 的 `exportImage()` 一致。
 

@@ -137,7 +137,7 @@ CLI 骨架、`context`（唯一允许模糊匹配）、`validate`、`mind` 命�
 
 #### S7b `feat(cli): export command` ✅
 
-`jsmind export <file> <out.png>`。通过无头 Chromium + CDP 协议驱动渲染，走公开的 `jsMind.exportImage()` API。支持 `--width` / `--height` / `--scale` / `--type`（png/jpeg/webp），CI 的 PR 预览图就是同一条路径产出。
+`jsmind export image <file> <out.png>`。通过无头 Chromium + CDP 协议驱动渲染，走公开的 `jsMind.exportImage()` API。支持 `--width` / `--height` / `--scale` / `--type`（png/jpeg/webp），CI 的 PR 预览图就是同一条路径产出。
 
 #### S7c `feat(cli): node set-style` ⏳
 
@@ -149,7 +149,7 @@ CLI 骨架、`context`（唯一允许模糊匹配）、`validate`、`mind` 命�
 
 #### S9 `feat(view): export to PNG, JSON and HTML` ⚠️
 
-- **PNG 已完成**：`jsMind.exportImage()` + `jsmind export`。SVG 序列化 → data URL → canvas → PNG
+- **PNG 已完成**：`jsMind.exportImage()` + `jsmind export image`。SVG 序列化 → data URL → canvas → PNG
 - 尚未开始：导出面板 UI、HTML 快照、JSON 入口
 
 ### 第 4 层：交互
