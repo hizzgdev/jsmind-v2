@@ -1263,6 +1263,7 @@ describe('pages site assembly', () => {
                             ],
                     order: ['VPNavBarMenu', 'VPNavBarTranslations', 'VPNavBarAppearance', 'VPNavBarSocialLinks'],
                 });
+
                 // The top bar hands the reader back to the docs site at its
                 // published address, not at a path inside this base.
                 assert.ok(
