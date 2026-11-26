@@ -187,13 +187,83 @@ jsmind mind <subcommand> <file> [options]
 | `remove-edge` | `--edge-id <id>` | 删除一条关系边 | — |
 | `set-style` | `--default-tone <tone>` | 文档级样式（`mind.style`）：没有自己 tone 的节点所用的语气 | `Since: 2.1.0` |
 
+所有会改写数据的子命令都会在完成后校验结果，失败则回滚。这些写入可以使用 `--dry-run`、`--output` 和 `--backup`。
+
+### `mind find`
+
+```
+jsmind mind find <file> --node-id <id>
+```
+
+显示一个节点：它的 id、标签、父节点、子节点 id 列表，以及所在侧向。只读——它不经过写入管线，上面那三个写入选项在这里不适用。
+
+`--node-id` 必填。加不加 `--json`，输出都是 JSON：根节点的 `parent` 为 `null`；节点折叠时才出现 `folded: true`；节点有主题覆盖时才出现 `style` 块。id 不在文件里算数据无效（退出码 `1`），不是用例错误。
+
+### `mind list-edges`
+
+```
+jsmind mind list-edges <file> --node-id <id>
+```
+
+列出与该节点相连的所有边，它作为起点或终点都算。和 `find` 一样是只读的：不走写入管线，上面那三个写入选项在这里不适用。
+
+`--node-id` 必填。输出是 `{id, source, target, type, label}` 组成的 JSON 数组，加不加 `--json` 都是这个形状：边没有标签时 `label` 为 `null`，节点没有边时打印 `[]`。这些 id 就是 `remove-edge` 要用的 id。节点 id 不在文件里算数据无效（退出码 `1`）。
+
+### `mind add-child`
+
+```
+jsmind mind add-child <file> --parent-id <id> --text <text> [--side left|right] [--position <n>] [--folded true|false]
+```
+
+在已有节点下添加一个子节点。`--parent-id` 和 `--text` 必填，`--text` 传空字符串等同于没传（用例错误）。
+
 `--side` 只在父节点是根节点时合法。侧向是根的直接子节点的位置，它下面整棵子树都继承这个侧向，所以在更深的地方写 side 只会改文件、不改画面 —— 这种情况是用例错误（退出码 2），报错会点名该节点所属的一级分支，不会静默通过。只有根节点是 center，所以 `--side` 只接受 `left` 或 `right`。
 
-`--position` 是父节点 children 数组的下标。越过末尾会追加，省略同样是追加。根节点的子节点跨两侧计数：下标对应的是这一个数组，不是某一侧的列表。
+`--position` 是父节点 children 数组的非负下标。越过末尾会追加，省略同样是追加。根节点的子节点跨两侧计数：下标对应的是这一个数组，不是某一侧的列表。
 
-`--folded true` 表示新建节点时就折叠。
+`--folded true` 表示新建节点时就折叠；不传这个参数则建成展开状态。确认行会在传了这些参数时回显侧向和折叠状态。
 
-所有会改写数据的子命令都会在完成后校验结果，失败则回滚。这些写入可以使用 `--dry-run`、`--output` 和 `--backup`。
+### `mind move`
+
+```
+jsmind mind move <file> --node-id <id> --parent-id <id> [--position <n>]
+```
+
+把节点移到新的父节点下；`--parent-id` 就是它当前的父节点时，等同于在同级里调整顺序。`--node-id` 和 `--parent-id` 必填；`--position` 的下标含义与 `add-child` 相同。
+
+把节点移进自己的子树会被拒绝，算数据无效（退出码 1）：把自己指定为父节点，或父节点是自己的后代，报错都会给出这两个 id。根节点不能移动 —— 其他所有节点都是它的后代。
+
+### `mind remove-node`
+
+```
+jsmind mind remove-node <file> --node-id <id>
+```
+
+删除该节点及其整棵子树，外加触及其中任一节点的所有边。`--node-id` 必填。
+
+根节点会被拒绝：删除根节点算数据无效（退出码 1），报错点名该节点和文件，不会写入任何内容。
+
+### `mind add-edge`
+
+```
+jsmind mind add-edge <file> --source-id <id> --target-id <id> [--type link] [--label <text>]
+```
+
+在两个已有节点之间添加一条关系边，与父子树无关。`--source-id` 和 `--target-id` 必填，两端节点都必须在文件里 —— 缺哪一端，报错就点名哪一端，退出码 `1`。
+
+`--type` 目前只有 `link`：这是格式里唯一定义的取值，也是默认值。写别的词不会在参数层面被拦下 —— 写入完成后的校验会拒绝它（`Unknown edge type`，退出码 `1`）并回滚文件，所以这条边不会留在文件里。
+
+`--label` 可选，不传则这条边没有标签。命令会打印新边的 id，`list-edges` 报出的也是同一个 id。
+
+### `mind remove-edge`
+
+```
+jsmind mind remove-edge <file> --edge-id <id>
+```
+
+按 id 删除一条关系边；两端的节点保留。`--edge-id` 必填，取值来自 `list-edges` 的输出 —— 边有自己的 id，不是 `context` 打印的节点 id。
+
+id 不在文件里算数据无效（退出码 1）。命令会报告它删掉的那条边的 id。
 
 ### `mind set-style`
 
@@ -226,9 +296,41 @@ jsmind node <subcommand> <file> --node-id <id> [options]
 | `set-side` | `--node-id <id> --side left\|right` | 设置节点所在侧 |
 | `set-style` | `--node-id <id> [style fields]` | 为单个节点覆盖主题样式 |
 
-`set-side` 只对根的直接子节点合法，理由和 `add-child --side` 一样：只有这些节点的侧向会改变排版。根节点永远是 center，所以 `--side` 只接受 `left` 或 `right`；打在更深的节点上是用例错误，报错会点名它所属的一级分支，而不是一次画面看不见的写入。
+节点的 id、父节点和子节点只能通过 `jsmind mind` 修改。每条 `node` 子命令都会在完成后校验结果，失败则回滚。这些写入可以使用 `--dry-run`、`--output` 和 `--backup`。
 
-`set-style` 的字段可以在一次写入中组合使用。点号表示层级，因此 `--incoming.color` 对应 `style.incoming.color`。
+### `node set-text`
+
+```
+jsmind node set-text <file> --node-id <id> --text <text>
+```
+
+修改一个节点的标签。`--node-id` 和 `--text` 都必填，`--text` 传空字符串等同于没传（用例错误）。节点 id 不在文件里算数据无效（退出码 `1`）。
+
+### `node set-folded`
+
+```
+jsmind node set-folded <file> --node-id <id> --folded true|false
+```
+
+折叠或展开一个节点。`--folded` 必填，只接受 `true` 和 `false` 两个词 —— 没有 `--no-folded`，写别的词是用例错误（退出码 2），报错会点名该参数。`--node-id` 必填。
+
+### `node set-side`
+
+```
+jsmind node set-side <file> --node-id <id> --side left|right
+```
+
+把根的一个直接子节点放到另一侧。`--node-id` 和 `--side` 必填，`--side` 只接受 `left` 或 `right`：`center` 是根节点自身的状态，会作为用例错误被拒绝。
+
+它只对根的直接子节点合法，理由和 `add-child --side` 一样 —— 只有这些节点的侧向会改变排版，更深的节点一律继承。根节点本身是用例错误（退出码 2），因为它永远是 center；更深的节点同样是用例错误：报错会点名它所属的一级分支，并指出真正承载这个侧向的节点。
+
+### `node set-style`
+
+```
+jsmind node set-style <file> --node-id <id> [style fields]
+```
+
+为单个节点覆盖主题样式（`node.style`）；它们回落的文档级默认值由 `mind set-style` 写。字段可以在一次写入中组合使用。点号表示层级，因此 `--incoming.color` 对应 `style.incoming.color`。
 
 | 字段 | 可接受的值 |
 | --- | --- |
@@ -249,14 +351,14 @@ jsmind node <subcommand> <file> --node-id <id> [options]
 
 | 选项 | 含义 |
 | --- | --- |
-| `--clear <fields>` | 逗号分隔的字段名，拼写与对应参数相同 |
+| `--clear <fields>` | 逗号分隔的字段名，用参数拼写或文件里的驼峰写法（`font-size` 或 `fontSize`） |
 | `--reset` | 清除该节点上的全部样式覆盖 |
 
 样式块只记录与主题不同的项，因此去掉某个键就会恢复主题中的值。没有 `unset` 这样的哨兵值——键不存在就表示没有覆盖。`--reset` 不能与具体字段或 `--clear` 同时使用。
 
-颜色只检查是否为字符串，主题接受任意 CSS 颜色。语气、线型和字重会在这里校验，这样错误值会指向你输入的参数，而不是某个 JSON 路径。
+至少要给一个字段、`--clear` 或 `--reset`；三者都不给是用例错误（退出码 2），报错会列出可用字段。`--clear` 认不出的名字同样是用例错误，报错会列出它认识的字段。
 
-节点的 id、父节点和子节点只能通过 `jsmind mind` 修改。每条 `node` 子命令都会在完成后校验结果，失败则回滚。这些写入可以使用 `--dry-run`、`--output` 和 `--backup`。
+颜色只检查是否为字符串，主题接受任意 CSS 颜色。语气、线型和字重会在这里校验，这样错误值会指向你输入的参数，而不是某个 JSON 路径。
 
 ## 另见
 
