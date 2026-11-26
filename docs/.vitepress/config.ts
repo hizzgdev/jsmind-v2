@@ -1,10 +1,21 @@
 import { defineConfig, type DefaultTheme } from 'vitepress';
 
+/**
+ * The tutorials are a separate site under the same GitHub Pages deployment.
+ *
+ * A nav `link` that starts with `/` is prefixed with this site's `base` by
+ * VitePress, so `/jsmind-v2/tutorials/` would publish as
+ * `/jsmind-v2/docs/jsmind-v2/tutorials/`. The entry therefore spells the
+ * published address out in full, and each locale links its own language page.
+ */
+const TUTORIALS_SITE = 'https://hizzgdev.github.io/jsmind-v2/tutorials/';
+
 const enNav: DefaultTheme.NavItem[] = [
     { text: 'Guide', link: '/en/guide/', activeMatch: '/en/guide/' },
     { text: 'Design', link: '/en/design/', activeMatch: '/en/design/' },
     { text: 'Reference', link: '/en/reference/', activeMatch: '/en/reference/' },
     { text: 'Community', link: '/en/community/', activeMatch: '/en/community/' },
+    { text: 'Tutorials', link: `${TUTORIALS_SITE}en/` },
 ];
 
 const enSidebar: DefaultTheme.Sidebar = [
@@ -71,6 +82,7 @@ const zhNav: DefaultTheme.NavItem[] = [
     { text: '设计', link: '/zh/design/', activeMatch: '/zh/design/' },
     { text: '参考', link: '/zh/reference/', activeMatch: '/zh/reference/' },
     { text: '社区', link: '/zh/community/', activeMatch: '/zh/community/' },
+    { text: '教程', link: `${TUTORIALS_SITE}zh/` },
 ];
 
 const zhSidebar: DefaultTheme.Sidebar = [

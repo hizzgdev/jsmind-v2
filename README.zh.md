@@ -2,15 +2,15 @@
 
 面向人与 agent 的思维导图内核 —— 人能查看、编辑、导出导图，agent 能可靠地生成、读取、修改结构化的脑图数据。
 
-[文档](https://hizzgdev.github.io/jsmind-v2/docs/)（[快速上手](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/getting-started) / [Skill](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/skill) / [CLI](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/cli)） · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html)
+[文档](https://hizzgdev.github.io/jsmind-v2/docs/)（[快速上手](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/getting-started) / [Skill](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/skill) / [CLI](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/cli)） · [教程](https://hizzgdev.github.io/jsmind-v2/tutorials/) · [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html)
 
 [![npm v2-preview](https://img.shields.io/npm/v/jsmind/v2-preview)](https://www.npmjs.com/package/jsmind?activeTab=versions)
 
 English version: [README.md](README.md).
 
-<!-- 文档和 Playground 都使用绝对链接，因为在 GitHub 上阅读本 README 时两者都会离开本仓库。
-     文档链接指向已发布的文档站入口，它会恢复上次选择的语言（若无记录则默认英文）。
-     这里不直接链接到带语言前缀的文档地址。Playground 只存在于发布后的站点 ——
+<!-- 文档、教程和 Playground 都使用绝对链接，因为在 GitHub 上阅读本 README 时三者都会离开本仓库。
+     文档和教程链接指向已发布的站点入口，它会恢复上次选择的语言（若无记录则默认英文），
+     这里不直接链接到带语言前缀的地址。Playground 只存在于发布后的站点 ——
      部署时从 example/ 复制并改写脚本路径 —— 所以本 README 在 GitHub 上阅读时，相对链接会 404。 -->
 
 ## 安装
@@ -58,6 +58,10 @@ tmp/hello.png: 2400x1600 (85.0 KB)
 ## 文档
 
 对外文档站入口：[https://hizzgdev.github.io/jsmind-v2/docs/](https://hizzgdev.github.io/jsmind-v2/docs/)。站点提供中英文，入口地址会记住上次选择的语言；若无记录则默认进入英文。
+
+## 教程
+
+对外教程栏目入口：[https://hizzgdev.github.io/jsmind-v2/tutorials/](https://hizzgdev.github.io/jsmind-v2/tutorials/)。栏目正在建设中，第一批教程正在撰写，发布后会列在这一页。语言规则与文档站一致。
 
 ## Playground
 

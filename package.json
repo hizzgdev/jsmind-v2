@@ -35,6 +35,8 @@
         "docs:dev": "vitepress dev docs",
         "docs:build": "vitepress build docs",
         "docs:api": "npm run build && node scripts/docs/generate-api-docs.ts",
+        "tutorials:dev": "vitepress dev tutorials",
+        "tutorials:build": "vitepress build tutorials",
         "test": "node --test \"__tests__/!(ui)/**/*.test.ts\"",
         "test-lite": "node --test --test-reporter=dot \"__tests__/!(ui)/**/*.test.ts\"",
         "format": "node scripts/check-eof-newline.mjs --fix && eslint --fix --config .config/eslint.config.js",

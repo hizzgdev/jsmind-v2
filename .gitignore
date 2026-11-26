@@ -27,6 +27,8 @@ _site
 # VitePress cache and default build output
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+tutorials/.vitepress/cache/
+tutorials/.vitepress/dist/
 
 # weka webhook 真实配置（含 secret），仓库里只保留 config.example.json
 /team/automations/weka/config.json
