@@ -146,25 +146,29 @@ style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 ## `export`
 
 ```
-jsmind export <file> <out.png> [options]
+jsmind export image <file> <out.png> [options]
 ```
 
 Renders a mind map to an image. The size is the map's own size: whitespace inside the viewport is kept, and a map larger than the viewport is not cropped.
 
-`export` requires a Chromium browser. Set `CHROME_PATH` if it is not in a standard location, and `JSMIND_BROWSER_START_MS` (`Since: 2.1.0`) if the browser needs longer than the default 60 seconds to start.
+`export` is a group, and the word after it names what to produce. `image` is the only kind today; `jsmind export --help` lists them. The kind is not optional — a bare `jsmind export <file> <out.png>` is an argument error (`2`) rather than an `image` export with the kind guessed.
 
-Rendering happens inside a browser process, so an execution environment that sandboxes child processes may ask for permission — or offer to leave the sandbox — when `export` runs. That is Chromium starting, not a failure; if it asks every time, put the output directory on the environment's allow-list.
+`export image` requires a Chromium browser. Set `CHROME_PATH` if it is not in a standard location, and `JSMIND_BROWSER_START_MS` (`Since: 2.1.0`) if the browser needs longer than the default 60 seconds to start.
 
-The output file is **overwritten in place**: an existing image at that path is rewritten, with no copy kept and no delete first. To keep the old one, give the second positional a different path, or rename the old file first — note that `--output` belongs to the commands that edit a mind map file, and `export` only reads its output path from the second positional.
+Rendering happens inside a browser process, so an execution environment that sandboxes child processes may ask for permission — or offer to leave the sandbox — when `export image` runs. That is Chromium starting, not a failure; if it asks every time, put the output directory on the environment's allow-list.
+
+The output file is **overwritten in place**: an existing image at that path is rewritten, with no copy kept and no delete first. To keep the old one, give the second positional a different path, or rename the old file first — note that `--output` belongs to the commands that edit a mind map file, and `export image` only reads its output path from the second positional.
 
 | Option | Meaning | Version |
 | --- | --- | --- |
 | `--width <px>` | Viewport width to lay the map out in (default `1200`) | — |
 | `--height <px>` | Viewport height (default `800`) | — |
 | `--scale <n>` | Output pixel ratio (default `2`) | — |
-| `--type <format>` | `image/png`, `image/jpeg`, or `image/webp` (default `image/png`) | — |
+| `--type <format>` | `png`, `jpeg`, or `webp` (default `png`); `jpg` is accepted as another spelling of `jpeg` | — |
 | `--transparent` | Transparent background (PNG and WebP; opt-in, default keeps the current opaque background). For JPEG, the option is ignored and a warning is printed. | `Since: 2.1.0` |
 | `--json` | Machine-readable output | — |
+
+`--type` chooses the encoding, not the file name: the bytes are the format it names, and the output path is written exactly as given. When the two disagree — `out.png --type jpeg` — the export still runs, with one warning on stderr and exit code `0`: some artifacts are named for the tool that consumes them, so neither side is overridden. The comparison reads the extension only (`.png`, `.jpg` / `.jpeg`, `.webp`), and an extension that names no image format is not compared at all.
 
 With the default width, height, and scale, a typical export is 2400×1600 pixels.
 

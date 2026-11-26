@@ -146,25 +146,29 @@ style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 ## `export`
 
 ```
-jsmind export <file> <out.png> [options]
+jsmind export image <file> <out.png> [options]
 ```
 
 将思维导图渲染为图片。输出尺寸以导图自身大小为准：视口内的空白会保留，超出视口的部分也不会被裁切。
 
-`export` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`；浏览器启动比默认的 60 秒还慢，就设置 `JSMIND_BROWSER_START_MS`（`Since: 2.1.0`）。
+`export` 是一个组，紧跟其后的那个词说明要产出什么。目前 `image` 是唯一一种；`jsmind export --help` 会列出全部。这个种类词不能省略——裸写 `jsmind export <file> <out.png>` 是参数错误（`2`），不会替你猜成 `image`。
 
-渲染发生在浏览器进程里，所以执行环境若对子进程做沙箱限制，运行 `export` 可能弹出一次权限确认或“脱离沙箱”的提示。那是启动 Chromium 引起的，不是报错；频繁弹窗时把输出目录加进环境的白名单。
+`export image` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`；浏览器启动比默认的 60 秒还慢，就设置 `JSMIND_BROWSER_START_MS`（`Since: 2.1.0`）。
 
-输出文件是**原地覆盖**：同名图片已存在时直接重写，不另存副本、也不先删除旧图。要保留旧图，就给第二个位置参数换一个路径，或先把旧图改名 —— 注意 `--output` 只对改动导图文件的命令有效，`export` 的输出路径只认第二个位置参数。
+渲染发生在浏览器进程里，所以执行环境若对子进程做沙箱限制，运行 `export image` 可能弹出一次权限确认或“脱离沙箱”的提示。那是启动 Chromium 引起的，不是报错；频繁弹窗时把输出目录加进环境的白名单。
+
+输出文件是**原地覆盖**：同名图片已存在时直接重写，不另存副本、也不先删除旧图。要保留旧图，就给第二个位置参数换一个路径，或先把旧图改名 —— 注意 `--output` 只对改动导图文件的命令有效，`export image` 的输出路径只认第二个位置参数。
 
 | 选项 | 含义 | 版本 |
 | --- | --- | --- |
 | `--width <px>` | 布局时使用的视口宽度（默认 `1200`） | — |
 | `--height <px>` | 视口高度（默认 `800`） | — |
 | `--scale <n>` | 输出像素比（默认 `2`） | — |
-| `--type <format>` | `image/png`、`image/jpeg` 或 `image/webp`（默认 `image/png`） | — |
+| `--type <format>` | `png`、`jpeg` 或 `webp`（默认 `png`）；`jpg` 也接受，等同于 `jpeg` | — |
 | `--transparent` | 透明背景（PNG 和 WebP；需显式打开，默认保持当前的不透明背景）。用于 JPEG 时会忽略该选项并给出警告。 | `Since: 2.1.0` |
 | `--json` | 以机器可读格式输出 | — |
+
+`--type` 决定的是编码，不是文件名：写出的字节就是它指定的格式，输出路径则原样使用。两者不一致时（`out.png --type jpeg`）导出照常完成——stderr 打一行警告、退出码仍是 `0`——因为产物有时是按消费它的工具命名的，两边都不该被覆盖。比对只看扩展名（`.png`、`.jpg` / `.jpeg`、`.webp`）；认不出图片格式的扩展名不参与比对。
 
 按默认的宽度、高度和缩放，常见导出尺寸是 2400×1600 像素。
 
