@@ -18,9 +18,10 @@
  * and fixtures that npm has no business shipping.
  *
  * The site root is a product page, not a redirect: the documentation, the
- * tutorials and the playground each get an entry there. It is generated, not
- * checked in — the repository keeps no `index.html` of its own — so the
- * published root page and this command cannot drift apart.
+ * tutorials and the playground each get an entry there. The page itself is
+ * `site/index.html`, a source file that reads like a page; this command renders
+ * it into `_site/index.html`, so the markup is edited in one place and the
+ * published root is never a second, hand-kept copy.
  *
  * `example/playground.html` keeps `../dist/jsmind.js`. That path is what
  * `npm run server` needs, because the page lives in `example/`. On the site
@@ -57,16 +58,81 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const DOCS_LANG_STORAGE_KEY = 'jsmind-docs-lang';
 
 /**
- * The site root: the product front door.
+ * Source directory of the published site's own pages.
+ *
+ * It is `site/`, not `_site/`: `_site` is the build output, wiped and rewritten
+ * on every `npm run assemble-site` and ignored by git. `site/` is the source
+ * that is checked in, so editing the front page means editing a file here and
+ * not a string inside this command.
+ *
+ * Only the pages the command writes from scratch live here. Anything with a
+ * source tree of its own keeps it: `docs/` and `tutorials/` are VitePress
+ * sources, `example/playground.html` is the playground `npm run server` serves,
+ * `docs/public/` holds the icons and `dist/` the bundle.
+ */
+export const SITE_SRC_DIR = 'site';
+
+/** The product front page, published as the site root `index.html`. */
+export const SITE_INDEX_PAGE = 'index.html';
+
+/** Template of the `/docs/` and `/tutorials/` language redirects. */
+export const LANGUAGE_REDIRECT_PAGE = 'language-redirect.html';
+
+/** Template of the retired-doc-path redirects. */
+export const PAGE_REDIRECT_PAGE = 'page-redirect.html';
+
+/**
+ * Renders a page from {@link SITE_SRC_DIR}.
+ *
+ * A page source is plain HTML with `{{NAME}}` slots for the few values that
+ * come from the build rather than from the page: the language key, the
+ * redirect title, the redirect destination. Plain HTML is the point — a page
+ * opens, reads and diffs like a page, and this function only fills the slots.
+ *
+ * A slot left unfilled fails the build instead of shipping a literal `{{...}}`
+ * to readers, and a missing source names the file it looked for instead of
+ * failing somewhere deeper on ENOENT.
+ *
+ * @param root - Repository root.
+ * @param name - File name inside {@link SITE_SRC_DIR}.
+ * @param values - Slot name to value.
+ * @returns The page to publish.
+ */
+export function renderSitePage(root: string, name: string, values: Record<string, string>): string {
+    const path = join(root, SITE_SRC_DIR, name);
+    if (!existsSync(path)) {
+        throw new Error(`missing site page source: ${SITE_SRC_DIR}/${name}`);
+    }
+
+    let html = readFileSync(path, 'utf8');
+    for (const [slot, value] of Object.entries(values)) {
+        // A function replacement, so a value containing `$&` or `$1` is
+        // inserted literally instead of being read as a replacement pattern.
+        html = html.replaceAll(`{{${slot}}}`, () => value);
+    }
+
+    const open = html.indexOf('{{');
+    if (open !== -1) {
+        const close = html.indexOf('}}', open);
+        throw new Error(
+            `${SITE_SRC_DIR}/${name} has an unfilled slot: ${html.slice(open, close === -1 ? undefined : close + 2)}`
+        );
+    }
+    return html;
+}
+
+/**
+ * The product front page, rendered from {@link SITE_INDEX_PAGE}.
  *
  * Three entries — documentation, tutorials, playground — plus the install
  * line, the GitHub link and the 2.x preview notice. The "recent tutorials"
  * slot is deliberately empty until the first post ships: it is a reserved
  * structure, not a stand-in for something else.
  *
- * The page is generated rather than checked in, as the redirect it replaced
- * was: the repository keeps no `index.html`, so the published root page and
- * this command cannot drift apart.
+ * The page lives in `site/index.html`. That is a source file, not the
+ * published page: nothing sits at the repository root, and the assembly writes
+ * `_site/index.html` from this page, so the checkout holds one copy of the
+ * markup and the published site holds one copy of the same markup.
  *
  * Language comes from `jsmind-docs-lang`, the key `/docs/`, `/tutorials/` and
  * both switchers already share, defaulting to English when nothing is stored.
@@ -79,307 +145,13 @@ export const DOCS_LANG_STORAGE_KEY = 'jsmind-docs-lang';
  * the site root; the paths to `docs/`, `tutorials/` and `playground.html` are
  * relative for the same reason, and so the page works from the site root
  * wherever that root is mounted.
+ *
+ * @param root - Repository root.
+ * @returns The page to publish.
  */
-export const LANDING_PAGE_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>jsMind V2 — a mind-map kernel for people and agents</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="apple-touch-icon" href="favicon.png">
-<style>
-:root {
-    color-scheme: light dark;
-    --bg: #ffffff;
-    --fg: #1b1b1f;
-    --muted: #5c5f66;
-    --line: #e2e2e6;
-    --card: #f6f6f7;
-    --accent: #3451b2;
+export function landingPageHtml(root: string = ROOT): string {
+    return renderSitePage(root, SITE_INDEX_PAGE, { DOCS_LANG_STORAGE_KEY });
 }
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #1b1b1f;
-        --fg: #e5e5e6;
-        --muted: #a8abb2;
-        --line: #2e2e32;
-        --card: #202024;
-        --accent: #a8b8f0;
-    }
-}
-* {
-    box-sizing: border-box;
-}
-body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    line-height: 1.6;
-}
-a {
-    color: var(--accent);
-}
-.wrap {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 0 24px;
-}
-.site-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 20px 0;
-    border-bottom: 1px solid var(--line);
-}
-.brand {
-    font-size: 18px;
-    font-weight: 700;
-    color: inherit;
-    text-decoration: none;
-}
-.site-header nav {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    font-size: 14px;
-}
-.lang-switch {
-    display: flex;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    overflow: hidden;
-}
-.lang-switch button {
-    padding: 4px 12px;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-}
-.lang-switch button[aria-pressed="true"] {
-    background: var(--card);
-    color: var(--fg);
-    font-weight: 600;
-}
-.hero {
-    padding: 48px 0 8px;
-}
-h1 {
-    margin: 0 0 12px;
-    font-size: 40px;
-    line-height: 1.2;
-}
-.tagline {
-    margin: 0 0 16px;
-    max-width: 44em;
-    font-size: 18px;
-    color: var(--muted);
-}
-.preview {
-    display: inline-block;
-    margin: 0;
-    padding: 2px 10px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    font-size: 13px;
-    color: var(--muted);
-}
-.entries {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-    margin: 32px 0 0;
-    padding: 0;
-    list-style: none;
-}
-.entry {
-    display: block;
-    height: 100%;
-    padding: 20px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--card);
-    color: inherit;
-    text-decoration: none;
-}
-.entry:hover {
-    border-color: var(--accent);
-}
-.entry-title {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--accent);
-}
-.entry-text {
-    display: block;
-    font-size: 14px;
-    color: var(--muted);
-}
-section {
-    padding: 32px 0 0;
-}
-h2 {
-    margin: 0 0 12px;
-    font-size: 20px;
-}
-.install code {
-    padding: 2px 8px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--card);
-    font-size: 15px;
-}
-.recent-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-.recent-empty {
-    margin: 0;
-    color: var(--muted);
-}
-.site-footer {
-    margin-top: 48px;
-    padding: 20px 0 40px;
-    border-top: 1px solid var(--line);
-    font-size: 13px;
-    color: var(--muted);
-}
-</style>
-</head>
-<body>
-<div class="wrap">
-    <header class="site-header">
-        <a class="brand" href="./">jsMind V2</a>
-        <nav>
-            <a href="https://github.com/hizzgdev/jsmind-v2">GitHub</a>
-            <span class="lang-switch" role="group">
-                <button type="button" data-lang="en" aria-pressed="true">English</button>
-                <button type="button" data-lang="zh" aria-pressed="false">中文</button>
-            </span>
-        </nav>
-    </header>
-    <main>
-        <section class="hero">
-            <h1>jsMind V2</h1>
-            <p class="tagline" data-en="A mind-map kernel for people and agents: people can view, edit and export maps; agents can reliably create, read and modify them." data-zh="面向人与 agent 的思维导图内核：人能查看、编辑、导出导图，agent 能可靠地生成、读取、修改结构化的脑图数据。">A mind-map kernel for people and agents: people can view, edit and export maps; agents can reliably create, read and modify them.</p>
-            <p class="preview" data-en="2.x preview — the API may still change between minor releases." data-zh="2.x 预览版 —— 次版本之间仍可能有不兼容改动。">2.x preview — the API may still change between minor releases.</p>
-        </section>
-
-        <ul class="entries">
-            <li>
-                <a class="entry" href="docs/">
-                    <span class="entry-title" data-en="Documentation" data-zh="文档">Documentation</span>
-                    <span class="entry-text" data-en="Installation, the API reference and the design notes." data-zh="安装、API 参考与设计说明。">Installation, the API reference and the design notes.</span>
-                </a>
-            </li>
-            <li>
-                <a class="entry" href="tutorials/">
-                    <span class="entry-title" data-en="Tutorials" data-zh="教程">Tutorials</span>
-                    <span class="entry-text" data-en="One task, start to finish, with example files." data-zh="带示例文件，把一件事从头做一遍。">One task, start to finish, with example files.</span>
-                </a>
-            </li>
-            <li>
-                <a class="entry" href="playground.html">
-                    <span class="entry-title" data-en="Playground" data-zh="Playground">Playground</span>
-                    <span class="entry-text" data-en="Open a mind map in the browser and edit it." data-zh="在浏览器里打开一张脑图并直接编辑。">Open a mind map in the browser and edit it.</span>
-                </a>
-            </li>
-        </ul>
-
-        <section class="install">
-            <h2 data-en="Install" data-zh="安装">Install</h2>
-            <p><code>npm i jsmind@2</code></p>
-            <p>
-                <a href="docs/en/guide/getting-started" data-href-en="docs/en/guide/getting-started" data-href-zh="docs/zh/guide/getting-started" data-en="Quick start" data-zh="快速上手">Quick start</a>
-                <span data-en="has the full steps; this page does not repeat them." data-zh="里有完整步骤，这里不再重复。">has the full steps; this page does not repeat them.</span>
-            </p>
-        </section>
-
-        <section class="recent">
-            <h2 data-en="Recent tutorials" data-zh="最近教程">Recent tutorials</h2>
-            <!-- Reserved for the two or three newest posts. Empty until the
-                 first tutorial ships; the tutorials site owns the full list. -->
-            <ul class="recent-list" id="recent-tutorials"></ul>
-            <p class="recent-empty" data-en="The first tutorials are being written. They will be listed on the tutorials page once published." data-zh="第一批教程正在撰写，发布后会出现在教程栏目里。">The first tutorials are being written. They will be listed on the tutorials page once published.</p>
-        </section>
-    </main>
-    <footer class="site-footer">
-        <p data-en="jsMind is BSD-3-Clause licensed." data-zh="jsMind 采用 BSD-3-Clause 许可。">jsMind is BSD-3-Clause licensed.</p>
-    </footer>
-</div>
-<script>
-(function () {
-    var KEY = '${DOCS_LANG_STORAGE_KEY}';
-    var lang = 'en';
-    try {
-        if (localStorage.getItem(KEY) === 'zh') {
-            lang = 'zh';
-        }
-    } catch (error) {
-        lang = 'en';
-    }
-
-    function apply(next) {
-        lang = next;
-        document.documentElement.lang = next === 'zh' ? 'zh-CN' : 'en';
-        document.title = next === 'zh'
-            ? 'jsMind V2 —— 面向人与 agent 的思维导图内核'
-            : 'jsMind V2 — a mind-map kernel for people and agents';
-
-        var group = document.querySelector('.lang-switch');
-        if (group) {
-            group.setAttribute('aria-label', next === 'zh' ? '语言' : 'Language');
-        }
-
-        var texts = document.querySelectorAll('[data-en], [data-zh]');
-        for (var i = 0; i < texts.length; i += 1) {
-            var value = texts[i].getAttribute('data-' + next);
-            if (value !== null) {
-                texts[i].textContent = value;
-            }
-        }
-
-        var links = document.querySelectorAll('[data-href-en], [data-href-zh]');
-        for (var j = 0; j < links.length; j += 1) {
-            var href = links[j].getAttribute('data-href-' + next);
-            if (href !== null) {
-                links[j].setAttribute('href', href);
-            }
-        }
-
-        var buttons = document.querySelectorAll('.lang-switch button');
-        for (var k = 0; k < buttons.length; k += 1) {
-            buttons[k].setAttribute('aria-pressed', buttons[k].getAttribute('data-lang') === next ? 'true' : 'false');
-        }
-    }
-
-    var buttons = document.querySelectorAll('.lang-switch button');
-    for (var b = 0; b < buttons.length; b += 1) {
-        buttons[b].addEventListener('click', function (event) {
-            var next = event.currentTarget.getAttribute('data-lang');
-            try {
-                localStorage.setItem(KEY, next);
-            } catch (error) {
-                // Storage can be disabled; the page still switches for this visit.
-            }
-            apply(next);
-        });
-    }
-
-    apply(lang);
-})();
-</script>
-</body>
-</html>
-`;
 
 /** Script src while the page still lives under `example/`. */
 export const LOCAL_BUNDLE_SRC = '../dist/jsmind.js';
@@ -436,7 +208,8 @@ const SITE_FILES = [
 ] as const;
 
 /**
- * A language redirect for a bilingual site root.
+ * A language redirect for a bilingual site root, rendered from
+ * {@link LANGUAGE_REDIRECT_PAGE}.
  *
  * `/docs/` and `/tutorials/` share one rule: read `jsmind-docs-lang`, default
  * to English, and forward to the stored language with the query and hash
@@ -445,38 +218,29 @@ const SITE_FILES = [
  * (`/docs/zh/`, `/tutorials/en/`) is a real page and is never rewritten.
  *
  * @param title - Page title, so a reader who lands here knows which site it is.
+ * @param root - Repository root.
  */
-export function languageRedirectHtml(title: string): string {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${title}</title>
-<script>
-(function () {
-    var lang = localStorage.getItem('${DOCS_LANG_STORAGE_KEY}');
-    if (lang !== 'en' && lang !== 'zh') {
-        lang = 'en';
-    }
-    location.replace(lang + '/' + location.search + location.hash);
-})();
-</script>
-</head>
-<body>
-<noscript>
-    <p><a href="en/">English</a> · <a href="zh/">中文</a></p>
-</noscript>
-</body>
-</html>
-`;
+export function languageRedirectHtml(title: string, root: string = ROOT): string {
+    return renderSitePage(root, LANGUAGE_REDIRECT_PAGE, { TITLE: title, DOCS_LANG_STORAGE_KEY });
 }
 
-/** Language redirect written to `_site/docs/index.html`. */
-export const DOCS_LANGUAGE_REDIRECT_HTML = languageRedirectHtml('jsMind V2 Documentation');
+/**
+ * Language redirect written to `_site/docs/index.html`.
+ *
+ * @param root - Repository root.
+ */
+export function docsLanguageRedirectHtml(root: string = ROOT): string {
+    return languageRedirectHtml('jsMind V2 Documentation', root);
+}
 
-/** Language redirect written to `_site/tutorials/index.html`. */
-export const TUTORIALS_LANGUAGE_REDIRECT_HTML = languageRedirectHtml('jsMind V2 Tutorials');
+/**
+ * Language redirect written to `_site/tutorials/index.html`.
+ *
+ * @param root - Repository root.
+ */
+export function tutorialsLanguageRedirectHtml(root: string = ROOT): string {
+    return languageRedirectHtml('jsMind V2 Tutorials', root);
+}
 
 /** Src of every `<script type="module" src="...">`, whatever the attribute order. */
 export function moduleScriptSrcs(html: string): string[] {
@@ -556,7 +320,7 @@ export function rewritePlayground(html: string): string {
 export function assembleRootSite(root: string, siteDir: string): void {
     mkdirSync(siteDir, { recursive: true });
 
-    writeFileSync(join(siteDir, 'index.html'), LANDING_PAGE_HTML);
+    writeFileSync(join(siteDir, 'index.html'), landingPageHtml(root));
     copyFileSync(join(root, 'dist', 'jsmind.js'), join(siteDir, 'jsmind.js'));
 
     for (const name of SITE_ICON_FILES) {
@@ -592,18 +356,20 @@ function writeLanguageRedirect(dir: string, html: string): void {
  * Writes the `/docs/` language redirect index.
  *
  * @param docsDir - Docs output directory (`_site/docs`).
+ * @param root - Repository root.
  */
-export function writeDocsLanguageRedirect(docsDir: string): void {
-    writeLanguageRedirect(docsDir, DOCS_LANGUAGE_REDIRECT_HTML);
+export function writeDocsLanguageRedirect(docsDir: string, root: string = ROOT): void {
+    writeLanguageRedirect(docsDir, docsLanguageRedirectHtml(root));
 }
 
 /**
  * Writes the `/tutorials/` language redirect index.
  *
  * @param tutorialsDir - Tutorials output directory (`_site/tutorials`).
+ * @param root - Repository root.
  */
-export function writeTutorialsLanguageRedirect(tutorialsDir: string): void {
-    writeLanguageRedirect(tutorialsDir, TUTORIALS_LANGUAGE_REDIRECT_HTML);
+export function writeTutorialsLanguageRedirect(tutorialsDir: string, root: string = ROOT): void {
+    writeLanguageRedirect(tutorialsDir, tutorialsLanguageRedirectHtml(root));
 }
 
 /**
@@ -620,45 +386,29 @@ export const DOCS_PAGE_REDIRECTS = [
 ] as const;
 
 /**
- * A static redirect page. GitHub Pages serves `name.html` for `/name`,
- * so these cover both the extensionless bookmark and the `.html` URL.
+ * A static redirect page, rendered from {@link PAGE_REDIRECT_PAGE}. GitHub
+ * Pages serves `name.html` for `/name`, so these cover both the extensionless
+ * bookmark and the `.html` URL.
  *
  * @param to - Relative destination, without a query or hash.
+ * @param root - Repository root.
  */
-export function docsPageRedirectHtml(to: string): string {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Page moved</title>
-<meta http-equiv="refresh" content="0; url=${to}">
-<script>
-(function () {
-    location.replace('${to}' + location.search + location.hash);
-})();
-</script>
-</head>
-<body>
-<noscript>
-    <p><a href="${to}">This page has moved</a></p>
-</noscript>
-</body>
-</html>
-`;
+export function docsPageRedirectHtml(to: string, root: string = ROOT): string {
+    return renderSitePage(root, PAGE_REDIRECT_PAGE, { TO: to });
 }
 
 /**
  * Writes retired-path redirects under `en/` and `zh/`.
  *
  * @param docsDir - Docs output directory (`_site/docs`).
+ * @param root - Repository root.
  */
-export function writeDocsPageRedirects(docsDir: string): void {
+export function writeDocsPageRedirects(docsDir: string, root: string = ROOT): void {
     for (const locale of ['en', 'zh'] as const) {
         for (const { from, to } of DOCS_PAGE_REDIRECTS) {
             const path = join(docsDir, locale, from);
             mkdirSync(dirname(path), { recursive: true });
-            writeFileSync(path, docsPageRedirectHtml(to));
+            writeFileSync(path, docsPageRedirectHtml(to, root));
         }
     }
 }
@@ -701,8 +451,8 @@ function buildVitepressSite(root: string, srcDir: string, outDir: string, label:
  */
 export function assembleDocsSite(root: string, docsDir: string): void {
     buildVitepressSite(root, 'docs', docsDir, 'docs');
-    writeDocsLanguageRedirect(docsDir);
-    writeDocsPageRedirects(docsDir);
+    writeDocsLanguageRedirect(docsDir, root);
+    writeDocsPageRedirects(docsDir, root);
 }
 
 /**
@@ -722,7 +472,7 @@ export function assembleDocsSite(root: string, docsDir: string): void {
  */
 export function assembleTutorialsSite(root: string, tutorialsDir: string): void {
     buildVitepressSite(root, TUTORIALS_DIR, tutorialsDir, 'tutorials');
-    writeTutorialsLanguageRedirect(tutorialsDir);
+    writeTutorialsLanguageRedirect(tutorialsDir, root);
     for (const name of SITE_ICON_FILES) {
         copyFileSync(join(root, PUBLIC_DIR, name), join(tutorialsDir, name));
     }

@@ -5,9 +5,11 @@
  *
  * The site root is a real page now, not a redirect: three entries
  * (documentation, tutorials, playground), the install line, the GitHub link
- * and the 2.x preview notice. The repository keeps no `index.html` of its own;
- * assembly writes it, which is what keeps the published root and this
- * template from drifting.
+ * and the 2.x preview notice. The markup is a source file in `site/`, next to
+ * the two redirect templates, so the page reads like a page and the build
+ * script holds no HTML. Nothing is published from the repository root:
+ * assembly renders `site/index.html` into `_site/index.html`, and the checkout
+ * keeps exactly one copy of the markup.
  *
  * The page in `example/` is a module script whose src is `../dist/jsmind.js`.
  * That relative path is what `npm run server` needs. The command copies the
@@ -33,19 +35,22 @@ import {
     assembleRootSite,
     assembleTutorialsSite,
     DOCS_LANG_STORAGE_KEY,
-    DOCS_LANGUAGE_REDIRECT_HTML,
     DOCS_PAGE_REDIRECTS,
+    docsLanguageRedirectHtml,
     docsPageRedirectHtml,
-    LANDING_PAGE_HTML,
+    landingPageHtml,
     LOCAL_ICON_HREF_PREFIX,
     moduleScriptSrcs,
     PUBLIC_DIR,
+    renderSitePage,
     rewritePlayground,
     SITE_ICON_FILES,
+    SITE_INDEX_PAGE,
+    SITE_SRC_DIR,
     SKILL_DIR,
     SKILL_SITE_FILE,
     TUTORIALS_DIR,
-    TUTORIALS_LANGUAGE_REDIRECT_HTML,
+    tutorialsLanguageRedirectHtml,
     writeDocsPageRedirects,
 } from '../../scripts/assemble-site.ts';
 
@@ -231,20 +236,41 @@ function fixturePlayground(): string {
 }
 
 /**
- * A minimal repository tree for `assembleRootSite`: the bundle, the playground
- * and the one copy of the icons under `docs/public/`. This function reads
- * nothing else.
+ * The `site/index.html` a root-site fixture starts from: one link and one
+ * slot. It is not the real front page on purpose — these tests are about the
+ * mechanism (the slot is filled, the rendered page lands at the site root),
+ * and the `landing page` tests own the wording.
+ */
+const FIXTURE_SITE_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head><title>jsMind V2 fixture</title></head>
+<body>
+<p><a href="docs/">docs</a></p>
+<script>var KEY = '{{DOCS_LANG_STORAGE_KEY}}';</script>
+</body>
+</html>
+`;
+
+/**
+ * A minimal repository tree for `assembleRootSite`: the bundle, the playground,
+ * the page source under `site/` and the one copy of the icons under
+ * `docs/public/`. This function reads nothing else.
  *
  * @param dir - Fixture root.
- * @param options - `skill: false` leaves out `SKILL.md` but keeps the rest.
+ * @param options - `skill: false` leaves out `SKILL.md`; `page: false` leaves
+ * out the page source. Both keep the rest.
  */
-function writeRootSiteFixture(dir: string, options: { skill?: boolean } = {}): void {
+function writeRootSiteFixture(dir: string, options: { skill?: boolean; page?: boolean } = {}): void {
     mkdirSync(join(dir, 'example'), { recursive: true });
     mkdirSync(join(dir, 'dist'), { recursive: true });
     mkdirSync(join(dir, PUBLIC_DIR), { recursive: true });
     mkdirSync(join(dir, SKILL_DIR, 'jsmind', 'references'), { recursive: true });
     writeFileSync(join(dir, 'dist', 'jsmind.js'), 'export {}\n');
     writeFileSync(join(dir, 'example', 'playground.html'), fixturePlayground());
+    if (options.page !== false) {
+        mkdirSync(join(dir, SITE_SRC_DIR), { recursive: true });
+        writeFileSync(join(dir, SITE_SRC_DIR, SITE_INDEX_PAGE), FIXTURE_SITE_PAGE);
+    }
     for (const name of SITE_ICON_FILES) {
         writeFileSync(join(dir, PUBLIC_DIR, name), `${name} from ${PUBLIC_DIR}\n`);
     }
@@ -343,56 +369,64 @@ function assertSectionOrder(html: string, locale: 'en' | 'zh', label: string): v
 }
 
 describe('landing page', () => {
-    it('is a product page with the three entries, not a docs redirect', () => {
-        // The repository still carries no root `index.html`: assembly writes
-        // the page, so the published root and this template cannot drift.
+    it('is a product page rendered from site/, with the three entries and no docs redirect', () => {
+        // The markup is a source file in `site/`, not a string inside the build
+        // script, and not a page at the repository root: assembly renders it
+        // into `_site/index.html`.
         assert.ok(
             !existsSync(join(ROOT, 'index.html')),
             'the repository root must not carry a landing page'
         );
+        const source = readFileSync(join(ROOT, SITE_SRC_DIR, SITE_INDEX_PAGE), 'utf8');
+        assert.ok(
+            source.includes('{{DOCS_LANG_STORAGE_KEY}}'),
+            'the page source should leave the language key to the build'
+        );
 
+        const page = landingPageHtml();
+        assert.ok(!page.includes('{{'), 'the rendered page should carry no unfilled slot');
         for (const href of ['docs/', 'tutorials/', 'playground.html']) {
             assert.ok(
-                LANDING_PAGE_HTML.includes(`href="${href}"`),
+                page.includes(`href="${href}"`),
                 `the page should link ${href}`
             );
         }
         assert.doesNotMatch(
-            LANDING_PAGE_HTML,
-            /location\.replace\('docs\/'/,
+            page,
+            /location\.replace\('docs\//,
             'the root must no longer redirect to the docs site'
         );
 
         // A page someone lands on, not a stub: it needs a title, a heading and
         // enough text to explain what the three entries lead to.
-        assert.ok(LANDING_PAGE_HTML.length > 1024, 'the page should be a real page, not a stub');
-        assert.match(LANDING_PAGE_HTML, /<title>jsMind V2/);
-        assert.match(LANDING_PAGE_HTML, /<h1>jsMind V2<\/h1>/);
+        assert.ok(page.length > 1024, 'the page should be a real page, not a stub');
+        assert.match(page, /<title>jsMind V2/);
+        assert.match(page, /<h1>jsMind V2<\/h1>/);
 
         // Installation stays a one-line entry; the steps belong to the quick
         // start page and must not be copied onto the front page.
-        assert.ok(LANDING_PAGE_HTML.includes('npm i jsmind@2'));
-        assert.ok(LANDING_PAGE_HTML.includes('docs/en/guide/getting-started'));
-        assert.ok(LANDING_PAGE_HTML.includes('2.x preview'));
-        assert.ok(LANDING_PAGE_HTML.includes('https://github.com/hizzgdev/jsmind-v2'));
+        assert.ok(page.includes('npm i jsmind@2'));
+        assert.ok(page.includes('docs/en/guide/getting-started'));
+        assert.ok(page.includes('2.x preview'));
+        assert.ok(page.includes('https://github.com/hizzgdev/jsmind-v2'));
 
         // The recent-tutorials slot is reserved and empty: a `<li>` inside it
         // would mean something else was parked there.
-        assert.ok(LANDING_PAGE_HTML.includes('id="recent-tutorials"'));
+        assert.ok(page.includes('id="recent-tutorials"'));
         assert.doesNotMatch(
-            LANDING_PAGE_HTML,
+            page,
             /<ul class="recent-list"[^>]*>[\s\S]*?<li/,
             'the recent-tutorials slot must stay empty until the first post ships'
         );
 
         // Language switching shares the docs key and defaults to English.
-        assert.ok(LANDING_PAGE_HTML.includes(`var KEY = '${DOCS_LANG_STORAGE_KEY}';`));
-        assert.ok(LANDING_PAGE_HTML.includes('var lang = \'en\''));
-        assert.ok(LANDING_PAGE_HTML.includes('localStorage.setItem(KEY, next)'));
-        assert.ok(LANDING_PAGE_HTML.includes('data-zh='));
+        assert.ok(page.includes(`var KEY = '${DOCS_LANG_STORAGE_KEY}';`));
+        assert.ok(page.includes('var lang = \'en\''));
+        assert.ok(page.includes('localStorage.setItem(KEY, next)'));
+        assert.ok(page.includes('data-zh='));
 
         // A page people look at, so it dresses the tab like the playground.
-        assert.deepStrictEqual(iconHrefs(LANDING_PAGE_HTML), [...SITE_ICON_FILES]);
+        assert.deepStrictEqual(iconHrefs(page), [...SITE_ICON_FILES]);
     });
 });
 
@@ -488,21 +522,16 @@ describe('pages site assembly', () => {
 
             assembleRootSite(dir, join(dir, '_site'));
 
-            // Nothing is read from the checkout but the playground, the
-            // bundle and the skill: the root page is the template, byte for
-            // byte, and it is a page rather than a forwarding stub.
+            // The published page is `site/index.html` rendered: the slot is
+            // filled, and the file that lands at the site root is not the
+            // source copied verbatim.
             const index = readFileSync(join(dir, '_site', 'index.html'), 'utf8');
-            assert.strictEqual(index, LANDING_PAGE_HTML);
-            for (const href of ['docs/', 'tutorials/', 'playground.html']) {
-                assert.ok(index.includes(`href="${href}"`), `the published index should link ${href}`);
-            }
-            // Its icons are relative names, and they resolve to the files the
-            // same step copied beside the page.
-            assert.deepStrictEqual(iconHrefs(index), [...SITE_ICON_FILES]);
-            for (const href of iconHrefs(index)) {
-                const file = resolvePublishedHref(href, `${SITE_ORIGIN}${SITE_BASE}`, SITE_BASE, join(dir, '_site'));
-                assert.ok(existsSync(file), `index.html: ${href} should resolve to ${file}`);
-            }
+            assert.strictEqual(
+                index,
+                FIXTURE_SITE_PAGE.replace('{{DOCS_LANG_STORAGE_KEY}}', DOCS_LANG_STORAGE_KEY)
+            );
+            assert.ok(!index.includes('{{'), 'no slot should reach the published page');
+            assert.ok(index.includes('href="docs/"'), 'the published index should keep the page links');
             assert.strictEqual(readFileSync(join(dir, '_site', 'jsmind.js'), 'utf8'), 'export {}\n');
             const publishedIcons = SITE_ICON_FILES.map((name) => `<link rel="icon" href="${name}">`)
                 .join('\n');
@@ -545,6 +574,48 @@ describe('pages site assembly', () => {
         assert.ok(!workflow.includes('grep'));
         assert.ok(!workflow.includes('sed '));
         assert.ok(!workflow.includes('assemble-pages'));
+    });
+
+    it('stops the build when the page source is missing or a slot is left unfilled', () => {
+        // A build that published a page with a literal `{{...}}` in it would
+        // ship a broken language key to readers, and a missing source would
+        // otherwise surface as an ENOENT from somewhere deeper.
+        const missing = mkdtempSync(join(tmpdir(), 'jsmind-site-nopage-'));
+        try {
+            writeRootSiteFixture(missing, { page: false });
+            assert.throws(
+                () => assembleRootSite(missing, join(missing, '_site')),
+                new RegExp(`missing site page source: ${SITE_SRC_DIR}/${SITE_INDEX_PAGE}`)
+            );
+        }
+        finally {
+            rmSync(missing, { recursive: true, force: true });
+        }
+
+        const unfilled = mkdtempSync(join(tmpdir(), 'jsmind-site-slot-'));
+        try {
+            writeRootSiteFixture(unfilled);
+            writeFileSync(
+                join(unfilled, SITE_SRC_DIR, SITE_INDEX_PAGE),
+                '<p>{{NOBODY_FILLS_THIS}}</p>\n'
+            );
+            assert.throws(
+                () => assembleRootSite(unfilled, join(unfilled, '_site')),
+                /has an unfilled slot: \{\{NOBODY_FILLS_THIS\}\}/
+            );
+            // The renderer itself, in both directions: an unprovided slot
+            // throws instead of reaching the output, and a provided one is
+            // replaced.
+            assert.throws(
+                () => renderSitePage(unfilled, SITE_INDEX_PAGE, {}),
+                /has an unfilled slot: \{\{NOBODY_FILLS_THIS\}\}/
+            );
+            writeFileSync(join(unfilled, SITE_SRC_DIR, SITE_INDEX_PAGE), '<p>{{TO}}</p>\n');
+            assert.strictEqual(renderSitePage(unfilled, SITE_INDEX_PAGE, { TO: 'eng' }), '<p>eng</p>\n');
+        }
+        finally {
+            rmSync(unfilled, { recursive: true, force: true });
+        }
     });
 
     it('publishes the skill at the documented URL, and stops the build without it', () => {
@@ -687,7 +758,7 @@ describe('pages site assembly', () => {
             assembleTutorialsSite(ROOT, tutorialsDir);
 
             const redirect = readFileSync(join(tutorialsDir, 'index.html'), 'utf8');
-            assert.strictEqual(redirect, TUTORIALS_LANGUAGE_REDIRECT_HTML);
+            assert.strictEqual(redirect, tutorialsLanguageRedirectHtml());
             assert.ok(redirect.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
             assert.ok(redirect.includes('lang = \'en\''));
             assert.ok(redirect.includes('location.replace(lang + \'/\''));
@@ -781,7 +852,7 @@ describe('pages site assembly', () => {
             assembleDocsSite(ROOT, docsDir);
 
             const redirect = readFileSync(join(docsDir, 'index.html'), 'utf8');
-            assert.strictEqual(redirect, DOCS_LANGUAGE_REDIRECT_HTML);
+            assert.strictEqual(redirect, docsLanguageRedirectHtml());
             assert.ok(redirect.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
             assert.ok(redirect.includes('lang = \'en\''));
             assert.ok(redirect.includes('location.replace(lang + \'/\''));

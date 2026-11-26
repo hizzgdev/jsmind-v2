@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<script>
+(function () {
+    var lang = localStorage.getItem('{{DOCS_LANG_STORAGE_KEY}}');
+    if (lang !== 'en' && lang !== 'zh') {
+        lang = 'en';
+    }
+    location.replace(lang + '/' + location.search + location.hash);
+})();
+</script>
+</head>
+<body>
+<noscript>
+    <p><a href="en/">English</a> · <a href="zh/">中文</a></p>
+</noscript>
+</body>
+</html>
