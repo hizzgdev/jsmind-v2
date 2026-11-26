@@ -38,27 +38,40 @@
 
 ```
 tutorials/
+  assets/
+    YYYY-MM-DD-slug/
+      ...
   en/
     index.md
     posts/
       YYYY-MM-DD-slug.md
-    assets/
-      YYYY-MM-DD-slug/
-        ...
   zh/
     index.md
     posts/
       YYYY-MM-DD-slug.md
-    assets/
-      YYYY-MM-DD-slug/
-        ...
 ```
 
 站点路径是 `/tutorials/`。语言规则与文档一致：入口按本地记录的语言跳转，没选过则默认英文；每种语言有自己的 URL（`/tutorials/en/`、`/tutorials/zh/`）；页面上可以切换语言。某一边尚未发布时，不要链到空页，应说明另一边还没有。
 
 中英文文章用同一日期和同一 slug，方便切换。
 
-示例脑图、截图放在对应 `assets/` 下，由文章用相对链接引用。不要把这些示例塞进 `docs/` 或 Playground 目录，以免和产品文档、Playground 自带示例混在一起。
+示例脑图、截图和可下载文件默认放在共用的 `tutorials/assets/` 下，按文章日期和 slug 分子目录。中英文正文引用同一路径，不要按语言各放一份。不要把这些示例塞进 `docs/` 或 Playground 目录，以免和产品文档、Playground 自带示例混在一起。
+
+如果某一语言需要不同版本的素材（例如案例文章里，脑图节点文字已经分成中文或英文），再在对应语言目录下建立 `assets_override/`，目录结构与共用 `assets/` 对齐：
+
+```
+tutorials/
+  assets/
+    YYYY-MM-DD-slug/
+      step.png
+      example.jm
+  zh/
+    assets_override/
+      YYYY-MM-DD-slug/
+        example.jm
+```
+
+只有内容确实不同的文件才放进 `assets_override/`，其余仍用共用文件。发布时在站点产出里做替换：先用共用 `assets/`，再用该语言的 `assets_override/` 覆盖同名路径。不要改写仓库里的共用原件。这个替换实现不必在栏目搭起来时就做，等第一篇真正需要分语言素材时再补；目录约定先按上面执行。起步不要预建空的 `assets_override/`。
 
 `team/` 和 `AGENTS.md` 仍不发布。
 
@@ -101,7 +114,7 @@ tutorials/
 
 只做基础设施，先不上很多文章。
 
-- 建立 `tutorials/en`、`tutorials/zh` 和文章模板
+- 建立 `tutorials/en`、`tutorials/zh`、共用的 `tutorials/assets/` 和文章模板
 - 接入现有站点的组装和 GitHub Pages 发布，使 `/tutorials/` 可访问
 - 顶栏能进入「文档」和「教程」
 - 首页加上教程入口，并预留「最近教程」的位置
@@ -130,7 +143,7 @@ tutorials/
 
 文章积累到大约 8 到 10 篇后，开始做合集页。
 
-另外规划 Playground 的增强：用地址参数加载教程里的示例文件，文章中提供「在 Playground 中打开」。第一批文章先把示例文件放进 `tutorials/**/assets/`，不必在栏目上线时同时改 Playground。
+另外规划 Playground 的增强：用地址参数加载教程里的示例文件，文章中提供「在 Playground 中打开」。第一批文章先把示例文件放进 `tutorials/assets/`，不必在栏目上线时同时改 Playground。
 
 ## 9. 日常工作流
 
