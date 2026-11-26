@@ -21,81 +21,39 @@
 }
 
 /**
- * Section links: Docs | Tutorials, the two published columns.
+ * Between 768px and 1024px the bar has one thing too many, and the search box
+ * is the one that yields.
  *
- * Kept in a copy of this file per site (see `section-links.ts`). The links sit
- * between the title and the nav's own content, so they must not grow into the
- * search box or the language switch: `nowrap`, a small gap, and no flex-grow.
- *
- * The bar copy is hidden below 768px, where VitePress hides the bar's menu and
- * opens the screen menu instead; `nav-screen-content-before` mounts the same
- * links at the top of that menu, so a phone keeps both columns reachable.
+ * The nav is six entries here — the four sections, the tutorials in a new tab
+ * and Home — plus the icon and the site title, and the search box's label and
+ * shortcut hint take about 110px of the row that the entries need. VitePress
+ * already uses the icon-only button below 768px, so this applies the same
+ * shape a little earlier; the box is still a working search trigger, and the
+ * header keeps every entry it is responsible for. Hiding the nav instead would
+ * put the tutorials and Home entries out of reach at these widths, because the
+ * bar's menu is the only place they live above 767px.
  */
-.jsmind-section-links {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    gap: 2px;
-    margin-right: 8px;
-    padding-right: 8px;
-    border-right: 1px solid var(--vp-c-divider);
-    font-size: 14px;
-    font-weight: 500;
-    white-space: nowrap;
-}
+@media (min-width: 768px) and (max-width: 1023px) {
+    .VPNavBar .DocSearch-Button {
+        width: 40px;
+        justify-content: center;
+        padding: 0;
+        border: 0;
+        background-color: transparent;
+    }
 
-.jsmind-section-links a {
-    padding: 6px 8px;
-    border-radius: 6px;
-    color: var(--vp-c-text-1);
-    text-decoration: none;
-    transition: color 0.25s;
-}
-
-.jsmind-section-links a:hover {
-    color: var(--vp-c-brand-1);
-}
-
-.jsmind-section-links a[aria-current='page'] {
-    color: var(--vp-c-brand-1);
-}
-
-@media (max-width: 767px) {
-    .jsmind-section-links-bar {
+    .VPNavBar .DocSearch-Button-Placeholder,
+    .VPNavBar .DocSearch-Button-Keys {
         display: none;
     }
-}
 
-/**
- * Between 768px and 960px the bar has one thing too many.
- *
- * VitePress keeps the in-site nav in the bar until 768px and then moves local
- * navigation into the sidebar (the local bar's "Menu" button). At 768-959 the
- * two section links plus the in-site nav overflow the bar by up to ~77px, and
- * of the two the columns are the header's contract — the in-site nav items
- * have a second home in the sidebar, which is one click away at these widths.
- * So the nav yields.
- *
- * `!important` because VitePress scopes its own `display` to a `data-v-*`
- * attribute: a rule that loses here fails as a horizontal scrollbar on a
- * tablet, not as anything a build would notice.
- */
-@media (min-width: 768px) and (max-width: 959px) {
-    .VPNavBar .VPNavBarMenu {
-        display: none !important;
+    /**
+     * The six English entries need about 40px more than the three-word-plus
+     * widths give them at 768px. `!important` because VitePress scopes its own
+     * padding to a `data-v-*` attribute: the rule that loses here fails as a
+     * horizontal scrollbar on a tablet, not as anything a build would notice.
+     */
+    .VPNavBar .VPNavBarMenuLink {
+        padding: 0 8px !important;
     }
-}
-
-.jsmind-section-links-screen {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-    margin: 0 0 8px;
-    padding: 0 0 4px;
-    border-right: 0;
-    border-bottom: 1px solid var(--vp-c-divider);
-}
-
-.jsmind-section-links-screen a {
-    padding: 8px 0;
 }
