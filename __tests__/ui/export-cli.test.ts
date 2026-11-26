@@ -25,6 +25,8 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
+import { isRetryableStartFailure } from '../../scripts/render-preview.ts';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '../..');
 const CLI = join(REPO_ROOT, 'dist/cli.js');
@@ -37,19 +39,56 @@ const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const JPEG_MAGIC = [0xff, 0xd8, 0xff];
 
 /**
- * Runs the built CLI as a real child process.
+ * Invocations allowed per export; two means one retry.
+ *
+ * @remarks
+ * `test:ui` runs its files in parallel, so this one starts a browser while
+ * `agent-workflow.test.ts` is starting another on the same runner — which is
+ * how a start that works on its own can miss its 60s budget in CI. The retry
+ * policy is the one the Render preview job already uses: only a browser that
+ * failed to start (exit 3 carrying the start-failure prefix) is repeated,
+ * because a usage error or a page that threw fails the same way twice.
+ */
+const RUN_ATTEMPTS = 2;
+
+/** Result of one CLI invocation. */
+interface CliRun {
+    code: number;
+    stdout: string;
+    stderr: string;
+}
+
+/**
+ * Runs the built CLI as a real child process, retrying a browser that failed
+ * to start.
  *
  * @param args - Arguments after the program name.
  * @returns Exit code and what was written to both streams.
  */
-function runCli(args: string[]): { code: number; stdout: string; stderr: string } {
-    const result = spawnSync(process.execPath, [CLI, ...args], {
-        encoding: 'utf8',
-        // A stalled browser start would otherwise hang the test file: the
-        // renderer's own budget is generous, this is the backstop.
-        timeout: 120_000,
-    });
-    return { code: result.status ?? -1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+function runCli(args: string[]): CliRun {
+    let last: CliRun | undefined;
+    for (let attempt = 1; attempt <= RUN_ATTEMPTS; attempt++) {
+        const result = spawnSync(process.execPath, [CLI, ...args], {
+            encoding: 'utf8',
+            // A stalled browser start would otherwise hang the test file: the
+            // renderer's own budget is generous, this is the backstop.
+            timeout: 120_000,
+        });
+        last = {
+            code: result.status ?? -1,
+            stdout: result.stdout ?? '',
+            stderr: result.stderr ?? '',
+        };
+        const retryable = isRetryableStartFailure({ status: result.status, stderr: last.stderr });
+        if (!retryable || attempt === RUN_ATTEMPTS) {
+            break;
+        }
+        console.error(
+            `ui export attempt ${attempt}/${RUN_ATTEMPTS} could not start the browser ` +
+                `(exit ${last.code}); retrying once`
+        );
+    }
+    return last!;
 }
 
 /** The `jsmind: warning:` lines in a stderr transcript. */
