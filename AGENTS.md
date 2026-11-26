@@ -19,6 +19,8 @@ jsmind-v2/
 ├── src/            # 源码
 ├── __tests__/      # 测试（node --test）
 ├── docs/           # 对外产品文档：architecture / features / requirements（数据格式、CLI）
+├── tutorials/      # 对外教程栏目：assets/ + en|zh/{index.md,posts/}（随文档站一起发布）
+├── site/           # 发布站点自有页面：首页与重定向模板，构建时渲染进 _site/
 ├── team/           # 对内材料
 │   ├── development/  # milestones、roadmap、内部需求、渲染测试计划
 │   └── archive/      # 不再维护但仍有参考价值的内容
