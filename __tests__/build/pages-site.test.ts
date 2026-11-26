@@ -22,10 +22,12 @@
  * stays focused on the landing page and the playground rewrite, and does not
  * invoke VitePress.
  *
- * The three published faces share one header — product name, an icon, both
- * columns, the current one marked `aria-current="page"` — and the docs entry
- * is the guide: `/docs/` and `/docs/<lang>/` are one-hop redirects onto it, so
- * the product page is the only landing page in the tree.
+ * The three published faces share one header — a title naming the face
+ * (`jsMind V2`, `jsMind V2 Docs`, `jsMind V2 Tutorials`) and leading into that
+ * face's own entry, an icon, and that face's menu with its cross-site entries
+ * opening in a new tab — and the docs entry is the guide: `/docs/` and
+ * `/docs/<lang>/` are one-hop redirects onto it, so the product page is the
+ * only landing page in the tree.
  */
 
 import assert from 'node:assert/strict';
@@ -1383,10 +1385,10 @@ describe('pages site assembly', () => {
             assertSectionOrder(enGuide, 'en', 'en guide nav');
             assertSectionOrder(zhGuide, 'zh', 'zh guide nav');
 
-            // One header on all three faces: the face's title leads home, the
-            // icon exists, and the menu is the owner's list for this site —
-            // the four in-site sections, the tutorials in a new tab, then the
-            // way back to the product page.
+            // One header on all three faces: the title names this face and
+            // leads into its own entry, the icon exists, and the menu is the
+            // owner's list for this site — the four in-site sections, the
+            // tutorials in a new tab, then the way back to the product page.
             const docsMenu: Record<'en' | 'zh', HeaderMenuEntry[]> = {
                 en: [
                     { text: 'Guide', href: `${DOCS_URL}en/guide/` },
