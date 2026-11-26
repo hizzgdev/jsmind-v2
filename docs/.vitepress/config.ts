@@ -1,5 +1,7 @@
 import { defineConfig, type DefaultTheme } from 'vitepress';
 
+import { DOCS_BASE, TUTORIALS_URL } from '../../site.config.mjs';
+
 /**
  * The tutorials are a separate site under the same GitHub Pages deployment.
  *
@@ -7,15 +9,16 @@ import { defineConfig, type DefaultTheme } from 'vitepress';
  * VitePress, so `/jsmind-v2/tutorials/` would publish as
  * `/jsmind-v2/docs/jsmind-v2/tutorials/`. The entry therefore spells the
  * published address out in full, and each locale links its own language page.
+ * The address comes from `site.config.mjs`, the one place that knows where the
+ * site is published.
  */
-const TUTORIALS_SITE = 'https://hizzgdev.github.io/jsmind-v2/tutorials/';
 
 const enNav: DefaultTheme.NavItem[] = [
     { text: 'Guide', link: '/en/guide/', activeMatch: '/en/guide/' },
     { text: 'Design', link: '/en/design/', activeMatch: '/en/design/' },
     { text: 'Reference', link: '/en/reference/', activeMatch: '/en/reference/' },
     { text: 'Community', link: '/en/community/', activeMatch: '/en/community/' },
-    { text: 'Tutorials', link: `${TUTORIALS_SITE}en/` },
+    { text: 'Tutorials', link: `${TUTORIALS_URL}en/` },
 ];
 
 const enSidebar: DefaultTheme.Sidebar = [
@@ -82,7 +85,7 @@ const zhNav: DefaultTheme.NavItem[] = [
     { text: '设计', link: '/zh/design/', activeMatch: '/zh/design/' },
     { text: '参考', link: '/zh/reference/', activeMatch: '/zh/reference/' },
     { text: '社区', link: '/zh/community/', activeMatch: '/zh/community/' },
-    { text: '教程', link: `${TUTORIALS_SITE}zh/` },
+    { text: '教程', link: `${TUTORIALS_URL}zh/` },
 ];
 
 const zhSidebar: DefaultTheme.Sidebar = [
@@ -145,24 +148,22 @@ const zhSidebar: DefaultTheme.Sidebar = [
 ];
 
 /**
- * The site is published under a sub-path of `hizzgdev.github.io`, not at the
- * domain root.
+ * The site is published under a sub-path of its origin, not at the domain
+ * root; the mount path lives in `site.config.mjs` with the origin.
  *
  * VitePress prefixes only the assets it generates itself: a `head` entry's
  * `href` is emitted verbatim (vitepress 1.6.4 `renderHead`). A bare
- * `/favicon.svg` would therefore point at `https://hizzgdev.github.io/favicon.svg`
- * and 404, so the one copy of the base below feeds both `base` and the icon
- * hrefs.
+ * `/favicon.svg` would therefore resolve one level above the base and 404, so
+ * the one copy of the base feeds both `base` and the icon hrefs.
  */
-const BASE = '/jsmind-v2/docs/';
 
 export default defineConfig({
-    base: BASE,
+    base: DOCS_BASE,
     // The icons live in `docs/public/`, which VitePress copies to the output
     // root, and are addressed from the base because of the note above.
     head: [
-        ['link', { rel: 'icon', type: 'image/svg+xml', href: `${BASE}favicon.svg` }],
-        ['link', { rel: 'apple-touch-icon', href: `${BASE}favicon.png` }],
+        ['link', { rel: 'icon', type: 'image/svg+xml', href: `${DOCS_BASE}favicon.svg` }],
+        ['link', { rel: 'apple-touch-icon', href: `${DOCS_BASE}favicon.png` }],
     ],
     srcExclude: [
         'README.md',

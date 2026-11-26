@@ -53,6 +53,17 @@ import {
     tutorialsLanguageRedirectHtml,
     writeDocsPageRedirects,
 } from '../../scripts/assemble-site.ts';
+// The published addresses come from the site's one source of truth, the same
+// file both VitePress configs read. A hand-copied origin here would be a
+// fourth place to edit on the day the site moves.
+import {
+    DOCS_BASE,
+    DOCS_URL,
+    SITE_ORIGIN,
+    SITE_PATH,
+    TUTORIALS_BASE,
+    TUTORIALS_URL,
+} from '../../site.config.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -61,8 +72,6 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 // has to come from here or the placeholder ships verbatim.
 const PACKAGE_VERSION = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
 
-const DOCS_SITE_ENTRY = 'https://hizzgdev.github.io/jsmind-v2/docs/';
-const TUTORIALS_SITE_ENTRY = 'https://hizzgdev.github.io/jsmind-v2/tutorials/';
 const DOCS_README_BLOB = 'https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md';
 const FOOTER_TEXT = '本文档由 AI 协助生成 / This documentation was prepared with AI assistance';
 
@@ -203,19 +212,13 @@ function iconHrefs(html: string): string[] {
     return linkHrefs(html, ['icon', 'apple-touch-icon']);
 }
 
-const SITE_ORIGIN = 'https://hizzgdev.github.io';
-const SITE_BASE = '/jsmind-v2/';
-const DOCS_SITE_BASE = `${SITE_BASE}docs/`;
-const TUTORIALS_SITE_BASE = `${SITE_BASE}tutorials/`;
-
 /**
  * The file an href must resolve to in the published tree.
  *
  * The site is served under a URL prefix, not at the domain root, so the href
  * is resolved against the page's own published address first: a base-less
- * `/favicon.svg` resolves to `https://hizzgdev.github.io/favicon.svg`, lands
- * outside the prefix and fails here. Asserting that a `link` tag exists would
- * stay green on exactly that 404.
+ * `/favicon.svg` resolves one level above the prefix and fails here.
+ * Asserting that a `link` tag exists would stay green on exactly that 404.
  */
 function resolvePublishedHref(href: string, pageUrl: string, prefix: string, root: string): string {
     const url = new URL(href, pageUrl);
@@ -620,10 +623,13 @@ describe('pages site assembly', () => {
 
     it('publishes the skill at the documented URL, and stops the build without it', () => {
         // docs/README.md and the skill guide quote this URL; it is the reason
-        // the directory is published at all. Pinning the literal keeps the
-        // published path and the documented one from drifting apart.
-        const skillUrl = 'https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md';
-        assert.strictEqual(new URL(SKILL_SITE_FILE, 'https://hizzgdev.github.io/jsmind-v2/').href, skillUrl);
+        // the directory is published at all. Both halves — the mount path and
+        // the repository path — come from their one source each, so the
+        // published address and the documented one cannot drift apart. The
+        // resolution also pins the trailing slash in `SITE_PATH`: without it
+        // the path below would be glued onto the last segment.
+        const skillUrl = `${SITE_ORIGIN}${SITE_PATH}${SKILL_SITE_FILE}`;
+        assert.strictEqual(new URL(SKILL_SITE_FILE, SITE_ORIGIN + SITE_PATH).href, skillUrl);
         assert.strictEqual(SKILL_SITE_FILE, `${SKILL_DIR}/jsmind/SKILL.md`);
 
         // The copy only means something if its source is the real skill, with
@@ -743,11 +749,23 @@ describe('pages site assembly', () => {
 
         // The column is its own VitePress site: that is what keeps its pages
         // out of the docs sidebars, and its own base is what leaves the
-        // already-published docs URLs where they are.
+        // already-published docs URLs where they are. Each config takes its
+        // base from `site.config.mjs` instead of spelling the path out — a
+        // literal here would be a second place to edit on the day the site
+        // moves, and `base` is the one field that must be a path, never an
+        // address.
         const docsConfig = readFileSync(join(ROOT, 'docs', '.vitepress', 'config.ts'), 'utf8');
         const tutorialsConfig = readFileSync(join(ROOT, TUTORIALS_DIR, '.vitepress', 'config.ts'), 'utf8');
-        assert.ok(docsConfig.includes('const BASE = \'/jsmind-v2/docs/\';'));
-        assert.ok(tutorialsConfig.includes('const BASE = \'/jsmind-v2/tutorials/\';'));
+        assert.ok(docsConfig.includes('base: DOCS_BASE'), 'the docs config should use the shared base');
+        assert.ok(tutorialsConfig.includes('base: TUTORIALS_BASE'), 'the tutorials config should use the shared base');
+        assert.ok(
+            !docsConfig.includes(`'${DOCS_BASE}'`),
+            'the docs base must come from site.config.mjs, not from a literal'
+        );
+        assert.ok(
+            !tutorialsConfig.includes(`'${TUTORIALS_BASE}'`),
+            'the tutorials base must come from site.config.mjs, not from a literal'
+        );
         assert.ok(tutorialsConfig.includes('_template.md'), 'the template must be excluded from the build');
     });
 
@@ -778,18 +796,18 @@ describe('pages site assembly', () => {
             for (const locale of ['en', 'zh'] as const) {
                 const rel = `${locale}/index.html`;
                 const html = readFileSync(join(tutorialsDir, rel), 'utf8');
-                const pageUrl = new URL(rel, `${SITE_ORIGIN}${TUTORIALS_SITE_BASE}`).href;
+                const pageUrl = new URL(rel, `${SITE_ORIGIN}${TUTORIALS_BASE}`).href;
 
                 // The tab icon is the docs site's single checked-in copy,
                 // addressed from the tutorials base, and it resolves to a file
                 // in this build rather than to a 404 one level up.
                 assert.deepStrictEqual(
                     iconHrefs(html),
-                    SITE_ICON_FILES.map((name) => `${TUTORIALS_SITE_BASE}${name}`),
+                    SITE_ICON_FILES.map((name) => `${TUTORIALS_BASE}${name}`),
                     `${rel} should link the site icons`
                 );
                 for (const href of iconHrefs(html)) {
-                    const file = resolvePublishedHref(href, pageUrl, TUTORIALS_SITE_BASE, tutorialsDir);
+                    const file = resolvePublishedHref(href, pageUrl, TUTORIALS_BASE, tutorialsDir);
                     assert.ok(existsSync(file), `${rel}: ${href} should resolve to ${file}`);
                 }
 
@@ -797,14 +815,14 @@ describe('pages site assembly', () => {
                 // The top bar hands the reader back to the docs site at its
                 // published address, not at a path inside this base.
                 assert.ok(
-                    headerHtml(html).includes(`${DOCS_SITE_ENTRY}${locale}/`),
+                    headerHtml(html).includes(`${DOCS_URL}${locale}/`),
                     `${rel} top bar should link the ${locale} docs entry`
                 );
                 // The language menu switches between the two tutorial
                 // locales, the same way it does on the docs site.
                 const sibling = locale === 'en' ? 'zh' : 'en';
                 assert.ok(
-                    headerHtml(html).includes(`${TUTORIALS_SITE_BASE}${sibling}/`),
+                    headerHtml(html).includes(`${TUTORIALS_BASE}${sibling}/`),
                     `${rel} language menu should offer the ${sibling} tutorials`
                 );
                 // A language page is a real page, so it is not a redirect.
@@ -825,24 +843,24 @@ describe('pages site assembly', () => {
         const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
         const readmeZh = readFileSync(join(ROOT, 'README.zh.md'), 'utf8');
 
-        assert.ok(hasHref(readme, DOCS_SITE_ENTRY));
-        assert.ok(hasHref(readmeZh, DOCS_SITE_ENTRY));
+        assert.ok(hasHref(readme, DOCS_URL));
+        assert.ok(hasHref(readmeZh, DOCS_URL));
 
         // The tutorial column is published, so both READMEs may point at it —
         // but only at the live entry, never at an empty or language-prefixed
         // address that could outlive the redirect.
-        assert.ok(hasHref(readme, TUTORIALS_SITE_ENTRY), 'README.md should link the tutorials entry');
-        assert.ok(hasHref(readmeZh, TUTORIALS_SITE_ENTRY), 'README.zh.md should link the tutorials entry');
-        assert.ok(!hasHref(readme, `${TUTORIALS_SITE_ENTRY}en/`));
-        assert.ok(!hasHref(readmeZh, `${TUTORIALS_SITE_ENTRY}zh/`));
+        assert.ok(hasHref(readme, TUTORIALS_URL), 'README.md should link the tutorials entry');
+        assert.ok(hasHref(readmeZh, TUTORIALS_URL), 'README.zh.md should link the tutorials entry');
+        assert.ok(!hasHref(readme, `${TUTORIALS_URL}en/`));
+        assert.ok(!hasHref(readmeZh, `${TUTORIALS_URL}zh/`));
 
         assert.ok(!hasHref(readme, DOCS_README_BLOB));
         assert.ok(!hasHref(readmeZh, DOCS_README_BLOB));
 
-        assert.ok(!hasHref(readme, `${DOCS_SITE_ENTRY}en/`));
-        assert.ok(!hasHref(readme, `${DOCS_SITE_ENTRY}zh/`));
-        assert.ok(!hasHref(readmeZh, `${DOCS_SITE_ENTRY}en/`));
-        assert.ok(!hasHref(readmeZh, `${DOCS_SITE_ENTRY}zh/`));
+        assert.ok(!hasHref(readme, `${DOCS_URL}en/`));
+        assert.ok(!hasHref(readme, `${DOCS_URL}zh/`));
+        assert.ok(!hasHref(readmeZh, `${DOCS_URL}en/`));
+        assert.ok(!hasHref(readmeZh, `${DOCS_URL}zh/`));
     });
 
     it('builds the docs site with a language redirect and bilingual pages', () => {
@@ -892,15 +910,15 @@ describe('pages site assembly', () => {
             );
             for (const rel of contentPages) {
                 const html = readFileSync(join(docsDir, rel), 'utf8');
-                const pageUrl = new URL(rel, `${SITE_ORIGIN}${DOCS_SITE_BASE}`).href;
+                const pageUrl = new URL(rel, `${SITE_ORIGIN}${DOCS_BASE}`).href;
                 const hrefs = iconHrefs(html);
                 assert.deepStrictEqual(
                     hrefs,
-                    SITE_ICON_FILES.map((name) => `${DOCS_SITE_BASE}${name}`),
+                    SITE_ICON_FILES.map((name) => `${DOCS_BASE}${name}`),
                     `${rel} should link ${SITE_ICON_FILES.join(' and ')}`
                 );
                 for (const href of hrefs) {
-                    const file = resolvePublishedHref(href, pageUrl, DOCS_SITE_BASE, docsDir);
+                    const file = resolvePublishedHref(href, pageUrl, DOCS_BASE, docsDir);
                     assert.ok(existsSync(file), `${rel}: ${href} should resolve to ${file}`);
                 }
             }
@@ -929,11 +947,11 @@ describe('pages site assembly', () => {
             // The top bar reaches the tutorials site at its published address.
             // A base-less path would publish under the docs base instead.
             assert.ok(
-                headerHtml(enHome).includes(`${TUTORIALS_SITE_ENTRY}en/`),
+                headerHtml(enHome).includes(`${TUTORIALS_URL}en/`),
                 'en docs top bar should link the en tutorials'
             );
             assert.ok(
-                headerHtml(zhHome).includes(`${TUTORIALS_SITE_ENTRY}zh/`),
+                headerHtml(zhHome).includes(`${TUTORIALS_URL}zh/`),
                 'zh docs top bar should link the zh tutorials'
             );
             assert.ok(
@@ -1010,7 +1028,7 @@ describe('pages site assembly', () => {
                 const prompt = block[1];
                 assert.ok(!prompt.includes('\n'), `${lang} guide: the install prompt has to stay one line`);
                 assert.ok(
-                    prompt.includes('https://hizzgdev.github.io/jsmind-v2/skills/jsmind/INSTALL.md'),
+                    prompt.includes(`${SITE_ORIGIN}${SITE_PATH}skills/jsmind/INSTALL.md`),
                     `${lang} guide: the prompt hands over the docs-site copy of the runbook`
                 );
                 assert.ok(
@@ -1044,7 +1062,7 @@ describe('pages site assembly', () => {
             // Gitee pair below it is for the reader who got here from a raw URL instead.
             // None of them is a blob link, because a blob link fetches a web page.
             assert.ok(
-                install.includes('https://hizzgdev.github.io/jsmind-v2/skills/jsmind/SKILL.md'),
+                install.includes(`${SITE_ORIGIN}${SITE_PATH}skills/jsmind/SKILL.md`),
                 'INSTALL.md names the docs-site copy of SKILL.md'
             );
             assert.ok(
