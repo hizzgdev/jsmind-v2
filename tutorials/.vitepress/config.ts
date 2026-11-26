@@ -1,6 +1,6 @@
-import { defineConfig, type DefaultTheme } from 'vitepress';
+import { defineConfig } from 'vitepress';
 
-import { DOCS_URL, TUTORIALS_BASE } from '../../site.config.mjs';
+import { HOME_URL, TUTORIALS_BASE } from '../../site.config.mjs';
 import { tutorialAssetOverrides } from './asset-overrides';
 
 /**
@@ -12,6 +12,11 @@ import { tutorialAssetOverrides } from './asset-overrides';
  * two sites are absolute because a `link` starting with `/` is prefixed with
  * this site's base by VitePress.
  *
+ * There is no nav here: the column's identity comes from the header's section
+ * links (`theme/section-links.ts`), which name both columns and mark the one
+ * the reader is in, so a "Docs" nav entry would be a second copy of the same
+ * link. The columns are the sections; the nav would only repeat them.
+ *
  * Both addresses come from `site.config.mjs`, which holds the origin, the
  * mount path and the derived `*_BASE` / `*_URL` pairs. `*_BASE` is a path and
  * `*_URL` is an absolute address: only the former can be handed to VitePress,
@@ -21,14 +26,6 @@ import { tutorialAssetOverrides } from './asset-overrides';
  * copies `docs/public/` beside both built sites, so the one checked-in copy
  * stays the only one.
  */
-
-const enNav: DefaultTheme.NavItem[] = [
-    { text: 'Docs', link: `${DOCS_URL}en/` },
-];
-
-const zhNav: DefaultTheme.NavItem[] = [
-    { text: '文档', link: `${DOCS_URL}zh/` },
-];
 
 export default defineConfig({
     base: TUTORIALS_BASE,
@@ -66,7 +63,6 @@ export default defineConfig({
             lang: 'en',
             description: 'Tutorials for jsMind V2: a technique, or a complete scenario with example files.',
             themeConfig: {
-                nav: enNav,
                 outline: { label: 'On this page' },
             },
         },
@@ -75,7 +71,6 @@ export default defineConfig({
             lang: 'zh-CN',
             description: 'jsMind V2 教程：一个具体技巧，或者一个带示例文件的完整场景。',
             themeConfig: {
-                nav: zhNav,
                 outline: { label: '本页目录' },
                 docFooter: {
                     prev: '上一页',
@@ -91,7 +86,12 @@ export default defineConfig({
         },
     },
     themeConfig: {
-        siteTitle: 'jsMind Tutorials',
+        // The same product name as the product page and the docs site: which
+        // column the reader is in comes from the section links, not from a
+        // second product name in the title.
+        siteTitle: 'jsMind V2',
+        logo: '/favicon.svg',
+        logoLink: { link: HOME_URL },
         socialLinks: [
             { icon: 'github', link: 'https://github.com/hizzgdev/jsmind-v2' },
         ],

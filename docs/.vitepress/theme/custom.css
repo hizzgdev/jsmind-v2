@@ -19,3 +19,83 @@
     color: var(--vp-c-text-2);
     background-color: var(--vp-c-bg);
 }
+
+/**
+ * Section links: Docs | Tutorials, the two published columns.
+ *
+ * Kept in a copy of this file per site (see `section-links.ts`). The links sit
+ * between the title and the nav's own content, so they must not grow into the
+ * search box or the language switch: `nowrap`, a small gap, and no flex-grow.
+ *
+ * The bar copy is hidden below 768px, where VitePress hides the bar's menu and
+ * opens the screen menu instead; `nav-screen-content-before` mounts the same
+ * links at the top of that menu, so a phone keeps both columns reachable.
+ */
+.jsmind-section-links {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 2px;
+    margin-right: 8px;
+    padding-right: 8px;
+    border-right: 1px solid var(--vp-c-divider);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.jsmind-section-links a {
+    padding: 6px 8px;
+    border-radius: 6px;
+    color: var(--vp-c-text-1);
+    text-decoration: none;
+    transition: color 0.25s;
+}
+
+.jsmind-section-links a:hover {
+    color: var(--vp-c-brand-1);
+}
+
+.jsmind-section-links a[aria-current='page'] {
+    color: var(--vp-c-brand-1);
+}
+
+@media (max-width: 767px) {
+    .jsmind-section-links-bar {
+        display: none;
+    }
+}
+
+/**
+ * Between 768px and 960px the bar has one thing too many.
+ *
+ * VitePress keeps the in-site nav in the bar until 768px and then moves local
+ * navigation into the sidebar (the local bar's "Menu" button). At 768-959 the
+ * two section links plus the in-site nav overflow the bar by up to ~77px, and
+ * of the two the columns are the header's contract — the in-site nav items
+ * have a second home in the sidebar, which is one click away at these widths.
+ * So the nav yields.
+ *
+ * `!important` because VitePress scopes its own `display` to a `data-v-*`
+ * attribute: a rule that loses here fails as a horizontal scrollbar on a
+ * tablet, not as anything a build would notice.
+ */
+@media (min-width: 768px) and (max-width: 959px) {
+    .VPNavBar .VPNavBarMenu {
+        display: none !important;
+    }
+}
+
+.jsmind-section-links-screen {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin: 0 0 8px;
+    padding: 0 0 4px;
+    border-right: 0;
+    border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.jsmind-section-links-screen a {
+    padding: 8px 0;
+}

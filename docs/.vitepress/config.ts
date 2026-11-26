@@ -1,16 +1,17 @@
 import { defineConfig, type DefaultTheme } from 'vitepress';
 
-import { DOCS_BASE, TUTORIALS_URL } from '../../site.config.mjs';
+import { DOCS_BASE, HOME_URL } from '../../site.config.mjs';
 
 /**
- * The tutorials are a separate site under the same GitHub Pages deployment.
+ * The nav lists the in-site sections only — Guide, Design, Reference,
+ * Community.
  *
- * A nav `link` that starts with `/` is prefixed with this site's `base` by
- * VitePress, so `/jsmind-v2/tutorials/` would publish as
- * `/jsmind-v2/docs/jsmind-v2/tutorials/`. The entry therefore spells the
- * published address out in full, and each locale links its own language page.
- * The address comes from `site.config.mjs`, the one place that knows where the
- * site is published.
+ * The cross-site columns (the docs site itself and the tutorials) are the
+ * header's section links, rendered by `theme/section-links.ts` beside the
+ * title, so the reader sees each column once instead of a nav entry that
+ * duplicates a section link. Those links are absolute addresses because a
+ * nav `link` starting with `/` is prefixed with this site's `base`; the
+ * section links are outside the router for the same reason.
  */
 
 const enNav: DefaultTheme.NavItem[] = [
@@ -18,7 +19,6 @@ const enNav: DefaultTheme.NavItem[] = [
     { text: 'Design', link: '/en/design/', activeMatch: '/en/design/' },
     { text: 'Reference', link: '/en/reference/', activeMatch: '/en/reference/' },
     { text: 'Community', link: '/en/community/', activeMatch: '/en/community/' },
-    { text: 'Tutorials', link: `${TUTORIALS_URL}en/` },
 ];
 
 const enSidebar: DefaultTheme.Sidebar = [
@@ -85,7 +85,6 @@ const zhNav: DefaultTheme.NavItem[] = [
     { text: '设计', link: '/zh/design/', activeMatch: '/zh/design/' },
     { text: '参考', link: '/zh/reference/', activeMatch: '/zh/reference/' },
     { text: '社区', link: '/zh/community/', activeMatch: '/zh/community/' },
-    { text: '教程', link: `${TUTORIALS_URL}zh/` },
 ];
 
 const zhSidebar: DefaultTheme.Sidebar = [
@@ -206,6 +205,13 @@ export default defineConfig({
     },
     themeConfig: {
         siteTitle: 'jsMind V2',
+        // The brand is one product with three faces: the title carries the
+        // icon, and both parts lead back to the product page. `logo` is
+        // resolved through `withBase`, so a base-less `/favicon.svg` is right
+        // — the file is `docs/public/favicon.svg`, published at this site's
+        // root, and the tutorials site gets the same copy.
+        logo: '/favicon.svg',
+        logoLink: { link: HOME_URL },
         socialLinks: [
             { icon: 'github', link: 'https://github.com/hizzgdev/jsmind-v2' },
         ],

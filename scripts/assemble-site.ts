@@ -31,7 +31,10 @@
  * before or after `src`.
  *
  * The docs site is bilingual (`/docs/en/`, `/docs/zh/`). `/docs/` is a
- * language redirect that reads `jsmind-docs-lang` from localStorage.
+ * language redirect that reads `jsmind-docs-lang` from localStorage, and it
+ * lands directly on that locale's guide: the guide is the documentation's
+ * entry, so the locale home is a one-hop redirect to it rather than a landing
+ * page that repeats the product page.
  *
  * The tutorials are a second VitePress site, published at `/tutorials/` with
  * its own base: the documentation URLs are already published under
@@ -220,20 +223,33 @@ const SITE_FILES = [
 ] as const;
 
 /**
+ * Where the docs entry lands, relative to a locale root.
+ *
+ * The guide is the documentation's real entry: `/docs/` and `/docs/en/` both
+ * finish on the guide in one hop, so a reader who types the site address sees
+ * the guide rather than a landing page that repeats the product page.
+ */
+export const DOCS_ENTRY_PATH = 'guide/';
+
+/**
  * A language redirect for a bilingual site root, rendered from
  * {@link LANGUAGE_REDIRECT_PAGE}.
  *
  * `/docs/` and `/tutorials/` share one rule: read `jsmind-docs-lang`, default
- * to English, and forward to the stored language with the query and hash
- * intact. It is written after the VitePress build, replacing any root index
- * the generator may have emitted. A page that already names its language
- * (`/docs/zh/`, `/tutorials/en/`) is a real page and is never rewritten.
+ * to English, and forward into the stored language with the query and hash
+ * intact. The entry path says where inside that language the reader lands —
+ * the docs site's guide, or the tutorials column's own index — so the entry
+ * costs one hop and never two. It is written after the VitePress build,
+ * replacing any root index the generator may have emitted. A page that already
+ * names its language (`/docs/zh/`, `/tutorials/en/`) is a real page and is
+ * never rewritten.
  *
  * @param title - Page title, so a reader who lands here knows which site it is.
+ * @param entry - Locale-relative entry path, with a trailing slash, or `''`.
  * @param root - Repository root.
  */
-export function languageRedirectHtml(title: string, root: string = ROOT): string {
-    return renderSitePage(root, LANGUAGE_REDIRECT_PAGE, { TITLE: title, DOCS_LANG_STORAGE_KEY });
+export function languageRedirectHtml(title: string, entry: string, root: string = ROOT): string {
+    return renderSitePage(root, LANGUAGE_REDIRECT_PAGE, { TITLE: title, DOCS_LANG_STORAGE_KEY, ENTRY: entry });
 }
 
 /**
@@ -242,7 +258,7 @@ export function languageRedirectHtml(title: string, root: string = ROOT): string
  * @param root - Repository root.
  */
 export function docsLanguageRedirectHtml(root: string = ROOT): string {
-    return languageRedirectHtml('jsMind V2 Documentation', root);
+    return languageRedirectHtml('jsMind V2 Documentation', DOCS_ENTRY_PATH, root);
 }
 
 /**
@@ -251,7 +267,7 @@ export function docsLanguageRedirectHtml(root: string = ROOT): string {
  * @param root - Repository root.
  */
 export function tutorialsLanguageRedirectHtml(root: string = ROOT): string {
-    return languageRedirectHtml('jsMind V2 Tutorials', root);
+    return languageRedirectHtml('jsMind V2 Tutorials', '', root);
 }
 
 /** Src of every `<script type="module" src="...">`, whatever the attribute order. */
@@ -426,6 +442,27 @@ export function writeDocsPageRedirects(docsDir: string, root: string = ROOT): vo
 }
 
 /**
+ * Writes the locale home redirects: `/docs/en/` and `/docs/zh/` send the
+ * reader to that locale's guide.
+ *
+ * The locale home is not a page of its own any more. It used to be a
+ * `layout: home` hero that repeated the product front page; the columns' real
+ * entry is the guide, so the two `index.md` files are gone and this writes the
+ * one-hop redirect in their place. Relative to the locale directory, so it
+ * survives whatever the docs site is mounted under.
+ *
+ * @param docsDir - Docs output directory (`_site/docs`).
+ * @param root - Repository root.
+ */
+export function writeDocsLocaleHomeRedirects(docsDir: string, root: string = ROOT): void {
+    for (const locale of ['en', 'zh'] as const) {
+        const dir = join(docsDir, locale);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), docsPageRedirectHtml(DOCS_ENTRY_PATH, root));
+    }
+}
+
+/**
  * Runs one VitePress build.
  *
  * Both sites are built the same way and both fail loudly: a missing install
@@ -454,9 +491,10 @@ function buildVitepressSite(root: string, srcDir: string, outDir: string, label:
 }
 
 /**
- * Builds the VitePress documentation site into `docsDir`, then writes the
- * language redirect at the docs root so `/docs/` is not left as a VitePress
- * index, and writes retired-path redirects under `en/` and `zh/`.
+ * Builds the VitePress documentation site into `docsDir`, then turns its entry
+ * points into redirects: the language redirect at the docs root (`/docs/` is
+ * not left as a VitePress index), the two locale homes onto their guide, and
+ * the retired-path redirects under `en/` and `zh/`.
  *
  * @param root - Repository root.
  * @param docsDir - Docs output directory (`_site/docs`).
@@ -464,6 +502,7 @@ function buildVitepressSite(root: string, srcDir: string, outDir: string, label:
 export function assembleDocsSite(root: string, docsDir: string): void {
     buildVitepressSite(root, 'docs', docsDir, 'docs');
     writeDocsLanguageRedirect(docsDir, root);
+    writeDocsLocaleHomeRedirects(docsDir, root);
     writeDocsPageRedirects(docsDir, root);
 }
 

@@ -21,6 +21,11 @@
  * against this repository into a temporary directory. The root-file fixture
  * stays focused on the landing page and the playground rewrite, and does not
  * invoke VitePress.
+ *
+ * The three published faces share one header — product name, an icon, both
+ * columns, the current one marked `aria-current="page"` — and the docs entry
+ * is the guide: `/docs/` and `/docs/<lang>/` are one-hop redirects onto it, so
+ * the product page is the only landing page in the tree.
  */
 
 import assert from 'node:assert/strict';
@@ -34,6 +39,7 @@ import {
     assembleDocsSite,
     assembleRootSite,
     assembleTutorialsSite,
+    DOCS_ENTRY_PATH,
     DOCS_LANG_STORAGE_KEY,
     DOCS_PAGE_REDIRECTS,
     docsLanguageRedirectHtml,
@@ -59,6 +65,7 @@ import {
 import {
     DOCS_BASE,
     DOCS_URL,
+    HOME_URL,
     SITE_ORIGIN,
     SITE_PATH,
     TUTORIALS_BASE,
@@ -402,13 +409,17 @@ function assertVisibleAiNotice(html: string, css: string, label: string): void {
 }
 
 /**
- * The home pages read the version from `package.json` at build time. Asserting
- * against the package version rather than a literal keeps this from becoming a
- * second place to edit on every release, and asserting the absence of the
- * placeholder catches the case the version guard cannot: a `{{ pkg.version }}`
- * that lands somewhere VitePress does not interpolate still builds green.
+ * The docs entry reads the version from `package.json` at build time.
+ *
+ * It used to be the home hero's `::: info` line; the hero is gone and the
+ * guide is the entry, so the one place the reader sees the current preview
+ * version is the guide. Asserting against the package version rather than a
+ * literal keeps this from becoming a second place to edit on every release,
+ * and asserting the absence of the placeholder catches the case the version
+ * guard cannot: a `{{ pkg.version }}` that lands somewhere VitePress does not
+ * interpolate still builds green.
  */
-function assertHomeVersion(html: string, label: string): void {
+function assertEntryVersion(html: string, label: string): void {
     assert.ok(html.includes(`v${PACKAGE_VERSION}`), `${label} should render v${PACKAGE_VERSION} from package.json`);
     assert.ok(!html.includes('{{ pkg.version }}'), `${label} should not ship the uninterpolated placeholder`);
 }
@@ -425,6 +436,133 @@ function assertSectionOrder(html: string, locale: 'en' | 'zh', label: string): v
             );
         }
     }
+}
+
+/**
+ * Attributes of one start tag, keyed by lower-case name.
+ *
+ * Attribute order is not part of the HTML contract, so the tags these helpers
+ * read are parsed rather than matched with one literal pattern.
+ */
+function tagAttrs(tag: string): Map<string, string> {
+    const attrs = new Map<string, string>();
+    for (const match of tag.matchAll(/\b([A-Za-z_:][\w:.-]*)\s*=\s*"([^"]*)"/g)) {
+        attrs.set(match[1].toLowerCase(), match[2]);
+    }
+    return attrs;
+}
+
+/**
+ * The section links the header renders: label, address, and whether the
+ * reader is inside that column.
+ *
+ * A column link is an `<a>` carrying `data-section`, the same mark on all
+ * three faces (the product page's hand-written header and the two VitePress
+ * themes' `section-links.ts`), so this reads one thing rather than three
+ * shapes. The links come from the `<header>` element rather than the whole
+ * document, because the same two addresses also sit in the page's theme-config
+ * blob, and the question is what a reader can click.
+ *
+ * "Current" is read from `aria-current="page"`, not from a class or a colour:
+ * the colour is a hint that dark mode weakens, and the attribute is what a
+ * screen reader announces — so the assertion has to be the attribute, or the
+ * next stylesheet change quietly makes the highlight untested.
+ */
+function sectionLinks(html: string): Array<{ label: string; href: string; current: boolean }> {
+    const header = headerHtml(html);
+    const links: Array<{ label: string; href: string; current: boolean }> = [];
+    for (const match of header.matchAll(/<a\b([^>]*)>([^<]*)<\/a>/g)) {
+        const attrs = tagAttrs(match[0]);
+        const section = attrs.get('data-section');
+        if (section === undefined) {
+            continue;
+        }
+        const href = attrs.get('href');
+        assert.ok(href !== undefined, `the ${match[2]} section link should have an href`);
+        assert.ok(
+            section === 'docs' || section === 'tutorials',
+            `unknown section ${section} in the header`
+        );
+        links.push({ label: match[2], href, current: attrs.get('aria-current') === 'page' });
+    }
+    return links;
+}
+
+/**
+ * The one header the three published faces share.
+ *
+ * Same product name, a title that leads back to the product page, an icon that
+ * resolves to a file this build publishes, both columns at the addresses
+ * `site.config.mjs` holds, and the reader's own column marked with
+ * `aria-current="page"`. Run it on the product page, the docs entry and the
+ * tutorials entry: a header change that reaches one face and not the others is
+ * exactly the drift the shared header exists to prevent.
+ *
+ * @param options.html - The built page.
+ * @param options.label - Which face, for the failure messages.
+ * @param options.pageUrl - The page's published address, for resolving hrefs.
+ * @param options.base - The published base the icon has to stay inside.
+ * @param options.root - Output directory the icon's href resolves against.
+ * @param options.locale - The locale the page is in.
+ * @param options.current - The column this face is, or `null` on the product
+ * page, which is not a column.
+ */
+function assertSharedHeader(options: {
+    html: string;
+    label: string;
+    pageUrl: string;
+    base: string;
+    root: string;
+    locale: 'en' | 'zh';
+    current: 'docs' | 'tutorials' | null;
+}): void {
+    const { html, label, pageUrl, base, root, locale, current } = options;
+    const header = headerHtml(html);
+    assert.ok(header.length > 0, `${label} should render a header`);
+    assert.ok(header.includes('jsMind V2'), `${label} header should name the product jsMind V2`);
+
+    // The title is the way back to the product page on all three faces: a
+    // reader who lands in the docs from a search result has no other route.
+    const titleLink = /<a\b[^>]*>/.exec(header);
+    assert.ok(titleLink, `${label} header should start with the title link`);
+    const titleHref = tagAttrs(titleLink[0]).get('href');
+    assert.ok(titleHref !== undefined, `${label} title link should have an href`);
+    assert.strictEqual(
+        new URL(titleHref, pageUrl).href,
+        HOME_URL,
+        `${label} title should lead back to the product page`
+    );
+
+    // The icon has to point at a file this build publishes, not at a base-less
+    // path that 404s one level above the site.
+    const img = /<img\b[^>]*>/.exec(header);
+    assert.ok(img, `${label} header should carry the product icon`);
+    const src = tagAttrs(img[0]).get('src');
+    assert.ok(src !== undefined, `${label} header icon should have a src`);
+    const iconFile = resolvePublishedHref(src, pageUrl, base, root);
+    assert.ok(existsSync(iconFile), `${label}: ${src} should resolve to ${iconFile}`);
+
+    // Both columns, in header order, at their published addresses. The
+    // product page writes them relative to the site root and the VitePress
+    // faces write them absolute, so each href is resolved against the page
+    // before it is compared: the address a reader reaches is the contract.
+    assert.deepStrictEqual(
+        sectionLinks(html).map(({ label: text, href }) => ({ text, href: new URL(href, pageUrl).href })),
+        [
+            { text: 'Docs', href: `${DOCS_URL}${locale}/` },
+            { text: 'Tutorials', href: `${TUTORIALS_URL}${locale}/` },
+        ],
+        `${label} header should offer Docs and Tutorials at their published addresses`
+    );
+
+    // Exactly the reader's own column, and only that one.
+    assert.deepStrictEqual(
+        sectionLinks(html)
+            .filter((link) => link.current)
+            .map((link) => link.label),
+        current === null ? [] : [current === 'docs' ? 'Docs' : 'Tutorials'],
+        `${label} header should mark the current section with aria-current="page"`
+    );
 }
 
 describe('landing page', () => {
@@ -500,6 +638,42 @@ describe('landing page', () => {
 
         // A page people look at, so it dresses the tab like the playground.
         assert.deepStrictEqual(iconHrefs(page), [...SITE_ICON_FILES]);
+
+        // The same header the two VitePress sites render: the brand with the
+        // icon leads home, then the two columns. The icon is published from
+        // the one checked-in copy — `assembleRootSite` copies `docs/public/`
+        // to the site root — so that is the file the relative `favicon.svg`
+        // has to name.
+        assertSharedHeader({
+            html: page,
+            label: 'the product page',
+            pageUrl: `${SITE_ORIGIN}${SITE_PATH}${SITE_INDEX_PAGE}`,
+            base: SITE_PATH,
+            root: join(ROOT, PUBLIC_DIR),
+            locale: 'en',
+            current: null,
+        });
+
+        // ...and it follows the page's language switch, like the quick-start
+        // link does: an English visitor gets the English column and the
+        // stored Chinese one gets the Chinese column.
+        const nav = /<nav>([\s\S]*?)<\/nav>/.exec(page);
+        assert.ok(nav, 'the product page should carry the header nav');
+        for (const [label, url] of [['Docs', DOCS_URL], ['Tutorials', TUTORIALS_URL]] as const) {
+            const tag = new RegExp(`<a\\b[^>]*>${label}</a>`).exec(nav[1]);
+            assert.ok(tag, `the header should link ${label}`);
+            const attrs = tagAttrs(tag[0]);
+            assert.strictEqual(
+                new URL(attrs.get('href') ?? '', `${SITE_ORIGIN}${SITE_PATH}${SITE_INDEX_PAGE}`).href,
+                `${url}en/`,
+                `the ${label} link should reach the English entry`
+            );
+            assert.strictEqual(
+                new URL(attrs.get('data-href-zh') ?? '', `${SITE_ORIGIN}${SITE_PATH}${SITE_INDEX_PAGE}`).href,
+                `${url}zh/`,
+                `the ${label} link should follow the page into Chinese`
+            );
+        }
     });
 });
 
@@ -897,6 +1071,19 @@ describe('pages site assembly', () => {
                 }
 
                 assertVisibleAiNotice(html, css, rel);
+
+                // The same header as the product page and the docs site, with
+                // Tutorials marked as the current column.
+                assertSharedHeader({
+                    html,
+                    label: `${rel} tutorials`,
+                    pageUrl,
+                    base: TUTORIALS_BASE,
+                    root: tutorialsDir,
+                    locale,
+                    current: 'tutorials',
+                });
+
                 // The top bar hands the reader back to the docs site at its
                 // published address, not at a path inside this base.
                 assert.ok(
@@ -968,6 +1155,39 @@ describe('pages site assembly', () => {
         }
     });
 
+    it('keeps a copy of the section links in each theme root, and mounts it', () => {
+        // The two VitePress roots share no module above them on purpose: a
+        // cross-root component would be a third thing to keep in step with
+        // VitePress's own slots on an upgrade. Each root keeps a copy, and this
+        // is what fails when one copy is deleted in favour of a "shared" file.
+        const copies = [
+            { dir: 'docs', current: 'docs' },
+            { dir: 'tutorials', current: 'tutorials' },
+        ] as const;
+        for (const { dir, current } of copies) {
+            const module = readFileSync(join(ROOT, dir, '.vitepress', 'theme', 'section-links.ts'), 'utf8');
+            assert.ok(
+                module.includes('export function createSectionLinks'),
+                `${dir} should keep its own copy of the section links`
+            );
+            assert.ok(
+                module.includes('\'aria-current\': \'page\''),
+                `${dir} copy should mark the current section with aria-current`
+            );
+            const theme = readFileSync(join(ROOT, dir, '.vitepress', 'theme', 'index.ts'), 'utf8');
+            assert.ok(
+                theme.includes(`createSectionLinks('${current}')`),
+                `${dir} theme should render the header with its own column current`
+            );
+            for (const slot of ['nav-bar-content-before', 'nav-screen-content-before']) {
+                assert.ok(
+                    theme.includes(`'${slot}'`),
+                    `${dir} theme should mount the section links in ${slot}, or a phone loses the columns`
+                );
+            }
+        }
+    });
+
     it('points the README at the docs entry, not at the docs README blob', () => {
         const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
         const readmeZh = readFileSync(join(ROOT, 'README.zh.md'), 'utf8');
@@ -1002,7 +1222,13 @@ describe('pages site assembly', () => {
             assert.strictEqual(redirect, docsLanguageRedirectHtml());
             assert.ok(redirect.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
             assert.ok(redirect.includes('lang = \'en\''));
-            assert.ok(redirect.includes('location.replace(lang + \'/\''));
+            // One hop: the language redirect lands on the guide, not on the
+            // locale home that then redirects again.
+            assert.ok(
+                redirect.includes(`location.replace(lang + '/${DOCS_ENTRY_PATH}'`),
+                'the docs language redirect should land on the guide'
+            );
+            assert.ok(redirect.includes(`href="en/${DOCS_ENTRY_PATH}"`));
             assert.deepStrictEqual(iconHrefs(redirect), [], 'the language redirect should carry no icon');
 
             const files = collectFiles(docsDir);
@@ -1011,6 +1237,26 @@ describe('pages site assembly', () => {
                     const rel = `${locale}/${page}`;
                     assert.ok(files.includes(rel), `missing ${rel}`);
                 }
+            }
+
+            // The locale home is not a page: it is the guide. Two static
+            // redirects, one hop each, and the destination is a real page in
+            // this build — which is what keeps `/docs/`, `/docs/en/` and
+            // `/docs/zh/` from chaining.
+            for (const locale of ['en', 'zh'] as const) {
+                const rel = `${locale}/index.html`;
+                const home = readFileSync(join(docsDir, rel), 'utf8');
+                assert.strictEqual(
+                    home,
+                    docsPageRedirectHtml(DOCS_ENTRY_PATH),
+                    `${rel} should be a static redirect to the guide`
+                );
+                assert.ok(!home.includes(FOOTER_TEXT), `${rel} should not be a VitePress content page`);
+                assert.deepStrictEqual(iconHrefs(home), [], `${rel} is a redirect and should carry no icon`);
+                assert.ok(
+                    files.includes(`${locale}/${DOCS_ENTRY_PATH}index.html`),
+                    `${rel} redirects to ${locale}/${DOCS_ENTRY_PATH}, which should be a page`
+                );
             }
 
             for (const locale of ['en', 'zh'] as const) {
@@ -1027,15 +1273,18 @@ describe('pages site assembly', () => {
             // Every generated page carries the tab icon, and its href resolves
             // inside the published docs tree. Presence alone is not the check:
             // a base-less `/favicon.svg` is a link tag pointing at a 404.
-            const redirectPages = new Set(
-                DOCS_PAGE_REDIRECTS.flatMap(({ from }) =>
-                    (['en', 'zh'] as const).map((locale) => `${locale}/${from}`))
-            );
+            const redirectPages = new Set([
+                ...DOCS_PAGE_REDIRECTS.flatMap(({ from }) =>
+                    (['en', 'zh'] as const).map((locale) => `${locale}/${from}`)),
+                // The locale home is a redirect onto the guide, so it is not a
+                // content page and carries no icon to check.
+                ...(['en', 'zh'] as const).map((locale) => `${locale}/index.html`),
+            ]);
             const contentPages = files.filter((name) => /^(en|zh)\/.+\.html$/.test(name) && !redirectPages.has(name));
             assert.strictEqual(
                 contentPages.length,
-                DOCS_PAGES.length * 2,
-                'every en/zh page should be covered by the icon check'
+                (DOCS_PAGES.length - 1) * 2,
+                'every en/zh page except the locale home should be covered by the icon check'
             );
             for (const rel of contentPages) {
                 const html = readFileSync(join(docsDir, rel), 'utf8');
@@ -1052,43 +1301,40 @@ describe('pages site assembly', () => {
                 }
             }
 
-            const enHome = readFileSync(join(docsDir, 'en', 'index.html'), 'utf8');
-            const zhHome = readFileSync(join(docsDir, 'zh', 'index.html'), 'utf8');
             const enGuide = readFileSync(join(docsDir, 'en', 'guide', 'index.html'), 'utf8');
             const zhGuide = readFileSync(join(docsDir, 'zh', 'guide', 'index.html'), 'utf8');
             const enApiPage = readFileSync(join(docsDir, 'en', 'reference', 'api', 'jsmind.html'), 'utf8');
             const zhApiPage = readFileSync(join(docsDir, 'zh', 'reference', 'api', 'jsmind.html'), 'utf8');
             const builtCss = readBuiltCss(docsDir);
-            assertVisibleAiNotice(enHome, builtCss, 'en home');
-            assertVisibleAiNotice(zhHome, builtCss, 'zh home');
-            assertHomeVersion(enHome, 'en home');
-            assertHomeVersion(zhHome, 'zh home');
+            // The guide is the documentation's entry now, so it is where the
+            // notice and the build-time version have to show up: they used to
+            // ride on the home hero, and deleting the hero must not delete them.
             assertVisibleAiNotice(enGuide, builtCss, 'en guide');
             assertVisibleAiNotice(zhGuide, builtCss, 'zh guide');
+            assertEntryVersion(enGuide, 'en guide');
+            assertEntryVersion(zhGuide, 'zh guide');
             assertVisibleAiNotice(enApiPage, builtCss, 'en API');
             assertVisibleAiNotice(zhApiPage, builtCss, 'zh API');
 
-            assertSectionOrder(enHome, 'en', 'en home nav');
-            assertSectionOrder(zhHome, 'zh', 'zh home nav');
             assertSectionOrder(enGuide, 'en', 'en guide nav');
             assertSectionOrder(zhGuide, 'zh', 'zh guide nav');
 
-            // The top bar reaches the tutorials site at its published address.
-            // A base-less path would publish under the docs base instead.
-            assert.ok(
-                headerHtml(enHome).includes(`${TUTORIALS_URL}en/`),
-                'en docs top bar should link the en tutorials'
-            );
-            assert.ok(
-                headerHtml(zhHome).includes(`${TUTORIALS_URL}zh/`),
-                'zh docs top bar should link the zh tutorials'
-            );
-            assert.ok(
-                !enHome.includes('/jsmind-v2/docs/jsmind-v2/tutorials/'),
-                'the tutorials link must not be rewritten into the docs base'
-            );
+            // One header on all three faces: the product name, a title that
+            // leads home, an icon that exists, both columns at their published
+            // addresses, and this face's column marked current.
+            for (const [locale, html] of [['en', enGuide], ['zh', zhGuide]] as const) {
+                assertSharedHeader({
+                    html,
+                    label: `${locale} docs guide`,
+                    pageUrl: new URL(`${locale}/guide/index.html`, `${SITE_ORIGIN}${DOCS_BASE}`).href,
+                    base: DOCS_BASE,
+                    root: docsDir,
+                    locale,
+                    current: 'docs',
+                });
+            }
 
-            // The tutorials are a separate column: reachable from the top bar,
+            // The tutorials are a separate column: reachable from the header,
             // absent from every docs sidebar.
             for (const [label, page] of [['en guide', enGuide], ['zh guide', zhGuide], ['en API', enApiPage]] as const) {
                 const aside = asideHtml(page);
@@ -1096,14 +1342,19 @@ describe('pages site assembly', () => {
                 assert.ok(!aside.includes('/tutorials/'), `${label} sidebar must not list tutorials`);
             }
 
-            assert.ok(enHome.includes('/jsmind-v2/docs/zh/'));
-            assert.ok(zhHome.includes('/jsmind-v2/docs/en/'));
-            assert.ok(enHome.includes('/jsmind-v2/docs/en/guide/'));
-            assert.ok(zhHome.includes('/jsmind-v2/docs/zh/guide/'));
-            assert.ok(!enHome.includes('href="/jsmind-v2/docs/guide/'));
-            assert.ok(!zhHome.includes('href="/jsmind-v2/docs/guide/'));
-            assert.ok(!enHome.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
-            assert.ok(!zhHome.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
+            // The tutorials link is a section link, so it is written out in
+            // full: a base-less path would publish under the docs base instead.
+            assert.ok(
+                !enGuide.includes('/jsmind-v2/docs/jsmind-v2/tutorials/'),
+                'the tutorials link must not be rewritten into the docs base'
+            );
+
+            // The docs nav keeps the in-site sections; the language switch and
+            // the page links stay inside this site.
+            assert.ok(enGuide.includes('/jsmind-v2/docs/zh/'));
+            assert.ok(zhGuide.includes('/jsmind-v2/docs/en/'));
+            assert.ok(!enGuide.includes('href="/jsmind-v2/docs/guide/'));
+            assert.ok(!zhGuide.includes('href="/jsmind-v2/docs/guide/'));
 
             for (const page of STILL_PLACEHOLDER_PAGES) {
                 const enPage = readFileSync(join(docsDir, 'en', page), 'utf8');

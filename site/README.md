@@ -7,7 +7,7 @@
 ```
 site/
 ├── index.html              # 产品首页，发布为 _site/index.html
-├── language-redirect.html  # /docs/、/tutorials/ 的语言重定向，填 {{TITLE}} 与 {{DOCS_LANG_STORAGE_KEY}}
+├── language-redirect.html  # /docs/、/tutorials/ 的语言重定向，填 {{TITLE}}、{{ENTRY}} 与 {{DOCS_LANG_STORAGE_KEY}}
 ├── page-redirect.html      # 旧文档路径的重定向，填 {{TO}}
 └── README.md               # 本文件
 ```

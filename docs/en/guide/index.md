@@ -1,12 +1,16 @@
 # Overview
 
+<script setup>
+import pkg from '../../../package.json'
+</script>
+
 jsMind V2 is the next generation of jsMind. It keeps the familiar idea of a mind map, but it is a rewrite: the API is more reasonable, and the architecture is better.
 
 It is built for both people and agents. People can view, edit, and export maps — for example in the [Playground](https://hizzgdev.github.io/jsmind-v2/playground.html). Agents can create, read, and modify structured maps through the [CLI](./cli) and the [skill](./skill) in this repository. The library is the shared kernel behind both.
 
 ## How it relates to v1
 
-The 2.x series is a rewrite, published on npm under the `v2-preview` dist-tag. It is not a drop-in replacement for v1 yet.
+The 2.x series is a rewrite, published on npm under the `v2-preview` dist-tag. It is not a drop-in replacement for v1 yet. The current preview version is v{{ pkg.version }}.
 
 - `npm i jsmind@2` installs this 2.x version.
 - `npm i jsmind` still installs v1 (0.9.x).
