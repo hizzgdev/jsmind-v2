@@ -39,37 +39,37 @@
 ```
 tutorials/
   assets/
-    168-intro.png
-    168-first-level-nodes.png
-    168-example.jm
+    <编号>-intro.png
+    <编号>-first-level-nodes.png
+    <编号>-example.jm
   en/
     index.md
     posts/
-      168-how-to-build-a-mindmap.md
+      <编号>-how-to-build-a-mindmap.md
   zh/
     index.md
     posts/
-      168-how-to-build-a-mindmap.md
+      <编号>-how-to-build-a-mindmap.md
 ```
 
 站点路径是 `/tutorials/`。语言规则与文档一致：入口按本地记录的语言跳转，没选过则默认英文；每种语言有自己的 URL（`/tutorials/en/`、`/tutorials/zh/`）；页面上可以切换语言。某一边尚未发布时，不要链到空页，应说明另一边还没有。
 
-文章文件名不带日期，由三位编号加英文 slug 组成，例如 `168-how-to-build-a-mindmap.md`。中英文使用同一编号和同一 slug，方便对照、切换，也方便口头指认某一篇或某一个文件。日期只写在 frontmatter 里，同时标注编号。栏目列表和首页「最近教程」按 frontmatter 中的日期排序，不依赖文件名。
+文章文件名不带日期，格式是「编号 + 英文 slug」，例如 `<编号>-how-to-build-a-mindmap.md`。编号至少写成三位，不足三位时补前导零；升到四位或更长完全可以，不必为此改规则。中英文使用同一编号和同一 slug，方便对照、切换，也方便口头指认某一篇或某一个文件。日期只写在 frontmatter 里，同时标注编号。栏目列表和首页「最近教程」按 frontmatter 中的日期排序，不依赖文件名。
 
-编号从 **168** 起（一路发），之后按发表顺序递增：169、170，依此类推。不从 000 起号，也不补前导零。已经用过的编号不回收；即使后来标记为 deprecated，仍保持原编号和原地址。三位数字用到 999 之后，再另行决定是否改为四位；起步选 168，是为了既避开 000，又给后面留出余量。
+第一篇文章的起始编号不在本文写死，写具体文章时再指定；之后按发表顺序递增。已经用过的编号不回收；即使后来标记为 deprecated，仍保持原编号和原地址。
 
-示例脑图、截图和可下载文件默认放在共用的 `tutorials/assets/` 下，不再按文章分子目录。资源文件名必须以该篇编号开头，例如文章 `168-how-to-build-a-mindmap.md` 引用 `168-intro.png`、`168-first-level-nodes.png`。中英文正文引用同一路径，不要按语言各放一份。不要把这些示例塞进 `docs/` 或 Playground 目录，以免和产品文档、Playground 自带示例混在一起。
+示例脑图、截图和可下载文件默认放在共用的 `tutorials/assets/` 下，不再按文章分子目录。资源文件名必须以该篇编号开头，与文章编号保持一致，例如文章 `<编号>-how-to-build-a-mindmap.md` 引用 `<编号>-intro.png`、`<编号>-first-level-nodes.png`。中英文正文引用同一路径，不要按语言各放一份。不要把这些示例塞进 `docs/` 或 Playground 目录，以免和产品文档、Playground 自带示例混在一起。
 
 如果某一语言需要不同版本的素材（例如案例文章里，脑图节点文字已经分成中文或英文），再在对应语言目录下建立 `assets_override/`，文件名与共用资源对齐：
 
 ```
 tutorials/
   assets/
-    168-intro.png
-    168-example.jm
+    <编号>-intro.png
+    <编号>-example.jm
   zh/
     assets_override/
-      168-example.jm
+      <编号>-example.jm
 ```
 
 只有内容确实不同的文件才放进 `assets_override/`，其余仍用共用文件。发布时在站点产出里做替换：先用共用 `assets/`，再用该语言的 `assets_override/` 覆盖同名文件。不要改写仓库里的共用原件。这个替换实现不必在栏目搭起来时就做，等第一篇真正需要分语言素材时再补；目录约定先按上面执行。起步不要预建空的 `assets_override/`。
@@ -96,8 +96,8 @@ tutorials/
 - 标题、编号、日期、标签。编号和日期都写在 frontmatter 里，例如：
 
 ```yaml
-id: 168
-date: 2026-12-01
+id: <编号>
+date: YYYY-MM-DD
 tags:
   - 技巧
 ```
@@ -156,7 +156,7 @@ tags:
 
 ## 9. 日常工作流
 
-1. Mira 选定题目，确认它只用到已发布的 2.x 能力，并分配下一个编号。
+1. Mira 选定题目，确认它只用到已发布的 2.x 能力，并分配编号。第一篇的起始编号在写该文时再指定，此后递增。
 2. Mira 撰写正文、配图和示例，按纯文档变更开 PR：建议标签 `documentation` 和 `hubie`，不必为每一篇文章单独开 Issue。基础设施（站点接入）单独一个 PR；之后文章可以一篇或一小批一个 PR。
 3. 走现有团队审查，由用户终审后合并。
 4. 站点发布后，Mira 把正式链接交给 Moka，由 Moka 向站外分发。
