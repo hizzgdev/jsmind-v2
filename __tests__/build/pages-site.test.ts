@@ -78,7 +78,20 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PACKAGE_VERSION = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
 
 const DOCS_README_BLOB = 'https://github.com/hizzgdev/jsmind-v2/blob/master/docs/README.md';
-const FOOTER_TEXT = '本文档由 AI 协助生成 / This documentation was prepared with AI assistance';
+
+/**
+ * The AI-assistance notice is rendered in the page's own language now, so a
+ * built page has to carry one of these and only that one. Both sentences are
+ * pinned here because `assertVisibleAiNotice` needs to know which one to
+ * require and which one must be absent; `readThemeNotice` reads the two theme
+ * copies back so a sentence drifting in one of them fails this file.
+ */
+const AI_NOTICE_TEXT = {
+    en: 'This documentation was prepared with AI assistance',
+    zh: '本文档由 AI 协助生成',
+} as const;
+
+type NoticeLocale = keyof typeof AI_NOTICE_TEXT;
 
 /**
  * Every repository address in a page needs the Gitee mirror of the same path
@@ -399,12 +412,18 @@ function readBuiltCss(docsDir: string): string {
     return files.map((name) => readFileSync(join(assets, name), 'utf8')).join('\n');
 }
 
-function assertVisibleAiNotice(html: string, css: string, label: string): void {
-    const escaped = FOOTER_TEXT.replace(/[\\/]/g, '\\$&');
+function assertVisibleAiNotice(html: string, css: string, label: string, locale: NoticeLocale): void {
+    const expected = AI_NOTICE_TEXT[locale];
+    const escaped = expected.replace(/[\\/]/g, '\\$&');
     const noticeRe = new RegExp(`<p class="${AI_NOTICE_CLASS}">${escaped}</p>`);
-    assert.match(html, noticeRe, `${label} should render the custom always-visible AI notice`);
+    assert.match(html, noticeRe, `${label} should render the ${locale} AI notice`);
+    // The notice used to be one bilingual sentence. A page that still carries
+    // the other language means the sentence was resolved once for the whole
+    // site instead of per page.
+    const other: NoticeLocale = locale === 'en' ? 'zh' : 'en';
+    assert.ok(!html.includes(AI_NOTICE_TEXT[other]), `${label} should not render the ${other} AI notice`);
     assert.ok(
-        withoutVpFooter(html).includes(FOOTER_TEXT),
+        withoutVpFooter(html).includes(expected),
         `${label} should not rely on VPFooter, which VitePress hides when a sidebar is present`
     );
     // VitePress hides `.VPFooter.has-sidebar`, so the notice must live in our
@@ -419,6 +438,33 @@ function assertVisibleAiNotice(html: string, css: string, label: string): void {
         new RegExp(`\\.${AI_NOTICE_CLASS}[^{]*\\{[^}]*display:\\s*none`),
         `${label} custom notice CSS must not hide the notice`
     );
+    // The notice sits one size below body text, and the rule this change edited
+    // is the only place that decides it.
+    assert.match(
+        css,
+        new RegExp(`\\.${AI_NOTICE_CLASS}\\s*\\{[^}]*font-size:\\s*13px`),
+        `${label} custom notice CSS should size the notice at 13px`
+    );
+}
+
+/**
+ * The notice map a theme file declares, read from the source.
+ *
+ * The tutorials theme is a copy of the docs theme, and each site's build only
+ * ever renders its own copy — so a sentence that drifted in one of the two
+ * files would pass every assertion above. Reading both sources is the only
+ * check that catches it.
+ */
+function readThemeNotice(themePath: string): Record<NoticeLocale, string> {
+    const source = readFileSync(join(ROOT, themePath), 'utf8');
+    const declaration = /AI_ASSISTANCE_NOTICE\s*=\s*\{([\s\S]*?)\};/.exec(source);
+    assert.ok(declaration, `${themePath} should declare AI_ASSISTANCE_NOTICE as a locale map`);
+    const read = (locale: NoticeLocale): string => {
+        const entry = new RegExp(`\\b${locale}:\\s*'([^']*)'`).exec(declaration[1]);
+        assert.ok(entry, `${themePath}: AI_ASSISTANCE_NOTICE should carry a ${locale} sentence`);
+        return entry[1];
+    };
+    return { en: read('en'), zh: read('zh') };
 }
 
 /**
@@ -931,7 +977,7 @@ describe('pages site assembly', () => {
                     assert.ok(existsSync(file), `${rel}: ${href} should resolve to ${file}`);
                 }
 
-                assertVisibleAiNotice(html, css, rel);
+                assertVisibleAiNotice(html, css, rel, locale);
                 // The top bar hands the reader back to the docs site at its
                 // published address, not at a path inside this base.
                 assert.ok(
@@ -1054,7 +1100,10 @@ describe('pages site assembly', () => {
                     assert.ok(files.includes(rel), `missing redirect ${rel}`);
                     const html = readFileSync(join(docsDir, locale, from), 'utf8');
                     assert.strictEqual(html, docsPageRedirectHtml(to), `${rel} should be a static redirect`);
-                    assert.ok(!html.includes(FOOTER_TEXT), `${rel} should not be a VitePress content page`);
+                    assert.ok(
+                        !html.includes(AI_NOTICE_TEXT.en) && !html.includes(AI_NOTICE_TEXT.zh),
+                        `${rel} should not be a VitePress content page`
+                    );
                     assert.deepStrictEqual(iconHrefs(html), [], `${rel} is a redirect and should carry no icon`);
                 }
             }
@@ -1094,14 +1143,14 @@ describe('pages site assembly', () => {
             const enApiPage = readFileSync(join(docsDir, 'en', 'reference', 'api', 'jsmind.html'), 'utf8');
             const zhApiPage = readFileSync(join(docsDir, 'zh', 'reference', 'api', 'jsmind.html'), 'utf8');
             const builtCss = readBuiltCss(docsDir);
-            assertVisibleAiNotice(enHome, builtCss, 'en home');
-            assertVisibleAiNotice(zhHome, builtCss, 'zh home');
+            assertVisibleAiNotice(enHome, builtCss, 'en home', 'en');
+            assertVisibleAiNotice(zhHome, builtCss, 'zh home', 'zh');
             assertHomeVersion(enHome, 'en home');
             assertHomeVersion(zhHome, 'zh home');
-            assertVisibleAiNotice(enGuide, builtCss, 'en guide');
-            assertVisibleAiNotice(zhGuide, builtCss, 'zh guide');
-            assertVisibleAiNotice(enApiPage, builtCss, 'en API');
-            assertVisibleAiNotice(zhApiPage, builtCss, 'zh API');
+            assertVisibleAiNotice(enGuide, builtCss, 'en guide', 'en');
+            assertVisibleAiNotice(zhGuide, builtCss, 'zh guide', 'zh');
+            assertVisibleAiNotice(enApiPage, builtCss, 'en API', 'en');
+            assertVisibleAiNotice(zhApiPage, builtCss, 'zh API', 'zh');
 
             assertSectionOrder(enHome, 'en', 'en home nav');
             assertSectionOrder(zhHome, 'zh', 'zh home nav');
@@ -1315,6 +1364,19 @@ describe('pages site assembly', () => {
         finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    });
+
+    /**
+     * Each site's build only renders its own theme's copy, so a sentence that
+     * drifted in one of the two files passes every assertion above. The
+     * tutorials theme is a copy of the docs theme, and this is what keeps the
+     * two copies from drifting apart.
+     */
+    it('keeps the AI notice sentences identical in both themes', () => {
+        const docsNotice = readThemeNotice('docs/.vitepress/theme/index.ts');
+        const tutorialsNotice = readThemeNotice('tutorials/.vitepress/theme/index.ts');
+        assert.deepStrictEqual(tutorialsNotice, docsNotice, 'the tutorials theme is a copy of the docs theme');
+        assert.deepStrictEqual(docsNotice, AI_NOTICE_TEXT, 'the built pages are asserted against these sentences');
     });
 });
 
