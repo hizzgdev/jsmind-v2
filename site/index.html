@@ -76,9 +76,13 @@ a {
     gap: 8px;
     font-size: 16px;
     font-weight: 600;
-    color: inherit;
+    /* VPNavBarTitle.vue: the title is --vp-c-text-1, 16px/600. */
+    color: #3c3c43; /* --vp-c-text-1 */
     text-decoration: none;
     white-space: nowrap;
+}
+html.dark .brand {
+    color: #dfdfd6; /* --vp-c-text-1 (dark) */
 }
 .brand-icon {
     display: block;
@@ -103,12 +107,20 @@ a {
     height: 40px;
     padding: 0 12px;
     border-radius: 6px;
-    color: var(--fg);
+    /* VPNavBarMenuLink.vue: 14px/500 in --vp-c-text-1, brand-1 on hover. */
+    color: #3c3c43; /* --vp-c-text-1 */
     font-weight: 500;
     text-decoration: none;
+    transition: color 0.25s;
+}
+html.dark .site-nav a {
+    color: #dfdfd6; /* --vp-c-text-1 (dark) */
 }
 .site-nav a:hover {
-    color: var(--accent);
+    color: #3451b2; /* --vp-c-brand-1 */
+}
+html.dark .site-nav a:hover {
+    color: #a8b1ff; /* --vp-c-brand-1 (dark) */
 }
 .header-tool {
     display: inline-flex;
@@ -119,15 +131,15 @@ a {
     border: 0;
     border-radius: 6px;
     background: transparent;
-    color: var(--fg);
+    /* Each control names its own colour below, the one the VitePress part it
+     * copies uses: --vp-c-text-1 for the flyout trigger, --vp-c-text-2 for the
+     * GitHub link. */
+    color: inherit;
     font: inherit;
     font-size: 14px;
     font-weight: 500;
     text-decoration: none;
     cursor: pointer;
-}
-.header-tool:hover {
-    color: var(--accent);
 }
 .header-tool svg {
     display: block;
@@ -136,36 +148,89 @@ a {
     position: relative;
 }
 .header-lang-button {
-    gap: 4px;
+    padding: 0 12px; /* VPFlyout.vue .button */
+    color: #3c3c43; /* --vp-c-text-1 */
+    transition: color 0.25s;
+}
+html.dark .header-lang-button {
+    color: #dfdfd6; /* --vp-c-text-1 (dark) */
+}
+/* VPFlyout.vue: hovering the flyout drops its contents to --vp-c-text-2; the
+ * trigger never turns brand-coloured, unlike the two column links beside it. */
+.header-lang:hover .header-lang-button {
+    color: #67676c; /* .VPFlyout:hover .text → --vp-c-text-2 */
+}
+html.dark .header-lang:hover .header-lang-button {
+    color: #98989f; /* --vp-c-text-2 (dark) */
 }
 /*
- * The language panel and the appearance switch copy VitePress's own
- * components (VPMenu.vue, VPMenuLink.vue, VPSwitch.vue). This page is a
- * standalone static page and cannot import the theme's stylesheet, so the
- * values are written out by hand; each one names the VitePress token it comes
- * from, measured against vitepress@1.6.4. On a theme upgrade, re-read the
- * tokens in `node_modules/vitepress/dist/client/theme-default/` and compare
- * the two faces again.
+ * The language menu and the appearance switch are the ones the two VitePress
+ * sites render, icons included: VPFlyout.vue, VPNavBarTranslations.vue,
+ * VPMenu.vue, VPMenuLink.vue, VPSwitch.vue and VPSwitchAppearance.vue, with the
+ * glyphs taken from the theme's icons.css. This page is standalone and cannot
+ * import the theme's stylesheet, so the shapes are written out by hand; each
+ * value names the VitePress token it came from, measured against
+ * vitepress@1.6.4. On a theme upgrade, re-read those components under
+ * `node_modules/vitepress/dist/client/theme-default/` and compare the two faces
+ * again — the icons are the same path data, so a redrawn glyph is a mismatch.
  */
+/* VPFlyout.vue's two glyphs: .option-icon is 16px with no margin, .text-icon
+ * is 14px and sits 4px to its left. icons.css rotates the chevron into place. */
+.header-lang-glyph {
+    width: 16px;
+    height: 16px;
+    margin-right: 0;
+}
+.header-lang-chevron {
+    width: 14px;
+    height: 14px;
+    margin-left: 4px;
+    transform: rotate(90deg); /* icons.css: .vpi-chevron-down */
+}
 .header-lang-menu {
     position: absolute;
-    top: calc(100% + 6px);
     right: 0;
+    /* VPFlyout.vue puts the menu at calc(var(--vp-nav-height) / 2 + 20px) in a
+     * 64px bar — level with the bottom edge of a 40px control, which is the
+     * height this page's controls have. */
+    top: 100%;
     z-index: 20;
-    min-width: 128px;
+    min-width: 128px; /* VPMenu.vue */
+    max-height: calc(100vh - 64px); /* VPMenu.vue, against --vp-nav-height */
     padding: 12px;
+    overflow-y: auto;
     border: 1px solid #e2e2e3; /* --vp-c-divider */
     border-radius: 12px;
     background: #ffffff; /* --vp-c-bg-elv */
     box-shadow: 0 12px 32px rgb(0 0 0 / 10%), 0 2px 6px rgb(0 0 0 / 8%); /* --vp-shadow-3 */
+    /* Closed by opacity and visibility rather than `display`, so opening and
+     * closing fades the way the docs menu does (VPFlyout.vue). */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s, visibility 0.25s, background-color 0.5s;
 }
 html.dark .header-lang-menu {
     border-color: #2e2e32; /* --vp-c-divider (dark) */
     background: #202127; /* --vp-c-bg-elv (dark) */
 }
-.header-lang-menu[hidden] {
-    display: none;
+.header-lang-button[aria-expanded="true"] + .header-lang-menu {
+    opacity: 1;
+    visibility: visible;
 }
+/* VPNavBarTranslations.vue: the language the reader is already in is a title;
+ * only the other one is an entry in the list. */
+.header-lang-title {
+    margin: 0;
+    padding: 0 24px 0 12px;
+    line-height: 32px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #3c3c43; /* --vp-c-text-1 */
+}
+html.dark .header-lang-title {
+    color: #dfdfd6; /* --vp-c-text-1 (dark) */
+}
+/* VPMenuLink.vue's .link, the shape the docs menu gives the other language. */
 .header-lang-option {
     display: block;
     width: 100%;
@@ -179,7 +244,9 @@ html.dark .header-lang-menu {
     font-weight: 500;
     line-height: 32px;
     text-align: left;
+    white-space: nowrap;
     cursor: pointer;
+    transition: background-color 0.25s, color 0.25s;
 }
 html.dark .header-lang-option {
     color: #dfdfd6; /* --vp-c-text-1 (dark) */
@@ -190,12 +257,6 @@ html.dark .header-lang-option {
 }
 html.dark .header-lang-option:hover {
     background: rgba(101, 117, 133, 0.16); /* --vp-c-default-soft (dark) */
-    color: #a8b1ff; /* --vp-c-brand-1 (dark) */
-}
-.header-lang-option[aria-current="true"] {
-    color: #3451b2; /* --vp-c-brand-1 */
-}
-html.dark .header-lang-option[aria-current="true"] {
     color: #a8b1ff; /* --vp-c-brand-1 (dark) */
 }
 .appearance-switch {
@@ -209,6 +270,7 @@ html.dark .header-lang-option[aria-current="true"] {
     border-radius: 11px;
     background: rgba(142, 150, 170, 0.14); /* --vp-input-switch-bg-color → --vp-c-gray-soft */
     cursor: pointer;
+    transition: border-color 0.25s; /* VPSwitch.vue */
 }
 .appearance-switch:hover {
     border-color: #3451b2; /* VPSwitch.vue's hover border: --vp-c-brand-1 */
@@ -219,17 +281,6 @@ html.dark .appearance-switch {
 }
 html.dark .appearance-switch:hover {
     border-color: #a8b1ff; /* --vp-c-brand-1 (dark) */
-}
-.appearance-icon {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 12px;
-    height: 12px;
-    color: #67676c; /* VPSwitch.vue's icon: --vp-c-text-2 */
-}
-html.dark .appearance-icon {
-    color: #dfdfd6; /* VPSwitch.vue's icon in dark: --vp-c-text-1 */
 }
 .appearance-knob {
     position: absolute;
@@ -246,13 +297,58 @@ html.dark .appearance-knob {
     background: #000000; /* --vp-c-neutral-inverse (dark) → --vp-c-black */
     transform: translateX(18px);
 }
-html.dark .appearance-sun,
-html:not(.dark) .appearance-moon {
-    display: none;
+/* VPSwitch.vue's .icon: an 18px circle that clips the two glyphs, which sit on
+ * top of each other at 12px and cross-fade — VPSwitchAppearance.vue's opacity
+ * swap, not a `display` toggle. */
+.appearance-icons {
+    position: relative;
+    display: block;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    overflow: hidden;
 }
+.appearance-icon {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    color: #67676c; /* VPSwitch.vue: --vp-c-text-2 */
+}
+html.dark .appearance-icon {
+    color: #dfdfd6; /* VPSwitch.vue (dark): --vp-c-text-1 */
+    transition: opacity 0.25s;
+}
+.appearance-sun {
+    opacity: 1;
+}
+.appearance-moon {
+    opacity: 0;
+}
+html.dark .appearance-sun {
+    opacity: 0;
+}
+html.dark .appearance-moon {
+    opacity: 1;
+}
+/* VPSocialLink.vue: a 20px mark in --vp-c-text-2 that goes to --vp-c-text-1 on
+ * hover — the GitHub link does not take the brand colour. */
 .header-social {
     width: 40px;
     padding: 0;
+    color: #67676c; /* --vp-c-text-2 */
+    transition: color 0.5s;
+}
+html.dark .header-social {
+    color: #98989f; /* --vp-c-text-2 (dark) */
+}
+.header-social:hover {
+    color: #3c3c43; /* --vp-c-text-1 */
+    transition: color 0.25s;
+}
+html.dark .header-social:hover {
+    color: #dfdfd6; /* --vp-c-text-1 (dark) */
 }
 .hero {
     padding: 48px 0 8px;
@@ -396,40 +492,46 @@ h2 {
                 <a href="tutorials/en/" target="_blank" rel="noopener noreferrer" data-href-en="tutorials/en/" data-href-zh="tutorials/zh/" data-en="Tutorials" data-zh="教程">Tutorials</a>
             </nav>
             <!--
-                The language menu is the one the VitePress sites render: a globe
-                button opening a short list. This page has one address for both
-                languages, so the entries switch the page in place instead of
-                navigating; the two names are the same in both lists.
+                The language menu is the one the VitePress sites render — a
+                VPFlyout trigger with the same two glyphs, opening a VPMenu that
+                lists the language the reader is in as a title and offers the
+                other one, as VPNavBarTranslations.vue does. This page has one
+                address for both languages, so the entry switches it in place
+                instead of navigating; the names are the two the docs and
+                tutorials sites use.
             -->
             <div class="header-lang">
                 <button type="button" class="header-tool header-lang-button" aria-haspopup="true" aria-expanded="false" aria-label="Change language">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
-                        <circle cx="12" cy="12" r="9"></circle>
-                        <path d="M3 12h18M12 3c2.6 2.8 2.6 15.2 0 18M12 3c-2.6 2.8-2.6 15.2 0 18"></path>
+                    <svg class="header-lang-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true" focusable="false">
+                        <path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"></path>
                     </svg>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
-                        <path d="M6 9l6 6 6-6"></path>
+                    <svg class="header-lang-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true" focusable="false">
+                        <path d="m9 18 6-6-6-6"></path>
                     </svg>
                 </button>
-                <div class="header-lang-menu" hidden>
-                    <button type="button" class="header-lang-option" data-lang="en" aria-current="true">English</button>
-                    <button type="button" class="header-lang-option" data-lang="zh" aria-current="false">中文</button>
+                <div class="header-lang-menu">
+                    <p class="header-lang-title">English</p>
+                    <button type="button" class="header-lang-option" data-lang="zh">简体中文</button>
                 </div>
             </div>
             <!--
                 The appearance switch: same storage key and same `dark` class as
                 the VitePress sites, so the choice carries between the three
-                faces. The head script sets the class before first paint.
+                faces. The head script sets the class before first paint. The
+                sun and the moon are the two glyphs VPSwitchAppearance.vue
+                stacks inside the knob.
             -->
             <button type="button" class="appearance-switch" role="switch" aria-checked="false" title="Switch to dark theme">
                 <span class="appearance-knob">
-                    <svg class="appearance-icon appearance-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <circle cx="12" cy="12" r="4.5" fill="currentColor"></circle>
-                        <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                    </svg>
-                    <svg class="appearance-icon appearance-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"></path>
-                    </svg>
+                    <span class="appearance-icons">
+                        <svg class="appearance-icon appearance-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true" focusable="false">
+                            <circle cx="12" cy="12" r="4"></circle>
+                            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+                        </svg>
+                        <svg class="appearance-icon appearance-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true" focusable="false">
+                            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+                        </svg>
+                    </span>
                 </span>
             </button>
             <a class="header-tool header-social" href="https://github.com/hizzgdev/jsmind-v2" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
@@ -513,6 +615,11 @@ h2 {
         },
     };
 
+    // The two names the docs and tutorials sites print in their own language
+    // menu (`docs/.vitepress/config.ts`, `tutorials/.vitepress/config.ts`), so
+    // the panel reads the same on all three faces.
+    var LANGUAGE_LABELS = { en: 'English', zh: '简体中文' };
+
     var lang = 'en';
     try {
         if (localStorage.getItem(LANG_KEY) === 'zh') {
@@ -526,16 +633,26 @@ h2 {
     // repeating the storage-vs-desktop logic in a second place.
     var dark = root.classList.contains('dark');
 
+    var langWrap = document.querySelector('.header-lang');
     var langButton = document.querySelector('.header-lang-button');
     var langMenu = document.querySelector('.header-lang-menu');
+    var langTitle = document.querySelector('.header-lang-title');
+    var langOption = document.querySelector('.header-lang-option');
     var appearanceButton = document.querySelector('.appearance-switch');
 
+    // The panel is opened and closed by `aria-expanded` alone, exactly as
+    // VPFlyout.vue does: the CSS reads that attribute, so hover, click, Escape
+    // and focus leaving the flyout all leave one consistent state behind.
+    function setLangMenuOpen(open) {
+        langButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function isLangMenuOpen() {
+        return langButton.getAttribute('aria-expanded') === 'true';
+    }
+
     function closeLangMenu() {
-        if (!langMenu || langMenu.hidden) {
-            return;
-        }
-        langMenu.hidden = true;
-        langButton.setAttribute('aria-expanded', 'false');
+        setLangMenuOpen(false);
     }
 
     function applyAppearance() {
@@ -567,29 +684,35 @@ h2 {
             }
         }
 
-        var options = document.querySelectorAll('.header-lang-option');
-        for (var k = 0; k < options.length; k += 1) {
-            options[k].setAttribute(
-                'aria-current',
-                options[k].getAttribute('data-lang') === next ? 'true' : 'false'
-            );
-        }
+        // The panel names the language the reader is in as a title and offers the
+        // other one, the way VPNavBarTranslations.vue builds it.
+        var other = next === 'en' ? 'zh' : 'en';
+        langTitle.textContent = LANGUAGE_LABELS[next];
+        langOption.textContent = LANGUAGE_LABELS[other];
+        langOption.setAttribute('data-lang', other);
 
         // The two switch labels exist in both languages, so they move with the
         // page rather than staying in the language the markup was written in.
         applyAppearance();
     }
 
-    langButton.addEventListener('click', function (event) {
-        // The document handler below closes the panel; this click is the
-        // exception that opens it.
-        event.stopPropagation();
-        if (langMenu.hidden) {
-            langMenu.hidden = false;
-            langButton.setAttribute('aria-expanded', 'true');
-        } else {
+    // VPFlyout.vue opens on hover as well as on click, and closes when the
+    // pointer or the focus leaves the flyout.
+    langWrap.addEventListener('mouseenter', function () {
+        setLangMenuOpen(true);
+    });
+    langWrap.addEventListener('mouseleave', closeLangMenu);
+    langWrap.addEventListener('focusout', function (event) {
+        if (!langWrap.contains(event.relatedTarget)) {
             closeLangMenu();
         }
+    });
+
+    langButton.addEventListener('click', function (event) {
+        // The document handler below closes the panel; this click is the
+        // exception that toggles it.
+        event.stopPropagation();
+        setLangMenuOpen(!isLangMenuOpen());
     });
 
     langMenu.addEventListener('click', function (event) {
@@ -603,20 +726,17 @@ h2 {
         }
     });
 
-    var options = document.querySelectorAll('.header-lang-option');
-    for (var o = 0; o < options.length; o += 1) {
-        options[o].addEventListener('click', function (event) {
-            var next = event.currentTarget.getAttribute('data-lang');
-            try {
-                localStorage.setItem(LANG_KEY, next);
-            } catch (error) {
-                // Storage can be disabled; the page still switches for this visit.
-            }
-            applyLanguage(next);
-            closeLangMenu();
-            langButton.focus();
-        });
-    }
+    langOption.addEventListener('click', function (event) {
+        var next = event.currentTarget.getAttribute('data-lang');
+        try {
+            localStorage.setItem(LANG_KEY, next);
+        } catch (error) {
+            // Storage can be disabled; the page still switches for this visit.
+        }
+        applyLanguage(next);
+        closeLangMenu();
+        langButton.focus();
+    });
 
     appearanceButton.addEventListener('click', function () {
         dark = !root.classList.contains('dark');
