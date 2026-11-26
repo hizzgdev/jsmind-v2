@@ -2,7 +2,7 @@
   "format": "jsmind_v2",
   "meta": {
     "author": "hizzgdev@163.com",
-    "name": "Saturday outing",
+    "name": "Going out this weekend",
     "version": "1.0"
   },
   "root": "root",
@@ -11,169 +11,292 @@
       "id": "root",
       "content": {
         "type": "text",
-        "value": "Saturday outing"
+        "value": "Going out this weekend"
       },
       "parent": null,
       "children": [
-        "jm-mwxh4gjn",
-        "jm-mwxh4gpm",
-        "jm-mwxh4gso"
+        "jm-mwxkp09e",
+        "jm-mwxkp0ey",
+        "jm-mwxkp0kt"
       ],
       "folded": false,
       "side": 0,
       "data": {}
     },
-    "jm-mwxh4gjn": {
-      "id": "jm-mwxh4gjn",
+    "jm-mwxkp09e": {
+      "id": "jm-mwxkp09e",
       "content": {
         "type": "text",
-        "value": "Morning"
+        "value": "Visit the new morning market"
       },
       "parent": "root",
       "children": [
-        "jm-mwxh4glo",
-        "jm-mwxh4gmv",
-        "jm-mwxh4goa"
+        "jm-mwxkp0q3",
+        "jm-mwxkp16a"
       ],
       "folded": false,
       "side": -1,
       "data": {}
     },
-    "jm-mwxh4glo": {
-      "id": "jm-mwxh4glo",
+    "jm-mwxkp0ey": {
+      "id": "jm-mwxkp0ey",
       "content": {
         "type": "text",
-        "value": "Sleep in a little"
-      },
-      "parent": "jm-mwxh4gjn",
-      "children": [],
-      "folded": false,
-      "side": 1,
-      "data": {}
-    },
-    "jm-mwxh4gmv": {
-      "id": "jm-mwxh4gmv",
-      "content": {
-        "type": "text",
-        "value": "Brunch at the neighborhood cafe"
-      },
-      "parent": "jm-mwxh4gjn",
-      "children": [],
-      "folded": false,
-      "side": 1,
-      "data": {}
-    },
-    "jm-mwxh4goa": {
-      "id": "jm-mwxh4goa",
-      "content": {
-        "type": "text",
-        "value": "Stroll through the botanical garden"
-      },
-      "parent": "jm-mwxh4gjn",
-      "children": [],
-      "folded": false,
-      "side": 1,
-      "data": {}
-    },
-    "jm-mwxh4gpm": {
-      "id": "jm-mwxh4gpm",
-      "content": {
-        "type": "text",
-        "value": "Afternoon"
+        "value": "Walk in the park"
       },
       "parent": "root",
       "children": [
-        "jm-mwxh4gqs",
-        "jm-mwxh4grr"
+        "jm-mwxkp1mm",
+        "jm-mwxkp23l"
       ],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mwxh4gqs": {
-      "id": "jm-mwxh4gqs",
+    "jm-mwxkp0kt": {
+      "id": "jm-mwxkp0kt",
       "content": {
         "type": "text",
-        "value": "Sit by the lake"
-      },
-      "parent": "jm-mwxh4gpm",
-      "children": [],
-      "folded": false,
-      "side": 1,
-      "data": {}
-    },
-    "jm-mwxh4grr": {
-      "id": "jm-mwxh4grr",
-      "content": {
-        "type": "text",
-        "value": "Drop by a secondhand bookshop"
-      },
-      "parent": "jm-mwxh4gpm",
-      "children": [],
-      "folded": false,
-      "side": 1,
-      "data": {}
-    },
-    "jm-mwxh4gso": {
-      "id": "jm-mwxh4gso",
-      "content": {
-        "type": "text",
-        "value": "Things to bring"
+        "value": "Hike with friends"
       },
       "parent": "root",
       "children": [
-        "jm-mwxh4gtx",
-        "jm-mwxh4gv0",
-        "jm-mwxh4gw0",
-        "jm-mwxh4hyu"
+        "jm-mwxkp2jq",
+        "jm-mwxkp304"
+      ],
+      "folded": false,
+      "side": -1,
+      "data": {}
+    },
+    "jm-mwxkp0q3": {
+      "id": "jm-mwxkp0q3",
+      "content": {
+        "type": "text",
+        "value": "Browse the market"
+      },
+      "parent": "jm-mwxkp09e",
+      "children": [
+        "jm-mwxkp0vi",
+        "jm-mwxkp10v"
       ],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mwxh4gtx": {
-      "id": "jm-mwxh4gtx",
+    "jm-mwxkp0vi": {
+      "id": "jm-mwxkp0vi",
       "content": {
         "type": "text",
-        "value": "Sunscreen"
+        "value": "Check opening hours and location"
       },
-      "parent": "jm-mwxh4gso",
+      "parent": "jm-mwxkp0q3",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mwxh4gv0": {
-      "id": "jm-mwxh4gv0",
+    "jm-mwxkp10v": {
+      "id": "jm-mwxkp10v",
       "content": {
         "type": "text",
-        "value": "A water bottle"
+        "value": "Bring cash and a reusable bag"
       },
-      "parent": "jm-mwxh4gso",
+      "parent": "jm-mwxkp0q3",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mwxh4gw0": {
-      "id": "jm-mwxh4gw0",
+    "jm-mwxkp16a": {
+      "id": "jm-mwxkp16a",
       "content": {
         "type": "text",
-        "value": "A book"
+        "value": "If it's dull, go to the bookstore next door"
       },
-      "parent": "jm-mwxh4gso",
+      "parent": "jm-mwxkp09e",
+      "children": [
+        "jm-mwxkp1br",
+        "jm-mwxkp1hd"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp1br": {
+      "id": "jm-mwxkp1br",
+      "content": {
+        "type": "text",
+        "value": "Check the bookstore's hours"
+      },
+      "parent": "jm-mwxkp16a",
       "children": [],
       "folded": false,
       "side": 1,
       "data": {}
     },
-    "jm-mwxh4hyu": {
-      "id": "jm-mwxh4hyu",
+    "jm-mwxkp1hd": {
+      "id": "jm-mwxkp1hd",
       "content": {
         "type": "text",
-        "value": "Picnic blanket"
+        "value": "Bring a library card and a book you want"
       },
-      "parent": "jm-mwxh4gso",
+      "parent": "jm-mwxkp16a",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp1mm": {
+      "id": "jm-mwxkp1mm",
+      "content": {
+        "type": "text",
+        "value": "Walk in the park"
+      },
+      "parent": "jm-mwxkp0ey",
+      "children": [
+        "jm-mwxkp1rw",
+        "jm-mwxkp1y5"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp1rw": {
+      "id": "jm-mwxkp1rw",
+      "content": {
+        "type": "text",
+        "value": "Check the weather and wear comfortable shoes"
+      },
+      "parent": "jm-mwxkp1mm",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp1y5": {
+      "id": "jm-mwxkp1y5",
+      "content": {
+        "type": "text",
+        "value": "Pick a walking route"
+      },
+      "parent": "jm-mwxkp1mm",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp23l": {
+      "id": "jm-mwxkp23l",
+      "content": {
+        "type": "text",
+        "value": "If tired, have coffee by the river"
+      },
+      "parent": "jm-mwxkp0ey",
+      "children": [
+        "jm-mwxkp28z",
+        "jm-mwxkp2e5"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp28z": {
+      "id": "jm-mwxkp28z",
+      "content": {
+        "type": "text",
+        "value": "Find a cafe by the river"
+      },
+      "parent": "jm-mwxkp23l",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp2e5": {
+      "id": "jm-mwxkp2e5",
+      "content": {
+        "type": "text",
+        "value": "Bring a book or headphones"
+      },
+      "parent": "jm-mwxkp23l",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp2jq": {
+      "id": "jm-mwxkp2jq",
+      "content": {
+        "type": "text",
+        "value": "Invite friends"
+      },
+      "parent": "jm-mwxkp0kt",
+      "children": [
+        "jm-mwxkp2p2",
+        "jm-mwxkp2ui"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp2p2": {
+      "id": "jm-mwxkp2p2",
+      "content": {
+        "type": "text",
+        "value": "Agree who is coming and when"
+      },
+      "parent": "jm-mwxkp2jq",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp2ui": {
+      "id": "jm-mwxkp2ui",
+      "content": {
+        "type": "text",
+        "value": "Check that everyone is up for it"
+      },
+      "parent": "jm-mwxkp2jq",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp304": {
+      "id": "jm-mwxkp304",
+      "content": {
+        "type": "text",
+        "value": "Go hiking"
+      },
+      "parent": "jm-mwxkp0kt",
+      "children": [
+        "jm-mwxkp35j",
+        "jm-mwxkp3ay"
+      ],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp35j": {
+      "id": "jm-mwxkp35j",
+      "content": {
+        "type": "text",
+        "value": "Hiking shoes, water, and sunscreen"
+      },
+      "parent": "jm-mwxkp304",
+      "children": [],
+      "folded": false,
+      "side": 1,
+      "data": {}
+    },
+    "jm-mwxkp3ay": {
+      "id": "jm-mwxkp3ay",
+      "content": {
+        "type": "text",
+        "value": "Check trail difficulty and the weather"
+      },
+      "parent": "jm-mwxkp304",
       "children": [],
       "folded": false,
       "side": 1,

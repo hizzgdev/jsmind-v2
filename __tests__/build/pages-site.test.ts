@@ -939,8 +939,8 @@ describe('pages site assembly', () => {
             const zhHtml = readFileSync(join(tutorialsDir, zhArticle), 'utf8');
             const enPageUrl = new URL(enArticle, `${SITE_ORIGIN}${TUTORIALS_BASE}`).href;
             const zhPageUrl = new URL(zhArticle, `${SITE_ORIGIN}${TUTORIALS_BASE}`).href;
-            const enResult = publishedAsset(enHtml, 'The finished Saturday outing mind map', enPageUrl, tutorialsDir);
-            const zhResult = publishedAsset(zhHtml, '完成后的周六出游思维导图', zhPageUrl, tutorialsDir);
+            const enResult = publishedAsset(enHtml, 'The finished weekend outing mind map', enPageUrl, tutorialsDir);
+            const zhResult = publishedAsset(zhHtml, '完成后的周末出游思维导图', zhPageUrl, tutorialsDir);
             const sharedResult = readFileSync(join(ROOT, 'tutorials', 'assets', '161-result.png'));
             const overrideResult = readFileSync(join(ROOT, 'tutorials', 'zh', 'assets_override', '161-result.png'));
             assert.deepStrictEqual(enResult, sharedResult, 'the English page should use the shared PNG');
