@@ -211,16 +211,26 @@ restarted, the file says 3 and the dispatcher still enforces 2: the `get` lines 
 start-time comparison and the boot line do not. That is the drift this step exists to find.
 
 Quote the boot line in the report, and keep the `kanban dispatcher:` anchor — inbound chat text that mentions
-the key is logged too, and a loose `grep max_in_progress` matches it. A gateway started on a config without
-these keys prints the `unset; using memory-derived default …` warning in place of the number, which is a stop
-as well: 3 was asked for explicitly.
+the key is logged too, and a loose `grep max_in_progress` matches it. A missing line is a stop as well: with
+`max_in_progress` unset the boot prints the `unset; using memory-derived default …` warning instead of
+`max_in_progress=<n>`, and with `max_in_progress_per_profile` unset it prints nothing at all — which also
+means `tail -2` can pair this boot's one line with the previous boot's. Check each line's timestamp against
+`ExecMainStartTimestamp` before quoting it, and treat a key that did not print at this boot as missing.
+Both ceilings were asked for explicitly.
 
-If any of the three disagree — file not 3 / 1, gateway started before `config.yaml` was written, boot line
-carrying another number — stop short of the report and hand over exactly this: the `kanban:` section of
-`~/.hermes/config.yaml` still holds the old number, the gateway reads it once at boot, and a restart is what
-makes the new one take effect. Do not edit `config.yaml` here and do not restart the gateway — the
-desired-state table puts that row out of scope, and the gateway refuses to restart itself from inside its own
-process. A red deploy on a freshly changed document is the intended outcome, not a defect in this step.
+If any of the three disagree, stop short of the report and hand over the right one of two branches — they are
+not the same instruction, and telling a human to "fix the file" when the file already holds 3 / 1 sends them
+looking at a number that is correct:
+
+- **The file is not 3 / 1.** Edit the `kanban:` section of `~/.hermes/config.yaml`, then restart the gateway.
+  The dispatcher reads these keys once at boot, so the restart is what makes the edit take effect.
+- **The file already says 3 / 1, but the gateway started before its last write, or the boot line carries
+  another number.** The config is already correct — there is nothing to edit and nothing to add. The only
+  thing missing is the restart, so the process re-reads the file it booted on.
+
+Do not edit `config.yaml` here and do not restart the gateway — the desired-state table puts that row out of
+scope, and the gateway refuses to restart itself from inside its own process. A red deploy on a document that
+was changed but not yet brought live is the intended outcome, not a defect in this step.
 
 ### 8. Report
 
@@ -232,9 +242,11 @@ anything still outside this procedure (`config.yaml` → `kanban:`).
 ## Stop and ask instead of guessing
 
 - The clone is dirty, or sits on a branch other than `master`.
-- The change requires `~/.hermes/config.yaml` → `kanban:`, or step 7 finds the file, the gateway's start time
-  and the boot log disagreeing with 3 / 1. Those values are read once at gateway boot, and the gateway refuses
-  to restart itself from inside its own process — hand the command over.
+- The change requires `~/.hermes/config.yaml` → `kanban:` — hand over the edit *and* the restart that makes
+  it take effect. Or step 7 disagrees: hand over whichever branch fits — file not 3 / 1 means edit the
+  `kanban:` section then restart; file already 3 / 1 with an older gateway start time or a mismatched boot
+  line means restart only, and say plainly that `config.yaml` needs no change. Those values are read once at
+  gateway boot, and the gateway refuses to restart itself from inside its own process.
 - The smoke test prints something other than the expected line: report it. Restarting again to "see if it
   clears" destroys the evidence.
 
