@@ -21,6 +21,8 @@ import type { JmViewHandle, JmViewport, JmViewportAnchor } from '../view/handle.
 /**
  * Issues commands that change what is displayed, never what is stored.
  *
+ * `Since: 2.3.0`
+ *
  * @public
  */
 export class JmCommander {
@@ -39,6 +41,8 @@ export class JmCommander {
     /**
      * Renders the displayed map to an image.
      *
+     * `Since: 2.3.0`
+     *
      * @param options - Scale, format and quality.
      * @returns The encoded image plus its dimensions.
      */
@@ -50,6 +54,8 @@ export class JmCommander {
      * Moves the map so that the given map-space point sits at the viewport's
      * top-left corner.
      *
+     * `Since: 2.3.0`
+     *
      * @param x - Map-space x, in CSS pixels.
      * @param y - Map-space y, in CSS pixels.
      */
@@ -60,6 +66,8 @@ export class JmCommander {
     /**
      * Moves the map by a distance in screen pixels.
      *
+     * `Since: 2.3.0`
+     *
      * @param dx - Pixels to move the map right.
      * @param dy - Pixels to move the map down.
      */
@@ -69,6 +77,8 @@ export class JmCommander {
 
     /**
      * Changes the zoom factor, holding one point still.
+     *
+     * `Since: 2.3.0`
      *
      * @param scale - Requested factor, clamped by the view.
      * @param anchor - Point to hold still, in the view's own pixels. Defaults to
@@ -81,6 +91,8 @@ export class JmCommander {
     /**
      * Centres one node in the viewport at the current zoom level.
      *
+     * `Since: 2.3.0`
+     *
      * @param nodeId - Id of a node in the open mind map.
      */
     centerOn(nodeId: string): void {
@@ -90,6 +102,8 @@ export class JmCommander {
     /**
      * Reads the current viewport.
      *
+     * `Since: 2.3.0`
+     *
      * @returns The origin, the zoom factor and the visible size.
      */
     getViewport(): JmViewport {
@@ -98,6 +112,8 @@ export class JmCommander {
 
     /**
      * Zooms out until the whole map is visible and centres it.
+     *
+     * `Since: 2.3.0`
      */
     fitToView(): void {
         this.view.fitToView();

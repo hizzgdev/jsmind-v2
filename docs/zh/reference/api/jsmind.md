@@ -64,7 +64,7 @@ static Serializer: typeof JmMindSerializerFactory
 get commands(): JmCommander
 ```
 
-发出只改变显示方式的命令——导出、平移、缩放——不改变导图内容。
+发出只改变显示方式的命令——导出、平移、缩放——不改变导图内容。`Since: 2.3.0`
 
 **说明**
 

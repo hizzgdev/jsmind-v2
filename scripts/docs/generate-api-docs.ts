@@ -62,6 +62,9 @@ const INCLUDE = new Set([
     'JmLineCurve',
     'JmObserver',
     'JmObserverManager',
+    'JmCommander',
+    'JmViewport',
+    'JmViewportAnchor',
 ]);
 
 const PAGE_SYMBOLS: Record<string, string[]> = {
@@ -78,6 +81,7 @@ const PAGE_SYMBOLS: Record<string, string[]> = {
     ],
     'serialization': ['JmMindSerializerFactory', 'JmMindSerializer'],
     'export': ['JmExportImageOptions', 'JmExportImageResult', 'JmImageType'],
+    'commands': ['JmCommander', 'JmViewport', 'JmViewportAnchor'],
     'style': [
         'JmNodeStyle', 'JmLineStyle', 'JmStyle', 'JmThemeNode', 'JmThemeLine',
         'JmThemeExpander', 'JmThemeShadow', 'JmThemeShadowLayer',
@@ -95,6 +99,7 @@ const PAGE_TITLES = {
         options: 'Options',
         serialization: 'Serialization',
         export: 'Image export',
+        commands: 'Commands',
         style: 'Style and theme',
     },
     zh: {
@@ -105,6 +110,7 @@ const PAGE_TITLES = {
         options: '选项',
         serialization: '序列化',
         export: '图片导出',
+        commands: '命令',
         style: '样式与主题',
     },
 } as const;
@@ -118,6 +124,7 @@ const PAGE_INTROS = {
         options: 'Configuration passed to `jsMind.create`. Omitted fields use the library defaults.',
         serialization: 'Read and write a mind map through `jsMind.Serializer.create(format)`. `JsMind.serialize()` is a JSON convenience on an open map.',
         export: 'Types used by `JsMind.exportImage`.',
+        commands: 'Display commands reached through `JsMind.commands`: pan, zoom, fit and image export. None of them changes the map.',
         style: 'Visual overrides on a map, a node, or an edge. Unset fields fall back to the theme.',
     },
     zh: {
@@ -128,6 +135,7 @@ const PAGE_INTROS = {
         options: '传给 `jsMind.create` 的配置。省略的字段使用库的默认值。',
         serialization: '通过 `jsMind.Serializer.create(format)` 读写导图。`JsMind.serialize()` 是对已打开导图的 JSON 便捷方法。',
         export: '`JsMind.exportImage` 使用的类型。',
+        commands: '通过 `JsMind.commands` 调用的显示命令：平移、缩放、整图适配和图片导出，都不改变导图内容。',
         style: '导图、节点或边上的视觉覆盖。未设置的字段回退到主题。',
     },
 } as const;

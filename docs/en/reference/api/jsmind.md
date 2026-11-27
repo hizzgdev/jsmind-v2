@@ -70,6 +70,8 @@ get commands(): JmCommander
 Commands that change what is displayed - export, pan, zoom - without
 changing the map.
 
+`Since: 2.3.0`
+
 **Remarks**
 
 Reachable from outside so that the caller can hold on to it: a shell, a

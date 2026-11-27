@@ -675,8 +675,86 @@
     "remarks": "调用 `close` 之后，{@link JsMind.mind} 为 `null`，直到再次 {@link JsMind.open} 打开另一张图。"
   },
   "JsMind.commands": {
-    "summary": "发出只改变显示方式的命令——导出、平移、缩放——不改变导图内容。",
+    "summary": "发出只改变显示方式的命令——导出、平移、缩放——不改变导图内容。`Since: 2.3.0`",
     "remarks": "从外部可达，好让调用方留住这个引用：壳、工具栏按钮或键盘快捷键直接持有并调用它，不必每次都经由实例。"
+  },
+  "JmCommander": {
+    "summary": "发出只改变显示方式的命令，不改变已存储的内容。`Since: 2.3.0`"
+  },
+  "JmCommander.constructor": {
+    "summary": "创建命令对象。",
+    "params": {
+      "view": "视图提供的能力。"
+    }
+  },
+  "JmCommander.exportImage": {
+    "summary": "把当前显示的导图渲染成图片。`Since: 2.3.0`",
+    "returns": "编码后的图片及其尺寸。",
+    "params": {
+      "options": "缩放倍数、格式和质量。"
+    }
+  },
+  "JmCommander.panTo": {
+    "summary": "平移导图，让给定的导图坐标点落在视口左上角。`Since: 2.3.0`",
+    "params": {
+      "x": "导图空间的 x 坐标，单位是 CSS 像素。",
+      "y": "导图空间的 y 坐标，单位是 CSS 像素。"
+    }
+  },
+  "JmCommander.panBy": {
+    "summary": "按屏幕像素的距离平移导图。`Since: 2.3.0`",
+    "params": {
+      "dx": "向右移动导图的像素数，负值向左。",
+      "dy": "向下移动导图的像素数。"
+    }
+  },
+  "JmCommander.zoomTo": {
+    "summary": "改变缩放倍数，并让一个点保持不动。`Since: 2.3.0`",
+    "params": {
+      "scale": "请求的倍数，由视图负责钳制。",
+      "anchor": "要保持不动的点，坐标是视图自身的像素。默认取视口正中的位置。"
+    }
+  },
+  "JmCommander.centerOn": {
+    "summary": "把某个节点移到视口正中，缩放倍数不变。`Since: 2.3.0`",
+    "params": {
+      "nodeId": "已打开导图中的节点 id。"
+    }
+  },
+  "JmCommander.getViewport": {
+    "summary": "读取当前视口。`Since: 2.3.0`",
+    "returns": "原点、缩放倍数和可见尺寸。"
+  },
+  "JmCommander.fitToView": {
+    "summary": "一直缩小到整张导图可见，并居中显示。`Since: 2.3.0`"
+  },
+  "JmViewport": {
+    "summary": "一个矩形，单位是 CSS 像素，相对于容器左上角。`Since: 2.3.0`"
+  },
+  "JmViewport.x": {
+    "summary": "水平方向的位移。"
+  },
+  "JmViewport.y": {
+    "summary": "垂直方向的位移。"
+  },
+  "JmViewport.scale": {
+    "summary": "当前缩放倍数，1 表示未缩放。"
+  },
+  "JmViewport.width": {
+    "summary": "可见宽度，单位是 CSS 像素。"
+  },
+  "JmViewport.height": {
+    "summary": "可见高度，单位是 CSS 像素。"
+  },
+  "JmViewportAnchor": {
+    "summary": "视图自身盒子里的一个点，从盒子左上角量起。`Since: 2.3.0`",
+    "remarks": "这既不是导图坐标，也不是页面坐标：它是指针事件减去盒子自身原点之后剩下的那个位置，也是调用方不必了解视图内部就能做的唯一一次换算。"
+  },
+  "JmViewportAnchor.x": {
+    "summary": "距盒子左边缘的像素数。"
+  },
+  "JmViewportAnchor.y": {
+    "summary": "距盒子上边缘的像素数。"
   },
   "JsMind.create": {
     "summary": "创建 jsMind 实例，并将其视图附加到容器上。",

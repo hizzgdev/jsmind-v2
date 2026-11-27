@@ -33,6 +33,8 @@ import type { JmExportImageOptions, JmExportImageResult } from './export.ts';
 /**
  * A rectangle in CSS pixels, relative to the container's top-left corner.
  *
+ * `Since: 2.3.0`
+ *
  * @public
  */
 export interface JmViewport {
@@ -50,6 +52,8 @@ export interface JmViewport {
 
 /**
  * A point in the view's own box, measured from its top-left corner.
+ *
+ * `Since: 2.3.0`
  *
  * @remarks
  * This is not a map coordinate and not a page coordinate: it is what a pointer
@@ -83,6 +87,8 @@ export interface JmViewHandle {
      * Moves the map so that the given map-space point sits at the viewport's
      * top-left corner. The zoom factor is untouched.
      *
+     * `Since: 2.3.0`
+     *
      * @remarks
      * Not clamped: the map can be dragged past the edge of the viewport, and
      * `fitToView` is what brings a lost map back. Clamping would mean deciding
@@ -97,6 +103,8 @@ export interface JmViewHandle {
     /**
      * Moves the map by a distance in screen pixels.
      *
+     * `Since: 2.3.0`
+     *
      * @remarks
      * Screen pixels rather than map pixels because that is what a pointer delta
      * is, and a drag has to keep the map under the finger at any zoom level.
@@ -108,6 +116,8 @@ export interface JmViewHandle {
 
     /**
      * Changes the zoom factor, holding one point still.
+     *
+     * `Since: 2.3.0`
      *
      * @remarks
      * The anchor is explicit because a zoom has to keep something fixed, and
@@ -125,6 +135,8 @@ export interface JmViewHandle {
     /**
      * Centres one node in the viewport at the current zoom level.
      *
+     * `Since: 2.3.0`
+     *
      * @param nodeId - Id of a node in the open mind map.
      */
     centerOn(nodeId: string): void;
@@ -132,12 +144,16 @@ export interface JmViewHandle {
     /**
      * Reads the current viewport.
      *
+     * `Since: 2.3.0`
+     *
      * @returns The origin, the zoom factor and the visible size.
      */
     getViewport(): JmViewport;
 
     /**
      * Zooms out until the whole map is visible and centres it.
+     *
+     * `Since: 2.3.0`
      *
      * @remarks
      * The factor is never above 1, so a map that already fits is shown at 1x
