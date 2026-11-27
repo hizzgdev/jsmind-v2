@@ -17,7 +17,7 @@ import exampleMap from '../../assets/162-example.json?url';
 
 在[用 jsMind Skill 做你的第一张思维导图](./161-first-mind-map-with-skill)里，整张图用了同一种色调。这篇从那张做好的图接着往下做，只给真正在意的选项上色，让你一眼能看出重点。如果还没有做过 161，先下载下面的起始图，不必重画。
 
-起始图可以在这里下载：<a :href="startMap" download="weekend-outing.json">weekend-outing.json</a>。如果你手里已经有 161 里做成的那份文件，继续用那一份即可。下面的命令以 `weekend-outing.json` 作为文件名。
+起始图可以在这里下载：<a :href="startMap" download="weekend-outing.json">weekend-outing.json</a>。如果你手里已经有 161 里做成的那份文件，继续用那一份即可。
 
 ![一级选项「公园散步」和「约朋友爬山」变了颜色；它们的子节点仍是文档级的 primary 蓝](../../assets/162-color-nodes.gif)
 
@@ -31,77 +31,37 @@ import exampleMap from '../../assets/162-example.json?url';
 
 同样的 prompt 可能标出不一样的颜色，这是正常的。这篇演示里用绿色表示比较想去、橙色表示还不一定，只是为了让配图有一个具体含义。如果你的 agent 选了别的色调，并不代表你做错了。
 
-## 先找到一级节点的 id，再设置色调
+也可以在同一条消息里，或者再跟一句，请它导出一张 PNG。
 
-161 用 `mind set-style --default-tone` 给整张图上色。这里文档的默认色调仍然是 `primary`（蓝色）。要给单个节点上色，用 `node set-style --tone`。
-
-不要只按文字去匹配节点。这张图里，「公园散步」出现了两次：一次是一级选项，一次是它下面的同名子节点。先运行 `context`，再给一级选项上色。
-
-`context --highlight` 并不是在图上做视觉高亮。它按标签查找节点 id（对完整标签做不区分大小写的匹配），并把结果列在输出的开头。
-
-如果你接着做的是本页下载的起始图，下面演示里的 id 可以对上。如果你接着用的是 161 里自己生成的那张图，必须重新运行 `context`，使用那份文件打印出的 id。不要把本页的 id 贴到另一张图上。
-
-```bash
-npx jsmind@2 context weekend-outing.json --highlight "公园散步" --highlight "约朋友爬山" --full-text
-```
-
-```
-highlighted:
-  "公园散步"   -> "root"/"jm-mwxkp0ey" (+1 more)
-  "约朋友爬山" -> "root"/"jm-mwxkp0kt"
-
-fullmap:
-style: theme=default defaultTone=primary overrides=defaultTone
-root          周末出去转转 {side=center}
-jm-mwxkp09e     逛新开的早市 {side=left}
-jm-mwxkp0q3       逛早市
-jm-mwxkp16a       没意思就去旁边书店
-jm-mwxkp0ey     公园散步 {side=right}
-jm-mwxkp1mm       公园散步
-jm-mwxkp23l       走累了去河边喝咖啡
-jm-mwxkp0kt     约朋友爬山 {side=left}
-jm-mwxkp2jq       约朋友
-jm-mwxkp304       爬山
-```
-
-「公园散步」后面的 `(+1 more)` 就是那个同名子节点。排在前面的 id `jm-mwxkp0ey` 才是一级选项，要上色的是它。
-
-```bash
-npx jsmind@2 node set-style weekend-outing.json --node-id jm-mwxkp0ey --tone success
-npx jsmind@2 node set-style weekend-outing.json --node-id jm-mwxkp0kt --tone warning
-```
-
-```
-set style of jm-mwxkp0ey: {"tone":"success"}
-set style of jm-mwxkp0kt: {"tone":"warning"}
-```
-
-「逛新开的早市」保持不变，所以它仍是文档级的 `primary`（蓝色）。文档里 `default` 是白色，`primary` 才是蓝色。
-
-色调不会顺着分支往下传。只有你设置的那个节点会被覆盖；它的子节点仍回落到文档的 `primary`。从图里也能看出来：「公园散步」和「约朋友爬山」下面的子节点还是蓝色。
-
-`node set-style` 也可以用 `--background` 和 `--color` 设置自定义颜色。这篇只用色调。
-
-## 导出图片
-
-```bash
-npx jsmind@2 export image weekend-outing.json weekend-outing.png
-```
-
-```
-weekend-outing.png: 2924x1600 (287.3 KB)
-```
+## 看看演示结果
 
 ![给两个一级选项上色后的周末出游图](../../assets/162-result.png)
 
-## 文件写在哪里
+上面这张图和开头的动图来自一次真实运行。一级选项「公园散步」是绿色（success），表示比较想去；「约朋友爬山」是橙色（warning），表示还不一定。「逛新开的早市」没有单独上色，所以仍是整图的 `primary`（蓝色）。文档里 `default` 是白色，`primary` 才是蓝色。
 
-上面的命令会把结果写到工作目录里的 `weekend-outing.json` 和 `weekend-outing.png`，除非 agent 另外告诉了你别的位置。你的 agent 可能会取不一样的名字。
+色调只作用在被改到的那个节点上，不会顺着分支传到子节点。所以「公园散步」和「约朋友爬山」下面的准备事项仍是蓝色。
 
-- `.json` 文件是导图本身，内容是一份 JSON 文档。
-- `.png` 文件是图片。用任何看图软件或浏览器打开即可。
+## agent 实际会做什么
 
-本页也可以下载这些文件：
+你不必自己去跑命令。agent 应当通过 jsMind CLI 来改图，不要亲手去改这份 JSON。本页的图片和下载来自上面这类 prompt 的一次真实运行，用来说明流程，并不是标准答案。
+
+[第一篇](./161-first-mind-map-with-skill)里给整张图换色，用的是 `mind set-style --default-tone`。这里整图的默认色调仍然是 `primary`；要给单个节点上色，agent 用的是 `node set-style --tone`。
+
+这张图里，「公园散步」出现了两次：一次是一级选项，一次是它下面的同名子节点。agent 需要先弄清该改哪一个，再给一级选项上色。如果你用的是本页下载的起始图，节点 id 可以对上这次演示；如果你用的是自己在 161 里生成的图，id 会不一样，agent 应该在那份文件上重新查看结构，不要套用本页的 id。
+
+下面是这次演示里 agent 用到的命令，只用来说明它做了什么，不是要你照着输入：
+
+```
+$ npx jsmind@2 node set-style weekend-outing.json --node-id jm-mwxkp0ey --tone success
+set style of jm-mwxkp0ey: {"tone":"success"}
+
+$ npx jsmind@2 node set-style weekend-outing.json --node-id jm-mwxkp0kt --tone warning
+set style of jm-mwxkp0kt: {"tone":"warning"}
+```
+
+「逛新开的早市」没有改，所以仍是文档级的 `primary`。
+
+agent 可能会把结果写到工作目录里的 `weekend-outing.json`，并再导出一张 PNG；它也可能使用别的文件名，并告诉你文件的位置。本页也可以下载这些文件：
 
 - 起始图（全部是 `primary`）：<a :href="startMap" download="weekend-outing.json">weekend-outing.json</a>
 - 给两个选项上色之后：<a :href="exampleMap" download="weekend-outing-colored.json">weekend-outing-colored.json</a>
