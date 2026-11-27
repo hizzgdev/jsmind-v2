@@ -111,16 +111,29 @@ export class JmNodeView {
      * so a caller that changes the style of a node the map is not painting does
      * not have to know the difference.
      *
+     * The measurement waits a frame, and that frame is long enough for the map
+     * to be closed or replaced underneath it. When that happens this node's
+     * cached element is no longer the one on screen - `releaseNode` forgot it,
+     * or a new open painted another one - so the measured element is dropped
+     * rather than put back, and `null` says nothing was painted.
+     *
      * @param node - Node to repaint.
-     * @returns The size the node occupies after the repaint.
+     * @returns The size the node occupies after the repaint, or `null` if the
+     *          node stopped being rendered before the measurement landed.
      */
-    async refreshNodeStyle(node: JmNode): Promise<JmSize> {
+    async refreshNodeStyle(node: JmNode): Promise<JmSize | null> {
         const element = node._data.view.element;
         if (!element) {
             return await this.createAndMeasure(node);
         }
         this._applyTone(element, node);
         const rect = await JmDomUtility.measureElement(element, this.container);
+        if (node._data.view.element !== element) {
+            // The map left this element behind while we waited for the frame.
+            // Putting it back would draw a node of a map that is no longer on
+            // screen next to - or over - the one that is.
+            return null;
+        }
         element.cachedRect = rect;
         // Measurement takes the element out of the document to read its box and
         // leaves it out - `createAndMeasure` puts it back for the same reason.

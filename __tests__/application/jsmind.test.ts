@@ -130,6 +130,63 @@ function buildMap(name: string, childStyle?: JmNodeStyle): JmMind {
 }
 
 
+/**
+ * Tells a test when the deferred style repaint starts measuring.
+ *
+ * @remarks
+ * The repaint waits a frame to run and another one inside the measurement, so a
+ * case that wants to act while it is in flight has to be told when that started
+ * instead of guessing a delay. The first measurement after a style change is the
+ * repaint's: an `open` only measures once it has closed and cleared, which is
+ * what the caller does after awaiting this.
+ *
+ * @returns The signal to await, and the restore to call when the case is done.
+ */
+function repaintMeasurementStarted(): { started: Promise<void>; restore: () => void } {
+    const originalMeasureElement = DomUtility.measureElement;
+    let markStarted: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+    });
+    DomUtility.measureElement = async (element: HTMLElement, container: HTMLElement): Promise<DOMRect> => {
+        const measuring = originalMeasureElement.call(DomUtility, element, container);
+        markStarted();
+        return await measuring;
+    };
+    return {
+        started,
+        restore: () => {
+            DomUtility.measureElement = originalMeasureElement;
+        },
+    };
+}
+
+
+/**
+ * Records unhandled promise rejections for the duration of a case.
+ *
+ * @remarks
+ * A repaint is fired and forgotten, so a repaint that outlives its map has
+ * nowhere to report a failure: it surfaces as an unhandled rejection instead,
+ * which only a test that races the view can see.
+ *
+ * @returns The collected reasons, and the removal to call when the case is done.
+ */
+function trackUnhandledRejections(): { reasons: unknown[]; restore: () => void } {
+    const reasons: unknown[] = [];
+    const listener = (reason: unknown): void => {
+        reasons.push(reason);
+    };
+    process.on('unhandledRejection', listener);
+    return {
+        reasons,
+        restore: () => {
+            process.off('unhandledRejection', listener);
+        },
+    };
+}
+
+
 describe('JsMind', async () => {
     before(() => {
         initDom();
@@ -420,5 +477,71 @@ describe('JsMind', async () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         assert.strictEqual(paintedNodeCount(), 0, 'a queued repaint must not resurrect a closed map');
+    });
+
+    it('a repaint in flight when another map is opened does not touch the canvas', async () => {
+        const jm = await JsMind.create(JSMIND_CONTAINER_ID, DEFAULT_OPTIONS);
+        const mind = buildMap('Raced');
+        await jm.open(mind);
+
+        const { reasons, restore: stopTracking } = trackUnhandledRejections();
+        const { started, restore: restoreMeasurement } = repaintMeasurementStarted();
+        try {
+            const node = mind.findNodeById('shared_child');
+            assert.ok(node, 'the child should be findable by id');
+            node.style = { tone: JmTone.Danger };
+
+            // Act in the frame the repaint spends measuring. Up to that point the
+            // repaint only has a queued node; here it holds that node's element
+            // out of the document, which is exactly what the next map takes away.
+            await started;
+            await jm.open(buildMap('Next', { tone: JmTone.Primary }));
+
+            // Give whatever the repaint still had queued the chance to run.
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            assert.strictEqual(paintedNodeCount(), 2, 'the replaced map must not stay beside the new one');
+            assert.strictEqual(paintedLineCount(), 1, 'the replaced map\'s line must not stay either');
+            assert.strictEqual(
+                viewRoot().querySelectorAll('.jsmind-node[data-jm-node-id="shared_child"]').length,
+                1,
+                'the restyled node must not be painted a second time'
+            );
+            assert.strictEqual(
+                nodeFill('shared_child'),
+                JSMIND_THEME_DEFAULT.tones![JmTone.Primary]!.fillColor,
+                'the node on screen should be the new map\'s'
+            );
+            assert.deepStrictEqual(reasons, [], 'a repaint whose map is gone must not reject');
+        } finally {
+            restoreMeasurement();
+            stopTracking();
+        }
+    });
+
+    it('a repaint in flight when the map is closed leaves the canvas empty', async () => {
+        const jm = await JsMind.create(JSMIND_CONTAINER_ID, DEFAULT_OPTIONS);
+        const mind = buildMap('Raced closed');
+        await jm.open(mind);
+
+        const { reasons, restore: stopTracking } = trackUnhandledRejections();
+        const { started, restore: restoreMeasurement } = repaintMeasurementStarted();
+        try {
+            const node = mind.findNodeById('shared_child');
+            assert.ok(node, 'the child should be findable by id');
+            node.style = { tone: JmTone.Danger };
+
+            await started;
+            jm.close();
+
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            assert.strictEqual(paintedNodeCount(), 0, 'the closed map must not be painted back');
+            assert.strictEqual(paintedLineCount(), 0, 'nor may its line come back');
+            assert.deepStrictEqual(reasons, [], 'a repaint whose map is gone must not reject');
+        } finally {
+            restoreMeasurement();
+            stopTracking();
+        }
     });
 });

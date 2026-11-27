@@ -236,6 +236,7 @@ describe('JmNodeView', () => {
 
                 node.style = { tone: JmTone.Danger };
                 const second = await nodeView.refreshNodeStyle(node);
+                assert.ok(second, 'the repaint should report the size it measured');
 
                 assert.strictEqual(node._data.view.element, element, 'the painted element should be reused');
                 assert.strictEqual(
@@ -327,6 +328,48 @@ describe('JmNodeView', () => {
                 node._data.view.element!.element.style.getPropertyValue('--jm-node-fill'),
                 JSMIND_THEME_DEFAULT.tones![JmTone.Success]!.fillColor
             );
+        });
+
+        it('drops the element it measured when the node was released meanwhile', async () => {
+            // A measurement waits a frame, and a map closed inside that frame
+            // releases the element. Painting the measured element back would put
+            // a node of the closed map on the canvas; reporting a size would hand
+            // the layout a box for an element that is no longer there.
+            nodeView.setTheme(resolveJmStyle());
+            const mind = new JmMind();
+            const node = mind.addNode(JmNodeContent.createText('Released mid-flight'), {
+                parentId: mind.root.id,
+                side: JmNodeSide.SideA,
+            });
+            await nodeView.createAndMeasure(node);
+            const element = node._data.view.element!;
+            const container = innerContainer.element.querySelector('.jsmind-nodes');
+            assert.ok(container?.contains(element.element), 'the node should start on the canvas');
+
+            const originalMeasureElement = DomUtility.measureElement;
+            let settleMeasurement: () => void = () => {};
+            const held = new Promise<void>((resolve) => {
+                settleMeasurement = resolve;
+            });
+            DomUtility.measureElement = async (): Promise<DOMRect> => {
+                await held;
+                return stubRect(90, 30);
+            };
+            try {
+                node.style = { tone: JmTone.Danger };
+                const repaint = nodeView.refreshNodeStyle(node);
+                // What `close()` does to this node while the repaint waits.
+                nodeView.releaseNode(node);
+                settleMeasurement();
+
+                const size = await repaint;
+
+                assert.strictEqual(size, null, 'a repaint whose node is gone should report no size');
+                assert.ok(!container?.contains(element.element), 'a released element must not be painted back');
+                assert.strictEqual(node._data.view.element, null, 'the repaint must not restore the cache either');
+            } finally {
+                DomUtility.measureElement = originalMeasureElement;
+            }
         });
     });
 

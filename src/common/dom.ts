@@ -43,7 +43,13 @@ export class DomUtility {
         container.appendChild(element);
         await untilNextFrame();
         const rect = element.getBoundingClientRect();
-        container.removeChild(element);
+        // The frame this waited on is time in which someone else can take the
+        // element off the container - closing the map while a measurement is in
+        // flight does exactly that. Removing it only when it is still there
+        // keeps that race from throwing out of an await nobody can catch.
+        if (element.parentElement === container) {
+            container.removeChild(element);
+        }
         element.style.display = originalDisplay;
         element.style.visibility = originalVisibility;
         return rect;

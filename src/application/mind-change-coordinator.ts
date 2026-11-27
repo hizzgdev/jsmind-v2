@@ -24,8 +24,8 @@ export class JmMindChangeCoordinator extends JmMindObserver {
      */
     private activeMind: JmMind | null = null;
 
-    /** Nodes whose style changed and have not been repainted yet. */
-    private readonly pendingStyleNodes = new Set<JmNode>();
+    /** Nodes whose style changed and have not been repainted yet, per map. */
+    private readonly pendingStyleNodes = new Map<JmMind, Set<JmNode>>();
 
     /** Whether a repaint has already been scheduled for the next frame. */
     private repaintScheduled = false;
@@ -90,16 +90,22 @@ export class JmMindChangeCoordinator extends JmMindObserver {
         // deleted node off the canvas: otherwise deleting a node and then
         // reopening the map (the documented way to refresh a view) leaves a
         // ghost sitting beside the new rendering.
-        const removedIds = new Set(event.removedNodeIds);
-        this.pendingStyleNodes.forEach((node: JmNode)=>{
-            if (removedIds.has(node.id)) {
-                this.pendingStyleNodes.delete(node);
+        const pending = this.pendingStyleNodes.get(mind);
+        if (pending) {
+            const removedIds = new Set(event.removedNodeIds);
+            pending.forEach((node: JmNode)=>{
+                if (removedIds.has(node.id)) {
+                    pending.delete(node);
+                }
+            });
+            if (pending.size === 0) {
+                this.pendingStyleNodes.delete(mind);
             }
-        });
+        }
         this.view.releaseNode(event.node);
     }
 
-    onNodeUpdated(_mind: JmMind, event: JmMindEventDataOnNodeUpdated): void {
+    onNodeUpdated(mind: JmMind, event: JmMindEventDataOnNodeUpdated): void {
         // No debug() here, unlike the other handlers: a style change is the one
         // node event a caller makes in a loop (recolouring a whole map), and that
         // dump prints the entire node graph per call - enough to bury the console
@@ -110,7 +116,12 @@ export class JmMindChangeCoordinator extends JmMindObserver {
         if (event.property !== 'style') {
             return;
         }
-        this.pendingStyleNodes.add(event.node);
+        let pending = this.pendingStyleNodes.get(mind);
+        if (!pending) {
+            pending = new Set<JmNode>();
+            this.pendingStyleNodes.set(mind, pending);
+        }
+        pending.add(event.node);
         this._scheduleStyleRepaint();
     }
 
@@ -149,12 +160,23 @@ export class JmMindChangeCoordinator extends JmMindObserver {
     private async _repaintStyledNodes(): Promise<void> {
         this.repaintScheduled = false;
         const mind = this.activeMind;
-        const nodes = [...this.pendingStyleNodes];
+        const pending = mind ? this.pendingStyleNodes.get(mind) : undefined;
+        // Anything else queued here belongs to a map that is not the one on
+        // screen - the events of a map that was just replaced can still arrive,
+        // because they reach this method through a timer `close` cannot cancel.
         this.pendingStyleNodes.clear();
-        if (!mind || nodes.length === 0) {
+        if (!mind || !pending || pending.size === 0) {
             return;
         }
+        const nodes = [...pending];
         await this.view.refreshNodesStyle(nodes);
+        // Measuring waited a frame, and a frame is long enough for the map to be
+        // closed or replaced. The repaint drops what it cannot paint any more,
+        // so laying the map out and settling it here would place the nodes of a
+        // map that is gone - under, or over, whatever the view shows now.
+        if (this.activeMind !== mind) {
+            return;
+        }
         this.arranger.calculate(mind);
         await this.view.settle(mind);
     }

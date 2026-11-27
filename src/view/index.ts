@@ -180,7 +180,9 @@ export class JmView implements JmViewHandle {
      * scale.
      *
      * The sizes are recorded because the layout is computed from them, and a
-     * style is allowed to change the box.
+     * style is allowed to change the box. A node that stopped being rendered
+     * while its measurement was in flight reports no size, and recording one
+     * would hand the layout a box for an element that is not on the canvas.
      *
      * @param nodes - The nodes to repaint.
      */
@@ -190,7 +192,11 @@ export class JmView implements JmViewHandle {
         }
         await this._whileUnscaled(async () => {
             const sizes = await Promise.all(nodes.map((node: JmNode)=>this.nodeView.refreshNodeStyle(node)));
-            nodes.forEach((node: JmNode, index: number)=>this.arranger.recordNodeSize(node, sizes[index]));
+            sizes.forEach((size: JmSize | null, index: number)=>{
+                if (size) {
+                    this.arranger.recordNodeSize(nodes[index], size);
+                }
+            });
         });
     }
 
