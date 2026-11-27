@@ -147,11 +147,14 @@ style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 
 ```
 jsmind export image <file> <out.png> [options]
+jsmind export html <file> [out.html] [options]
 ```
 
-将思维导图渲染为图片。输出尺寸以导图自身大小为准：视口内的空白会保留，超出视口的部分也不会被裁切。
+`export` 是一个组，紧跟其后的那个词说明要产出什么：`image` 渲染成图片，`html` 写一个能离线打开的页面。`jsmind export --help` 会列出两种，各自带上它接受的选项。这个种类词不能省略——裸写 `jsmind export <file> <out.png>` 是参数错误（`2`），不会替你猜成 `image`。
 
-`export` 是一个组，紧跟其后的那个词说明要产出什么。目前 `image` 是唯一一种；`jsmind export --help` 会列出全部。这个种类词不能省略——裸写 `jsmind export <file> <out.png>` 是参数错误（`2`），不会替你猜成 `image`。
+### `export image`
+
+将思维导图渲染为图片。输出尺寸以导图自身大小为准：视口内的空白会保留，超出视口的部分也不会被裁切。
 
 `export image` 需要 Chromium 浏览器。如果它不在常见安装位置，请设置 `CHROME_PATH`；浏览器启动比默认的 60 秒还慢，就设置 `JSMIND_BROWSER_START_MS`（`Since: 2.1.0`）。
 
@@ -171,6 +174,21 @@ jsmind export image <file> <out.png> [options]
 `--type` 决定的是编码，不是文件名：写出的字节就是它指定的格式，输出路径则原样使用。两者不一致时（`out.png --type jpeg`）导出照常完成——stderr 打一行警告、退出码仍是 `0`——因为产物有时是按消费它的工具命名的，两边都不该被覆盖。比对只看扩展名（`.png`、`.jpg` / `.jpeg`、`.webp`）；认不出图片格式的扩展名不参与比对。
 
 按默认的宽度、高度和缩放，常见导出尺寸是 2400×1600 像素。
+
+### `export html`
+
+只写一个 `.html`，旁边不产生任何文件：渲染器、外壳和导图都内联在页面里，所以它在没有网络的机器上从 `file://` 打开就能渲染。写它不启动浏览器——这是它与 `image` 的区别，后者要靠浏览器产出字节（`Since: 2.3.0`）。
+
+输出路径可以省略。省略时页面取输入文件名，扩展名换成 `.html`，即 `map.json` 变成 `map.html`。
+
+导图以文本形式保存在页面的 `<script type="application/json">` 块里，任何能读取文件的东西都能把导图读回来——agent 不必开浏览器就能知道页面里有什么。文件里没有任何指向别处的引用：没有样式表、没有脚本、没有图片、没有 CDN。
+
+比窗口大的导图靠滚动看全，不会被裁到视口大小。平移、缩放和工具栏属于后续步骤，在那之前页面只滚动、不移动。
+
+| 选项 | 含义 | 版本 |
+| --- | --- | --- |
+| `--title <text>` | 页面的 `<title>`。缺省取导图的 `meta.name`，没有就用文件名 | `Since: 2.3.0` |
+| `--json` | 以机器可读格式输出：`{"file": …, "output": …}` | `Since: 2.3.0` |
 
 ## `mind`
 

@@ -32,6 +32,7 @@ import {
     DEFAULT_HEIGHT,
     DEFAULT_SCALE,
 } from './commands/export.ts';
+import { runExportHtml, defaultHtmlOutput } from './commands/export-html.ts';
 import { runValidate, validateHelp, assertValidateArgs } from './commands/validate.ts';
 import { runMind, mindHelp, assertMindSubcommand } from './commands/mind.ts';
 import { mindSetStyleHelp } from './commands/style.ts';
@@ -330,6 +331,27 @@ function dispatch(parsed: ParsedArgs): number | Promise<number> {
                         asJson,
                         transparent: parsed.values.transparent === true,
                     });
+                }
+                case 'html': {
+                    // The output path is optional here, unlike `image`: a page
+                    // is named after the map it shows, and requiring the same
+                    // word twice is a keystroke tax on the common case.
+                    const [file, output, ...extra] = args;
+                    if (file === undefined) {
+                        throw usageError('export html requires an input file');
+                    }
+                    if (extra.length > 0) {
+                        throw usageError(`Unexpected arguments: ${extra.join(' ')}`);
+                    }
+                    const options: Parameters<typeof runExportHtml>[0] = {
+                        file,
+                        output: output ?? defaultHtmlOutput(file),
+                        asJson,
+                    };
+                    if (typeof parsed.values.title === 'string') {
+                        options.title = parsed.values.title;
+                    }
+                    return runExportHtml(options);
                 }
                 default:
                     throw usageError(`Unknown export kind: ${kind} (kinds: ${kinds})\n\n${exportHelp}`);

@@ -20,6 +20,7 @@ const expected = new Set([
     "dist/jsmind.umd.js",
     "dist/jsmind.umd.js.map",
     "dist/jsmind.d.ts",
+    "dist/artifact.html",
 ]);
 
 const raw = execFileSync("npm", ["pack", "--dry-run", "--json"], {

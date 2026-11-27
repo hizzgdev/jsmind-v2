@@ -17,7 +17,7 @@ export default [
     },
     ...tseslint.configs.recommended,
     {
-        files: ['**/*.ts', '.config/*.js'],
+        files: ['**/*.ts', '.config/*.js', 'artifact/*.js'],
         ...stylistic.configs.recommended,
         languageOptions: {
             sourceType: 'module',

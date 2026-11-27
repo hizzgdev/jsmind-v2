@@ -330,6 +330,7 @@ test('help - `export` answers as a group, at both levels it has', () => {
     for (const args of [
         ['export', '--help'],
         ['export', 'image', '--help'],
+        ['export', 'html', '--help'],
         ['help', 'export'],
     ]) {
         const run = runCli(args);

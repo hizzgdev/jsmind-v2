@@ -25,11 +25,12 @@
         "dist/jsmind.cjs.map",
         "dist/jsmind.umd.js",
         "dist/jsmind.umd.js.map",
-        "dist/jsmind.d.ts"
+        "dist/jsmind.d.ts",
+        "dist/artifact.html"
     ],
     "scripts": {
         "server": "http-server",
-        "build": "rollup -c .config/rollup.config.js",
+        "build": "rollup -c .config/rollup.config.js && node scripts/assemble-artifact.ts",
         "assemble-site": "node scripts/assemble-site.ts",
         "render-preview": "node scripts/render-preview.ts",
         "docs:dev": "vitepress dev docs",

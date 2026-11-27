@@ -45,6 +45,11 @@ export const EXPORT_KINDS = [
         usage: '<file> <out.png>',
         summary: 'Render the map to an image  (PNG, JPEG or WebP)',
     },
+    {
+        name: 'html',
+        usage: '<file> [out.html]',
+        summary: 'One self-contained page that opens offline',
+    },
 ] as const;
 
 /** A word the `export` group accepts as its kind. */
@@ -63,6 +68,7 @@ export type ExportKind = (typeof EXPORT_KINDS)[number]['name'];
  */
 export const EXPORT_KIND_OPTIONS: Record<ExportKind, readonly string[]> = {
     image: ['width', 'height', 'scale', 'type', 'transparent'],
+    html: ['title'],
 };
 
 /** The encodings `--type` accepts, as the words this CLI uses. */
@@ -361,6 +367,11 @@ image options
   --transparent     Transparent background (PNG and WebP; opt-in; ignored for JPEG)
   --json            Machine-readable output
 
+html options
+
+  --title <text>    Page <title>            (default: the map's name, else the file name)
+  --json            Machine-readable output
+
 The image is the map's own size: whitespace inside the viewport is kept, and a
 map larger than the viewport is not cropped.
 
@@ -369,8 +380,16 @@ the output path is written exactly as given, so \`out.png --type jpeg\` writes a
 JPEG to a file called out.png — with one warning on stderr, because the
 extension says otherwise.
 
-Requires a Chromium binary. Set CHROME_PATH if it is not in a
+The image kind requires a Chromium binary. Set CHROME_PATH if it is not in a
 standard location. Rendering starts a browser process, so a sandboxed
 environment may ask for permission the first time; that is the browser
-starting, not a failure. An existing output file is overwritten in place —
-give a different output path to keep the old image.`;
+starting, not a failure.
+
+html writes one file and nothing beside it: the renderer, the shell and the map
+are inlined, so the page opens from a file:// URL on a machine with no network.
+It needs no browser to write, and the map is kept as JSON in a
+<script type="application/json"> block, so anything that can read the file can
+read the map back. A map larger than the window scrolls; it is not cropped.
+
+An existing output file is overwritten in place, for both kinds — give a
+different output path to keep the old one.`;

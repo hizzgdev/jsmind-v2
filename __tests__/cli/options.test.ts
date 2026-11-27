@@ -54,6 +54,7 @@ const EXPECTED_KEYS = [
     'validate',
     'context',
     'export image',
+    'export html',
     'help',
     'mind find',
     'mind list-edges',
