@@ -180,6 +180,9 @@ class FakeWeka(weka_webhook.Weka):
     def card_comments(self):
         return [call for call in self.kanban_calls if call[0] == "comment"]
 
+    def comment_boards(self):
+        return [board for args, board in self.board_calls if args[0] == "comment"]
+
     def create_boards(self):
         return [board for args, board in self.board_calls if args[0] == "create"]
 
@@ -291,6 +294,8 @@ class AnOpenCardAbsorbsTheCommentTests(unittest.TestCase):
         self.assertEqual(len(comments), 1)
         self.assertEqual(comments[0][1], "t_rework")
         self.assertIn("the label on line 42 is wrong", comments[0][2])
+        self.assertEqual(weka.comment_boards(), [None],
+                         "a PR card lives on this flow's board, so no --board override")
 
     def test_a_card_still_absorbs_the_comment_after_the_label_was_stripped(self):
         """cody strips weka-reviewed on pickup, so the label cannot gate this."""
@@ -428,6 +433,12 @@ class IssueCommentRoutingTests(unittest.TestCase):
 
         self.assertEqual(weka.creates(), [], "the scout card on its board owns the number")
         self.assertEqual(weka.card_comments()[0][1], "t_scout")
+        self.assertEqual(
+            weka.comment_boards(), [GROOM["groom_board"]],
+            "the comment is addressed at the board the card was found on; the CLI "
+            "resolves the task inside that board's own database",
+        )
+        self.assertEqual(weka.object_comments, [], "no false 'append failed' trace")
 
     def test_the_implementation_card_wins_when_both_boards_hold_one(self):
         weka = FakeWeka(cards=[("t_issue", "running")],
@@ -437,6 +448,8 @@ class IssueCommentRoutingTests(unittest.TestCase):
 
         self.assertEqual(weka.card_comments()[0][1], "t_issue",
                          "the card that is writing code hears the human first")
+        self.assertEqual(weka.comment_boards(), [None],
+                         "the implementation card lives on this flow's board")
 
     def test_a_second_comment_continues_the_groom_conversation(self):
         weka = FakeWeka(groom_cards=[("t_scout", "blocked")], config=GROOM)
@@ -445,6 +458,7 @@ class IssueCommentRoutingTests(unittest.TestCase):
 
         self.assertEqual(weka.creates(), [], "the scout card on its board owns the number")
         self.assertEqual(weka.card_comments()[0][1], "t_scout")
+        self.assertEqual(weka.comment_boards(), [GROOM["groom_board"]])
 
     def test_a_failed_scout_create_is_reported_on_the_issue(self):
         weka = FakeWeka(kanban_ok=False, config=GROOM)

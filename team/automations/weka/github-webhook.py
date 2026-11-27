@@ -544,11 +544,17 @@ class Weka:
         ref_url = comment.get("html_url") or ""
         idem_key = f"gh-issue-{number}-comment-{comment.get('id', '')}"
 
+        # The board the card was found on travels with it: `hermes kanban
+        # comment` resolves the task inside one board's database, so appending
+        # without it would report `unknown task` for every groom card.
         existing = self.open_card_for(number)
+        target_board = None
         if not existing and self.groom_board:
             existing = self.open_card_for(number, board=self.groom_board)
+            target_board = self.groom_board
         if existing:
-            self._append_to_card(existing, number=number, event=event, actor=actor, text=body)
+            self._append_to_card(existing, number=number, event=event, actor=actor,
+                                 text=body, board=target_board)
             return
 
         if self.label not in labels:
@@ -819,18 +825,23 @@ class Weka:
             )
 
     def _append_to_card(self, card: tuple[str, str], *, number: int | None, event: str,
-                        actor: str, text: str) -> None:
+                        actor: str, text: str, board: str | None = None) -> None:
         """Record the note on the card that already owns the number.
 
         One open card per number is the key rule, so the note goes into that card
         instead of next to it. If the append itself fails, say so on GitHub: the
         request would otherwise exist only as a journal line nobody reads.
+
+        `board` is the board the card was found on, and must be passed through:
+        the CLI looks the task up inside that board's own database, so a groom
+        card addressed on the implementation board is simply `unknown task`.
+        None is this flow's board, which is where every PR card lives.
         """
         card_id, status = card
         note = f"{event} from {actor}: card already {status}"
         if text.strip():
             note += f"\n\n{text.strip()}"
-        if not self.kanban("comment", card_id, note):
+        if not self.kanban("comment", card_id, note, board=board):
             self.comment_on_object(
                 number,
                 f"收到这条评论，但追加到卡片 `{card_id}` 失败（`hermes kanban comment` "
