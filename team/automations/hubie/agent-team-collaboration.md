@@ -6,6 +6,8 @@ This document records how the Hubie team works on jsMind-V2. It is also a setup 
 
 仓库是 [hizzgdev/jsmind-v2](https://github.com/hizzgdev/jsmind-v2)，默认分支是 `master`。
 
+运行时判据（实际状态怎么读、踩过的坑、排障顺序）在 [operating-notes.md](operating-notes.md)；动这套流程之前先读它。
+
 ## 1. 人员组织
 
 这个小团队名为 Hubie，按职责分工，而不是按 GitHub 账号分工。下列成员都是 Hubie 团队成员。所有 bot 对外使用同一个 GitHub 账号 `zzgbot`；终审和合并由仓库所有者使用 `hizzgdev` 完成。
