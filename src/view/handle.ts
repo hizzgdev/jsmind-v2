@@ -164,8 +164,12 @@ export interface JmViewHandle {
      * a change to the mind, which a display command does not make.
      *
      * @param nodeId - Id of a node in the open mind map.
-     * @throws {@link JsMindError} When no map is open, or when the id is not one
-     * of its nodes.
+     * @throws {@link JsMindError} When this view has not been given a map yet,
+     * or when the id is not one of that map's nodes.
+     *
+     * A closed map is not the same as no map: nothing tells the view a map was
+     * closed, it keeps the last one it was shown, and this centres a node of
+     * that map instead of throwing.
      */
     centerOn(nodeId: string): void;
 

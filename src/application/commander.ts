@@ -91,8 +91,10 @@ export class JmCommander {
      * viewport, leaving the zoom alone.
      *
      * @param nodeId - Id of a node in the open mind map.
-     * @throws {@link JsMindError} When no map is open, or the id is not one of
-     * its nodes.
+     * @throws {@link JsMindError} When this view has not been given a map yet,
+     * or the id is not one of that map's nodes. Closing the map does not empty
+     * the view: centring afterwards still acts on the last map shown, instead
+     * of throwing.
      */
     centerOn(nodeId: string): void {
         this.view.centerOn(nodeId);

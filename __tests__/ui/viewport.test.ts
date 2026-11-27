@@ -25,7 +25,8 @@
  *    was called at, and a native scroll the reader had already made does not
  *    change where it lands.
  * 11. `centerOn` inherits the pan's clamp: a node at the content's edge stops
- *    short of the middle rather than pulling empty canvas into view.
+ *    short of the middle rather than pulling empty canvas into view, and while
+ *    the whole map fits the box the call leaves the origin where it was.
  * 12. `centerOn` refuses ids that are not nodes of the map, including the ones
  *    that only exist on `Object.prototype`.
  *
@@ -1007,6 +1008,50 @@ test('ui viewport - a map that already fits the box cannot be dragged', async ()
 
     assert.deepStrictEqual(origin(after_), origin(before_), 'a map that fits has nowhere to pan to');
     assert.deepStrictEqual(paintedExtent(after_), extent, 'and every node stays where it was, none of them dragged off the box');
+});
+
+test('ui viewport - centerOn of a map that fits the box moves nothing', async () => {
+    await open(fixture(), TIGHT);
+
+    // The same state the drag above is a no-op in: the content brought inside
+    // the box and then zoomed out until it is smaller than the box on both
+    // axes, so the clamp has no band to move the origin in. Centring goes
+    // through the pan rather than writing the origin it computed, so it
+    // inherits that. An implementation that wrote it anyway would shove the map
+    // into a corner - and leave it there, since the empty band means a pan
+    // cannot bring it back.
+    const middle = middleOf(await panLimits());
+    await command(`jm.commands.panTo(${middle.x}, ${middle.y})`);
+    await command('jm.commands.zoomTo(0.1)');
+    const before_ = await snapshot();
+    assert.strictEqual(before_.viewport.scale, 0.1);
+    const extent = paintedExtent(before_);
+    assert.ok(
+        extent.left >= 0 && extent.right <= TIGHT.width,
+        `the zoomed-out map fits the box horizontally: ${extent.left}..${extent.right} in ${TIGHT.width}, origin ${before_.viewport.x}/${before_.viewport.y}`
+    );
+    assert.ok(
+        extent.top >= 0 && extent.bottom <= TIGHT.height,
+        `the zoomed-out map fits the box vertically: ${extent.top}..${extent.bottom} in ${TIGHT.height}`
+    );
+
+    // A leaf at the content's edge, so the origin a centring would compute is
+    // far from the one the zoom left behind: the root sits near the middle and
+    // would make a no-op and a centring look alike.
+    const leaf = identifierFor('分支 0.0 的说明文字');
+    const beforeCentre = centreOf(before_, '分支 0.0 的说明文字');
+    const beforeMiddle = middleOfBox(before_);
+    assert.ok(
+        Math.abs(beforeCentre.x - beforeMiddle.x) > 5 || Math.abs(beforeCentre.y - beforeMiddle.y) > 5,
+        `the node should not already be in the middle: ${beforeCentre.x.toFixed(2)}/${beforeCentre.y.toFixed(2)} against ${beforeMiddle.x}/${beforeMiddle.y}`
+    );
+
+    await command(`jm.commands.centerOn('${leaf}')`);
+    const after_ = await snapshot();
+
+    assert.deepStrictEqual(origin(after_), origin(before_), 'a map that fits has no middle to move to');
+    assert.deepStrictEqual(paintedExtent(after_), extent, 'and every node stays where it was, none of them pushed off the box');
+    assertPaintMatchesViewport(after_);
 });
 
 test('ui viewport - zoom and pan alternate without overwriting each other', async () => {
