@@ -72,11 +72,12 @@ function withTempDir<T>(body: (dir: string) => T): T {
  *
  * The whole workflow is one string, so a bare `/--token/` would also match
  * prose in a comment; scoping to the step keeps these assertions about the
- * command that actually runs.
+ * command that actually runs. The preview job's last step is also the file's
+ * last step, hence the end-of-input alternative.
  */
 function stepText(name: string): string {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const found = new RegExp(`- name: ${escaped}[\\s\\S]*?(?=\\n {6}- name: )`).exec(WORKFLOW);
+    const found = new RegExp(`- name: ${escaped}[\\s\\S]*?(?=\\n {6}- name: |$)`).exec(WORKFLOW);
     assert.ok(found, `the preview job should have a \`${name}\` step`);
     return found?.[0] ?? '';
 }
@@ -153,6 +154,70 @@ function runDeploy(npxBody: string): { status: number | null; stdout: string; ou
             status: run.status,
             stdout: `${run.stdout}${run.stderr}`,
             output: readFileSync(outputFile, 'utf8'),
+        };
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+/**
+ * Runs the comment step's script with a stub `gh`, and hands back the body it
+ * would have posted.
+ *
+ * The body is assembled inside the step from three variables, so which
+ * sentences end up in it is a property of the script - and one that a pattern
+ * match on the YAML cannot see: a paragraph written straight into the heredoc
+ * passes every text assertion while saying something the comment does not
+ * contain.
+ */
+function runComment(previewUrl: string, pageUrl: string) {
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-comment-'));
+    try {
+        const bin = join(dir, 'bin');
+        mkdirSync(bin);
+        const capture = join(dir, 'posted.md');
+        // Only the post matters: the "remove the previous comment" call can
+        // answer with nothing, and a body file is the argument to copy back.
+        writeFileSync(
+            join(bin, 'gh'),
+            [
+                '#!/usr/bin/env bash',
+                'if [ "$1" = pr ] && [ "$2" = comment ]; then',
+                '    for arg in "$@"; do last="$arg"; done',
+                '    cp "$last" "$CAPTURE"',
+                'fi',
+                'exit 0',
+                '',
+            ].join('\n'),
+            'utf8'
+        );
+        chmodSync(join(bin, 'gh'), 0o755);
+        // The script writes its heredoc to tmp/comment.md, which the export
+        // step has already created by the time this runs on a runner.
+        mkdirSync(join(dir, 'tmp'));
+
+        const script = join(dir, 'step.sh');
+        writeFileSync(script, stepScript('Post it on the pull request'), 'utf8');
+        const run = spawnSync('/bin/bash', [script], {
+            cwd: dir,
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH ?? ''}`,
+                CAPTURE: capture,
+                PREVIEW_URL: previewUrl,
+                PAGE_URL: pageUrl,
+                PR_NUMBER: '226',
+                FULL_SHA: '1bcd6d82278aed7402a5c4f5e4301d6bb29af0fd',
+                RUN_ID: '45963800674',
+                REPO: 'hizzgdev/jsmind-v2',
+            },
+        });
+
+        return {
+            status: run.status,
+            stdout: `${run.stdout}${run.stderr}`,
+            body: existsSync(capture) ? readFileSync(capture, 'utf8') : '',
         };
     } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -480,6 +545,33 @@ test('the comment is posted while either half of it exists', () => {
     assert.match(WORKFLOW, /^ {10}\$image_line$/m);
     assert.match(WORKFLOW, /^ {10}\$page_line$/m);
     assert.match(WORKFLOW, /^ {10}<sub>.*\$\{image_note\}\$\{page_note\}<\/sub>$/m);
+});
+
+test('the look-for paragraph names what the comment actually contains', () => {
+    // The same defect the `<sub>` had, one paragraph down: with the upload
+    // failed the comment carries no image, and "the one thing this image is
+    // for" then points at nothing. Only the script can be asked which
+    // paragraph the body ends up with - a text assertion passes while the
+    // heredoc keeps the sentence in every case.
+    const both = runComment('https://example.test/preview.png', 'https://1--x.surge.sh');
+    assert.equal(both.status, 0, both.stdout);
+    assert.match(both.body, /the one thing this image is for/);
+    assert.ok(
+        !/Open the exported page and look for those/.test(both.body),
+        'the image branch does not send the reader to the page'
+    );
+
+    const linkOnly = runComment('', 'https://1--x.surge.sh');
+    assert.equal(linkOnly.status, 0, linkOnly.stdout);
+    assert.ok(!/this image/i.test(linkOnly.body), 'no claim about an image the comment does not have');
+    assert.ok(!linkOnly.body.includes('![jsMind render preview]'), 'and no image line either');
+    assert.ok(
+        !/Uploaded as a comment attachment/.test(linkOnly.body),
+        'nor the <sub> sentence about the attachment'
+    );
+    assert.match(linkOnly.body, /Open the exported page and look for those/);
+    assert.match(linkOnly.body, /\[Open the exported page\]\(https:\/\/1--x\.surge\.sh\)/);
+    assert.match(linkOnly.stdout, /::warning::the image did not upload/);
 });
 
 test('a failed deploy says so, instead of dropping the link silently', () => {
