@@ -78,9 +78,9 @@ function bigDocument(): unknown {
         nodes[id] = node(id, `主题 ${branch}`, 'root', leaves, side(branch));
     }
 
-    for (let depth = 0; depth < 5; depth += 1) {
+    for (let depth = 0; depth < 9; depth += 1) {
         const id = `chain${depth}`;
-        nodes[id] = node(id, `链路第 ${depth} 层`, depth === 0 ? 'root' : `chain${depth - 1}`, [], 1);
+        nodes[id] = node(id, `链路第 ${depth} 层的说明文字`, depth === 0 ? 'root' : `chain${depth - 1}`, [], 1);
         if (depth > 0) {
             nodes[`chain${depth - 1}`]!.children.push(id);
         }
@@ -275,15 +275,17 @@ test('ui viewport - fitToView shows the whole map without scrolling the page', a
     await open(bigDocument());
     const before_ = await snapshot();
 
-    // The fixture has to be bigger than the window, or the case proves nothing.
+    // The fixture has to be bigger than the window, with room to spare: text
+    // widths follow whatever font the machine substitutes, so a map that beats
+    // the window by 5% on one runner can lose to it on another.
     const bounds = mapBounds(before_.nodes);
     assert.ok(
-        bounds.maxX - bounds.minX > HOST.width,
-        `the fixture should be wider than the window: ${(bounds.maxX - bounds.minX).toFixed(0)} vs ${HOST.width}`
+        bounds.maxX - bounds.minX > HOST.width * 1.2,
+        `the fixture should be well wider than the window: ${(bounds.maxX - bounds.minX).toFixed(0)} vs ${HOST.width}`
     );
     assert.ok(
-        bounds.maxY - bounds.minY > HOST.height,
-        `the fixture should be taller than the window: ${(bounds.maxY - bounds.minY).toFixed(0)} vs ${HOST.height}`
+        bounds.maxY - bounds.minY > HOST.height * 1.2,
+        `the fixture should be well taller than the window: ${(bounds.maxY - bounds.minY).toFixed(0)} vs ${HOST.height}`
     );
 
     await command('jm.commands.fitToView()');
