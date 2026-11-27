@@ -267,6 +267,25 @@ function vitepressIcon(name: string): string {
 }
 
 /**
+ * The external-link arrow `vp-doc.css` draws after a link that leaves the site.
+ *
+ * Read from the theme's own stylesheet, like `vitepressIcon`, so an upgrade
+ * that redraws the arrow fails here instead of passing against a hand-copied
+ * path — the product page writes the rule out by hand and cannot import it.
+ */
+function vitepressExternalLinkIcon(): string {
+    const css = readFileSync(
+        join(ROOT, 'node_modules/vitepress/dist/client/theme-default/styles/components/vp-doc.css'),
+        'utf8'
+    );
+    const uri = /--icon: url\("([^"]+)"\)/.exec(css);
+    if (uri === null || uri[1] === undefined) {
+        throw new Error('vitepress should ship the external-link arrow');
+    }
+    return decodeURIComponent(uri[1].replace('data:image/svg+xml,', '')).trim();
+}
+
+/**
  * One `<svg>` of a page by its class, split into its opening tag and its body.
  *
  * A missing icon has to fail the test rather than read as `undefined` further
@@ -720,10 +739,10 @@ function assertSharedHeader(options: {
             assert.match(link.rel ?? '', /\bnoopener\b/, `${label}: ${link.text} should carry noopener`);
             assert.match(link.rel ?? '', /\bnoreferrer\b/, `${label}: ${link.text} should carry noreferrer`);
         } else {
-            // No `target`, or `_self`: VitePress's router intercepts any
-            // same-origin link that carries none, and the product page lives
-            // outside both sites' bases, so an intercepted Home would route
-            // into a page this site does not have.
+            // The in-site sections carry no `target`, so VitePress's router
+            // takes the click itself: that is what keeps the four section
+            // links inside this site. A cross-site entry does not belong
+            // here — it is absolute, and its icon promises a new tab.
             assert.strictEqual(link.target ?? '_self', '_self', `${label}: ${link.text} should stay in this tab`);
         }
     }
@@ -976,6 +995,65 @@ describe('landing page', () => {
         assert.strictEqual(entryText, chinese, 'the entry should print the name the docs print');
     });
 
+    it('marks the links that leave the site with the theme external-link arrow', () => {
+        const page = landingPageHtml();
+
+        // Both nav entries open another face, so each one carries VPLink.vue's
+        // `.vp-external-link-icon`, which vp-doc.css draws as a `::after` mask.
+        // This page cannot import the theme's stylesheet, so the rule is
+        // written out by hand; the shape is pinned to the theme's — 11px,
+        // --vp-c-text-3, the theme's own path data — because an arrow drawn
+        // close to it still reads as a different icon on screen.
+        const css = /<style>([\s\S]*?)<\/style>/.exec(page)?.[1] ?? '';
+        const rule = /\.site-nav a\[target="_blank"\]::after\s*\{([^}]*)\}/.exec(css)?.[1];
+        assert.ok(rule, 'the nav should draw the external-link arrow on a `::after`');
+
+        // A generated box needs both halves: `content` is what creates the
+        // pseudo-element at all, and `display: inline-block` is what gives it
+        // the 11px box below. Drop either and the rule still parses, every
+        // declaration after this point still matches, and no arrow is drawn.
+        assert.match(rule, /content: '';/, 'the arrow should be generated before it is drawn');
+        assert.match(rule, /display: inline-block;/, 'the arrow should get a box of its own');
+
+        // The mask only cuts a shape out of a painted layer: `background:
+        // currentColor` is the layer, so dropping it leaves the arrow fully
+        // transparent. Safari ignores the unprefixed mask, hence the prefixed
+        // copy in the same list. Compare whole declarations, not substrings:
+        // `mask-image: ...` is also inside `-webkit-mask-image: ...`, so a
+        // substring check would pass with the unprefixed property deleted.
+        const declarations = rule.split(';').map((declaration) => declaration.trim());
+        for (const declaration of [
+            'width: 11px',
+            'height: 11px',
+            'margin-top: -1px',
+            'margin-left: 4px',
+            'flex-shrink: 0',
+            'background: currentColor',
+            '-webkit-mask-image: var(--external-link-icon)',
+            'mask-image: var(--external-link-icon)',
+        ]) {
+            assert.ok(declarations.includes(declaration), `the arrow should carry ${declaration}`);
+        }
+
+        const uri = /--external-link-icon: url\("([^"]+)"\)/.exec(rule)?.[1];
+        assert.ok(uri, 'the arrow should be a mask, not a second asset');
+        assert.strictEqual(
+            decodeURIComponent(uri.replace('data:image/svg+xml,', '')).trim(),
+            vitepressExternalLinkIcon(),
+            'the arrow should be the path data vitepress@1.6.4 ships, not a redrawn one'
+        );
+
+        // --vp-c-text-3 is a variable in the theme and a pair of literals here,
+        // so the dark value needs its own rule; without it the arrow keeps the
+        // light grey on the dark page.
+        assert.match(rule, /color: #929295; \/\* --vp-c-text-3 \*\//);
+        assert.match(
+            css,
+            /html\.dark \.site-nav a\[target="_blank"\]::after\s*\{\s*color: #6a6a71; \/\* --vp-c-text-3 \(dark\) \*\//,
+            'the dark face should draw the arrow in its own --vp-c-text-3'
+        );
+    });
+
     it('shows the language panel on hover as well as on aria-expanded', () => {
         const page = landingPageHtml();
 
@@ -1034,6 +1112,42 @@ describe('pages site assembly', () => {
         const published = rewritePlayground(html);
         assert.deepStrictEqual(moduleScriptSrcs(published), ['jsmind.js']);
         assert.ok(!published.includes('../dist/jsmind.js'));
+    });
+
+    it('puts Home before Docs and GitHub in the playground header', () => {
+        const html = readFileSync(join(ROOT, 'example/playground.html'), 'utf8');
+        const area = /<div class="header-links">([\s\S]*?)<\/div>/.exec(html)?.[1];
+        assert.ok(area, 'the playground should carry the header links');
+
+        // The playground is its own header, not the VitePress one: it gets a
+        // Home entry written out on the product page's own address, and none
+        // of the theme's external-link arrow.
+        const entries = [...area.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)].map(([tag = '', body = '']) => ({
+            tag,
+            text: textOf(body),
+        }));
+        assert.deepStrictEqual(
+            entries.map(({ text }) => text),
+            ['Home', 'Docs', 'jsmind-v2'],
+            'the playground header should read Home, Docs, then GitHub'
+        );
+        const home = tagAttrs(entries[0]?.tag ?? '');
+        assert.strictEqual(home.get('target'), '_blank', 'Home should open the product page in a new tab');
+        // A link that opens another origin must not hand it `window.opener`;
+        // `assertSharedHeader` requires noopener + noreferrer of every
+        // cross-site entry on the three sites, and this header is the one it
+        // cannot reach.
+        assert.match(home.get('rel') ?? '', /\bnoopener\b/, 'Home should carry noopener');
+        assert.match(home.get('rel') ?? '', /\bnoreferrer\b/, 'Home should carry noreferrer');
+        assert.strictEqual(
+            new URL(home.get('href') ?? '').href,
+            HOME_URL,
+            'Home should reach the product page at its published address'
+        );
+        assert.ok(
+            !html.includes('vp-external-link-icon'),
+            'the playground header must not take the theme external-link arrow'
+        );
     });
 
     it('points the playground at icons that exist beside it, in both layouts', () => {
@@ -1427,11 +1541,11 @@ describe('pages site assembly', () => {
                         locale === 'en'
                             ? [
                                 { text: 'Docs', href: `${DOCS_URL}en/`, newTab: true },
-                                { text: 'Home', href: HOME_URL },
+                                { text: 'Home', href: HOME_URL, newTab: true },
                             ]
                             : [
                                 { text: '文档', href: `${DOCS_URL}zh/`, newTab: true },
-                                { text: '首页', href: HOME_URL },
+                                { text: '首页', href: HOME_URL, newTab: true },
                             ],
                     order: ['VPNavBarMenu', 'VPNavBarTranslations', 'VPNavBarAppearance', 'VPNavBarSocialLinks'],
                 });
@@ -1655,7 +1769,7 @@ describe('pages site assembly', () => {
                     { text: 'Reference', href: `${DOCS_URL}en/reference/` },
                     { text: 'Community', href: `${DOCS_URL}en/community/` },
                     { text: 'Tutorials', href: `${TUTORIALS_URL}en/`, newTab: true },
-                    { text: 'Home', href: HOME_URL },
+                    { text: 'Home', href: HOME_URL, newTab: true },
                 ],
                 zh: [
                     { text: '指南', href: `${DOCS_URL}zh/guide/` },
@@ -1663,7 +1777,7 @@ describe('pages site assembly', () => {
                     { text: '参考', href: `${DOCS_URL}zh/reference/` },
                     { text: '社区', href: `${DOCS_URL}zh/community/` },
                     { text: '教程', href: `${TUTORIALS_URL}zh/`, newTab: true },
-                    { text: '首页', href: HOME_URL },
+                    { text: '首页', href: HOME_URL, newTab: true },
                 ],
             };
             for (const [locale, html] of [['en', enGuide], ['zh', zhGuide]] as const) {

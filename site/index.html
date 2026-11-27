@@ -122,6 +122,34 @@ html.dark .site-nav a {
 html.dark .site-nav a:hover {
     color: #a8b1ff; /* --vp-c-brand-1 (dark) */
 }
+/*
+ * Both nav entries leave the site, so each carries the external-link arrow the
+ * docs theme puts after such a link: VPLink.vue marks it
+ * `.vp-external-link-icon`, and vp-doc.css draws the mark on its `::after`.
+ * `target="_blank"` is what makes a link external here, the same thing VPLink
+ * reads besides the absolute href. The mark is a mask over `currentColor`, so
+ * it follows this rule's own colour rather than the text's and needs no second
+ * asset; the theme gives it --vp-c-text-3, and the `color` it sets on the
+ * `::after` also keeps it out of the link's hover colour.
+ */
+.site-nav a[target="_blank"]::after {
+    content: '';
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin-top: -1px;
+    margin-left: 4px;
+    flex-shrink: 0;
+    background: currentColor;
+    color: #929295; /* --vp-c-text-3 */
+    /* The theme keeps this svg in `--icon`, with the same path data. */
+    --external-link-icon: url("data:image/svg+xml, %3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' %3E%3Cpath d='M0 0h24v24H0V0z' fill='none' /%3E%3Cpath d='M9 5v2h6.59L4 18.59 5.41 20 17 8.41V15h2V5H9z' /%3E%3C/svg%3E");
+    -webkit-mask-image: var(--external-link-icon);
+    mask-image: var(--external-link-icon);
+}
+html.dark .site-nav a[target="_blank"]::after {
+    color: #6a6a71; /* --vp-c-text-3 (dark) */
+}
 .header-tool {
     display: inline-flex;
     align-items: center;

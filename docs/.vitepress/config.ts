@@ -23,9 +23,10 @@ import { DOCS_BASE, HOME_URL, TUTORIALS_URL } from '../../site.config.mjs';
  * `/jsmind-v2/docs/jsmind-v2/tutorials/`; anything that leaves this site has
  * to be written out in full.
  *
- * The tutorials entry opens in a new tab — a reader keeps the page they were
- * reading when they glance at a tutorial — and the product page and the
- * tutorials site carry the same `target`/`rel` on their cross-site entries.
+ * Both entries that leave this site — the tutorials and Home — open in a new
+ * tab, so a reader keeps the page they were reading while glancing at another
+ * column or at the product page. The product page and the tutorials site carry
+ * the same `target`/`rel` on their cross-site entries.
  */
 
 const enNav: DefaultTheme.NavItem[] = [
@@ -39,11 +40,10 @@ const enNav: DefaultTheme.NavItem[] = [
         target: '_blank',
         rel: 'noopener noreferrer',
     },
-    // `target: '_self'` keeps Home in this tab. The address is absolute, and
-    // VPLink opens an external href in a new tab unless a `target` says
-    // otherwise; the attribute is also what stops VitePress's router from
-    // intercepting the click and routing the product page into this site.
-    { text: 'Home', link: HOME_URL, target: '_self' },
+    // Home leaves this site too. The address is absolute, so VPLink opens it
+    // in a new tab and marks it with the external-link icon by itself; `rel` is
+    // written out to match the tutorials entry above.
+    { text: 'Home', link: HOME_URL, rel: 'noopener noreferrer' },
 ];
 
 const enSidebar: DefaultTheme.Sidebar = [
@@ -116,7 +116,7 @@ const zhNav: DefaultTheme.NavItem[] = [
         target: '_blank',
         rel: 'noopener noreferrer',
     },
-    { text: '首页', link: HOME_URL, target: '_self' },
+    { text: '首页', link: HOME_URL, rel: 'noopener noreferrer' },
 ];
 
 const zhSidebar: DefaultTheme.Sidebar = [

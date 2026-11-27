@@ -24,8 +24,10 @@ import { tutorialAssetOverrides } from './asset-overrides';
  * `*_URL` is an absolute address: only the former can be handed to VitePress,
  * only the latter survives a link on a page of unknown depth.
  *
- * The docs entry opens in a new tab, the way the tutorials entry in the docs
- * nav and both column entries on the product page do.
+ * Both entries open in a new tab: the docs site is a different face, and Home
+ * is the product page, so a reader who follows either keeps the article they
+ * were reading — the way the cross-site entries on the product page and in the
+ * docs nav behave.
  *
  * The repository has no copy of the site icons: `scripts/assemble-site.ts`
  * copies `docs/public/` beside both built sites, so the one checked-in copy
@@ -39,10 +41,10 @@ const enNav: DefaultTheme.NavItem[] = [
         target: '_blank',
         rel: 'noopener noreferrer',
     },
-    // `target: '_self'`: Home stays in this tab (VPLink opens an absolute href
-    // in a new one otherwise), and the attribute is what keeps VitePress's
-    // router from intercepting the click.
-    { text: 'Home', link: HOME_URL, target: '_self' },
+    // Home is absolute, so VPLink opens it in a new tab and marks it with the
+    // external-link icon on its own; `rel` is written out to match the docs
+    // entry above.
+    { text: 'Home', link: HOME_URL, rel: 'noopener noreferrer' },
 ];
 
 const zhNav: DefaultTheme.NavItem[] = [
@@ -52,7 +54,7 @@ const zhNav: DefaultTheme.NavItem[] = [
         target: '_blank',
         rel: 'noopener noreferrer',
     },
-    { text: '首页', link: HOME_URL, target: '_self' },
+    { text: '首页', link: HOME_URL, rel: 'noopener noreferrer' },
 ];
 
 export default defineConfig({
