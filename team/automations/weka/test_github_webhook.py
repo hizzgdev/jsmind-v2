@@ -402,6 +402,42 @@ class IssueCommentRoutingTests(unittest.TestCase):
         self.assertEqual(comments[0][1], "t_issue")
         self.assertIn("这一段需求再确认一下", comments[0][2])
 
+    def test_a_card_still_absorbs_the_comment_after_the_label_was_stripped(self):
+        """The card lookup is before the label gate, like the PR path's."""
+        weka = FakeWeka(cards=[("t_issue", "running")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(labels=("bug",)))
+
+        self.assertEqual(weka.creates(), [], "the running card owns the number")
+        self.assertEqual(weka.card_comments()[0][1], "t_issue")
+        self.assertEqual(weka.object_comments, [], "no refusal note: the card took the comment")
+
+    def test_a_closed_issue_keeps_feeding_the_card_that_is_still_open(self):
+        """`Closes #N` closes the issue while the work is still on the board."""
+        weka = FakeWeka(cards=[("t_issue", "review")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(state="closed"))
+
+        self.assertEqual(weka.creates(), [])
+        self.assertEqual(weka.card_comments()[0][1], "t_issue")
+
+    def test_the_groom_card_takes_a_comment_on_a_closed_issue(self):
+        weka = FakeWeka(groom_cards=[("t_scout", "running")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(state="closed"))
+
+        self.assertEqual(weka.creates(), [], "the scout card on its board owns the number")
+        self.assertEqual(weka.card_comments()[0][1], "t_scout")
+
+    def test_the_implementation_card_wins_when_both_boards_hold_one(self):
+        weka = FakeWeka(cards=[("t_issue", "running")],
+                        groom_cards=[("t_scout", "running")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload())
+
+        self.assertEqual(weka.card_comments()[0][1], "t_issue",
+                         "the card that is writing code hears the human first")
+
     def test_a_second_comment_continues_the_groom_conversation(self):
         weka = FakeWeka(groom_cards=[("t_scout", "blocked")], config=GROOM)
 

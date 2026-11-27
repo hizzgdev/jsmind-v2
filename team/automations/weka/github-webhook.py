@@ -518,35 +518,44 @@ class Weka:
 
         Order, and why:
 
-        1. An open card on this flow's board absorbs the note, labels and
-           assignee aside — the same rule the PR path already uses. A `running`
-           card gets it through the comment injection, one in `review` when the
-           reviewer's first `kanban_show()` reads it, one in `ready` when its
-           worker starts.
+        1. An open card holding this number absorbs the note, labels, assignee
+           and issue state aside — the same rule the PR path already uses, and
+           checked before both gates for the same reason (`_create_rework_card`):
+           the card that is working is where the human's new words have to land.
+           A `running` card gets it through the comment injection, one in
+           `review` when the reviewer's first `kanban_show()` reads it, one in
+           `ready` when its worker starts.
         2. Otherwise the assignee decides who gets a new card: the human (groom
            conversation) or the bot account (the implementation path).
-        3. A closed issue wins over both: with no card to annotate there is
-           nothing to work on, so it stays silent in the journal (the same
-           silence a closed PR gets). An open issue with neither assignee gets a
-           trace on the issue — "nothing happened" is the bug this flow exists
-           to fix.
+        3. A closed issue with no card anywhere wins over both: there is nothing
+           left to work on, so it stays silent in the journal (the same silence a
+           closed PR gets). An open issue with neither assignee gets a trace on
+           the issue — "nothing happened" is the bug this flow exists to fix.
+
+        Two boards can each hold an open card for one number (see README
+        "卡片与编号"), so both are searched. The implementation board wins: a
+        card that is writing code is the one whose worker must hear the human
+        first.
         """
         number = issue.get("number")
         labels = [lbl.get("name", "") for lbl in (issue.get("labels") or [])]
-        if self.label not in labels:
-            # Ownership, not a refusal: an issue nobody handed to weka is not
-            # weka's thread to answer in — the same silence an unrelated PR gets.
-            print(f"[GATE] issue #{number} is not a weka issue: comment ignored", file=sys.stderr)
-            return
-
         event = "issue_comment.created"
         actor = (comment.get("user") or {}).get("login", "")
         ref_url = comment.get("html_url") or ""
         idem_key = f"gh-issue-{number}-comment-{comment.get('id', '')}"
 
         existing = self.open_card_for(number)
+        if not existing and self.groom_board:
+            existing = self.open_card_for(number, board=self.groom_board)
         if existing:
             self._append_to_card(existing, number=number, event=event, actor=actor, text=body)
+            return
+
+        if self.label not in labels:
+            # Ownership, not a refusal: an issue nobody handed to weka and no
+            # card is working on is not weka's thread to answer in — the same
+            # silence an unrelated PR gets.
+            print(f"[GATE] issue #{number} is not a weka issue: comment ignored", file=sys.stderr)
             return
 
         if (issue.get("state") or "open") != "open":
@@ -589,6 +598,10 @@ class Weka:
         No `--workspace worktree --project` here: a conversation about what an
         issue should become is not a code task, so it gets the board's default
         workspace instead of a checkout of this repository.
+
+        Reached only when neither board holds an open card for the number:
+        `_deliver_issue_comment` has already looked, in the same order, so this
+        is the create half and nothing here re-decides who owns the number.
         """
         if not (self.groom_board and self.groom_assignee):
             print(
@@ -602,13 +615,6 @@ class Weka:
                 f"`{self.human}`（groom 流程），但 webhook 还没有配置 "
                 "`groom_board` / `groom_assignee`，这一支暂时是关的。配置补上之后再留一次言即可。",
             )
-            return
-
-        existing = self.open_card_for(number, board=self.groom_board)
-        if existing:
-            # One open card per number, per board: the groom conversation owns
-            # this number on its board, so a second comment continues it there.
-            self._append_to_card(existing, number=number, event=event, actor=actor, text=text)
             return
 
         self._create_card(
