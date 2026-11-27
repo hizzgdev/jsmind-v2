@@ -61,6 +61,21 @@ static Serializer: typeof JmMindSerializerFactory
 Factory for serializers. `jsMind.Serializer.create('json')` and
 `jsMind.Serializer.create('freemind')` are the supported formats.
 
+### commands {#JsMind.commands}
+
+```ts
+get commands(): JmCommander
+```
+
+Commands that change what is displayed - export, zoom - without changing
+the map.
+
+**Remarks**
+
+Reachable from outside so that the caller can hold on to it: a shell, a
+toolbar button or a keyboard shortcut keeps this reference and calls it,
+instead of going through the instance every time.
+
 ### Author {#JsMind.Author}
 
 ```ts

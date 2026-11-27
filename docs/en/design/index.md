@@ -58,7 +58,7 @@ Model change → JmMindChangeCoordinator → JmView    (reactions: node add / re
 
 **Operations that change the model must use the second channel.** Folding, moving, changing text, changing style — the data is the source of truth, and the view is a projection. Putting model changes through Commander would create a second write path, and that path would diverge from the one agents take through the CLI.
 
-**Operations that do not change the model use the first channel.** Pan, zoom, and export only change how the map is observed; they do not change any node. `JmViewHandle` is the narrow interface the view exposes to the application layer (currently only `capture()`; `pan` / `zoom` / `centerOn` may be added later).
+**Operations that do not change the model use the first channel.** Pan, zoom, and export only change how the map is observed; they do not change any node. `JmViewHandle` is the narrow interface the view exposes to the application layer; see the [viewport reference](/en/reference/api/viewport) for what it offers — the surface is still growing, so it is not enumerated here.
 
 ## 4. Key decisions
 

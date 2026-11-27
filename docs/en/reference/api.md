@@ -82,13 +82,14 @@ When you are finished with a view, call `jm.close()`.
 
 The following pages list the classes, interfaces, and methods from the published typings. Identifiers are in English; each typings comment is included in English here and in Chinese on the Chinese pages.
 
-- [JsMind](./api/jsmind) — the default export: `create`, `open`, `serialize`, `exportImage`, and static helpers
+- [JsMind](./api/jsmind) — the default export: `create`, `open`, `serialize`, `exportImage`, `commands`, and static helpers
 - [JmMind](./api/mind) — the mind map model
 - [Nodes](./api/node) — nodes, content, and sides
 - [Edges](./api/edge) — additional relationships between nodes
 - [Options](./api/options) — configuration for `create`
 - [Serialization](./api/serialization) — `jsMind.Serializer`
 - [Image export](./api/export) — options and results for `exportImage`
+- [Viewport and display commands](./api/viewport) — `jm.commands` and the `JmViewHandle` it drives
 - [Style and theme](./api/style) — visual overrides and theme types
 
 The [data format](./data-format) page, which will describe the on-disk document in more detail, is still being written. Types that the API uses are documented here, but that page is not a finished guide.

@@ -50,11 +50,76 @@ static create(format: string): JmMindSerializer
 
 所有思维导图序列化器的基础接口。
 
-**属性**
+### deserialize {#JmMindSerializer.deserialize}
+
+```ts
+deserialize(data: unknown): JmMind
+```
+
+将数据反序列化为思维导图。
+
+**返回值:** 反序列化得到的思维导图。
+
+**异常**
+
+- `JsMindError` 如果反序列化失败。
+
+**参数**
 
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
-| `deserialize` | unknown | 将数据反序列化为思维导图。 |
-| `getFormatName` | unknown | 获取该序列化器支持的格式名称。 |
-| `serialize` | unknown | 将思维导图序列化为特定格式。 |
-| `validate` | unknown | 校验数据是否可由该序列化器反序列化。 |
+| `data` | unknown | 要反序列化的数据。 |
+
+### getFormatName {#JmMindSerializer.getFormatName}
+
+```ts
+getFormatName(): string
+```
+
+获取该序列化器支持的格式名称。
+
+**返回值:** 格式名称。
+
+**异常**
+
+- `JsMindError` 如果格式名称未实现。
+
+### serialize {#JmMindSerializer.serialize}
+
+```ts
+serialize(mind: JmMind): unknown
+```
+
+将思维导图序列化为特定格式。
+
+**返回值:** 该格式下的序列化数据。
+
+**异常**
+
+- `JsMindError` 如果序列化失败。
+
+**参数**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `mind` | [JmMind](/zh/reference/api/mind#JmMind) | 要序列化的思维导图。 |
+
+### validate {#JmMindSerializer.validate}
+
+```ts
+validate(data: unknown): boolean
+```
+
+校验数据是否可由该序列化器反序列化。
+
+**返回值:** 如果数据对该格式有效则为 true。
+
+**异常**
+
+- `JsMindError` 如果校验失败。
+
+**参数**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `data` | unknown | 要校验的数据。 |
