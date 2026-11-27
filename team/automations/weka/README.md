@@ -47,7 +47,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
        → 你把 issue 转给 zzgbot → 回到上面的开发流程
 ```
 
-任何时刻人在 weka 的 issue / PR 上留言，都是同一条路进来：有 open 卡就追加到那张卡（`ready` / `running` / `review` 三种状态各自能读到），没有卡才按指派分流（实现 / groom），两个指派都不在就在 issue 上留一句说明。详见「触发规则」与「评论如何到达正在干活的人」。
+任何时刻人在 weka 的 issue / PR 上留言，都是同一条路进来：有 open 卡就追加到那张卡（`ready` / `running` / `review` / `blocked` 四种状态各自能读到，`blocked` 那张要等人 unblock 之后才被读到），没有卡才按指派分流（实现 / groom），两个指派都不在就在 issue 上留一句说明。详见「触发规则」与「评论如何到达正在干活的人」。
 
 关键设计：
 
@@ -173,13 +173,14 @@ hermes kanban --board groom create "演练：groom 卡能被调度" --assignee s
 
 ## 评论如何到达正在干活的人
 
-评论写进卡之后，卡的三种状态各有各的接收方式，所以**不需要 reopen-review 来唤醒**：
+评论写进卡之后，卡的四种状态各有各的接收方式，所以**不需要 reopen-review 来唤醒**：
 
 | 卡的状态 | 评论怎么进去 |
 | --- | --- |
 | `todo` / `ready` | worker 开工第一步 `kanban_show()` 读到（返回里带 comments） |
 | `running` | `inject_new_comments_from_env` 轮询本卡新评论，`agent.steer()` 送进正在跑的会话 |
 | `review` | 停着等人领；review 通道领走后，reed 第一步 `kanban_show()` 读到 |
+| `blocked` | 停下等人处理；评论照样追加进卡，人 unblock 后 worker 重新起来，第一步 `kanban_show()` 读到。这期间不会新建卡（见「每次关闭后排下一轮：groom 卡」） |
 
 `reopen_review_task` 的语义是 `review → ready/todo`，恢复的是**实现者**，也就是"打回 cody"；它只作为人工工具保留，weka 不自动调用。
 
