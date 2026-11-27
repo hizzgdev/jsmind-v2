@@ -4,7 +4,7 @@
 The `jsmind` CLI is currently a preview. Commands and options will change in later updates. Please check this page for the commands that are current.
 :::
 
-The CLI is the command-line interface for jsMind V2 map data. You can create a map, inspect its tree and ids, change structure and node attributes, validate a file, and export an image.
+The CLI is the command-line interface for jsMind V2 map data. You can create a map, inspect its tree and ids, change structure and node attributes, validate a file, and export an image or a page that opens offline.
 
 ## Install
 

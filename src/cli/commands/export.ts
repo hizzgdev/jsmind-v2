@@ -5,10 +5,11 @@
  * handing the markup back to a rendering engine. This command only drives it:
  * load, open, ask the page for a blob, write the bytes.
  *
- * `export` is a group: its first positional word names what is produced, and
- * this module owns the only kind there is so far. {@link EXPORT_KINDS} is the
- * list a caller sees, and {@link EXPORT_KIND_OPTIONS} says what each kind takes
- * — so a second kind is a value in those two tables, not a command.
+ * `export` is a group: its first positional word names what is produced. This
+ * module owns the `image` kind, and the two tables both kinds are listed in:
+ * {@link EXPORT_KINDS} is the list a caller sees, and
+ * {@link EXPORT_KIND_OPTIONS} says what each kind takes — so another kind is a
+ * value in those two tables plus its own module, not a command.
  *
  * @packageDocumentation
  */
@@ -342,11 +343,11 @@ export async function runExport(options: ExportOptions): Promise<number> {
  * Describes the `export` group for `--help`.
  *
  * @remarks
- * One page for the group, not a page per kind: with a single kind there is
- * nothing a second level could say, so `jsmind export image --help` answers
- * with this block too. A kind is listed with the words it takes and one line
- * about what it produces, then the option table of the kind that has one —
- * a reader asking what `export` can do gets both answers at once.
+ * One page for the group, not a page per kind: the kinds share it — each one
+ * listed with the words it takes and one line about what it produces, and each
+ * one's options below in a section of their own — so `jsmind export image
+ * --help` answers with this block too, and a reader asking what `export` can do
+ * gets every answer at once.
  *
  * Defaults, the format list and the kind list are interpolated rather than
  * typed out, so the help cannot quote a value the command no longer uses.

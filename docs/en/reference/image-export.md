@@ -56,7 +56,7 @@ Calling this when no mind map is open throws `JsMindError`.
 
 ## 3. Command line
 
-`export` takes the kind of file to produce as its first word; `image` is the only kind so far.
+`export` takes the kind of file to produce as its first word. This page covers `image`; the other kind, `html`, is documented in the [CLI](/en/guide/cli) guide.
 
 ```bash
 jsmind export image <file> <out.png> [options]
