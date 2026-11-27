@@ -163,6 +163,8 @@ The agent should also print the absolute paths of both files. You can download t
 
 ## Next steps
 
+Next: [Color specific nodes to mark what matters](./162-color-nodes-with-tones)
+
 - [Getting Started](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/getting-started) — install jsMind 2.x and create a first map yourself
 - [Skill](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/skill) — more on installing and using the skill
 - [CLI](https://hizzgdev.github.io/jsmind-v2/docs/en/guide/cli) — every command and flag

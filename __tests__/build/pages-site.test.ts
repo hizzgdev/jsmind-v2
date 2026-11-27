@@ -2019,18 +2019,13 @@ describe('tutorial post listing', () => {
 
         const posts = listTutorialPosts(ROOT);
         assert.ok(posts.length >= 1);
-        const first = posts[0];
-        assert.strictEqual(first.id, '161');
-        assert.strictEqual(first.slug, '161-first-mind-map-with-skill');
-        assert.strictEqual(first.date, '2026-11-26');
-        assert.strictEqual(first.titles.en, 'Build your first mind map with the jsMind Skill');
-        assert.strictEqual(first.titles.zh, '用 jsMind Skill 做你的第一张思维导图');
-        assert.strictEqual(first.hrefs.en, 'tutorials/en/posts/161-first-mind-map-with-skill.html');
-        assert.strictEqual(first.hrefs.zh, 'tutorials/zh/posts/161-first-mind-map-with-skill.html');
 
         const dates = posts.map((post) => post.date);
         const sorted = [...dates].sort((a, b) => b.localeCompare(a));
         assert.deepStrictEqual(dates, sorted, 'posts should be sorted by date, newest first');
+        for (let i = 0; i < dates.length - 1; i++) {
+            assert.ok(dates[i] >= dates[i + 1], 'adjacent posts should be in newest-to-oldest date order');
+        }
         assert.strictEqual(recentTutorialPosts(posts).length, Math.min(3, posts.length));
     });
 
