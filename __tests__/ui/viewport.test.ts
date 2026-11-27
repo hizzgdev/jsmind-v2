@@ -978,7 +978,11 @@ test('ui viewport - a map that already fits the box cannot be dragged', async ()
     assert.ok(limits.span.x > 210 && limits.span.y > 170, `the content must overflow the box: ${limits.span.x}/${limits.span.y}`);
     const start = middleOf(limits);
     await command(`jm.commands.panTo(${start.x}, ${start.y})`);
-    await browser.dragBy({ x: 100, y: 90 }, 100, 80);
+
+    // Both gestures here stay inside the box on purpose: this test is about the
+    // range being empty or not, and a drag that leaves the box would also be
+    // relying on the pointer capture - which has its own case above.
+    await browser.dragBy({ x: 5, y: 5 }, 100, 80);
     const moved = await snapshot();
     assert.deepStrictEqual(origin(moved), { x: start.x - 100, y: start.y - 80, scale: 1 }, 'the drag reaches the view');
 
@@ -992,7 +996,7 @@ test('ui viewport - a map that already fits the box cannot be dragged', async ()
     assert.ok(extent.left >= 0 && extent.right <= SMALL.width, 'the zoomed-out map fits the box horizontally');
     assert.ok(extent.top >= 0 && extent.bottom <= SMALL.height, 'the zoomed-out map fits the box vertically');
 
-    await browser.dragBy({ x: 100, y: 90 }, 100, 80);
+    await browser.dragBy({ x: 5, y: 5 }, 100, 80);
     const after_ = await snapshot();
 
     assert.deepStrictEqual(origin(after_), origin(before_), 'a map that fits has nowhere to pan to');
