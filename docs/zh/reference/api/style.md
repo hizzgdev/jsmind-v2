@@ -54,7 +54,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 | --- | --- | --- |
 | `color` (可选) | string | 线条颜色，例如 `#4a9eff`。 |
 | `curve` (可选) | [JmLineCurve](/zh/reference/api/style#JmLineCurve) | 线条在端点之间的走线方式。默认为 `bezier`。 |
-| `pattern` (可选) | [JmLinePattern](/zh/reference/api/style#JmLinePattern) | 线条图案。 |
+| `pattern` (可选) | [JmLinePattern](/zh/reference/api/style#JmLinePattern) | 线条图案。之所以叫 `pattern` 而不是 `style`，是因为这个类型本身已经位于 `node.style.incoming` 之下，再写 `.style.style` 不好读。`pattern` 也能诚实覆盖 `solid`——实线并不是一种虚线。 |
 | `width` (可选) | number | 线条宽度，单位为像素。 |
 
 ## JmStyle {#JmStyle}
@@ -80,7 +80,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
 | `background` (可选) | string | 画布背景色。 |
-| `defaultTone` (可选) | string | 没有自己 tone 的节点使用的语气。`Since: 2.1.0` |
+| `defaultTone` (可选) | string | 没有自己 tone 的节点使用的语气。`Since: 2.1.0`存的是语气**名字**，不是调色板快照。把解析后的颜色存进来会把颜色冻死：之后改 `tones` 覆盖、或换 preset，依赖这个字段的节点就不再跟着变。名字走的是和节点级 tone 同一套查表，所以 `style.tones` 仍然叠在它上面生效。 |
 | `expander` (可选) | `Partial`<[JmThemeExpander](/zh/reference/api/style#JmThemeExpander)> | 展开/折叠控件的几何覆盖。 |
 | `line` (可选) | `Partial`<[JmThemeLine](/zh/reference/api/style#JmThemeLine)> | 线条几何覆盖。 |
 | `node` (可选) | [JmThemeNodeOverride](/zh/reference/api/style#JmThemeNodeOverride) | 节点几何覆盖。 |
@@ -100,11 +100,11 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 | `borderWidth` | number | 默认边框宽度，单位为像素。 |
 | `fontFamily` | string | 字体族。 |
 | `fontSize` | number | 基础字号，单位为像素。 |
-| `lineHeight` | number | 行高，作为字号的倍数。 |
-| `maxWidth` | number | 文本换行前的最大节点宽度，单位为像素。 |
+| `lineHeight` | number | 行高，作为字号的倍数。无单位乘数，与 CSS 的 `line-height: 1.125` 形式一致，因此会随 `fontSize` 缩放，而不必为每种字号再配一个像素值。 |
+| `maxWidth` | number | 文本换行前的最大节点宽度，单位为像素。换行是布局输入，而不是细节：它决定节点有多高，进而决定子节点放在哪里。 |
 | `padding` | number | 内边距，单位为像素。 |
 | `radius` | number | 圆角半径，单位为像素。 |
-| `rootFontSize` | number | 根节点字号，单位为像素。 |
+| `rootFontSize` | number | 根节点字号，单位为像素。与 `fontSize` 分开，是因为根节点读起来像标题：v1 用 24px 渲染根节点，正文则是 16px。如果并进 `fontSize`，每个主题都只能选一个，从而失去这种层次。 |
 | `shadow` | [JmThemeShadow](/zh/reference/api/style#JmThemeShadow) | 空闲、悬停和选中状态下的投影。 |
 
 ## JmThemeLine {#JmThemeLine}
@@ -134,7 +134,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 | `borderWidth` | number | 边框宽度，单位为像素。 |
 | `fontSize` | number | 控件内绘制的字符或数字的字号，单位为像素。 |
 | `lineHeight` | number | 该内容的行高，单位为像素。 |
-| `radius` | number | 圆角半径，单位为像素。 |
+| `radius` | number | 圆角半径，单位为像素。`size / 2` 会得到圆形，也就是样式表里 `border-radius: 50%` 的效果。用数值可以与这里其他长度保持同一单位；百分比半径只在盒子可能增大时才有意义。 |
 | `size` | number | 展开控件的宽和高，单位为像素。 |
 
 ## JmThemeShadow {#JmThemeShadow}
@@ -217,7 +217,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
 | `borderColor` | string | 节点边框颜色。 |
-| `fillColor` | string | 节点背景色。 |
+| `fillColor` | string | 节点背景色。这里的每个字段都带 `Color` 后缀。色板与已经使用 `borderColor` 的 `JmNodeStyle` 并列，因此两处的 `borderColor` 含义相同，读 JSON 的 agent 不必猜测 `fill` 或 `border` 到底是颜色还是长度。 |
 | `lineColor` | string | 连接线颜色。 |
 | `textColor` | string | 节点文本颜色。 |
 
@@ -235,7 +235,7 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 
 | 名称 | 值 | 说明 |
 | --- | --- | --- |
-| `Accent` | `"accent"` | 强调色语气，让元素突出但不带评判。 |
+| `Accent` | `"accent"` | 强调色语气，让元素突出但不带评判。`primary` 已经表示「这是重要的那个」，这是对内容的判断。`accent` 用于「让这个在视觉上与众不同」，不附带判断——也就是 v1 以 `theme-wisteria` 提供、而其他语义语气都吸收不了的紫色。 |
 | `Danger` | `"danger"` | 危险或负面语气。 |
 | `Default` | `"default"` | 默认语气，从主题的中性色板解析。 |
 | `Info` | `"info"` | 信息或中性强调语气。 |
@@ -288,5 +288,5 @@ jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时�
 
 | 名称 | 值 | 说明 |
 | --- | --- | --- |
-| `Bezier` | `"bezier"` | 三次贝塞尔曲线，从每个端点沿水平方向出发。 |
+| `Bezier` | `"bezier"` | 三次贝塞尔曲线，从每个端点沿水平方向出发。这是默认值，也是 v1 的画法。从节点出发的边沿水平方向离开更易读：兄弟节点排成一列，两点之间的直线会斜着穿过布局。 |
 | `Straight` | `"straight"` | 从一个端点到另一个端点的直线段。 |

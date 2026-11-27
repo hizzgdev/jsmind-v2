@@ -8,7 +8,7 @@ outline: deep
 jsMind V2 的编程 API 目前是预览版本，之后还会更新。请随时查阅本文档，以了解当前的接口。
 :::
 
-`jm.commands` 暴露的显示命令，以及这些命令背后的视图接口。这里的命令只改变导图的显示方式，不改变导图本身。它们接受的缩放系数会被夹到 0.1–4 这个范围。
+`jm.commands` 暴露的显示命令，以及这些命令背后的视图接口。它们读取、渲染或改变导图的显示方式，但不改变导图本身。它们接受的缩放系数会被夹到 0.1–4 这个范围。
 
 本页由 TypeDoc 根据已发布的类型声明 `dist/jsmind.d.ts` 生成。
 
@@ -308,12 +308,12 @@ zoomTo(scale: number, anchor?: JmViewportAnchor): void
 
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
-| `canPan` | boolean | 在当前缩放下，平移是否会让导图移动。 |
+| `canPan` | boolean | 在当前缩放下，平移是否会让导图移动。只要内容在至少一个轴上溢出可见盒子就为 true——这正是 [JmViewHandle.panTo](/zh/reference/api/viewport#JmViewHandle.panTo) 被允许改变原点的条件。手势开始之前就要决定的调用方需要它：浏览器在第一个 touchmove 之前就把 `touch-action` 定下来了，所以一张放得下的导图应该把这个手势交还给页面，而不是吞掉一次注定无效的拖动。在这里询问，也省得调用方自己去测量内容——那会让布局和视图自己的布局分叉。 |
 | `height` | number | 可见高度，单位是 CSS 像素。 |
 | `scale` | number | 当前的缩放倍数，1 表示不缩放。 |
 | `width` | number | 可见宽度，单位是 CSS 像素。 |
-| `x` | number | 在视口左边缘显示的导图空间 x 坐标。 |
-| `y` | number | 在视口上边缘显示的导图空间 y 坐标。参见 [JmViewport.x](/zh/reference/api/viewport#JmViewport.x)。 |
+| `x` | number | 在视口左边缘显示的导图空间 x 坐标。这是导图中的一个位置，不是滚动偏移：它就是 [JmViewHandle.panTo](/zh/reference/api/viewport#JmViewHandle.panTo) 写入的那个数，所以调用方在这里读到什么，就能把什么放回去。 |
+| `y` | number | 在视口上边缘显示的导图空间 y 坐标。参见 [JmViewport.x](/zh/reference/api/viewport#JmViewport)。 |
 
 ## JmViewportAnchor {#JmViewportAnchor}
 

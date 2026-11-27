@@ -8,7 +8,7 @@ outline: deep
 The jsMind V2 programming API is currently a preview. The API will change in later updates. Please check this documentation anytime for the interface that is current.
 :::
 
-The display commands reachable as `jm.commands`, and the view handle they drive. Every command here changes how the map is shown and never the map itself. The zoom factor they accept is clamped to the range 0.1–4.
+The display commands reachable as `jm.commands`, and the view handle they drive. They read, render or change how the map is shown, and never change the map itself. The zoom factor they accept is clamped to the range 0.1–4.
 
 This page is generated from the published typings `dist/jsmind.d.ts` with TypeDoc.
 
@@ -372,12 +372,12 @@ A rectangle in CSS pixels, relative to the container's top-left corner.
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `canPan` | boolean | Whether a pan would move the map at this zoom. |
+| `canPan` | boolean | Whether a pan would move the map at this zoom. True while the content overflows the visible box on at least one axis - exactly when [JmViewHandle.panTo](/en/reference/api/viewport#JmViewHandle.panTo) is allowed to change the origin. A caller deciding *before* a gesture starts needs this, because the browser settles `touch-action` before the first touchmove: a map that fits should hand the gesture to the page rather than swallow a drag that can only be a no-op. Asking here is also what keeps that caller from measuring the content itself, which would fork the layout from the view's own. |
 | `height` | number | Visible height in CSS pixels. |
 | `scale` | number | Current zoom factor, 1 being unscaled. |
 | `width` | number | Visible width in CSS pixels. |
-| `x` | number | Map-space x shown at the viewport's left edge. |
-| `y` | number | Map-space y shown at the viewport's top edge. See [JmViewport.x](/en/reference/api/viewport#JmViewport.x). |
+| `x` | number | Map-space x shown at the viewport's left edge. A position in the map, not a scroll offset: it is the number [JmViewHandle.panTo](/en/reference/api/viewport#JmViewHandle.panTo) writes, so what a caller reads here is what it can put back there. |
+| `y` | number | Map-space y shown at the viewport's top edge. See [JmViewport.x](/en/reference/api/viewport#JmViewport). |
 
 ## JmViewportAnchor {#JmViewportAnchor}
 

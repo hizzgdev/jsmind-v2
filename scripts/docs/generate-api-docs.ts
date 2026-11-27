@@ -129,7 +129,7 @@ const PAGE_INTROS = {
         serialization: 'Read and write a mind map through `jsMind.Serializer.create(format)`. `JsMind.serialize()` is a JSON convenience on an open map.',
         export: 'Types used by `JsMind.exportImage`.',
         viewport:
-            'The display commands reachable as `jm.commands`, and the view handle they drive. Every command here changes how the map is shown and never the map itself. The zoom factor they accept is clamped to the range 0.1–4.',
+            'The display commands reachable as `jm.commands`, and the view handle they drive. They read, render or change how the map is shown, and never change the map itself. The zoom factor they accept is clamped to the range 0.1–4.',
         style: 'Visual overrides on a map, a node, or an edge. Unset fields fall back to the theme.',
     },
     zh: {
@@ -141,7 +141,7 @@ const PAGE_INTROS = {
         serialization: '通过 `jsMind.Serializer.create(format)` 读写导图。`JsMind.serialize()` 是对已打开导图的 JSON 便捷方法。',
         export: '`JsMind.exportImage` 使用的类型。',
         viewport:
-            '`jm.commands` 暴露的显示命令，以及这些命令背后的视图接口。这里的命令只改变导图的显示方式，不改变导图本身。它们接受的缩放系数会被夹到 0.1–4 这个范围。',
+            '`jm.commands` 暴露的显示命令，以及这些命令背后的视图接口。它们读取、渲染或改变导图的显示方式，但不改变导图本身。它们接受的缩放系数会被夹到 0.1–4 这个范围。',
         style: '导图、节点或边上的视觉覆盖。未设置的字段回退到主题。',
     },
 } as const;
@@ -341,6 +341,26 @@ function buildTypePages(): Map<string, string> {
     return map;
 }
 
+/**
+ * Every anchor the generated pages actually carry: one per symbol, plus one per
+ * member that is rendered as its own section. Class members all get a section;
+ * interface, alias and const members only when they are callable, because the
+ * rest are rows in a table and have no heading of their own.
+ */
+function buildAnchors(symbols: Map<string, TypedaReflection>): Set<string> {
+    const anchors = new Set<string>();
+    for (const node of symbols.values()) {
+        anchors.add(node.name);
+        const sectioned = node.kind === KIND_CLASS;
+        for (const child of (node.children ?? []).filter((member) => !skipMember(member))) {
+            if (sectioned || isCallable(child)) {
+                anchors.add(`${node.name}.${child.name}`);
+            }
+        }
+    }
+    return anchors;
+}
+
 function skipMember(node: TypedaReflection): boolean {
     const flags = node.flags ?? {};
     const name = node.name ?? '';
@@ -380,11 +400,19 @@ function kindLabel(node: TypedaReflection, locale: Locale): string {
     return ui.kindAlias;
 }
 
-function linkType(name: string, locale: Locale, typePages: Map<string, string>): string {
+function linkType(
+    name: string,
+    locale: Locale,
+    typePages: Map<string, string>,
+    anchors: Set<string>
+): string {
     const owner = name.split('.')[0];
     const page = typePages.get(owner);
     if (page) {
-        const anchor = name.includes('.') ? name : owner;
+        // A member that is a row in a table has no anchor of its own; pointing
+        // at `#Owner.member` there would be a link to nowhere. Fall back to the
+        // type's section, where that row is listed.
+        const anchor = anchors.has(name) ? name : owner;
         return `[${name}](/${locale}/reference/api/${page}#${anchor})`;
     }
     return `\`${name}\``;
@@ -395,12 +423,18 @@ function escapeTableCell(text: string): string {
         .trim();
 }
 
-function renderType(type: TypedaType | undefined, locale: Locale, typePages: Map<string, string>, link: boolean): string {
+function renderType(
+    type: TypedaType | undefined,
+    locale: Locale,
+    typePages: Map<string, string>,
+    anchors: Set<string>,
+    link: boolean
+): string {
     if (!type) {
         return 'unknown';
     }
-    const inner = (t: TypedaType | undefined) => renderType(t, locale, typePages, link);
-    const wrap = (name: string) => (link ? linkType(name, locale, typePages) : name);
+    const inner = (t: TypedaType | undefined) => renderType(t, locale, typePages, anchors, link);
+    const wrap = (name: string) => (link ? linkType(name, locale, typePages, anchors) : name);
 
     switch (type.type) {
         case 'intrinsic':
@@ -439,7 +473,7 @@ function renderType(type: TypedaType | undefined, locale: Locale, typePages: Map
         case 'conditional':
             return `${inner(type.checkType)} extends ${inner(type.extendsType)} ? ${inner(type.trueType)} : ${inner(type.falseType)}`;
         case 'reflection':
-            return renderReflectionType(type.declaration, locale, typePages, link);
+            return renderReflectionType(type.declaration, locale, typePages, anchors, link);
         default:
             return type.name ?? type.type;
     }
@@ -449,6 +483,7 @@ function renderReflectionType(
     declaration: TypedaReflection | undefined,
     locale: Locale,
     typePages: Map<string, string>,
+    anchors: Set<string>,
     link: boolean
 ): string {
     if (!declaration) {
@@ -460,7 +495,7 @@ function renderReflectionType(
     }
     const fields = children.map((child) => {
         const optional = child.flags?.isOptional ? '?' : '';
-        return `${child.name}${optional}: ${renderType(child.type, locale, typePages, link)}`;
+        return `${child.name}${optional}: ${renderType(child.type, locale, typePages, anchors, link)}`;
     });
     return `{ ${fields.join('; ')} }`;
 }
@@ -600,7 +635,11 @@ function previewWarning(locale: Locale): string {
     return `::: warning ${ui.previewTitle}\n${ui.previewBody}\n:::\n`;
 }
 
-function signatureText(node: TypedaReflection, typePages: Map<string, string>): string {
+function signatureText(
+    node: TypedaReflection,
+    typePages: Map<string, string>,
+    anchors: Set<string>
+): string {
     const flags = node.flags ?? {};
     const prefix = [
         flags.isStatic ? 'static' : '',
@@ -610,7 +649,7 @@ function signatureText(node: TypedaReflection, typePages: Map<string, string>): 
     if (node.kind === KIND_CONSTRUCTOR) {
         const parameters = (sig?.parameters ?? []).map((parameter) => {
             const optional = parameter.flags?.isOptional ? '?' : '';
-            return `${parameter.name}${optional}: ${renderType(parameter.type, 'en', typePages, false)}`;
+            return `${parameter.name}${optional}: ${renderType(parameter.type, 'en', typePages, anchors, false)}`;
         });
         return `constructor(${parameters.join(', ')})`;
     }
@@ -620,54 +659,85 @@ function signatureText(node: TypedaReflection, typePages: Map<string, string>): 
             ? '()'
             : `(${(sig.parameters ?? []).map((parameter) => {
                 const optional = parameter.flags?.isOptional ? '?' : '';
-                return `${parameter.name}${optional}: ${renderType(parameter.type, 'en', typePages, false)}`;
+                return `${parameter.name}${optional}: ${renderType(parameter.type, 'en', typePages, anchors, false)}`;
             }).join(', ')})`;
-        const returns = renderType(sig.type, 'en', typePages, false);
+        const returns = renderType(sig.type, 'en', typePages, anchors, false);
         const keyword = isGetter ? 'get ' : '';
         return `${prefix ? `${prefix} ` : ''}${keyword}${node.name}${parameters}: ${returns}`;
     }
     const optional = flags.isOptional ? '?' : '';
-    return `${prefix ? `${prefix} ` : ''}${node.name}${optional}: ${renderType(node.type, 'en', typePages, false)}`;
+    return `${prefix ? `${prefix} ` : ''}${node.name}${optional}: ${renderType(node.type, 'en', typePages, anchors, false)}`;
 }
 
 function renderCommentBlocks(
     fields: Translation,
     locale: Locale,
-    typePages: Map<string, string>
+    typePages: Map<string, string>,
+    anchors: Set<string>
 ): string[] {
     const lines: string[] = [];
     if (fields.summary) {
-        lines.push(rewriteLinks(fields.summary, locale, typePages), '');
+        lines.push(rewriteLinks(fields.summary, locale, typePages, anchors), '');
     }
     if (fields.remarks) {
-        lines.push(`**${UI[locale].remarks}**`, '', rewriteLinks(fields.remarks, locale, typePages), '');
+        lines.push(
+            `**${UI[locale].remarks}**`, '',
+            rewriteLinks(fields.remarks, locale, typePages, anchors), ''
+        );
     }
     if (fields.returns) {
-        lines.push(`**${UI[locale].returns}:** ${rewriteLinks(fields.returns, locale, typePages)}`, '');
+        lines.push(
+            `**${UI[locale].returns}:** ${rewriteLinks(fields.returns, locale, typePages, anchors)}`,
+            ''
+        );
     }
     if (fields.throws) {
         const items = Array.isArray(fields.throws) ? fields.throws : [fields.throws];
         lines.push(`**${UI[locale].throws}**`, '');
         for (const item of items) {
-            lines.push(`- ${rewriteLinks(item, locale, typePages)}`);
+            lines.push(`- ${rewriteLinks(item, locale, typePages, anchors)}`);
         }
         lines.push('');
     }
     return lines;
 }
 
-function rewriteLinks(text: string, locale: Locale, typePages: Map<string, string>): string {
+function rewriteLinks(
+    text: string,
+    locale: Locale,
+    typePages: Map<string, string>,
+    anchors: Set<string>
+): string {
     return text.replace(/\{@link\s+([^}]+)\}/g, (_match, raw: string) => {
         const name = raw.trim().split(/\s+/)[0];
-        return linkType(name, locale, typePages);
+        return linkType(name, locale, typePages, anchors);
     }).replace(/\n[ \t]+/g, '\n');
+}
+
+/**
+ * A table row has no room for a remarks block, but the remarks are usually the
+ * part that explains the value; dropping them leaves a translated string that
+ * no reader ever sees. Append them to the description instead.
+ */
+function tableDescription(
+    fields: Translation,
+    locale: Locale,
+    typePages: Map<string, string>,
+    anchors: Set<string>
+): string {
+    // Chinese sentences already end in full-width punctuation, so a joining
+    // space would sit between the sentence and its stop mark.
+    const joiner = locale === 'zh' ? '' : ' ';
+    const text = [fields.summary, fields.remarks].filter(Boolean).join(joiner);
+    return escapeTableCell(rewriteLinks(text, locale, typePages, anchors));
 }
 
 function renderParameterTable(
     node: TypedaReflection,
     fields: Translation,
     locale: Locale,
-    typePages: Map<string, string>
+    typePages: Map<string, string>,
+    anchors: Set<string>
 ): string[] {
     const sig = firstSignature(node);
     const parameters = sig?.parameters ?? [];
@@ -683,8 +753,10 @@ function renderParameterTable(
     ];
     for (const parameter of parameters) {
         const optional = parameter.flags?.isOptional ? ` (${ui.optional})` : '';
-        const typ = escapeTableCell(renderType(parameter.type, locale, typePages, true));
-        const desc = escapeTableCell(rewriteLinks(fields.params?.[parameter.name] ?? '', locale, typePages));
+        const typ = escapeTableCell(renderType(parameter.type, locale, typePages, anchors, true));
+        const desc = escapeTableCell(
+            rewriteLinks(fields.params?.[parameter.name] ?? '', locale, typePages, anchors)
+        );
         lines.push(`| \`${parameter.name}\`${optional} | ${typ} | ${desc} |`);
     }
     lines.push('');
@@ -696,7 +768,8 @@ function renderMember(
     node: TypedaReflection,
     locale: Locale,
     translations: Record<string, Translation>,
-    typePages: Map<string, string>
+    typePages: Map<string, string>,
+    anchors: Set<string>
 ): string {
     const key = `${owner}.${node.name}`;
     const fields = localizedFields(key, node, locale, translations);
@@ -706,11 +779,11 @@ function renderMember(
         `### ${heading} {#${anchor}}`,
         '',
         '```ts',
-        signatureText(node, typePages),
+        signatureText(node, typePages, anchors),
         '```',
         '',
-        ...renderCommentBlocks(fields, locale, typePages),
-        ...renderParameterTable(node, fields, locale, typePages),
+        ...renderCommentBlocks(fields, locale, typePages, anchors),
+        ...renderParameterTable(node, fields, locale, typePages, anchors),
     ];
     return lines.join('\n').replace(/\n{3,}/g, '\n\n');
 }
@@ -724,7 +797,8 @@ function renderConstTable(
     node: TypedaReflection,
     locale: Locale,
     translations: Record<string, Translation>,
-    typePages: Map<string, string>
+    typePages: Map<string, string>,
+    anchors: Set<string>
 ): string[] {
     const members = constMembers(node);
     if (members.length === 0) {
@@ -738,10 +812,9 @@ function renderConstTable(
         '| --- | --- | --- |',
     ];
     for (const member of members) {
-        const value = escapeTableCell(renderType(member.type, locale, typePages, false));
+        const value = escapeTableCell(renderType(member.type, locale, typePages, anchors, false));
         const fields = localizedFields(`${node.name}.${member.name}`, member, locale, translations);
-        const desc = escapeTableCell(rewriteLinks(fields.summary ?? '', locale, typePages));
-        lines.push(`| \`${member.name}\` | \`${value}\` | ${desc} |`);
+        lines.push(`| \`${member.name}\` | \`${value}\` | ${tableDescription(fields, locale, typePages, anchors)} |`);
     }
     lines.push('');
     return lines;
@@ -755,7 +828,8 @@ function renderSymbol(
     node: TypedaReflection,
     locale: Locale,
     translations: Record<string, Translation>,
-    typePages: Map<string, string>
+    typePages: Map<string, string>,
+    anchors: Set<string>
 ): string {
     const fields = localizedFields(node.name, node, locale, translations);
     const lines = [
@@ -763,11 +837,11 @@ function renderSymbol(
         '',
         `*${kindLabel(node, locale)}*`,
         '',
-        ...renderCommentBlocks(fields, locale, typePages),
+        ...renderCommentBlocks(fields, locale, typePages, anchors),
     ];
 
     if (node.kind === KIND_VARIABLE) {
-        lines.push(...renderConstTable(node, locale, translations, typePages));
+        lines.push(...renderConstTable(node, locale, translations, typePages, anchors));
         return lines.join('\n').replace(/\n{3,}/g, '\n\n');
     }
 
@@ -789,15 +863,15 @@ function renderSymbol(
             );
             for (const child of properties) {
                 const optional = child.flags?.isOptional ? ` (${ui.optional})` : '';
-                const typ = escapeTableCell(renderType(child.type, locale, typePages, true));
+                const typ = escapeTableCell(renderType(child.type, locale, typePages, anchors, true));
                 const childFields = localizedFields(`${node.name}.${child.name}`, child, locale, translations);
-                const desc = escapeTableCell(rewriteLinks(childFields.summary ?? '', locale, typePages));
+                const desc = tableDescription(childFields, locale, typePages, anchors);
                 lines.push(`| \`${child.name}\`${optional} | ${typ} | ${desc} |`);
             }
             lines.push('');
         }
         for (const method of methods) {
-            lines.push(renderMember(node.name, method, locale, translations, typePages), '');
+            lines.push(renderMember(node.name, method, locale, translations, typePages, anchors), '');
         }
         return lines.join('\n').replace(/\n{3,}/g, '\n\n');
     }
@@ -808,7 +882,7 @@ function renderSymbol(
     const methods = members.filter((child) => isCallable(child) && child.kind !== KIND_CONSTRUCTOR);
 
     for (const member of [...constructors, ...properties, ...methods]) {
-        lines.push(renderMember(node.name, member, locale, translations, typePages), '');
+        lines.push(renderMember(node.name, member, locale, translations, typePages, anchors), '');
     }
     return lines.join('\n').replace(/\n{3,}/g, '\n\n');
 }
@@ -852,7 +926,8 @@ function writePage(
     symbols: TypedaReflection[],
     locale: Locale,
     translations: Record<string, Translation>,
-    typePages: Map<string, string>
+    typePages: Map<string, string>,
+    anchors: Set<string>
 ): string {
     const title = PAGE_TITLES[locale][page as keyof typeof PAGE_TITLES.en];
     const intro = PAGE_INTROS[locale][page as keyof typeof PAGE_INTROS.en];
@@ -870,7 +945,7 @@ function writePage(
         '',
     ];
     for (const symbol of symbols) {
-        parts.push(renderSymbol(symbol, locale, translations, typePages), '');
+        parts.push(renderSymbol(symbol, locale, translations, typePages, anchors), '');
     }
     return `${parts.join('\n').replace(/\n{3,}/g, '\n\n')
         .trim()}\n`;
@@ -907,6 +982,7 @@ function main(): void {
     const translations = JSON.parse(readFileSync(TRANSLATIONS_PATH, 'utf8')) as Record<string, Translation>;
     validateAll(symbols, translations);
     const typePages = buildTypePages();
+    const anchors = buildAnchors(symbols);
 
     for (const locale of ['en', 'zh'] as const) {
         const outDir = join(ROOT, 'docs', locale, 'reference', 'api');
@@ -920,7 +996,10 @@ function main(): void {
                 }
                 return symbol;
             });
-            writeFileSync(join(outDir, `${page}.md`), writePage(page, pageSymbols, locale, translations, typePages));
+            writeFileSync(
+                join(outDir, `${page}.md`),
+                writePage(page, pageSymbols, locale, translations, typePages, anchors)
+            );
         }
     }
 

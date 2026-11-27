@@ -60,7 +60,7 @@ relationships). One shape avoids two vocabularies for the same thing.
 | --- | --- | --- |
 | `color` (optional) | string | Line color, e.g. `#4a9eff`. |
 | `curve` (optional) | [JmLineCurve](/en/reference/api/style#JmLineCurve) | How the line travels between its endpoints. Defaults to `bezier`. |
-| `pattern` (optional) | [JmLinePattern](/en/reference/api/style#JmLinePattern) | Line pattern. |
+| `pattern` (optional) | [JmLinePattern](/en/reference/api/style#JmLinePattern) | Line pattern. Named `pattern` rather than `style` because this type is itself reached through `node.style.incoming`, and `.style.style` reads badly. `pattern` also covers `solid` honestly — `solid` is not a dash. |
 | `width` (optional) | number | Line width in pixels. |
 
 ## JmStyle {#JmStyle}
@@ -98,7 +98,7 @@ deeply.
 | Name | Type | Description |
 | --- | --- | --- |
 | `background` (optional) | string | Canvas background color. |
-| `defaultTone` (optional) | string | Tone used by nodes that state none of their own. `Since: 2.1.0` |
+| `defaultTone` (optional) | string | Tone used by nodes that state none of their own. `Since: 2.1.0` A tone *name*, not a palette snapshot. Storing resolved colors here would freeze them: a later `tones` override, or a different preset, would no longer reach the nodes that rely on this field. A name is resolved through the same palette lookup a node-level tone uses, so `style.tones` keeps working on top of it. |
 | `expander` (optional) | `Partial`<[JmThemeExpander](/en/reference/api/style#JmThemeExpander)> | Expander geometry overrides. |
 | `line` (optional) | `Partial`<[JmThemeLine](/en/reference/api/style#JmThemeLine)> | Line geometry overrides. |
 | `node` (optional) | [JmThemeNodeOverride](/en/reference/api/style#JmThemeNodeOverride) | Node geometry overrides. |
@@ -118,11 +118,11 @@ Geometry and typography shared by every node.
 | `borderWidth` | number | Default border width in pixels. |
 | `fontFamily` | string | Font family. |
 | `fontSize` | number | Base font size in pixels. |
-| `lineHeight` | number | Line height as a multiple of the font size. |
-| `maxWidth` | number | Maximum node width in pixels before text wraps. |
+| `lineHeight` | number | Line height as a multiple of the font size. Unitless multiplier, matching the CSS `line-height: 1.125` form, so it scales with `fontSize` instead of needing a matching pixel value per size. |
+| `maxWidth` | number | Maximum node width in pixels before text wraps. Wrapping is a layout input, not a detail: it decides how tall a node is, which decides where its children go. |
 | `padding` | number | Inner padding in pixels. |
 | `radius` | number | Corner radius in pixels. |
-| `rootFontSize` | number | Root node font size in pixels. |
+| `rootFontSize` | number | Root node font size in pixels. Separate from `fontSize` because the root is the one node that reads as a title: v1 rendered it at 24px against a 16px body. Folding it into `fontSize` would have forced every theme to pick one and lose the hierarchy. |
 | `shadow` | [JmThemeShadow](/en/reference/api/style#JmThemeShadow) | Drop shadows for the idle, hover and selected states. |
 
 ## JmThemeLine {#JmThemeLine}
@@ -152,7 +152,7 @@ Geometry of the collapse/expand control.
 | `borderWidth` | number | Border width in pixels. |
 | `fontSize` | number | Font size of the character or count drawn inside, in pixels. |
 | `lineHeight` | number | Line height of that content, in pixels. |
-| `radius` | number | Corner radius in pixels. |
+| `radius` | number | Corner radius in pixels. `size / 2` gives a circle, which is what the stylesheet did with `border-radius: 50%`. A number keeps it in the same units as every other length here; percentage radii only make sense when the box can grow. |
 | `size` | number | Expander width and height in pixels. |
 
 ## JmThemeShadow {#JmThemeShadow}
@@ -245,7 +245,7 @@ Colors a tone resolves to.
 | Name | Type | Description |
 | --- | --- | --- |
 | `borderColor` | string | Node border color. |
-| `fillColor` | string | Node background color. |
+| `fillColor` | string | Node background color. Every field here carries a `Color` suffix. The palette sits alongside `JmNodeStyle`, which already uses `borderColor`, so `borderColor` means the same thing in both places and an agent reading the JSON never has to guess whether `fill` or `border` is a color or a length. |
 | `lineColor` | string | Connecting line color. |
 | `textColor` | string | Node text color. |
 
@@ -266,7 +266,7 @@ more controllable.
 
 | Name | Value | Description |
 | --- | --- | --- |
-| `Accent` | `"accent"` | Accent tone for an element that stands out without carrying a judgement. |
+| `Accent` | `"accent"` | Accent tone for an element that stands out without carrying a judgement. `primary` already means "this is the important one", which is a claim about the content. `accent` is the option for "make this one visually distinct" with no claim attached — the purple that v1 exposed as `theme-wisteria` and that none of the semantic tones could absorb. |
 | `Danger` | `"danger"` | Danger or negative tone. |
 | `Default` | `"default"` | Default tone, resolved from the theme's neutral palette. |
 | `Info` | `"info"` | Informational or neutral-accent tone. |
@@ -325,5 +325,5 @@ one of the two.
 
 | Name | Value | Description |
 | --- | --- | --- |
-| `Bezier` | `"bezier"` | Cubic bezier leaving each endpoint horizontally. |
+| `Bezier` | `"bezier"` | Cubic bezier leaving each endpoint horizontally. The default, and what v1 drew. Edges leaving a node always read better when they depart along the horizontal axis: siblings sit in a column, so a straight segment between two of them cuts diagonally across the layout. |
 | `Straight` | `"straight"` | Straight segment from one endpoint to the other. |
