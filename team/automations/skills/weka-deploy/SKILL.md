@@ -30,7 +30,7 @@ is answered by a hash: **does the live file equal master's file, yes or no.**
 
 | Artifact | Live location | This deploy |
 |---|---|---|
-| `team/automations/weka/SOUL.cody.md`, `SOUL.reed.md` | `~/.hermes/profiles/<p>/SOUL.md` | overwrite from master, verify hash |
+| `team/automations/weka/SOUL.cody.md`, `SOUL.reed.md`, `SOUL.scout.md` | `~/.hermes/profiles/<p>/SOUL.md` | overwrite from master, verify hash |
 | `team/automations/skills/<name>/SKILL.md` | `~/.hermes/profiles/<p>/skills/<name>/SKILL.md` | overwrite from master, verify hash |
 | `team/automations/weka/github-webhook.py`, `github-webhook.service` | the clone the systemd user unit points at | restart the unit, verify it started now |
 | `~/.hermes/config.yaml` → `kanban:` | not in this repo | out of scope — a human edits it, gateway restart |
@@ -77,7 +77,7 @@ real event is warranted — it never decides what gets synced.
 ### 3. SOUL: overwrite from master
 
 ```bash
-ls -l ~/.hermes/profiles/cody/SOUL.md ~/.hermes/profiles/reed/SOUL.md
+ls -l ~/.hermes/profiles/cody/SOUL.md ~/.hermes/profiles/reed/SOUL.md ~/.hermes/profiles/scout/SOUL.md
 ```
 
 - **Symlink** into the repo: step 2 already reset it; verify the hash only.
@@ -86,8 +86,10 @@ ls -l ~/.hermes/profiles/cody/SOUL.md ~/.hermes/profiles/reed/SOUL.md
 ```bash
 cp team/automations/weka/SOUL.cody.md ~/.hermes/profiles/cody/SOUL.md
 cp team/automations/weka/SOUL.reed.md ~/.hermes/profiles/reed/SOUL.md
+cp team/automations/weka/SOUL.scout.md ~/.hermes/profiles/scout/SOUL.md
 md5sum team/automations/weka/SOUL.cody.md ~/.hermes/profiles/cody/SOUL.md
 md5sum team/automations/weka/SOUL.reed.md ~/.hermes/profiles/reed/SOUL.md
+md5sum team/automations/weka/SOUL.scout.md ~/.hermes/profiles/scout/SOUL.md
 ```
 
 Equal hashes or it is not deployed — "the copy ran" is not evidence. No restart: `SOUL.md` is read when a
@@ -169,6 +171,10 @@ event is for:
   (`hermes kanban --board jsmind-v2 list`) or a comment on the PR explaining why not. Only the human account
   can trigger this path — bot events are ignored on purpose — so ask the user to leave the comment instead of
   working around the gate.
+- **Groom card (scout)**: when `groom_board` / `groom_assignee` are configured, the same PR close must leave
+  `#<pr>: Groom — …` on the groom board (`hermes kanban --board groom list`). The first time that branch is
+  switched on, the manual rehearsal in `team/automations/weka/README.md` →「主机侧准备」is the only evidence
+  that the profile and the board are dispatchable; a real merge is too expensive to discover that with.
 
 A real event is the one thing here that is not a reset step: it writes to GitHub and can create a card. So it
 is gated on the step-2 diff — run it when that list contained `github-webhook.py` or

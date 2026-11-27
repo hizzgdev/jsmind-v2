@@ -1,6 +1,6 @@
 # Weka — 基于 webhook + kanban 的 jsMind-V2 开发流程
 
-weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签的 Issue 会触发 webhook，转成 Kanban 卡片，由调度器拉起 Cody（开发）和 Reed（审查）两个 profile 干活，仓库所有者做终审。你在 PR 上要求修改时，webhook 会再建一张返工卡。
+weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签的 Issue 会触发 webhook，转成 Kanban 卡片，由调度器拉起 Cody（开发）、Reed（审查）和 Scout（需求梳理）三个 profile 干活，仓库所有者做终审。你在 PR 上要求修改时，webhook 会再建一张返工卡；每次 PR 关闭之后再排一张 scout 卡，把下一步写成一个待拍板的 issue。
 
 名字是 we(webhook) + ka(kanban) 拼出来的。
 
@@ -23,6 +23,7 @@ weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签�
 | `nginx.conf` | nginx 反代 server 块（监听 <webhook-port>，放到 `/etc/nginx/conf.d/`） |
 | `SOUL.cody.md` | Cody（开发者）的行为规范 |
 | `SOUL.reed.md` | Reed（审查者）的行为规范 |
+| `SOUL.scout.md` | Scout（需求梳理者）的行为规范 |
 
 ## 流程全景
 
@@ -36,10 +37,14 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
        ├─ 有必须改 → request_changes（卡回 cody，PR 一直是 draft，cody 补上 weka-working，可无限轮，不计任何计数）
        └─ 通过 → 摘 weka-reviewing 与 PR 上的 weka-working、加 weka-reviewed、转成 ready、加 reviewer hizzgdev、complete
   → 你在 GitHub 上终审
-       ├─ 合并 → webhook 删 worktree + 本地分支 + 摘 PR 上的标签（不建卡）
+       ├─ 合并 → webhook 删 worktree + 本地分支 + 摘 PR 上的标签，并在 groom 板建一张 scout 卡
        └─ 要求修改 → webhook 见 weka-reviewed → 建 "#86: Rework N — ..." 卡给 cody
   → issue 关闭（含合并时被 `Closes #N` 自动关闭）
        → webhook 按事件里的标签兜底清掉 issue 上残留的 weka-working
+  → groom 卡（scout，groom 板）：读 milestones / roadmap / open issues
+       → 写（或补全）一个 issue → assign 给 hizzgdev
+       → 你在 issue 上评论 → webhook 建新的 scout 卡 → 下一轮
+       → 你把 issue 转给 zzgbot → 回到上面的开发流程
 ```
 
 任何时刻人在 weka 的 issue / PR 上留言，都是同一条路进来：有 open 卡就追加到那张卡（`ready` / `running` / `review` 三种状态各自能读到），没有卡才按指派分流（实现 / groom），两个指派都不在就在 issue 上留一句说明。详见「触发规则」与「评论如何到达正在干活的人」。
@@ -58,6 +63,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 #85: <issue 标题>              从 issue 建的卡
 #86: Rework — <PR 标题>        从 PR 建的卡（返工）
 #87: <issue 标题>              从 issue 评论建的 groom 卡（在 groom_board 上）
+#88: Groom — <PR 标题>         从 PR 关闭建的 groom 卡（在 groom_board 上）
 ```
 
 - 编号是唯一键，查卡用前缀匹配：`title LIKE '#86:%' AND status NOT IN ('done','archived')`。
@@ -65,6 +71,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 - 不带轮次号：第几轮这件事在 PR 的 review 历史里，卡上再记一份只是多一个会算错的来源。同一个 PR 的连续返工卡标题相同，按 `created_at` 排序即可。
 - 前缀锚定是关键：标题中段出现 `#86:` 不会误伤，`#860…` 也不会命中 `#86:`。
 - 同一张板上一个编号最多一张 open 卡。webhook 建卡前先查，命中就把这次事件追加成那张卡的 comment，不建新卡。
+- **例外是 groom 板上的编号键**：PR 关闭建的 groom 卡用 `#<PR 号>: Groom — …`，但幂等性按**板**算，不按编号——groom 只有一条对话线，板上已有任何 open 卡就把这次关闭追加成它的 comment（见「每次关闭后排下一轮：groom 卡」）。
 - 编号只标识"建卡的那个对象"，issue 和 PR 之间不做映射。要串起来让 agent 自己看 PR body 里的 `Closes #N`。
 
 ## 触发规则
@@ -81,8 +88,9 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 | PR 返工 | ① 该编号已有 open 卡 | 把评论正文追加到那张卡。**这一条不看标签**：cody 开工第一件事就是摘掉 `weka-reviewed`，返工进行中的留言不能被标签挡住 |
 | PR 返工 | ① 没有 open 卡；② PR 带 `weka-reviewed`；③ 入口是 `hizzgdev` 的提交 review（非 `approved`）或会话评论或行内评论 | 建返工卡，卡上带着评论原文 |
 | PR 返工 | ① 没有 open 卡；② PR 不带 `weka-reviewed` | 不建卡，在 PR 上留一句说明（见下一节） |
+| PR 关闭 → groom | ① `pull_request.closed`，merged 与否都算（与 cleanup 同范围，不看标签） | 在 `groom_board` 上建 `#<PR 号>: Groom — …` 卡给 `groom_assignee`；板上已有 open 卡就把这次关闭追加成那张卡的 comment |
 
-`closed` 不在这张表里：它不建卡，只做标签兜底清理，见下文「关闭时的兜底清理」。
+`closed` 里只有 groom 这一支会建卡；它剩下的动作是标签兜底清理，见下文「关闭时的兜底清理」。
 
 **容量不在这里判断。** 板上有没有别的卡在跑，跟"要不要接这条返工请求"无关：卡建出来就进 `ready` 排队，什么时候跑由 dispatcher 按 `max_in_progress` / `max_in_progress_per_profile` 决定（见「并发与资源」）。webhook 里曾经有一道 `busy_cards()` 门在这里挡卡，而它没有队列可排——"板上忙"在实现里就等于"丢弃"。
 
@@ -95,6 +103,71 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 两个 assignee 同时在场且没有 open 卡时按 `hizzgdev` 走（groom）；实际不会出现"活交给 bot 了却没有卡"的状态，所以这条优先级只在人工摆弄指派时看得见。
 
 groom 那一支是**可关的**：`groom_board` / `groom_assignee` 留空时整支跳过，并在 issue 上留一句"未配置"的说明。所以这份代码可以先上线，等 scout 流程自己把两个键填上再启用。它建卡时不带 `--workspace worktree --project`：groom 谈的是"这个 issue 应该变成什么"，不是写代码，给它挂一个仓库 checkout 没有用（board 若自己绑了 project，那是 board 的默认行为）。
+
+PR 关闭那一支靠同样的两个键开，但门关着时**只在 journal 打一行 `[GATE]`，不在 PR 上留言**：关闭是自动事件、不是人的请求，在每条合并的 PR 上贴一句"未配置"只会是噪音。
+
+## 每次关闭后排下一轮：groom 卡
+
+`pull_request.closed` 做完 cleanup 之后，webhook 还会在 **groom 板**（显示名「需求梳理」）上排一张 **scout 卡**。scout 是独立 profile，只干一件事：把「下一步该做什么」写成一个 owner 能直接拍板的 issue。
+
+**为什么挂在「关闭」而不是「合并」**：合并和放弃都会让仓库进入下一个状态——一条分支落地，或者一个 issue 被放回池子——下一次规划的依据是关闭之后的样子。所以 `merged=false` 也建卡。范围与同一事件里的 cleanup 相同，不看标签。
+
+**为什么幂等按板算**：groom 只有一条对话线，读的都是同一份 milestones / roadmap / open issues。板上已经有 open 卡时，这次关闭会作为 comment 追加到那张卡，而不是再开一条平行对话。
+
+**卡里有什么**：触发它的 PR URL、`merged` 状态、分支、触发时的标签，以及一句「按 `SOUL.scout.md` 跑一轮」。不带 `--workspace worktree --project`——scout 不写代码，读文档走 `gh api .../contents/...`，写的是 issue。
+
+scout 一轮做三件事：
+
+1. 读 `team/development/milestones.md`、`roadmap.md`、tracker issue 的清单、open issues 与触发它的 PR。
+2. 判断下一步，**先查有没有现成的 issue**：已有 open issue 覆盖同一件事就补全它，没有才新建。
+3. 把 issue 写成两节——**「已明确」/「待明确」**——带规模评估（改哪些文件、大概多少行），需要拍板就在 issue 里 `@hizzgdev` 提具体问题，然后 assign 给 `hizzgdev`。
+
+两个容易漏的点：
+
+- scout 建的 issue **必须带 `weka` 标签**。owner 的评论要靠它进入 groom 分支（上一节的标签门），漏了就断在「评论没人接」那一步。
+- 它只 assign 给 `hizzgdev`，**不 assign 给 `zzgbot`**——转交永远是人的动作。
+
+**一卡一轮。** scout 的卡生命周期很短，三种情况都算完成并立即 close：建（或补）了一个 issue 并 assign；回复了 owner 的评论；或者判断没有下一步，在触发它的 PR / issue 上写明扫过什么、为什么停在这里。重跑的成本就是一张小卡。
+
+**权限边界**：scout 只读仓库、只写 issue（正文、评论、assignee、`weka` 标签）。不改代码、不开 PR、不改 CI、不碰 review、不动别人的卡。
+
+对话循环：scout assign → 你在 issue 上评论 → webhook 建一张新的 scout 卡（`issue_comment` 那条路）→ 下一轮。你满意之后把 issue 转给 `zzgbot`，就回到开发流程。
+
+### 主机侧准备（一次性）
+
+profile 和板都在主机上，不在这个仓库里。全新机器按「重建清单」走；已有机器上启用这一支要补三步：
+
+```bash
+hermes profile create scout --clone \
+  --description "需求梳理：只读，挑下一个议题并 assign 给 hizzgdev"
+hermes -p scout config set model.default deepseek-v4.1-flash
+cp team/automations/weka/SOUL.scout.md ~/.hermes/profiles/scout/SOUL.md
+
+hermes kanban boards create groom        # 显示名「需求梳理」
+```
+
+再把两个键填进 webhook 的 `config.json` 并重启服务（两个键在 §4 有详细说明）：
+
+```json
+{ "groom_board": "groom", "groom_assignee": "scout" }
+```
+
+```bash
+systemctl --user restart github-webhook
+```
+
+新板不需要单独配 loop：dispatcher 每 tick 枚举所有未归档的板。但**卡停在 `ready` 不动时**先排除 profile——`hermes profile list | grep scout`，再重启 `hermes-gateway` 试一次。
+
+**deploy 之后必须演练一次**：手动建一张 groom 卡，确认 scout 能被调度、能读文档、能写出一个像样的 issue：
+
+```bash
+hermes kanban --board groom create "演练：groom 卡能被调度" --assignee scout \
+  --body $'https://github.com/hizzgdev/jsmind-v2/pull/<刚刚合并的 PR>\n\n## trigger\n- event: manual rehearsal\n'
+```
+
+不做这一步，「profile 没注册好」「板子的调度器没起来」这类问题要等下一次真实合并才暴露，而那时你只会看到「合并了却什么都没发生」。
+
+`SOUL.scout.md` 和 cody / reed 的那两份一样由 `weka-deploy` 拷贝并校验 hash（见 `team/automations/skills/weka-deploy/SKILL.md`），所以启用这一支的那次部署顺带就把 profile 里的 `SOUL.md` 换新了。
 
 ## 评论如何到达正在干活的人
 
@@ -124,6 +197,7 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 | issue 评论没有进卡：issue 没指派给 `zzgbot` 也没指派给 `hizzgdev` | 说明两个指派各接哪条路，指派之后再留一次言 |
 | issue 评论没有进卡：指派给了 `hizzgdev`，但 `groom_board` / `groom_assignee` 没配 | 说明这一支现在是关的、配置补上后再留一次言 |
 | issue 上建 scout 卡 / 返工卡失败 | 同 PR 侧的建卡失败说明（两种情况文案分别写"groom 卡失败"和"返工卡失败"） |
+| PR 关闭时建 groom 卡失败 | 同 PR 侧的建卡失败说明，文案写"建 groom 卡失败"，并说明下一轮需求梳理没有进队列 |
 
 只有三种情况留在 journal 里，因为它们没有可执行的下文，在对象上留言只会是噪音：
 
@@ -139,7 +213,7 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 
 ## 标签与人工审核门
 
-两个 SOUL 只写「做什么、按什么顺序」，状态机的理由和边界在这一节。改规则时改这里，SOUL 里只留动作。
+cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理由和边界在这一节。改规则时改这里，SOUL 里只留动作。
 
 | 标签 | 打在哪 | 谁打 | 用途 |
 | --- | --- | --- | --- |
@@ -305,23 +379,28 @@ hermes profile create cody --clone \
   --description "Weka developer: writes code and opens PRs"
 hermes profile create reed --clone \
   --description "Weka reviewer: reviews PR diffs and writes review comments"
+hermes profile create scout --clone \
+  --description "需求梳理：只读，挑下一个议题并 assign 给 hizzgdev"
 
 cp team/automations/weka/SOUL.cody.md ~/.hermes/profiles/cody/SOUL.md
 cp team/automations/weka/SOUL.reed.md ~/.hermes/profiles/reed/SOUL.md
+cp team/automations/weka/SOUL.scout.md ~/.hermes/profiles/scout/SOUL.md
 ```
 
-模型：`--clone` 会继承 default profile 的模型（本机是 `deepseek-v4.1-flash`）。两个
+模型：`--clone` 会继承 default profile 的模型（本机是 `deepseek-v4.1-flash`）。三个
 worker 干机械活，不要用 pro 模型；若 default 用了 pro，记得手动切 flash：
 
 ```bash
 hermes -p cody config set model.default deepseek-v4.1-flash
 hermes -p reed config set model.default deepseek-v4.1-flash
+hermes -p scout config set model.default deepseek-v4.1-flash
 ```
 
 ### 3. Kanban board + project
 
 ```bash
 hermes kanban boards create jsmind-v2
+hermes kanban boards create groom        # scout 的板，显示名「需求梳理」
 hermes project create jsmind-v2 ~/repos/jsmind-v2 --board jsmind-v2 --use
 
 # 调度器并发上限（见上文「并发与资源」）
@@ -349,7 +428,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now github-webhook.service
 ```
 
-**groom 那一支要两个键才启用**：`config.json` 里的 `groom_board`（board slug）和 `groom_assignee`（profile 名）。`config.example.json` 里两个都是 `null`，意思是"这条分支关着"——指派给 `hizzgdev` 的 issue 上的评论此时只会在 issue 上留一句说明。scout 那张卡就位之后填上这两个键，重启服务即生效；填了 board slug 但那个 board 还不存在时，建卡会失败并在 issue 上留痕（不会静默）。
+**groom 那一支要两个键才启用**：`config.json` 里的 `groom_board`（board slug）和 `groom_assignee`（profile 名）。`config.example.json` 里两个都是 `null`，意思是"这条分支关着"——指派给 `hizzgdev` 的 issue 上的评论此时只会在 issue 上留一句说明。scout 那张卡就位之后填成 `"groom_board": "groom"`、`"groom_assignee": "scout"`，重启服务即生效。填了 board slug 但那个 board 还不存在时，issue 侧建卡失败会在 issue 上留痕、PR 侧会在 PR 上留痕（不会静默）。另外 `SOUL.scout.md` 要拷进 `~/.hermes/profiles/scout/SOUL.md`，和下面 cody / reed 那两份一起。
 
 **改了 `github-webhook.py` 或 `config.json` 之后，主 checkout 要先拉代码再重启，否则跑的还是旧代码。** `ExecStart` 直接指向主 checkout 里那份脚本，`Restart=always` 只在进程退出时重启，不会因为文件变了就重载——和 gateway、nginx 一样，改完不重启就是静默不生效：
 
@@ -363,11 +442,12 @@ cd ~/repos/jsmind-v2 &&
 
 四步用 `&&` 串起来，任何一步失败都不会走到 `restart`——最坏的情况是停在那一步、什么都没变，而不是把旧代码重新拉起来一遍。
 
-**`SOUL.cody.md` / `SOUL.reed.md` 也要重拷。** profile 里的 `SOUL.md` 是这两个文件的副本（§2 的 `cp`），worker 起会话时才从 profile 读它。所以改了 SOUL 同样要在 pull 之后重拷一次，否则 live 的 agent 拿到的还是旧指令：
+**`SOUL.cody.md` / `SOUL.reed.md` / `SOUL.scout.md` 也要重拷。** profile 里的 `SOUL.md` 是这三个文件的副本（§2 的 `cp`），worker 起会话时才从 profile 读它。所以改了 SOUL 同样要在 pull 之后重拷一次，否则 live 的 agent 拿到的还是旧指令：
 
 ```bash
 cp team/automations/weka/SOUL.cody.md ~/.hermes/profiles/cody/SOUL.md
 cp team/automations/weka/SOUL.reed.md ~/.hermes/profiles/reed/SOUL.md
+cp team/automations/weka/SOUL.scout.md ~/.hermes/profiles/scout/SOUL.md
 ```
 
 这一步不需要重启任何服务：SOUL.md 在每次 worker 起会话时读，下一张卡自然生效。
@@ -446,6 +526,8 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
    - 删 worktree 不会顺带删本地分支，`git branch -D` 得单独跑。
 
    想自己验证，或者要改清理逻辑之前，先跑 `scripts/probe-worktree-removal.sh`：它在临时仓库里把四种情况各试一遍，逐条打印 `ok` 或 `MISMATCH`，跑完自动清理，不碰当前 checkout。它也在 CI 里跑，所以哪天 git 改了这条规则，是那条流水线先红，而不是又攒出一堆没人删的 worktree。
+
+6. 同一次合并还会在 groom 板上建一张 `#<pr>: Groom — …` 卡给 scout：`hermes kanban --board groom list` 能看到它，scout 起来后写（或补全）一个带 `weka` 标签、assign 给 `hizzgdev` 的 issue。scout 的卡按「一卡一轮」跑完就 close，所以出现在 `done` 里也是对的；一直停在 `ready` 才是 profile 或板没配好。
 
 任何一环卡住，按顺序看：
 
