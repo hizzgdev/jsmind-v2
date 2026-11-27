@@ -28,11 +28,13 @@
 **钩子怎么装上**：两种，先查你现在用的是哪种——
 
 ```sh
-git config --get core.hooksPath        # 输出 scripts/git-hooks 时，git 直接执行该目录下的钩子
-ls -l .git/hooks/pre-push              # 另一种：符号链接到 scripts/git-hooks/pre-push（AGENTS.md 里那条命令）
+git config --get core.hooksPath                                # 输出 scripts/git-hooks 时，git 直接执行该目录下的钩子
+ls -l "$(git rev-parse --git-path hooks/pre-push)"             # 另一种：符号链接到 scripts/git-hooks/pre-push（AGENTS.md 里那条命令）
 ```
 
 `core.hooksPath` 指向 `scripts/git-hooks` 时，改脚本立刻生效，不需要再建链接；两个都配了的话 `core.hooksPath` 优先。
+
+第二条命令要用 `git rev-parse --git-path` 而不是直接拼 `.git/hooks/...`：在 worktree 里 `.git` 是个文件（指向主仓库的 `worktrees/<name>`），`ls .git/hooks/pre-push` 会报 `Not a directory`，看起来像钩子没装；`git rev-parse --git-path` 会把它解析成真实路径（配了 `core.hooksPath` 时就解析成那份脚本）。
 
 **怎么办**：别为了省这几十秒加 `--no-verify`。它是唯一一道本地闸门，拆掉之后你要等几分钟才知道 CI 说了什么，而 CI 的红是六条检查器一起说话，定位比本地一条命令贵得多。
 
@@ -257,7 +259,9 @@ gh pr view <n> --json mergeable,mergeStateStatus
 
 `mergeStateStatus: CLEAN` 是放行信号：与 base 无冲突，且 required 检查全部通过。引用它，不要去数绿勾——被 `if:` 跳过的 job 不显示成勾，没上报的 required 检查也不会显示，页面上的「绿」和规则集的判定不是一回事。
 
-`CLEAN` **不等于可以合并**：draft 的 PR 也报 `MERGEABLE` / `CLEAN`（实测一个 draft PR 就是这个组合）。合并还受 draft 状态与规则集约束。required 名单本身现查，别背——命令在 [`ci-classification.md`](ci-classification.md) 的「怎么确认」一节。
+`CLEAN` **不等于可以合并**：draft 的 PR 也报 `MERGEABLE` / `CLEAN`（实测一个 draft PR 就是这个组合）。合并还受 draft 状态与规则集约束。
+
+required 名单本身现查，别背：规则在哪个 ruleset 里、哪几条是 required，机制见 [`repo-conventions.md`](repo-conventions.md) 的「合并门」一节，可重跑的命令在本文第 13 节。查的时候注意 **ruleset 不止一个，只有带 `required_status_checks` 的那个说明问题**——去查不带它的那个（比如只管禁删除和 force push 的那个），输出是空的，看上去像「没有门」，实际是查错了对象。`/branches/master/protection` 那个接口更糟：它因权限返回 404，同样长得像「没有保护」。
 
 一条红的检查是对**这条分支**的断言，诊断前先问：**这个 job 的输入被这次 diff 碰到了吗？** 分类在 `ci.yml` 的 `changes` job，`render` 只由这些路径触发：
 
@@ -292,8 +296,13 @@ grep -E "npm run (format-check|type-check|test|build)" scripts/git-hooks/pre-pus
 node -e "console.log(require('./package.json').scripts.test)"
 
 # required 检查的名字与 job 的 name:（第 11 节，名单现查，本文不复制）
-gh api repos/hizzgdev/jsmind-v2/rulesets --jq '.[].name'
-grep -nE "^\s{2}[a-z-]+:|^\s{4}name:" .github/workflows/ci.yml
+# 必须遍历：ruleset 不止一个，只有带 required_status_checks 的那个有东西可查；
+# 单独查某一个 id 可能拿到空输出，那不代表没有门
+for id in $(gh api repos/hizzgdev/jsmind-v2/rulesets --jq '.[].id'); do
+  gh api "repos/hizzgdev/jsmind-v2/rulesets/$id" \
+    --jq '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
+done
+grep -nE "^    name:" .github/workflows/ci.yml
 
 # 缓存的两种状态（第 2 节）
 grep -n "PRE_PUSH_SUCCESS\|check-status" scripts/git-hooks/pre-push
@@ -309,5 +318,7 @@ grep -nE "src/\*|render-map/|scripts/(render|prepare)-preview\.ts" .github/workf
 ```
 
 第 1 节的 `grep` 应该只列出 `format-check` 与 `type-check` 两行。多出 `test` 或 `build`，说明钩子变了，改第 1 节并把第 5、6 节的推论重读一遍。
+
+规则集那个循环应该输出几条 context，**每一条都能在上面的 `name:` 列表里找到**；一条都没有，要么规则被删了，要么 `gh` 没登录/没权限，两种都不等于「没有门」。
 
 本文出现的耗时数字都是本仓库实测（format-check、type-check、build 各测过两次，整条钩子测过一次；同一台机器上前后差可达两倍），只给「这值得等吗」一个量级。数字随机器、负载、缓存状态变化，判据不随它变。
