@@ -1007,6 +1007,14 @@ describe('landing page', () => {
         const css = /<style>([\s\S]*?)<\/style>/.exec(page)?.[1] ?? '';
         const rule = /\.site-nav a\[target="_blank"\]::after\s*\{([^}]*)\}/.exec(css)?.[1];
         assert.ok(rule, 'the nav should draw the external-link arrow on a `::after`');
+
+        // A generated box needs both halves: `content` is what creates the
+        // pseudo-element at all, and `display: inline-block` is what gives it
+        // the 11px box below. Drop either and the rule still parses, every
+        // declaration after this point still matches, and no arrow is drawn.
+        assert.match(rule, /content: '';/, 'the arrow should be generated before it is drawn');
+        assert.match(rule, /display: inline-block;/, 'the arrow should get a box of its own');
+
         for (const declaration of [
             'width: 11px',
             'height: 11px',
@@ -1116,6 +1124,12 @@ describe('pages site assembly', () => {
         );
         const home = tagAttrs(entries[0]?.tag ?? '');
         assert.strictEqual(home.get('target'), '_blank', 'Home should open the product page in a new tab');
+        // A link that opens another origin must not hand it `window.opener`;
+        // `assertSharedHeader` requires noopener + noreferrer of every
+        // cross-site entry on the three sites, and this header is the one it
+        // cannot reach.
+        assert.match(home.get('rel') ?? '', /\bnoopener\b/, 'Home should carry noopener');
+        assert.match(home.get('rel') ?? '', /\bnoreferrer\b/, 'Home should carry noreferrer');
         assert.strictEqual(
             new URL(home.get('href') ?? '').href,
             HOME_URL,
