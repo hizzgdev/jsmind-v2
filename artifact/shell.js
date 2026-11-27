@@ -255,9 +255,20 @@
         // double-click below is this page's answer to "show me all of it", and
         // it is only made when the reader asks.
         //
+        // The box is taken over first, and still nothing is fitted: a map too
+        // large for the window would otherwise open with a native scrollbar on
+        // each axis, and the first gesture would then remove them - the box
+        // growing by their width at the moment the reader did something. Taken
+        // over while the scroll offset is still zero, the map does not move: the
+        // strip the scrollbars were occupying is simply revealed.
+        //
+        // A zoom to the factor the map opens at: that takes the box over, and
+        // holding the same point still at the same scale leaves the viewport
+        // exactly where it was.
+        jm.commands.zoomTo(1);
         // The touch rule still has to be decided up front, from the state the
-        // map opens in: without it a finger drag on a map that overflows would
-        // scroll the page instead of the map.
+        // map opens in: the box does not scroll any more, so without it the
+        // browser keeps a finger drag for itself and the map never sees it.
         syncPanTouchAction(container, jm.commands);
         installWheel(container, jm.commands);
         installPan(container, jm.commands);

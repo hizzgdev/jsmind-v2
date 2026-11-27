@@ -22,9 +22,10 @@ body {
 
 /*
  * The map's host: the whole window. The map opens at its natural size, and the
- * viewport inside the shadow root is what scrolls, zooms and pans it - so the
- * page itself never grows a scrollbar, and what a reader loses off the edge
- * comes back with a drag, a wheel or a double-click.
+ * viewport inside the shadow root is what moves it - a drag, a wheel or a
+ * double-click changes its transform, and neither this page nor that box ever
+ * grows a scrollbar, so what a reader loses off the edge comes back with one of
+ * those three gestures.
  */
 #jsmind {
     width: 100%;
