@@ -659,11 +659,21 @@ class Weka:
             board=None,
             assignee=self.assignee,
             create_args=tuple(self.create_args),
-            failure_text=(
-                f"收到 `{event}`，但建返工卡失败（`hermes kanban create` 非零退出），"
-                "请求没有进队列。webhook journal 里有具体错误，也可以在 GitHub 的 webhook "
-                "投递记录里 redeliver 这一条。"
-            ),
+            failure_text=self._rework_failure_text(event),
+        )
+
+    @staticmethod
+    def _rework_failure_text(event: str) -> str:
+        """Trace a failed rework-card create, on the PR or the issue.
+
+        One string for both objects: the human asking for the change sees the
+        same sentence wherever they left the comment, and the PR side keeps the
+        text it has always posted.
+        """
+        return (
+            f"收到 `{event}`，但建返工卡失败（`hermes kanban create` 非零退出），"
+            "请求没有进队列。webhook journal 里有具体错误，也可以在 GitHub 的 webhook "
+            "投递记录里 redeliver 这一条。"
         )
 
     @staticmethod
@@ -806,23 +816,16 @@ class Weka:
             f"> `gh api repos/{{owner}}/{{repo}}/pulls/{number}/comments`\n"
             f"> `gh pr diff {number}`\n"
         )
-        created = self.kanban(
-            "create",
+        self._create_card(
+            number,
             f"#{number}: Rework — {pr_title}"[:120],
-            "--assignee", self.assignee,
-            "--body", body,
-            "--idempotency-key", idem_key,
-            *self.create_args,
+            body,
+            idem_key,
+            board=None,
+            assignee=self.assignee,
+            create_args=tuple(self.create_args),
+            failure_text=self._rework_failure_text(event),
         )
-        if not created:
-            # A failed create used to be one journal line, and the human who
-            # asked for the change saw an ignored PR.
-            self.comment_on_object(
-                number,
-                f"收到 `{event}`，但建返工卡失败（`hermes kanban create` 非零退出），"
-                "请求没有进队列。webhook journal 里有具体错误，也可以在 GitHub 的 webhook "
-                "投递记录里 redeliver 这一条。",
-            )
 
     def _append_to_card(self, card: tuple[str, str], *, number: int | None, event: str,
                         actor: str, text: str, board: str | None = None) -> None:
@@ -853,10 +856,15 @@ class Weka:
                      failure_text: str) -> None:
         """Create one card, and report a failed create on the object it came from.
 
+        The one create path for all three recipients — a PR rework card, an
+        issue rework card and a groom (scout) card — so the failure trace exists
+        once instead of in each caller.
+
         `board`, `assignee` and `create_args` are explicit because the groom card
         lives on another board, is worked by another profile, and has no checkout
         of this repository: the three differ per recipient, and a default would
-        silently send one kind to the other's board.
+        silently send one kind to the other's board. `board=None` is this flow's
+        own board, where every PR and issue rework card lives.
         """
         created = self.kanban(
             "create", title,

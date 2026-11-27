@@ -487,10 +487,14 @@ class IssueCommentRoutingTests(unittest.TestCase):
 
 
 class DedupeWeka(FakeWeka):
-    """Models `hermes kanban create --idempotency-key`.
+    """Models `hermes kanban create --idempotency-key` and the card it leaves.
 
     `create_task()` returns the existing task instead of a duplicate, and the CLI
     exits 0 for that, which is why a redelivery must not read as a failure.
+
+    The card the first delivery created is open by the time the second arrives,
+    so `open_card_for()` has to see it — that is what the second delivery
+    actually does, and it is how the note below gets appended.
     """
 
     def __init__(self, **kwargs):
@@ -505,13 +509,23 @@ class DedupeWeka(FakeWeka):
                 return True
             self.keys.add(key)
             self.created_titles.append(args[1])
+            # `board=None` is this flow's own board; anything else is the groom board.
+            pool = self.groom_cards if board else self.cards
+            pool.append((f"t_created_{len(self.created_titles)}", "ready"))
         return super().kanban(*args, board=board)
 
 
 class RedeliveryTests(unittest.TestCase):
-    """GitHub redelivers on a timeout; the second delivery must change nothing."""
+    """A redelivered comment must not create a second card.
 
-    def test_a_redelivered_issue_comment_creates_one_card(self):
+    What it does do is append a second note: by the time GitHub redelivers, the
+    card from the first delivery is open, so the delivery lands on the
+    "already has a card" branch. The idempotency key guards the create, not the
+    append — the known limit the README records, pinned here so nobody reads the
+    class name as a stronger promise.
+    """
+
+    def test_a_redelivered_issue_comment_creates_one_card_and_repeats_the_note(self):
         weka = DedupeWeka(config=GROOM)
         payload = issue_comment_payload()
 
@@ -521,6 +535,11 @@ class RedeliveryTests(unittest.TestCase):
         self.assertEqual(len(weka.created_titles), 1, weka.kanban_calls)
         self.assertEqual(weka.create_keys()[0], f"gh-issue-{ISSUE_NUMBER}-comment-77")
         self.assertEqual(weka.object_comments, [], "a deduplicated create is not a failure")
+        # Second delivery: one note on the card the first one created, on the
+        # board that card lives on.
+        self.assertEqual(len(weka.card_comments()), 1, weka.kanban_calls)
+        self.assertIn("这一段需求再确认一下", weka.card_comments()[0][2])
+        self.assertEqual(weka.comment_boards(), ["groom-board"])
 
 
 class PRCommentRegressionTests(unittest.TestCase):
