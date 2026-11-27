@@ -14,16 +14,30 @@
  * The two paths are pinned to each other rather than each to a literal: the
  * point of the step is that the file it writes is the file that gets rendered.
  * The file is also the only thing that crosses between the steps - the tone is
- * a field inside it, not a step output to carry - and that is pinned too.
+ * a field inside it, not a step output to carry - and that is pinned too. The
+ * same file feeds the exported page, so the two artifacts a reader is offered
+ * describe one map.
  *
  * The YAML is read as text rather than parsed: the repository has no YAML
  * dependency of its own (`js-yaml` arrives with a transitive package), and what
- * matters is only that these few strings are present.
+ * matters is only that these few strings are present. The deploy step is the
+ * one exception - its script is extracted and run against a stub `npx`, because
+ * whether a diagnostic prints at all is a property of the shell, not of the
+ * text, and a text assertion passes just as happily with the printout
+ * unreachable.
  */
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    chmodSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -48,6 +62,163 @@ function withTempDir<T>(body: (dir: string) => T): T {
     const dir = mkdtempSync(join(tmpdir(), 'jsmind-prepare-preview-'));
     try {
         return body(dir);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+/**
+ * One step's own text, from its `- name:` to the next step.
+ *
+ * The whole workflow is one string, so a bare `/--token/` would also match
+ * prose in a comment; scoping to the step keeps these assertions about the
+ * command that actually runs. The preview job's last step is also the file's
+ * last step, hence the end-of-input alternative.
+ */
+function stepText(name: string): string {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const found = new RegExp(`- name: ${escaped}[\\s\\S]*?(?=\\n {6}- name: |$)`).exec(WORKFLOW);
+    assert.ok(found, `the preview job should have a \`${name}\` step`);
+    return found?.[0] ?? '';
+}
+
+function deployStep(): string {
+    return stepText('Deploy the preview');
+}
+
+/**
+ * The comment block immediately above a step.
+ *
+ * The owner-facing documentation issue #226 asks for lives there: beside the
+ * commands it explains, where the person rotating a secret will look.
+ */
+function stepComment(name: string): string {
+    const at = WORKFLOW.indexOf(`      - name: ${name}\n`);
+    assert.ok(at >= 0, `the preview job should have a \`${name}\` step`);
+    const before = WORKFLOW.slice(0, at).split('\n');
+    // The slice ends with the newline that opened the `- name:` line, so the
+    // last element is empty and is not part of the comment block.
+    if (before[before.length - 1] === '') before.pop();
+    const kept: string[] = [];
+    for (let i = before.length - 1; i >= 0; i--) {
+        const line = before[i] ?? '';
+        if (!line.startsWith('      #')) break;
+        kept.unshift(line);
+    }
+    return kept.join('\n');
+}
+
+/**
+ * A step's `run:` body, dedented, ready to hand to bash.
+ *
+ * The shell is the only thing that can tell a diagnostic that prints from one
+ * that `set -e` skips over, so the deploy script is run here rather than
+ * pattern-matched: an assertion on its text would pass just as happily with the
+ * printouts unreachable.
+ */
+function stepScript(name: string): string {
+    const body = /^ {8}run: \|\n([\s\S]*)$/m.exec(stepText(name));
+    assert.ok(body, `${name} should run a script`);
+    return (body?.[1] ?? '')
+        .split('\n')
+        .map(line => (line.startsWith(' '.repeat(10)) ? line.slice(10) : line.trimStart()))
+        .join('\n');
+}
+
+/** Runs a step's script in a temp dir with a stub `npx` first on PATH. */
+function runDeploy(npxBody: string): { status: number | null; stdout: string; output: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-deploy-'));
+    try {
+        const bin = join(dir, 'bin');
+        mkdirSync(bin);
+        writeFileSync(join(bin, 'npx'), `#!/usr/bin/env bash\n${npxBody}\n`, 'utf8');
+        chmodSync(join(bin, 'npx'), 0o755);
+
+        const script = join(dir, 'step.sh');
+        writeFileSync(script, stepScript('Deploy the preview'), 'utf8');
+        const outputFile = join(dir, 'github-output');
+        writeFileSync(outputFile, '', 'utf8');
+
+        const run = spawnSync('/bin/bash', [script], {
+            cwd: dir,
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH ?? ''}`,
+                SURGE_TOKEN: 'stub-token',
+                GITHUB_OUTPUT: outputFile,
+            },
+        });
+
+        return {
+            status: run.status,
+            stdout: `${run.stdout}${run.stderr}`,
+            output: readFileSync(outputFile, 'utf8'),
+        };
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+/**
+ * Runs the comment step's script with a stub `gh`, and hands back the body it
+ * would have posted.
+ *
+ * The body is assembled inside the step from three variables, so which
+ * sentences end up in it is a property of the script - and one that a pattern
+ * match on the YAML cannot see: a paragraph written straight into the heredoc
+ * passes every text assertion while saying something the comment does not
+ * contain.
+ */
+function runComment(previewUrl: string, pageUrl: string) {
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-comment-'));
+    try {
+        const bin = join(dir, 'bin');
+        mkdirSync(bin);
+        const capture = join(dir, 'posted.md');
+        // Only the post matters: the "remove the previous comment" call can
+        // answer with nothing, and a body file is the argument to copy back.
+        writeFileSync(
+            join(bin, 'gh'),
+            [
+                '#!/usr/bin/env bash',
+                'if [ "$1" = pr ] && [ "$2" = comment ]; then',
+                '    for arg in "$@"; do last="$arg"; done',
+                '    cp "$last" "$CAPTURE"',
+                'fi',
+                'exit 0',
+                '',
+            ].join('\n'),
+            'utf8'
+        );
+        chmodSync(join(bin, 'gh'), 0o755);
+        // The script writes its heredoc to tmp/comment.md, which the export
+        // step has already created by the time this runs on a runner.
+        mkdirSync(join(dir, 'tmp'));
+
+        const script = join(dir, 'step.sh');
+        writeFileSync(script, stepScript('Post it on the pull request'), 'utf8');
+        const run = spawnSync('/bin/bash', [script], {
+            cwd: dir,
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH ?? ''}`,
+                CAPTURE: capture,
+                PREVIEW_URL: previewUrl,
+                PAGE_URL: pageUrl,
+                PR_NUMBER: '226',
+                FULL_SHA: '1bcd6d82278aed7402a5c4f5e4301d6bb29af0fd',
+                RUN_ID: '45963800674',
+                REPO: 'hizzgdev/jsmind-v2',
+            },
+        });
+
+        return {
+            status: run.status,
+            stdout: `${run.stdout}${run.stderr}`,
+            body: existsSync(capture) ? readFileSync(capture, 'utf8') : '',
+        };
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
@@ -195,6 +366,229 @@ test('the file the prepare step writes is the file the render step reads', () =>
     assert.ok(prepared, 'prepare should run `node scripts/prepare-preview.ts <in> <out>`');
     assert.ok(rendered, 'the render step should name a data-file');
     assert.equal(prepared?.[1], rendered?.[1]);
+});
+
+test('the page is exported from the file the prepare step wrote', () => {
+    // The image and the page are two views of one map, and the workflow is the
+    // only thing that can make them disagree: a second read of the tracked
+    // fixture would carry the tone this run drew into the image and not into
+    // the page. Pinned path-to-path rather than each to a literal, for the same
+    // reason as the render above - one preparation feeds both.
+    const prepared = /node scripts\/prepare-preview\.ts example\/v2-features\.json (\S+)/.exec(
+        WORKFLOW
+    );
+    const exported = /export html (\S+) (\S+) --title/.exec(WORKFLOW);
+
+    assert.ok(exported, 'the preview job should export a page from the prepared data');
+    assert.equal(exported?.[1], prepared?.[1]);
+
+    // And the exported file is the one the deploy publishes. A page written to
+    // another path publishes whatever an earlier run left there, or nothing,
+    // and the comment then links to a page from another commit in a job that
+    // stayed green.
+    const published = /npx --yes surge (\S+) \S+ --preview/.exec(deployStep());
+    assert.ok(published, 'the deploy step should name the page it publishes');
+    assert.equal(exported?.[2], published?.[1]);
+});
+
+test('the deploy publishes to the shared domain, and names it once in code', () => {
+    // One domain for the whole repository is the design: a domain per pull
+    // request would need a teardown nobody runs, and the previews it leaves
+    // behind stay readable indefinitely. Code only - the step's comment states
+    // the same domain again for whoever has to rotate the token, and counting
+    // prose here would make the comment unwritable.
+    const code = deployStep()
+        .split('\n')
+        .filter(line => !line.trimStart().startsWith('#'))
+        .join('\n');
+    const occurrences = code.match(/jsmind-v2-pr-preview\.surge\.sh/g) ?? [];
+    assert.equal(occurrences.length, 1, 'the domain is written once, into $DOMAIN');
+    assert.match(code, /DOMAIN=jsmind-v2-pr-preview\.surge\.sh/);
+});
+
+test('the deploy step documents the owner-side facts, token rotation included', () => {
+    // Issue #226 asks for exactly one piece of documentation in this PR: the
+    // comment above this step, carrying the four facts a maintainer needs and
+    // cannot read off the commands - the domain, the secret name, how to
+    // re-issue a token that expired, and how long a revision lives. Rotation is
+    // the one with no other home: the secret is rotated in Settings, and the
+    // symptom of forgetting is a green job with a linkless comment, not an
+    // error.
+    const docs = stepComment('Deploy the preview');
+    assert.match(docs, /jsmind-v2-pr-preview\.surge\.sh/, 'the domain is named');
+    assert.match(docs, /secret\s+SURGE_TOKEN/, 'the secret is named');
+    assert.match(
+        docs,
+        /surge tokens add --domain jsmind-v2-pr-preview\.surge\.sh -m ci/,
+        'the rotation command is written down'
+    );
+    assert.match(docs, /100 most recent revisions/, 'the retention rule is written down');
+});
+
+test('a failed image upload does not take the deploy and the comment with it', () => {
+    // Steps do not continue past a failure by default. Without this flag a
+    // rejected upload - an expired or revoked PR_PREVIEW_TOKEN - fails the job
+    // at this step, so `Deploy the preview` never runs and no comment is
+    // posted: the reader loses the link as well, and issue #226's "image failed
+    // but the comment still goes out" has no path left in the workflow.
+    const upload = stepText('Upload the preview');
+    assert.match(upload, /continue-on-error: true/);
+    assert.match(upload, /::error::Upload failed/, 'the failure still shows in the log');
+    // With `url` empty the comment step still fires on the link alone.
+    assert.match(WORKFLOW, /if: steps\.upload\.outputs\.url != '' \|\| steps\.surge\.outputs\.url != ''/);
+});
+
+test('the deploy reads the address off a coloured surge line', () => {
+    // The measured shape: `CI=true FORCE_COLOR=1` wraps the whole line in
+    // escapes, so a pattern applied to the raw output finds nothing.
+    const run = runDeploy(
+        'printf \'\\033[32mSuccess!\\033[0m - Preview available at \\033[36m1785787164375--jsmind-v2-pr-preview.surge.sh\\033[0m\\n\''
+    );
+    assert.equal(run.status, 0, run.stdout);
+    assert.match(run.output, /^url=https:\/\/1785787164375--jsmind-v2-pr-preview\.surge\.sh$/m);
+    assert.match(run.stdout, /published 1785787164375--jsmind-v2-pr-preview\.surge\.sh/);
+});
+
+test('a failed deploy prints what surge said before it gives up', () => {
+    // `set -e` on a bare `out=$(npx ...)` exits inside the assignment, so the
+    // output the step deliberately captured with 2>&1 - the only account of
+    // why the deploy failed - never reaches the log. This runs the real script
+    // with a failing npx and reads the log: a text assertion would pass with
+    // the printout unreachable.
+    const run = runDeploy(
+        'echo \'Aborted - not logged in and no terminal to ask ... or set SURGE_TOKEN\' >&2\nexit 1'
+    );
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /Aborted - not logged in/, 'surge\'s own words survive');
+    assert.match(run.stdout, /::error::surge exited non-zero/);
+    assert.ok(!/^url=/m.test(run.output), 'a failed deploy publishes no address');
+});
+
+test('a deploy that publishes no address says so instead of dying in the assignment', () => {
+    // The other dead branch: surge exits 0 but the address is missing, `grep`
+    // exits 1, and `pipefail` turns that into a failed assignment. The `-z`
+    // check that follows has to be reachable, or a green-looking deploy leaves
+    // the comment with no link and no explanation.
+    const run = runDeploy('echo \'Success! - published somewhere unexpected\'');
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /published somewhere unexpected/, 'the output is printed');
+    assert.match(run.stdout, /::error::surge published no preview address/);
+    assert.ok(!/^url=/m.test(run.output), 'no address means no url output');
+});
+
+test('the comment links the revision the deploy step reports', () => {
+    // The revision id is a timestamp surge picks, so there is nothing local to
+    // assemble the address from. The deploy reads it off surge's own output and
+    // the comment reads the step; a link built from the domain instead would
+    // name a host that does not exist.
+    assert.match(WORKFLOW, /PAGE_URL: \$\{\{ steps\.surge\.outputs\.url \}\}/);
+    assert.match(WORKFLOW, /\[Open the exported page\]\(\$PAGE_URL\)/);
+    assert.ok(
+        !/https:\/\/\$\{?[A-Za-z_]+\}?\.surge\.sh/.test(WORKFLOW),
+        'the address is read off surge, not assembled from the domain'
+    );
+});
+
+test('the deploy step claims the id and output the comment reads', () => {
+    // `id: surge` and `url` are the contract between two steps in this job, the
+    // same kind of name as the secret and just as silent when it drifts: a
+    // rename leaves the comment with no link and CI green.
+    const deploy = deployStep();
+    assert.match(deploy, /id: surge/);
+    assert.match(deploy, /echo "url=https:\/\/\$host" >> "\$GITHUB_OUTPUT"/);
+});
+
+test('the deploy hands the token to the environment, never to argv', () => {
+    // `--token` would put the credential in the log, which is the one thing
+    // SURGE_TOKEN exists to prevent. Step-scoped rather than a job-level env:
+    // this job already holds two credentials, and a third readable by every
+    // step buys nothing.
+    const deploy = deployStep();
+    assert.match(deploy, /SURGE_TOKEN: \$\{\{ secrets\.SURGE_TOKEN \}\}/);
+    assert.ok(!/--token/.test(deploy), 'the token travels in the environment, not on the command line');
+
+    // Read in exactly one place: a second reference is either a copy that can
+    // drift or a job-level `env:` that hands this credential to every step in a
+    // job which already holds two others.
+    const refs = WORKFLOW.match(/secrets\.SURGE_TOKEN/g) ?? [];
+    assert.equal(refs.length, 1, 'only the deploy step reads the surge secret');
+
+    // `--yes` because npx otherwise waits on a prompt no runner can answer, and
+    // `continue-on-error` because a deploy having a bad day is not a test
+    // failing - the comment simply loses its link.
+    assert.match(deploy, /npx --yes surge /);
+    assert.match(deploy, /continue-on-error: true/);
+});
+
+test('the comment is posted while either half of it exists', () => {
+    // The condition used to be the image alone, so a failed upload took the
+    // link down with it and a fork could never comment at all.
+    assert.match(
+        WORKFLOW,
+        /if: steps\.upload\.outputs\.url != '' \|\| steps\.surge\.outputs\.url != ''/
+    );
+
+    // Each paragraph is built from its own value and interpolated into the
+    // body, so a comment carrying one of the two never claims the other. The
+    // body lines are pinned as bare variables: an image line written straight
+    // into the heredoc would stay correct while the value that feeds it stops
+    // being used.
+    //
+    // The `<sub>` splits on the same line: "transparent background" and
+    // "uploaded as a comment attachment" are image-only claims, and a comment
+    // whose image upload failed would otherwise make them.
+    assert.match(
+        WORKFLOW,
+        /if \[ -n "\$\{PREVIEW_URL:-\}" \]; then\s*\n\s*image_line=[^\n]*\n\s*image_note=/
+    );
+    assert.match(WORKFLOW, /if \[ -n "\$\{PAGE_URL:-\}" \]; then\s*\n\s*page_line=/);
+    assert.match(WORKFLOW, /^ {10}\$image_line$/m);
+    assert.match(WORKFLOW, /^ {10}\$page_line$/m);
+    assert.match(WORKFLOW, /^ {10}<sub>.*\$\{image_note\}\$\{page_note\}<\/sub>$/m);
+});
+
+test('the look-for paragraph names what the comment actually contains', () => {
+    // The same defect the `<sub>` had, one paragraph down: with the upload
+    // failed the comment carries no image, and "the one thing this image is
+    // for" then points at nothing. Only the script can be asked which
+    // paragraph the body ends up with - a text assertion passes while the
+    // heredoc keeps the sentence in every case.
+    const both = runComment('https://example.test/preview.png', 'https://1--x.surge.sh');
+    assert.equal(both.status, 0, both.stdout);
+    assert.match(both.body, /the one thing this image is for/);
+    assert.ok(
+        !/Open the exported page and look for those/.test(both.body),
+        'the image branch does not send the reader to the page'
+    );
+
+    const linkOnly = runComment('', 'https://1--x.surge.sh');
+    assert.equal(linkOnly.status, 0, linkOnly.stdout);
+    assert.ok(!/this image/i.test(linkOnly.body), 'no claim about an image the comment does not have');
+    assert.ok(!linkOnly.body.includes('![jsMind render preview]'), 'and no image line either');
+    assert.ok(
+        !/Uploaded as a comment attachment/.test(linkOnly.body),
+        'nor the <sub> sentence about the attachment'
+    );
+    assert.match(linkOnly.body, /Open the exported page and look for those/);
+    assert.match(linkOnly.body, /\[Open the exported page\]\(https:\/\/1--x\.surge\.sh\)/);
+    assert.match(linkOnly.stdout, /::warning::the image did not upload/);
+});
+
+test('a failed deploy says so, instead of dropping the link silently', () => {
+    // The other half of "CI stays green when surge fails": a comment with no
+    // link and no word about it reads as if this repository has no live preview
+    // at all, so the absent link has to be stated rather than omitted.
+    assert.match(WORKFLOW, /page_line='_The live preview could not be published for this run\._'/);
+});
+
+test('the page is published, not shipped through the artifact store', () => {
+    // The artifact route is what this replaced: its download asks the reader to
+    // sign in first and arrives as a file, so "open it" was a detour. A
+    // leftover upload would still be green and unused, which is why its absence
+    // is asserted rather than left to review.
+    assert.ok(!/upload-artifact/.test(WORKFLOW), 'the page is published, not uploaded as an artifact');
+    assert.ok(!/upload-html/.test(WORKFLOW), 'the artifact step is gone, and nothing reads its output');
+    assert.ok(!/ARTIFACT_URL/.test(WORKFLOW), 'the comment does not take an artifact address');
 });
 
 test('the preview job turns transparency on, for its own render only', () => {

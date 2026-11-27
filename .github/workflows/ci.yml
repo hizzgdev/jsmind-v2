@@ -537,8 +537,8 @@ jobs:
   # open.
   #
   # Separate from the UI tests even though both need a browser: those are
-  # assertions that must run on every commit, this produces an artifact and
-  # spends a token. Sharing an environment is not sharing a purpose.
+  # assertions that must run on every commit, this produces a preview and
+  # spends two tokens. Sharing an environment is not sharing a purpose.
   # ---------------------------------------------------------------------------
   preview:
     name: Render preview
@@ -549,8 +549,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # Both steps publish: one uploads an image, one comments. Writes are
-    # confined to this job.
+    # Three steps publish: one uploads an image, one deploys the page, one
+    # comments. Writes are confined to this job.
     permissions:
       contents: read
       pull-requests: write
@@ -619,6 +619,24 @@ jobs:
           output: tmp/preview.png
           transparent: 'true'
 
+      # The page this run exported, from the same prepared data as the image.
+      #
+      # It is what the comment's link opens. A preview is worth more as the
+      # thing itself than as a picture of it, and both ways of shipping a file
+      # put a gate in front of the reader: the comment-attachment endpoint only
+      # takes images, and the artifact store asks them to sign in and hands back
+      # a download. A published page is an address that opens on a click.
+      #
+      # One `run:` rather than a second composite action: `export html` writes a
+      # file and never starts a browser, so the render action's launch retry
+      # would be dead weight on this step.
+      #
+      # The same `tmp/preview-data.json` the image was rendered from, never the
+      # tracked fixture: the page and the image then describe one map, down to
+      # the tone this run drew.
+      - name: Export the HTML page
+        run: node dist/cli.js export html tmp/preview-data.json tmp/preview.html --title "jsMind preview"
+
       # The image goes up as a comment attachment, in two steps with different
       # tokens.
       #
@@ -638,8 +656,19 @@ jobs:
       # Forks never receive repository secrets, so the upload warns and stops
       # rather than failing: the point of CI here is the tests, and the picture
       # is a courtesy.
+      #
+      # `continue-on-error` covers the other way this step goes wrong: the
+      # maintainer's token expires or is revoked, the endpoint answers 401/403,
+      # and the `exit 1` below would otherwise fail the job - taking `Deploy the
+      # preview` and the comment down with it, so a run whose page published
+      # fine would offer the reader nothing at all. With this flag a failed step
+      # leaves `url` empty and the comment step drops only its image line, which
+      # is the shape issue #226 asks for: the image is the extra, the link is
+      # the point. The `::error::` stays, so the failure still lands in the log
+      # and the run's annotations instead of hiding behind a green job.
       - name: Upload the preview
         id: upload
+        continue-on-error: true
         env:
           # Two credentials in one step, doing different jobs.
           #
@@ -658,8 +687,8 @@ jobs:
           set -euo pipefail
 
           if [ -z "${UPLOAD_TOKEN:-}" ]; then
-            echo "::warning::PR_PREVIEW_TOKEN is not set; skipping the preview comment."
-            echo "::warning::Set it to a token with write access to $REPO, or forks never get a preview."
+            echo "::warning::PR_PREVIEW_TOKEN is not set; skipping the image upload."
+            echo "::warning::Set it to a token with write access to $REPO, or forks never get a preview image."
             exit 0
           fi
 
@@ -683,8 +712,103 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "uploaded $(du -h tmp/preview.png | cut -f1) to $url"
 
+      # The live preview: the exported page as its own revision on a shared
+      # surge.sh domain, so the comment's link opens the map itself instead of a
+      # file the reader has to fetch first.
+      #
+      # `--preview` publishes a revision and leaves production alone, and the
+      # revision address is the one worth handing out: surge keeps the most
+      # recent 100 per domain and drops the rest, so nothing here runs a
+      # teardown. A domain that has never been published to production accepts a
+      # preview as its first publish - measured on this domain, whose revision
+      # list was empty beforehand and whose bare production address still
+      # answers 404.
+      #
+      # Everything a maintainer needs to keep this running, in one place - the
+      # domain, the secret name, how to re-issue an expired token, and how long
+      # a revision lives:
+      #
+      #   domain    jsmind-v2-pr-preview.surge.sh
+      #   secret    SURGE_TOKEN, repository secret, read by this step alone
+      #   re-issue  surge tokens add --domain jsmind-v2-pr-preview.surge.sh -m ci
+      #             then store the token it prints as SURGE_TOKEN again; nothing
+      #             in this file changes when it is rotated
+      #   lifetime  surge keeps the 100 most recent revisions per domain and
+      #             drops older ones, so a preview link eventually 404s and a
+      #             re-run of this job produces a fresh one
+      #
+      # A revoked token fails the way the rest of this step fails: surge aborts,
+      # the log says why, the job stays green and the comment loses its link.
+      # A comment that has stopped carrying a link is the symptom to look for.
+      #
+      # `npx --yes`: without it npx stops on "Ok to proceed?" and waits for a
+      # tty a runner does not have, until the job times out.
+      #
+      # The token comes from the environment and never from `--token`: staying
+      # out of the log is the entire reason `SURGE_TOKEN` exists as a variable,
+      # and a command-line argument is kept. Step-scoped rather than job-level
+      # for the same reason the image's credential is - this job already holds
+      # two, and a third readable by every step buys nothing.
+      #
+      # `continue-on-error` for the same reason the image warns instead of
+      # failing on a fork: the picture is the preview, this is the extra, and a
+      # deploy having a bad day must not cost the reader the image. A failure
+      # leaves `url` empty and the comment step drops its line on that. A fork
+      # has no secret at all, so it warns and stops - never exit 1.
+      - name: Deploy the preview
+        id: surge
+        continue-on-error: true
+        env:
+          SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          DOMAIN=jsmind-v2-pr-preview.surge.sh
+
+          if [ -z "${SURGE_TOKEN:-}" ]; then
+            echo "::warning::SURGE_TOKEN is not set; skipping the preview deploy."
+            echo "::warning::Set it to a surge token for $DOMAIN, or forks never get a live preview."
+            exit 0
+          fi
+
+          # The address is read off surge's own output rather than assembled
+          # here: the revision id is a timestamp the service picks, so there is
+          # nothing local to build it from.
+          #
+          # Colours are stripped first. Piped output loses them on a developer's
+          # machine, but a CI environment - or anyone who exported FORCE_COLOR -
+          # puts them back, and then the address arrives wrapped in escape codes
+          # no pattern matches. Measured on this exact command: the same publish
+          # under `CI=true FORCE_COLOR=1` emits 29 escape sequences around this
+          # line, and the substitution below leaves none of them.
+          #
+          # Both commands below are allowed to report a failure instead of being
+          # allowed to end the script on one. Under `set -e` a bare
+          # `out=$(npx ...)` exits on a non-zero status before the next line
+          # runs, so the output collected here with `2>&1` - the only account of
+          # what surge said - would never reach the log, and `grep` finding no
+          # address (status 1, promoted by `pipefail`) would end the script
+          # inside an assignment, making the `-z` branch below unreachable.
+          if ! out=$(npx --yes surge tmp/preview.html "$DOMAIN" --preview 2>&1); then
+            printf '%s\n' "$out"
+            echo "::error::surge exited non-zero; the comment will have no link."
+            exit 1
+          fi
+
+          plain=$(printf '%s' "$out" | sed -r 's/\x1b\[[0-9;]*[mK]//g')
+          host=$(printf '%s' "$plain" | grep -oE "[0-9]+--${DOMAIN//./\\.}" | tail -1 || true)
+
+          if [ -z "$host" ]; then
+            printf '%s\n' "$plain"
+            echo "::error::surge published no preview address; the comment will have no link."
+            exit 1
+          fi
+
+          echo "url=https://$host" >> "$GITHUB_OUTPUT"
+          echo "published $host"
+
       - name: Post it on the pull request
-        if: steps.upload.outputs.url != ''
+        if: steps.upload.outputs.url != '' || steps.surge.outputs.url != ''
         env:
           # github.token rather than secrets.GITHUB_TOKEN: same credential, but
           # present in every context and impossible to shadow with a secret.
@@ -696,9 +820,52 @@ jobs:
           FULL_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
+          # The revision address the deploy step published, empty when it
+          # skipped (a fork has no secret) or failed - which is how the body
+          # below learns to leave its line out. Read from the step's output
+          # rather than rebuilt here, because the revision id is surge's.
+          PAGE_URL: ${{ steps.surge.outputs.url }}
         run: |
           set -euo pipefail
           short="${FULL_SHA:0:7}"
+
+          # Each half of the comment is built only when there is something to
+          # point at. The step's `if:` already skips the both-empty case; these
+          # keep each paragraph honest about what exists, and a lone warning in
+          # the log says which half went missing.
+          #
+          # The `<sub>` is split the same way. "Transparent background" and
+          # "uploaded as a comment attachment" describe the image, so a comment
+          # with no image must not carry them; the revision's lifetime is the
+          # link's, and a failed deploy must not claim a link either.
+          image_line=''
+          image_note=''
+          # The paragraph that tells a reader what to scrutinise names the half
+          # of the comment they can actually see. "The one thing this image is
+          # for" is true when there is an image; with the upload failed the only
+          # half left is the page, so the same advice points there instead of at
+          # an image this comment does not carry.
+          look_line='**Worth a look for anything odd** - overlapping nodes, missing edges, text spilling outside its box, a lopsided layout. The tests check that the geometry is computed correctly; whether it actually *looks* right is the one thing they cannot tell you. Open the exported page and look for those.'
+          if [ -n "${PREVIEW_URL:-}" ]; then
+            image_line="![jsMind render preview]($PREVIEW_URL)"
+            image_note=' The background is transparent, so it takes the colour of the theme you are reading this in. Uploaded as a comment attachment, so it stays viewable for as long as this comment exists.'
+            look_line='**Worth a look for anything odd** - overlapping nodes, missing edges, text spilling outside its box, a lopsided layout. The tests check that the geometry is computed correctly; whether it actually *looks* right is the one thing they cannot tell you, and the one thing this image is for.'
+          else
+            echo "::warning::the image did not upload; posting the comment without it"
+          fi
+
+          # A failed deploy still says so: a comment that silently drops the
+          # link reads as if this repository never had a live preview, which is
+          # the one thing that is not true.
+          page_line=''
+          page_note=''
+          if [ -n "${PAGE_URL:-}" ]; then
+            page_line="[Open the exported page]($PAGE_URL) — no login, no download."
+            page_note=' The page link is a surge.sh revision: the domain keeps its 100 most recent and drops the rest, so re-running this job produces a fresh one.'
+          else
+            page_line='_The live preview could not be published for this run._'
+            echo "::warning::the preview did not deploy; the comment says so"
+          fi
 
           # Invisible marker so a re-run can find and replace this comment.
           # Without it every push would leave its own screenshot behind and the
@@ -726,14 +893,16 @@ jobs:
           $MARKER
           ### Render preview
 
-          ![jsMind render preview]($PREVIEW_URL)
+          $image_line
+
+          $page_line
 
           Rendered from the latest code on this branch, at \`$short\`.
 
-          **Worth a look for anything odd** - overlapping nodes, missing edges, text spilling outside its box, a lopsided layout. The tests check that the geometry is computed correctly; whether it actually *looks* right is the one thing they cannot tell you, and the one thing this image is for.
+          $look_line
 
           [Workflow run](https://github.com/$REPO/actions/runs/$RUN_ID)
-          <sub>Generated by \`jsmind export image\` from \`example/v2-features.json\`, pinned to this commit. The background is transparent, so it takes the colour of the theme you are reading this in. Uploaded as a comment attachment, so it stays viewable for as long as this comment exists.</sub>
+          <sub>Generated by \`jsmind export image\` from \`example/v2-features.json\`, pinned to this commit.${image_note}${page_note}</sub>
           BODY
 
           gh pr comment "$PR_NUMBER" \
