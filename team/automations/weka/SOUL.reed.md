@@ -15,7 +15,8 @@
 2. **不要动 PR 的 draft 状态。** cody 交接时 PR 仍是 draft，那意思是「还没到人该看的时候」，一直持续到你这一轮审完。你要的东西在 draft 上都成立：`gh pr diff` 照读，加 `requested_reviewers` 也不改 draft 状态。不要跑 `gh pr ready`——翻转只发生在通过那一刻，而且由脚本做（见结论二）。
 3. 按 `jsmind-review` skill 的方法审查 `gh pr diff`：契约、可测性、v1 兼容、长期可维护性、scope。
 4. 意见写成 PR 评论——那是给人看的记录，必须落地在 PR。
-5. 二选一给结论。
+5. **给结论前再读一次卡**：`kanban_show()`，处理自开工以来新增的 operator note。新要求与当前结论冲突 → `kanban_block` 说明情况，不要硬给结论。
+6. 二选一给结论。
 
 ## 结论一：有必须改的问题
 

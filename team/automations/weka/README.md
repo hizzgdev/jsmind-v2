@@ -42,6 +42,8 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
        → webhook 按事件里的标签兜底清掉 issue 上残留的 weka-working
 ```
 
+任何时刻人在 weka 的 issue / PR 上留言，都是同一条路进来：有 open 卡就追加到那张卡（`ready` / `running` / `review` 三种状态各自能读到），没有卡才按指派分流（实现 / groom），两个指派都不在就在 issue 上留一句说明。详见「触发规则」与「评论如何到达正在干活的人」。
+
 关键设计：
 
 - 人类只跟 GitHub 打交道，bot 之间只跟看板打交道；webhook 是两者之间的桥，不跑任何 LLM。
@@ -55,9 +57,11 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 ```
 #85: <issue 标题>              从 issue 建的卡
 #86: Rework — <PR 标题>        从 PR 建的卡（返工）
+#87: <issue 标题>              从 issue 评论建的 groom 卡（在 groom_board 上）
 ```
 
 - 编号是唯一键，查卡用前缀匹配：`title LIKE '#86:%' AND status NOT IN ('done','archived')`。
+- **编号键只在各自的板上成立**：实现卡在 `kanban_board`，groom 卡在 `groom_board`，两边的 DB 是分开的，所以同一个 issue 号可以在这两张板上各有一张 open 卡，互不遮蔽。
 - 不带轮次号：第几轮这件事在 PR 的 review 历史里，卡上再记一份只是多一个会算错的来源。同一个 PR 的连续返工卡标题相同，按 `created_at` 排序即可。
 - 前缀锚定是关键：标题中段出现 `#86:` 不会误伤，`#860…` 也不会命中 `#86:`。
 - 同一个编号最多一张 open 卡。webhook 建卡前先查，命中就把这次事件追加成那张卡的 comment，不建新卡。
@@ -70,6 +74,10 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 | 方向 | 必须同时满足 | 结果 |
 | --- | --- | --- |
 | issue 建卡 | ① 标签里有 `weka`；② `zzgbot` 在 assignees 里（多个指派人也算，不要求它是唯一或第一个）；③ 事件是 `opened` / `labeled` / `assigned` 三者之一 | 建卡；该编号已有 open 卡则把这次事件追加成那张卡的 comment |
+| issue 评论 → 已有 open 卡 | ① 该编号在本流程的板上有 open 卡 | 把评论正文追加到那张卡。**不看标签、不看指派**，与 PR 路径的「open 卡吸收」同一条规则 |
+| issue 评论 → groom | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ assignees 里有 `hizzgdev`；⑤ 配置了 `groom_board` / `groom_assignee` | 在 `groom_board` 上建 scout 卡（该 board 上该编号已有 open 卡则追加），指派给 `groom_assignee` |
+| issue 评论 → 实现 | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ assignees 里有 `zzgbot` | 建 `#<n>: Rework — …` 卡给 cody（与 PR 返工同一形状），正文带评论原文 |
+| issue 评论 → 没人接 | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ 两个 assignee 都不在 | 在 issue 上留一句说明，不建卡 |
 | PR 返工 | ① 该编号已有 open 卡 | 把评论正文追加到那张卡。**这一条不看标签**：cody 开工第一件事就是摘掉 `weka-reviewed`，返工进行中的留言不能被标签挡住 |
 | PR 返工 | ① 没有 open 卡；② PR 带 `weka-reviewed`；③ 入口是 `hizzgdev` 的提交 review（非 `approved`）或会话评论或行内评论 | 建返工卡，卡上带着评论原文 |
 | PR 返工 | ① 没有 open 卡；② PR 不带 `weka-reviewed` | 不建卡，在 PR 上留一句说明（见下一节） |
@@ -82,6 +90,28 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 
 为什么 PR 方向要限定作者：bot 自己也会在 PR 上写评论（reed 的审查意见），限定为仓库所有者才能保证"只有人的动作触发返工卡"，不会被自己的输出喂回去。
 
+**issue 评论为什么先看 open 卡、再看指派**：一条评论首先要到正在干活的那张卡上，这正是这个流程存在的意义，所以 open 卡（`ready` / `running` / `review`）先吸收，不看标签也不看指派。没有 open 卡时才需要决定"谁来接"，而 assignees 是唯一能回答这个问题的字段：`hizzgdev` 在 = 活还没交出去，该进 groom 对话；`zzgbot` 在 = 活已经在实现上，按返工路径建一张 cody 卡。两个都不在，weka 不知道该找谁，就在 issue 上说一句，不猜。
+
+两个 assignee 同时在场且没有 open 卡时按 `hizzgdev` 走（groom）；实际不会出现"活交给 bot 了却没有卡"的状态，所以这条优先级只在人工摆弄指派时看得见。
+
+groom 那一支是**可关的**：`groom_board` / `groom_assignee` 留空时整支跳过，并在 issue 上留一句"未配置"的说明。所以这份代码可以先上线，等 scout 流程自己把两个键填上再启用。它建卡时不带 `--workspace worktree --project`：groom 谈的是"这个 issue 应该变成什么"，不是写代码，给它挂一个仓库 checkout 没有用（board 若自己绑了 project，那是 board 的默认行为）。
+
+## 评论如何到达正在干活的人
+
+评论写进卡之后，卡的三种状态各有各的接收方式，所以**不需要 reopen-review 来唤醒**：
+
+| 卡的状态 | 评论怎么进去 |
+| --- | --- |
+| `todo` / `ready` | worker 开工第一步 `kanban_show()` 读到（返回里带 comments） |
+| `running` | `inject_new_comments_from_env` 轮询本卡新评论，`agent.steer()` 送进正在跑的会话 |
+| `review` | 停着等人领；review 通道领走后，reed 第一步 `kanban_show()` 读到 |
+
+`reopen_review_task` 的语义是 `review → ready/todo`，恢复的是**实现者**，也就是"打回 cody"；它只作为人工工具保留，weka 不自动调用。
+
+steer 只覆盖 `running`，所以两只 SOUL 各有一条交付前的复查点：`kanban_request_review` / `kanban_complete` 之前重新 `kanban_show()` 一次，处理自开工以来新增的 operator note，新要求与已完成的工作冲突就 block，不硬交付。盖住的是评论与交付擦肩而过的那一小段窗口。
+
+**已知缺口**：评论与收工赛跑的那一小段只靠 SOUL 的复查点兜。卡在读到评论之前就 `kanban_complete` 了，评论就贴在一张 dead 卡上没人读；彻底堵住（比如按 comment id 追投）不在这一版，另开一张卡。
+
 ## 拒绝与失败必须留痕
 
 journal 只有运维能看，提要求的人只看得见 GitHub。所以保留下来的拒绝、以及建卡/追加的失败，都要在 PR 上说一句：
@@ -91,11 +121,14 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 | 建返工卡失败（`hermes kanban create` 非零退出） | 说明请求没有进队列，指向 journal 和 webhook 投递记录里的 redeliver |
 | 追加到已有卡的评论失败（`hermes kanban comment` 非零退出） | 同上 |
 | PR 没有 `weka-reviewed`，也没有 open 卡 | 说明为什么没建卡：只有 AI 审查通过（`weka-reviewed` 在 PR 上）、等终审的阶段才接人的返工请求 |
+| issue 评论没有进卡：issue 没指派给 `zzgbot` 也没指派给 `hizzgdev` | 说明两个指派各接哪条路，指派之后再留一次言 |
+| issue 评论没有进卡：指派给了 `hizzgdev`，但 `groom_board` / `groom_assignee` 没配 | 说明这一支现在是关的、配置补上后再留一次言 |
+| issue 上建 scout 卡 / 返工卡失败 | 同 PR 侧的建卡失败说明（两种情况文案分别写"groom 卡失败"和"返工卡失败"） |
 
-只有两种拒绝留在 journal 里，因为它们没有可执行的下文，在 PR 上留言只会是噪音：
+只有两种拒绝留在 journal 里，因为它们没有可执行的下文，在对象上留言只会是噪音：
 
-- **PR 上连 `weka` 标签都没有**：这张 PR 从来不在 weka 的流程里，weka 不去陌生 PR 的评论区插话。
-- **PR 已经关闭**：没有可返工的代码。
+- **连 `weka` 标签都没有**（PR 或 issue 都是）：这个对象从来不在 weka 的流程里，weka 不去陌生对象的评论区插话。
+- **PR 已经关闭**：没有可返工的代码。**issue 已经关闭且板上没有 open 卡**同理：没有下一步可做，建出来的卡只能对着一个死 issue。关闭的对象若还挂着 open 卡，评论照样追加到那张卡（这正是下节那条赛跑窗口）。
 
 两条规则：拒绝不静默；沉默必须有理由，而理由写在这里。
 
@@ -199,7 +232,7 @@ kanban:
   max_in_progress: 2               # 整机同时最多两个
 ```
 
-注意位置：这两个键属于调度器，写 Hermes 的主配置；本目录的 `config.json` 只管 webhook 的端口、密钥、标签，两者不要混。
+注意位置：这两个键属于调度器，写 Hermes 的主配置；本目录的 `config.json` 只管 webhook 自己的事（端口、密钥、标签、指派、board、groom 目标），两者不要混。
 
 | 键 | 作用 | 取值 |
 | --- | --- | --- |
@@ -312,6 +345,8 @@ systemctl --user link "$(pwd)/github-webhook.service"
 systemctl --user daemon-reload
 systemctl --user enable --now github-webhook.service
 ```
+
+**groom 那一支要两个键才启用**：`config.json` 里的 `groom_board`（board slug）和 `groom_assignee`（profile 名）。`config.example.json` 里两个都是 `null`，意思是"这条分支关着"——指派给 `hizzgdev` 的 issue 上的评论此时只会在 issue 上留一句说明。scout 那张卡就位之后填上这两个键，重启服务即生效；填了 board slug 但那个 board 还不存在时，建卡会失败并在 issue 上留痕（不会静默）。
 
 **改了 `github-webhook.py` 或 `config.json` 之后，主 checkout 要先拉代码再重启，否则跑的还是旧代码。** `ExecStart` 直接指向主 checkout 里那份脚本，`Restart=always` 只在进程退出时重启，不会因为文件变了就重载——和 gateway、nginx 一样，改完不重启就是静默不生效：
 

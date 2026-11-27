@@ -11,6 +11,9 @@ Events handled:
 - pull_request_review (submitted by the human, not an
   approval, on a PR already marked weka-reviewed)         -> create a rework card
 - issue_comment (created by the human on such a PR)       -> create a rework card
+- issue_comment (created by the human on a weka issue)    -> hand it to the
+  groom (scout) conversation, to the implementation card, or explain on the
+  issue why neither happened
 - pull_request_review_comment (created by the human, same
   gate as a review)                                        -> create rework card
 - pull_request (closed)                                   -> clean up worktree, strip labels
@@ -32,8 +35,9 @@ Design contract (see README.md for the full version):
   a PR creates a card only while that label is present, and only when no card is
   already open for the same number.
 - A human event is never refused silently. Every path out of
-  `_create_rework_card()` leaves something visible on GitHub: a card, a comment
-  on the PR's open card, or a comment on the PR saying why neither happened.
+  `_create_rework_card()` and `_deliver_issue_comment()` leaves something
+  visible on GitHub: a card, a comment on the object's open card, or a comment
+  on the object saying why neither happened.
 - Capacity is the dispatcher's call (`max_in_progress`,
   `max_in_progress_per_profile`): a card waits in `ready` until a slot frees up.
   The webhook does not refuse work because another card happens to be running.
@@ -127,10 +131,13 @@ class Weka:
         self.board = config.get("kanban_board")
         # A board's DB sits at ~/.hermes/kanban/boards/<slug>/kanban.db — derive
         # it instead of asking users to hand-fill a path that follows naturally.
-        if self.board:
-            self.kanban_db = os.path.expanduser(f"~/.hermes/kanban/boards/{self.board}/kanban.db")
-        else:
-            self.kanban_db = os.path.expanduser("~/.hermes/kanban.db")
+        self.kanban_db = self._board_db(self.board)
+        # Groom (scout) target: a human comment on an issue assigned to the human
+        # starts a conversation card somewhere else than the implementation
+        # board. Both keys stay optional; the branch below is skipped with a
+        # trace until the scout flow is deployed with its own board/profile.
+        self.groom_board = (config.get("groom_board") or "").strip() or None
+        self.groom_assignee = (config.get("groom_assignee") or "").strip() or None
         # weka is scoped to jsMind-V2: always work in a worktree of the project.
         self.create_args = ["--workspace", "worktree", "--project", "jsmind-v2"]
         # `owner/repo` for the gh API calls, looked up at most once per process.
@@ -144,10 +151,16 @@ class Weka:
 
     # ---- hermes CLI helpers -------------------------------------------------
 
-    def kanban(self, *args) -> bool:
+    def kanban(self, *args, board: str | None = None) -> bool:
+        """Run one `hermes kanban` command, against this flow's board by default.
+
+        `board` overrides the target for a single call: the groom card lives on
+        its own board, and everything else must keep addressing `kanban_board`.
+        """
         cmd = [self.hermes_bin, "kanban"]
-        if self.board:
-            cmd += ["--board", self.board]
+        target = self.board if board is None else board
+        if target:
+            cmd += ["--board", target]
         cmd += list(args)
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -158,18 +171,32 @@ class Weka:
 
     # ---- board lookups ------------------------------------------------------
 
-    def _query(self, sql: str, params: tuple) -> list[tuple]:
-        db = sqlite3.connect(f"file:{self.kanban_db}?mode=ro", uri=True)
+    def _board_db(self, board: str | None) -> str:
+        """Path of `board`'s kanban.db; None (or this flow's board) is its own."""
+        if board is None or board == self.board:
+            return (
+                os.path.expanduser(f"~/.hermes/kanban/boards/{self.board}/kanban.db")
+                if self.board
+                else os.path.expanduser("~/.hermes/kanban.db")
+            )
+        return os.path.expanduser(f"~/.hermes/kanban/boards/{board}/kanban.db")
+
+    def _query(self, sql: str, params: tuple, board: str | None = None) -> list[tuple]:
+        db = sqlite3.connect(f"file:{self._board_db(board)}?mode=ro", uri=True)
         try:
             return db.execute(sql, params).fetchall()
         finally:
             db.close()
 
-    def open_card_for(self, number: int | None) -> tuple[str, str] | None:
+    def open_card_for(self, number: int | None, board: str | None = None) -> tuple[str, str] | None:
         """`(task_id, status)` of the open card keyed on this number, else None.
 
         The key is the title prefix `#<number>:` — prefix-anchored so that a card
         mentioning `#86:` mid-title never shadows the card that owns the number.
+
+        `board` selects the board to search; None is this flow's own, so every
+        existing caller keeps looking exactly where it did. The groom card lives
+        on its own board, and a number can be open there as well.
         """
         if number is None:
             return None
@@ -179,6 +206,7 @@ class Weka:
                 "AND status NOT IN ('done', 'archived') "
                 "ORDER BY created_at DESC LIMIT 1",
                 (f"#{number}:%",),
+                board=board,
             )
         except Exception as exc:
             print(f"[WARN] card lookup failed for #{number}: {exc}", file=sys.stderr)
@@ -231,12 +259,13 @@ class Weka:
         self._slug = slug
         return slug
 
-    def comment_on_pr(self, number: int | None, body: str) -> bool:
-        """Post `body` under the PR so a refusal or a failure is visible there.
+    def comment_on_object(self, number: int | None, body: str) -> bool:
+        """Post `body` under the issue or PR so a refusal or a failure is visible.
 
         The journal answers "why did nothing happen" for the operator, not for
         the human who left the comment on GitHub. So a gate that keeps refusing,
-        and a card whose creation failed, say why on the object itself.
+        and a card whose creation failed, say why on the object itself. Issues and
+        PRs share one comment endpoint, which is why the same call serves both.
 
         The body starts with TRACE_MARKER, which the comment handlers skip: the
         token here belongs to the repository owner, so without the marker weka
@@ -392,15 +421,12 @@ class Weka:
 
         # Resource gate: only an issue assigned to the bot account proceeds —
         # otherwise anyone on the public repo could open an issue with the label
-        # and drain the team's LLM budget. `assignees` is the full list; the
-        # scalar `assignee` is order-dependent when several people are assigned.
-        assigned = [a.get("login") for a in (issue.get("assignees") or []) if a]
-        if not assigned:
-            assigned = [(issue.get("assignee") or {}).get("login")]
+        # and drain the team's LLM budget.
+        assigned = self._assignees(issue)
         if self.gate_login not in assigned:
             print(
                 f"[GATE] Issue #{number} not assigned to {self.gate_login} "
-                f"(assignees={', '.join(a for a in assigned if a) or 'none'}), skipping",
+                f"(assignees={', '.join(assigned) or 'none'}), skipping",
                 file=sys.stderr,
             )
             return
@@ -460,26 +486,209 @@ class Weka:
         if payload.get("action") != "created":
             return
         issue = payload.get("issue") or {}
-        if not issue.get("pull_request"):
-            return
         comment = payload.get("comment") or {}
         body = comment.get("body") or ""
         if body.lstrip().startswith(TRACE_MARKER):
             # weka's own explanation of a refusal. gh posts it as the repository
             # owner, so without this check the note would read back as a fresh
             # human request and weka would answer its own answer.
-            print(f"[SKIP] PR #{issue.get('number')}: comment is weka's own trace", file=sys.stderr)
+            print(f"[SKIP] #{issue.get('number')}: comment is weka's own trace", file=sys.stderr)
             return
         if (comment.get("user") or {}).get("login", "") != self.human:
             return
-        self._create_rework_card(
-            payload,
-            event="issue_comment.created",
-            actor=(comment.get("user") or {}).get("login", ""),
-            text=body,
-            ref_url=comment.get("html_url") or "",
-            idem_key=f"gh-pr-{self._pr_number(payload)}-comment-{comment.get('id', '')}",
+        if issue.get("pull_request"):
+            self._create_rework_card(
+                payload,
+                event="issue_comment.created",
+                actor=(comment.get("user") or {}).get("login", ""),
+                text=body,
+                ref_url=comment.get("html_url") or "",
+                idem_key=f"gh-pr-{self._pr_number(payload)}-comment-{comment.get('id', '')}",
+            )
+            return
+        self._deliver_issue_comment(issue, comment, body)
+
+    def _deliver_issue_comment(self, issue: dict, comment: dict, body: str) -> None:
+        """Route a human comment on a plain issue, or say why it was not routed.
+
+        This is the branch that used to be a bare `return` for every non-PR
+        comment, so an issue comment reached nobody: the card that owns the
+        number went on working from an old picture of what the human wanted, and
+        a groom (scout) conversation had no way in at all.
+
+        Order, and why:
+
+        1. An open card on this flow's board absorbs the note, labels and
+           assignee aside — the same rule the PR path already uses. A `running`
+           card gets it through the comment injection, one in `review` when the
+           reviewer's first `kanban_show()` reads it, one in `ready` when its
+           worker starts.
+        2. Otherwise the assignee decides who gets a new card: the human (groom
+           conversation) or the bot account (the implementation path).
+        3. A closed issue wins over both: with no card to annotate there is
+           nothing to work on, so it stays silent in the journal (the same
+           silence a closed PR gets). An open issue with neither assignee gets a
+           trace on the issue — "nothing happened" is the bug this flow exists
+           to fix.
+        """
+        number = issue.get("number")
+        labels = [lbl.get("name", "") for lbl in (issue.get("labels") or [])]
+        if self.label not in labels:
+            # Ownership, not a refusal: an issue nobody handed to weka is not
+            # weka's thread to answer in — the same silence an unrelated PR gets.
+            print(f"[GATE] issue #{number} is not a weka issue: comment ignored", file=sys.stderr)
+            return
+
+        event = "issue_comment.created"
+        actor = (comment.get("user") or {}).get("login", "")
+        ref_url = comment.get("html_url") or ""
+        idem_key = f"gh-issue-{number}-comment-{comment.get('id', '')}"
+
+        existing = self.open_card_for(number)
+        if existing:
+            self._append_to_card(existing, number=number, event=event, actor=actor, text=body)
+            return
+
+        if (issue.get("state") or "open") != "open":
+            # A closed issue has nothing left to implement, so a card created for
+            # it would be work on a dead issue. Journal only, like a closed PR:
+            # there is no next step for the human to take.
+            print(f"[GATE] issue #{number} is closed: comment ignored", file=sys.stderr)
+            return
+
+        assigned = self._assignees(issue)
+        if self.human in assigned:
+            self._create_groom_card(
+                number, issue, labels, event=event, actor=actor, text=body,
+                ref_url=ref_url, idem_key=idem_key,
+            )
+            return
+        if self.gate_login in assigned:
+            self._create_issue_rework_card(
+                number, issue, labels, event=event, actor=actor, text=body,
+                ref_url=ref_url, idem_key=idem_key,
+            )
+            return
+
+        self.comment_on_object(
+            number,
+            f"这条评论没有进卡：这个 issue 既没有指派给 `{self.gate_login}`（实现），"
+            f"也没有指派给 `{self.human}`（groom）。指派之后再留一次言即可。",
         )
+
+    def _create_groom_card(self, number: int | None, issue: dict, labels: list[str], *,
+                           event: str, actor: str, text: str, ref_url: str,
+                           idem_key: str) -> None:
+        """Hand the comment to the groom (scout) conversation for this issue.
+
+        The groom card lives on `groom_board` and is worked by `groom_assignee`,
+        both optional: the scout flow is its own card, so enabling this branch
+        before that exists would only create cards nobody reads. An unconfigured
+        branch is skipped with a trace — never an error, and never silence.
+
+        No `--workspace worktree --project` here: a conversation about what an
+        issue should become is not a code task, so it gets the board's default
+        workspace instead of a checkout of this repository.
+        """
+        if not (self.groom_board and self.groom_assignee):
+            print(
+                f"[GATE] issue #{number}: groom_board/groom_assignee not configured, "
+                "comment ignored",
+                file=sys.stderr,
+            )
+            self.comment_on_object(
+                number,
+                "这条评论没有进卡：issue 指派给了 "
+                f"`{self.human}`（groom 流程），但 webhook 还没有配置 "
+                "`groom_board` / `groom_assignee`，这一支暂时是关的。配置补上之后再留一次言即可。",
+            )
+            return
+
+        existing = self.open_card_for(number, board=self.groom_board)
+        if existing:
+            # One open card per number, per board: the groom conversation owns
+            # this number on its board, so a second comment continues it there.
+            self._append_to_card(existing, number=number, event=event, actor=actor, text=text)
+            return
+
+        self._create_card(
+            number,
+            f"#{number}: {(issue.get('title') or '')[:110]}",
+            self._issue_card_body(number, issue, labels, event=event, actor=actor,
+                                  text=text, ref_url=ref_url),
+            idem_key,
+            board=self.groom_board,
+            assignee=self.groom_assignee,
+            create_args=(),
+            failure_text=(
+                f"收到 `{event}`，但建 groom 卡失败（`hermes kanban create` 非零退出），"
+                "请求没有进队列。webhook journal 里有具体错误，也可以在 GitHub 的 webhook "
+                "投递记录里 redeliver 这一条。"
+            ),
+        )
+
+    def _create_issue_rework_card(self, number: int | None, issue: dict, labels: list[str], *,
+                                  event: str, actor: str, text: str, ref_url: str,
+                                  idem_key: str) -> None:
+        """Deliver the comment to the implementation card for this issue.
+
+        Reached only when no card is open for the number (`_deliver_issue_comment`
+        has already tried to annotate one), so this is the PR rework path's
+        create half, retargeted at an issue: same `#<number>: Rework — …` title,
+        same worktree create args, same failure trace. A plain issue carries no
+        `weka-reviewed` label, so the gate is the assignee instead.
+        """
+        self._create_card(
+            number,
+            f"#{number}: Rework — {issue.get('title') or ''}"[:120],
+            self._issue_card_body(number, issue, labels, event=event, actor=actor,
+                                  text=text, ref_url=ref_url),
+            idem_key,
+            board=None,
+            assignee=self.assignee,
+            create_args=tuple(self.create_args),
+            failure_text=(
+                f"收到 `{event}`，但建返工卡失败（`hermes kanban create` 非零退出），"
+                "请求没有进队列。webhook journal 里有具体错误，也可以在 GitHub 的 webhook "
+                "投递记录里 redeliver 这一条。"
+            ),
+        )
+
+    @staticmethod
+    def _issue_card_body(number: int | None, issue: dict, labels: list[str], *,
+                         event: str, actor: str, text: str, ref_url: str) -> str:
+        """Card body for a card created from an issue comment."""
+        body = (
+            f"{issue.get('html_url') or ''}\n\n"
+            "## trigger\n"
+            f"- event: {event}\n"
+            f"- actor: {actor}\n"
+            f"- received: {_now()}\n"
+            f"- labels at trigger: {', '.join(labels)}\n"
+        )
+        if ref_url:
+            body += f"- source: {ref_url}\n"
+        body += (
+            f"\n## human feedback\n{text.strip() or '(empty)'}\n"
+            "\n> Source of truth is GitHub. Read the whole thread, not just this text:\n"
+            f"> `gh issue view {number} --comments`\n"
+        )
+        return body
+
+    @staticmethod
+    def _assignees(issue: dict) -> list[str]:
+        """Logins of everyone assigned, tolerating the legacy scalar field.
+
+        `assignees` is the full list; the scalar `assignee` is order-dependent
+        when several people are assigned, so the list wins whenever it has any
+        name in it.
+        """
+        logins = [a.get("login") for a in (issue.get("assignees") or []) if a]
+        logins = [login for login in logins if login]
+        if logins:
+            return logins
+        scalar = (issue.get("assignee") or {}).get("login")
+        return [scalar] if scalar else []
 
     def handle_pr_review_comment(self, payload: dict) -> None:
         """Inline review comments arrive as their own event type.
@@ -532,15 +741,7 @@ class Weka:
         # drop everything the human says while that rework is still running.
         existing = self.open_card_for(number)
         if existing:
-            note = f"{event} from {actor}: card already {existing[1]}"
-            if text.strip():
-                note += f"\n\n{text.strip()}"
-            if not self.kanban("comment", existing[0], note):
-                self.comment_on_pr(
-                    number,
-                    f"收到这条评论，但追加到卡片 `{existing[0]}` 失败（`hermes kanban comment` "
-                    "非零退出），请求没有记录进去。webhook journal 里有具体错误。",
-                )
+            self._append_to_card(existing, number=number, event=event, actor=actor, text=text)
             return
 
         if LABEL_REVIEWED not in labels:
@@ -604,12 +805,52 @@ class Weka:
         if not created:
             # A failed create used to be one journal line, and the human who
             # asked for the change saw an ignored PR.
-            self.comment_on_pr(
+            self.comment_on_object(
                 number,
                 f"收到 `{event}`，但建返工卡失败（`hermes kanban create` 非零退出），"
                 "请求没有进队列。webhook journal 里有具体错误，也可以在 GitHub 的 webhook "
                 "投递记录里 redeliver 这一条。",
             )
+
+    def _append_to_card(self, card: tuple[str, str], *, number: int | None, event: str,
+                        actor: str, text: str) -> None:
+        """Record the note on the card that already owns the number.
+
+        One open card per number is the key rule, so the note goes into that card
+        instead of next to it. If the append itself fails, say so on GitHub: the
+        request would otherwise exist only as a journal line nobody reads.
+        """
+        card_id, status = card
+        note = f"{event} from {actor}: card already {status}"
+        if text.strip():
+            note += f"\n\n{text.strip()}"
+        if not self.kanban("comment", card_id, note):
+            self.comment_on_object(
+                number,
+                f"收到这条评论，但追加到卡片 `{card_id}` 失败（`hermes kanban comment` "
+                "非零退出），请求没有记录进去。webhook journal 里有具体错误。",
+            )
+
+    def _create_card(self, number: int | None, title: str, body: str, idem_key: str, *,
+                     board: str | None, assignee: str, create_args: tuple[str, ...],
+                     failure_text: str) -> None:
+        """Create one card, and report a failed create on the object it came from.
+
+        `board`, `assignee` and `create_args` are explicit because the groom card
+        lives on another board, is worked by another profile, and has no checkout
+        of this repository: the three differ per recipient, and a default would
+        silently send one kind to the other's board.
+        """
+        created = self.kanban(
+            "create", title,
+            "--assignee", assignee,
+            "--body", body,
+            "--idempotency-key", idem_key,
+            *create_args,
+            board=board,
+        )
+        if not created:
+            self.comment_on_object(number, failure_text)
 
     def _explain_refusal(self, pr: dict, labels: list[str], reason: str) -> None:
         """Post `reason` on the PR — but only where a human can act on it.
@@ -626,7 +867,7 @@ class Weka:
         if (pr.get("state") or "open") != "open":
             print(f"[GATE] PR #{number} is closed: no comment left", file=sys.stderr)
             return
-        self.comment_on_pr(number, reason)
+        self.comment_on_object(number, reason)
 
     def handle_pr(self, payload: dict) -> None:
         if payload.get("action") != "closed":

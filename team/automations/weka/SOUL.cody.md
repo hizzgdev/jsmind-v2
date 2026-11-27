@@ -78,7 +78,8 @@
    - PR 仍是 draft：`gh pr view <number> --json isDraft`
    - `weka-working` 还在
    - `weka-reviewing` 已加
-3. `kanban_request_review(reviewer="reed", summary="...")`。summary 只是日志，一句话说清：改了什么、怎么验证的、PR 号。
+3. **交付前再读一次卡**：`kanban_show()`，处理自开工以来新增的 operator note。新要求与已完成的工作冲突 → `kanban_block` 说明情况，不要硬交付。
+4. `kanban_request_review(reviewer="reed", summary="...")`。summary 只是日志，一句话说清：改了什么、怎么验证的、PR 号。
 
 ## 顺序与状态
 
