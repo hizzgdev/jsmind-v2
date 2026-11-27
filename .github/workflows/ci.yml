@@ -815,8 +815,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PREVIEW_URL: ${{ steps.upload.outputs.url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          # One variable, two uses: the full sha names the commit in the prose,
-          # the first seven characters keep it readable.
+          # The head commit. The footnote prints its first seven characters,
+          # so only the trimmed form is used.
           FULL_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
