@@ -79,15 +79,22 @@ test('viewport - the origin that puts a map point under an anchor reverses it', 
     assert.ok(Math.abs(back.y - focus.y) < 1e-9, `y drifted to ${back.y}`);
 });
 
-test('viewport - a zoom holds the map point under its anchor still', () => {
+test('viewport - a zoom holds the map point under its anchor still where the content overflows', () => {
+    // While there is a band, the anchored origin is taken as given: that is
+    // what makes a wheel zoom feel like it grabs the map under the pointer.
+    // The band is where a drag may go, not where a zoom must land, so the
+    // anchor wins even where it points outside it. The case below is the axis
+    // where there is no band at all.
+    const state: JmViewportTransform = { x: 300, y: 200, scale: 1.5 };
     for (const anchor of [
         { x: 0, y: 0 },
-        { x: 640, y: 480 },
+        { x: 400, y: 300 },
         { x: 97, y: 313 },
+        { x: 200, y: 150 },
     ]) {
-        for (const scale of [0.5, 1, 2.2, 4]) {
-            const before = viewportPointAt(STATE, anchor);
-            const after = zoomViewport(STATE, scale, anchor);
+        for (const scale of [1, 1.5, 2, 2.2, 4]) {
+            const before = viewportPointAt(state, anchor);
+            const after = zoomViewport(state, scale, anchor, CONTENT, WINDOW);
             const focus = viewportPointAt(after, anchor);
 
             assert.strictEqual(after.scale, scale);
@@ -103,37 +110,135 @@ test('viewport - a zoom holds the map point under its anchor still', () => {
     }
 });
 
+test('viewport - a zoom writes the middle on an axis whose content fits', () => {
+    // The state this closes: the anchored origin at a factor that fits divides
+    // by the new zoom and lands far outside the content, and the pan clamp
+    // drops every candidate on an empty band - so the map used to end up off a
+    // box it would have fitted, with no command that could bring it back.
+    // 800x600 in a 400x300 box at 0.4 is smaller than the box on both axes, so
+    // both are answered with the middle, whatever the anchor asks for.
+    const state: JmViewportTransform = { x: 300, y: 200, scale: 1.5 };
+    const centred = {
+        x: CONTENT.left + (CONTENT.width - WINDOW.width / 0.4) / 2,
+        y: CONTENT.top + (CONTENT.height - WINDOW.height / 0.4) / 2,
+    };
+
+    for (const anchor of [
+        { x: 0, y: 0 },
+        { x: 400, y: 300 },
+        { x: 1000, y: 1000 },
+    ]) {
+        const zoomed = zoomViewport(state, 0.4, anchor, CONTENT, WINDOW);
+        assert.deepStrictEqual(
+            zoomed,
+            { x: centred.x, y: centred.y, scale: 0.4 },
+            `anchor ${anchor.x}/${anchor.y} should not move a map that fits`
+        );
+    }
+});
+
+test('viewport - one axis can fit while the other still holds its anchor', () => {
+    // The two rules have to apply per axis, not per zoom: 800x100 in a 400x300
+    // box at 2x overflows horizontally and fits vertically, so the same call
+    // holds the anchor on one axis and centres the other. An implementation
+    // that picked one rule for the whole zoom gets one of these numbers wrong.
+    const wide: JmViewportBounds = { left: 100, top: 50, width: 800, height: 100 };
+    const state: JmViewportTransform = { x: 650, y: 50, scale: 1 };
+    const anchor = { x: 300, y: 300 };
+    const zoomed = zoomViewport(state, 2, anchor, wide, WINDOW);
+
+    assert.strictEqual(zoomed.scale, 2);
+
+    // The overflowing axis keeps the point under the anchor, which here asks
+    // for an origin past the band's far end (100 + 800 - 200 = 700): the band
+    // is not a limit a zoom enforces, and a drag can still leave it.
+    const held = state.x + anchor.x / state.scale;
+    assert.strictEqual(zoomed.x, held - anchor.x / zoomed.scale, 'the overflowing axis keeps its anchor');
+    assert.ok(zoomed.x > wide.left + wide.width - WINDOW.width / zoomed.scale, 'even past the band, where a pan can bring it back');
+
+    // While the axis that fits is centred, so nothing is left off screen.
+    assert.strictEqual(zoomed.y, wide.top + (wide.height - WINDOW.height / 2) / 2, 'the axis that fits is centred');
+
+    // And the map is on screen: that is the claim the numbers above stand for.
+    const painted = {
+        left: (wide.left - zoomed.x) * zoomed.scale,
+        right: (wide.left + wide.width - zoomed.x) * zoomed.scale,
+        top: (wide.top - zoomed.y) * zoomed.scale,
+        bottom: (wide.top + wide.height - zoomed.y) * zoomed.scale,
+    };
+    assert.ok(painted.right > 0 && painted.left < WINDOW.width, `horizontally on screen: ${painted.left}..${painted.right}`);
+    assert.ok(painted.bottom > 0 && painted.top < WINDOW.height, `vertically on screen: ${painted.top}..${painted.bottom}`);
+});
+
 test('viewport - the anchor, not the middle of the box, is the point that stays still', () => {
     // A zoom about the centre is a different state from a zoom about a corner,
     // and only the anchor is promised to stay put. This is the assertion a
     // substitute anchor would break: the two ends of the box cannot both be
     // fixed by one zoom.
-    const centre = { x: 320, y: 240 };
+    const centre = { x: 200, y: 150 };
     const corner = { x: 10, y: 10 };
 
-    const aboutCorner = zoomViewport(STATE, 2, corner);
+    const aboutCorner = zoomViewport(INSIDE, 3, corner, CONTENT, WINDOW);
     const pointAtCentre = viewportPointAt(aboutCorner, centre);
-    const expectedAtCentre = viewportPointAt(STATE, centre);
+    const expectedAtCentre = viewportPointAt(INSIDE, centre);
 
     assert.ok(
         Math.abs(pointAtCentre.x - expectedAtCentre.x) > 1,
         'zooming about the corner should move the map point at the centre'
     );
     assert.ok(
-        Math.abs(viewportPointAt(aboutCorner, corner).x - viewportPointAt(STATE, corner).x) < 1e-9,
+        Math.abs(viewportPointAt(aboutCorner, corner).x - viewportPointAt(INSIDE, corner).x) < 1e-9,
         'the anchored point itself does not move'
     );
 });
 
 test('viewport - a zoom past the limit holds the anchor with the clamped factor', () => {
     const anchor = { x: 500, y: 100 };
-    const before = viewportPointAt(STATE, anchor);
-    const after = zoomViewport(STATE, 99, anchor);
+    const before = viewportPointAt(INSIDE, anchor);
+    const after = zoomViewport(INSIDE, 99, anchor, CONTENT, WINDOW);
 
     assert.strictEqual(after.scale, JmViewportScaleRange.max);
     const focus = viewportPointAt(after, anchor);
     assert.ok(Math.abs(focus.x - before.x) < 1e-9);
     assert.ok(Math.abs(focus.y - before.y) < 1e-9);
+});
+
+test('viewport - a zoom with an anchor that is not a number keeps a legal origin', () => {
+    // A `0/0` from a box that was not measured yet. One NaN in the origin
+    // leaves every node unpainted with no error pointing at the cause, so the
+    // middle stands in - the same fallback `clampViewportScale` makes for the
+    // factor itself.
+    const zoomed = zoomViewport(INSIDE, 2, { x: Number.NaN, y: Number.NaN }, CONTENT, WINDOW);
+
+    assert.strictEqual(zoomed.scale, 2);
+    assert.ok(
+        Number.isFinite(zoomed.x) && Number.isFinite(zoomed.y),
+        `the origin should stay finite, got ${zoomed.x}/${zoomed.y}`
+    );
+    assert.ok(
+        zoomed.x >= CONTENT.left && zoomed.x <= CONTENT.left + CONTENT.width - WINDOW.width / 2,
+        `and inside the band on x: ${zoomed.x}`
+    );
+    assert.ok(
+        zoomed.y >= CONTENT.top && zoomed.y <= CONTENT.top + CONTENT.height - WINDOW.height / 2,
+        `and inside the band on y: ${zoomed.y}`
+    );
+});
+
+test('viewport - a zoom before the content is measured leaves the anchored origin alone', () => {
+    // `zoomTo` has no "is a map open" guard, so it can be called on a view whose
+    // content rectangle is still the zero-sized one it started with. There is no
+    // band and no middle to write there; the anchored origin is the answer, so
+    // the first map opened afterwards is not displaced by the earlier call.
+    const unmeasured: JmViewportBounds = { left: 0, top: 0, width: 0, height: 0 };
+    const state: JmViewportTransform = { x: 12, y: 34, scale: 1 };
+    const anchor = { x: 100, y: 60 };
+
+    const zoomed = zoomViewport(state, 2, anchor, unmeasured, WINDOW);
+
+    // The plain anchor arithmetic, unclamped: focus (112, 94) put at (100, 60)
+    // at 2x is an origin of (62, 64).
+    assert.deepStrictEqual(zoomed, { x: 62, y: 64, scale: 2 });
 });
 
 test('viewport - the identity state formats as no transform at all', () => {
@@ -437,4 +542,145 @@ test('viewport - a pan has room whenever the content overflows, at any factor', 
         const panned = moved.x !== 0 || moved.y !== 0;
         assert.strictEqual(panned, viewportCanPan(bounds, box, scale), `at ${scale}x the report and the clamp disagree`);
     }
+});
+
+test('viewport - no zoom can leave a fitting map off its own screen', () => {
+    // The invariant A buys, over every combination that matters: whatever the
+    // content, the box, the pointer and the sequence of factors, an axis whose
+    // content fits ends exactly in the middle. So `canPan === false` on an axis
+    // means that axis is centred, and "the map fits" and "the map is off the
+    // screen" cannot be true at once - the state #274 reports is unbuildable,
+    // not merely escapable.
+    //
+    // The axis that still overflows keeps its anchored origin, as a wheel zoom
+    // always has; nothing here requires it to land inside the band. What is
+    // required of it is that a pan can still bring the map back inside the box.
+    // Asserting that keeps the two cases apart: a rule that recentred every
+    // axis would satisfy the first claim and give up the pointer anchor the UI
+    // suite measures.
+    const contents: JmViewportBounds[] = [
+        { left: 0, top: 0, width: 1000, height: 500 },
+        { left: -100, top: 20, width: 300, height: 900 },
+        { left: 50, top: 40, width: 640, height: 480 },
+        { left: 300, top: 500, width: 40, height: 30 },
+    ];
+    const boxes = [new JmSize(800, 600), new JmSize(320, 240), new JmSize(150, 120), new JmSize(2000, 1200)];
+    const scales = [0.1, 0.4, 0.7, 1, 1.6, 2.4, 4];
+    const pointers: [number, number][] = [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+        [1, 1],
+        [0.5, 0.5],
+        [0.37, 0.81],
+    ];
+
+    const painted = (bounds: JmViewportBounds, state: JmViewportTransform) => ({
+        left: (bounds.left - state.x) * state.scale,
+        right: (bounds.left + bounds.width - state.x) * state.scale,
+        top: (bounds.top - state.y) * state.scale,
+        bottom: (bounds.top + bounds.height - state.y) * state.scale,
+    });
+
+    for (const bounds of contents) {
+        for (const box of boxes) {
+            for (const [fx, fy] of pointers) {
+                const anchor = { x: fx * box.width, y: fy * box.height };
+                // A sequence, not one call: the reported bug needed two zooms -
+                // the first closed the band, the second then pushed the origin
+                // out of a band that was already gone.
+                let state: JmViewportTransform = { x: 0, y: 0, scale: 1 };
+                for (const scale of scales) {
+                    state = zoomViewport(state, scale, anchor, bounds, box);
+                    const label =
+                        `${bounds.width}x${bounds.height} in ${box.width}x${box.height}, ` +
+                        `anchor ${anchor.x}/${anchor.y}, ${scale}x`;
+
+                    for (const axis of ['x', 'y'] as const) {
+                        const start = axis === 'x' ? bounds.left : bounds.top;
+                        const size = axis === 'x' ? bounds.width : bounds.height;
+                        const visible = axis === 'x' ? box.width : box.height;
+                        const span = size - visible / state.scale;
+                        if (!(span > 0)) {
+                            assert.ok(
+                                Math.abs(state[axis] - (start + span / 2)) < 1e-9,
+                                `${label}: ${axis} fits, so it should be centred at ${start + span / 2}, it is ${state[axis]}`
+                            );
+                        }
+                    }
+
+                    // The whole map fits: it has to be on screen right away, not
+                    // after a drag - that is the state no command could leave.
+                    const direct = painted(bounds, state);
+                    if (!viewportCanPan(bounds, box, state.scale)) {
+                        assert.ok(
+                            direct.left >= -1e-9 && direct.right <= box.width + 1e-9,
+                            `${label}: the map fits but is off screen horizontally, ${direct.left}..${direct.right}`
+                        );
+                        assert.ok(
+                            direct.top >= -1e-9 && direct.bottom <= box.height + 1e-9,
+                            `${label}: the map fits but is off screen vertically, ${direct.top}..${direct.bottom}`
+                        );
+                    }
+
+                    // One drag towards the middle always brings an overflowing
+                    // map back inside the box, and leaves a fitting one centred.
+                    const recovered = painted(
+                        bounds,
+                        panViewportTo(
+                            state,
+                            new JmPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2),
+                            bounds,
+                            box
+                        )
+                    );
+                    assert.ok(
+                        recovered.right > 0 && recovered.left < box.width,
+                        `${label}: off screen horizontally even after a pan, ${recovered.left}..${recovered.right}`
+                    );
+                    assert.ok(
+                        recovered.bottom > 0 && recovered.top < box.height,
+                        `${label}: off screen vertically even after a pan, ${recovered.top}..${recovered.bottom}`
+                    );
+                }
+            }
+        }
+    }
+});
+
+test('viewport - the two zooms that stranded the map now keep it on screen', () => {
+    // The reported sequence, in the numbers the report gives: 1000x500 of
+    // content in an 800x600 box, a zoom out at the top-left corner and then a
+    // zoom in at the bottom-right one. That used to end at
+    // {x: 857.14, y: 642.86, scale: 0.7}, which paints the content at
+    // -600..100 x -450..-100 - entirely outside the box, with `canPan` false
+    // and every pan a no-op. Both zooms leave the map fitting, so both write
+    // the middle, and the state cannot be built at all.
+    const content: JmViewportBounds = { left: 0, top: 0, width: 1000, height: 500 };
+    const box = new JmSize(800, 600);
+
+    const out = zoomViewport({ x: 0, y: 0, scale: 1 }, 0.4, { x: 0, y: 0 }, content, box);
+    assert.deepStrictEqual(out, { x: -500, y: -500, scale: 0.4 }, 'the map now fits, so it is centred');
+    assert.strictEqual(viewportCanPan(content, box, out.scale), false, 'and nothing can be panned');
+
+    const back = zoomViewport(out, 0.7, { x: 800, y: 600 }, content, box);
+    assert.strictEqual(back.scale, 0.7);
+    assert.strictEqual(viewportCanPan(content, box, back.scale), false, 'it still fits at 0.7x');
+
+    // The claim that matters: the painted content and the box still overlap.
+    const painted = {
+        left: (content.left - back.x) * back.scale,
+        right: (content.left + content.width - back.x) * back.scale,
+        top: (content.top - back.y) * back.scale,
+        bottom: (content.top + content.height - back.y) * back.scale,
+    };
+    assert.ok(painted.right > 0, `the content's right edge is on screen: ${painted.right}`);
+    assert.ok(painted.bottom > 0, `the content's bottom edge is on screen: ${painted.bottom}`);
+    assert.ok(painted.left < box.width && painted.top < box.height, `and its left and top edges: ${painted.left}/${painted.top}`);
+    assert.ok(Math.abs(painted.left + painted.right - box.width) < 1e-9, `centred horizontally: ${painted.left}..${painted.right}`);
+    assert.ok(Math.abs(painted.top + painted.bottom - box.height) < 1e-9, `centred vertically: ${painted.top}..${painted.bottom}`);
+
+    // A pan is still a no-op on a fitting map (#245), which is what makes this
+    // a fix rather than a new escape hatch: the map is visible without one.
+    assert.deepStrictEqual(panViewportTo(back, new JmPoint(0, 0), content, box), back);
 });

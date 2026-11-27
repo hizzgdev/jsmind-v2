@@ -13,7 +13,9 @@
  * 1. A view nobody zooms keeps native scrolling, unchanged.
  * 2. The reported scale and the painted map agree: map point `p` is painted at
  *    `scale * (p - x)`, for every node.
- * 3. A zoom holds the map point under its anchor still.
+ * 3. A zoom holds the map point under its anchor still while the content still
+ *    overflows that axis, and centres a map that fits - so a zoom can never
+ *    leave a fitting map somewhere no pan can move it from.
  * 4. The factor stops at the range's ends instead of running past them.
  * 5. `capture()` does not care what the zoom is.
  * 6. A node added while zoomed is laid out at its layout size.
@@ -1591,48 +1593,60 @@ test('ui viewport - expanding is what fits a map smaller than the box, and shrin
     assert.deepStrictEqual((await snapshot()).viewport, expanded.viewport, 'expanding twice gives the same viewport');
 });
 
-test('ui viewport - fitToView is the way back from a corner the clamp cannot leave', async () => {
-    // A box small enough to drag in, and a map that fits it at 0.1x - the same
-    // state the two cases above end in. Shrink the map there from the far
-    // corner and it ends up off-centre; at that zoom the pan band is empty, so
-    // neither a drag nor a centring can move it - which is the state #257's
-    // review recorded as unrecoverable. The fit is the exit, and this is the
-    // case an implementation built on `zoomTo` + `centerOn` fails: both would
-    // leave the map where it was.
+test('ui viewport - a zoom leaves a map that fits centred, never in a corner', async () => {
+    // The reported sequence ended in a map that fitted the box at 0.1x, sat
+    // entirely outside it, and could not be dragged back: the pan band is empty
+    // at that zoom, so neither a drag nor a centring had anywhere to go. This is
+    // the same trip - drag to the far corner, then zoom out until the map fits -
+    // and the corner state is now unreachable: the zoom writes the only origin
+    // an empty band allows, which is the middle.
     await open(fixture(), TIGHT);
 
     const limits = await panLimits();
     await command(`jm.commands.panTo(${limits.far.x}, ${limits.far.y})`);
     await command('jm.commands.zoomTo(0.1)');
-    const corner = await snapshot();
-    assert.strictEqual(corner.viewport.scale, 0.1);
-    assert.strictEqual(corner.viewport.canPan, false, 'at 0.1x the whole map fits, so nothing can move');
-
-    await command('jm.commands.panBy(-400, -300)');
-    await command(CENTRE_ROOT);
-    assert.deepStrictEqual(origin(await snapshot()), origin(corner), 'neither a drag nor a centring leaves the corner');
-
-    const before_ = paintedExtent(corner);
-    const beforeCentre = { x: (before_.left + before_.right) / 2, y: (before_.top + before_.bottom) / 2 };
-    const middle = middleOfBox(corner);
-    assert.ok(
-        Math.abs(beforeCentre.x - middle.x) > 5 || Math.abs(beforeCentre.y - middle.y) > 5,
-        `the map should start off-centre: ${beforeCentre.x.toFixed(1)}/${beforeCentre.y.toFixed(1)} against ${middle.x}/${middle.y}`
-    );
-
-    await command('jm.commands.fitToView("shrink")');
     const fitted = await snapshot();
+    assert.strictEqual(fitted.viewport.scale, 0.1);
+    assert.strictEqual(fitted.viewport.canPan, false, 'at 0.1x the whole map fits, so nothing can move');
+
+    // Inside the box and centred on both axes - the two things the corner state
+    // broke, on the axis that fitted and on the far corner it was dragged to.
     const extent = paintedExtent(fitted);
     assert.ok(
         extent.left >= -0.5 && extent.top >= -0.5 && extent.right <= TIGHT.width + 0.5 && extent.bottom <= TIGHT.height + 0.5,
-        `the map comes back inside the box: ${extent.left}..${extent.right} x ${extent.top}..${extent.bottom}`
+        `the map is inside the box: ${extent.left}..${extent.right} x ${extent.top}..${extent.bottom}`
     );
     assert.ok(
         Math.abs((extent.left + extent.right) / 2 - TIGHT.width / 2) <= 2 &&
             Math.abs((extent.top + extent.bottom) / 2 - TIGHT.height / 2) <= 2,
-        `and back to the middle: ${((extent.left + extent.right) / 2).toFixed(2)}/${((extent.top + extent.bottom) / 2).toFixed(2)}`
+        `and centred: ${((extent.left + extent.right) / 2).toFixed(1)}/${((extent.top + extent.bottom) / 2).toFixed(1)}`
     );
     assertPaintMatchesViewport(fitted);
+
+    // The pan contract is untouched: a map that fits still cannot be dragged or
+    // centred (#245), and it no longer needs to be.
+    await command('jm.commands.panBy(-400, -300)');
+    await command(CENTRE_ROOT);
+    assert.deepStrictEqual(origin(await snapshot()), origin(fitted), 'a drag and a centring are still no-ops here');
+
+    // The fit is still the way to the whole map - the one command that writes
+    // an origin outside the band on purpose, from any state.
+    await command('jm.commands.fitToView("shrink")');
+    const whole = await snapshot();
+    const wholeExtent = paintedExtent(whole);
+    assert.ok(
+        wholeExtent.left >= -0.5 &&
+            wholeExtent.top >= -0.5 &&
+            wholeExtent.right <= TIGHT.width + 0.5 &&
+            wholeExtent.bottom <= TIGHT.height + 0.5,
+        `the fit keeps the map inside the box: ${wholeExtent.left}..${wholeExtent.right} x ${wholeExtent.top}..${wholeExtent.bottom}`
+    );
+    assert.ok(
+        Math.abs((wholeExtent.left + wholeExtent.right) / 2 - TIGHT.width / 2) <= 2 &&
+            Math.abs((wholeExtent.top + wholeExtent.bottom) / 2 - TIGHT.height / 2) <= 2,
+        `and centred: ${((wholeExtent.left + wholeExtent.right) / 2).toFixed(1)}/${((wholeExtent.top + wholeExtent.bottom) / 2).toFixed(1)}`
+    );
+    assertPaintMatchesViewport(whole);
 });
 
 test('ui viewport - fitting twice gives the same viewport, and canPan follows the zoom', async () => {

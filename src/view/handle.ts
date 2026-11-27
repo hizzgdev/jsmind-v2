@@ -122,6 +122,11 @@ export interface JmViewHandle {
      * the box. Passing the anchor in keeps the two from being mixed by accident,
      * and keeps the mapping from a screen point to a map point inside the view.
      *
+     * The held point is honoured while the map still overflows the box on that
+     * axis. Where the map fits an axis, the origin is the middle instead - so a
+     * zoom cannot leave a map off a box it would otherwise fit, the state no
+     * pan can bring back.
+     *
      * @param scale - Requested factor, clamped to the range the view accepts.
      * @param anchor - Point to hold still, in the view's own pixels. Defaults to
      * the middle of the viewport.

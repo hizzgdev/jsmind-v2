@@ -130,24 +130,116 @@ export function viewportOriginFor(focus: JmPoint, anchor: JmViewportAnchor, scal
 }
 
 /**
- * Changes the zoom factor while keeping one point still.
+ * Changes the zoom factor while keeping one point still, where that is possible.
+ *
+ * @remarks
+ * The anchor is what the gesture asked for. What a zoom may overwrite is the
+ * state the pan machinery cannot correct, and that is one axis rule:
+ *
+ * - **The content overflows the box** (`span > 0`): the anchored origin is
+ *   stored as it is. That is what makes a wheel zoom grab the map under the
+ *   pointer, and the band belongs to the pan: it says where a drag may stop,
+ *   not where a zoom must land. An origin the anchor pushed out of
+ *   `[contentStart, contentStart + span]` is one {@link panViewportTo} brings
+ *   back, so it is recoverable and not this bug.
+ * - **The content fits** (`span <= 0`): the band is empty, and a pan keeps
+ *   whatever origin it finds because there is nowhere to clamp into. The
+ *   anchored origin is dropped here: an anchor away from the content divides
+ *   by the new zoom and pushes the origin far past the content, which is the
+ *   state #274 reports - a map that fits, sits off its own screen, and no
+ *   command can move. The middle is the one origin that is legal at this
+ *   factor, so it is written instead.
+ * - **The content has not been measured** (`contentSize <= 0`): there is no
+ *   band and no middle, so the anchored origin stands. That is the state
+ *   before the first render, and a zoom there must not displace the map opened
+ *   afterwards.
+ *
+ * So the held point is a promise on an axis that still overflows, and the
+ * fitting axis is answered with the middle instead: `canPan === false` on an
+ * axis therefore means that axis is centred, and "the map fits" and "the map
+ * is off the screen" can no longer both be true.
  *
  * @param transform - Current viewport state.
  * @param scale - Requested factor, clamped by {@link clampViewportScale}.
  * @param anchor - Viewport-space point to hold still, normally the pointer.
- * @returns The new state.
+ * @param bounds - Content rectangle the origin has to stay reachable in.
+ * @param viewport - Visible size, in viewport pixels.
+ * @returns The new state, with each axis anchored or centred.
  *
  * @private
  */
 export function zoomViewport(
     transform: JmViewportTransform,
     scale: number,
-    anchor: JmViewportAnchor
+    anchor: JmViewportAnchor,
+    bounds: JmViewportBounds,
+    viewport: JmSize
 ): JmViewportTransform {
     const next = clampViewportScale(scale);
     const focus = viewportPointAt(transform, anchor);
     const origin = viewportOriginFor(focus, anchor, next);
-    return { x: origin.x, y: origin.y, scale: next };
+    return {
+        x: settleZoomAxis(origin.x, bounds.left, bounds.width, viewport.width, next),
+        y: settleZoomAxis(origin.y, bounds.top, bounds.height, viewport.height, next),
+        scale: next,
+    };
+}
+
+/**
+ * Where one axis of the origin goes after a zoom.
+ *
+ * @remarks
+ * {@link clampViewportAxis} answers "where may a pan stop", and on an empty
+ * band its answer is "nowhere": dropping the candidate is right for a gesture
+ * into a band that is not there, and wrong right after a zoom, because the
+ * zoom is what closed the band - the candidate is the origin the zoom has just
+ * pushed out, and dropping it leaves the map there with nothing able to bring
+ * it back. So the fitting case is answered here with the middle, the one
+ * origin that is legal at every factor.
+ *
+ * While the content overflows the band exists, but it is not this function's
+ * to enforce: clamping here would take the anchor away from a wheel gesture,
+ * and an origin that was outside the band before the zoom - an exported page
+ * opens at identity with its content inset from the box - would jump on the
+ * first notch. A zoom that lands outside the band is still a state a drag can
+ * leave, so the anchored origin stands. The one candidate not let through is a
+ * non-finite one, since a single `NaN` leaves every node unpainted with no
+ * error pointing at the cause; the middle stands in for it, the same fallback
+ * {@link clampViewportScale} makes for the factor itself.
+ *
+ * A content rectangle that was never measured (`contentSize <= 0`, before the
+ * first render) is answered with neither rule: it has no band and no middle
+ * worth writing, so the anchored origin stands exactly as it did before this
+ * rule existed. That matters because `zoomTo` has no "is a map open" guard -
+ * the view is asked to zoom on an empty box, and an origin derived from a
+ * zero-sized rectangle would then displace the first map opened afterwards.
+ *
+ * @param candidate - Origin the anchor asks for.
+ * @param contentStart - Content's near edge, in map pixels.
+ * @param contentSize - Content's extent on this axis, in map pixels.
+ * @param viewportSize - Visible extent on this axis, in viewport pixels.
+ * @param scale - Zoom factor, which turns viewport pixels into map pixels.
+ * @returns The value to store: the anchored origin, or the middle where it
+ * fits.
+ *
+ * @private
+ */
+function settleZoomAxis(
+    candidate: number,
+    contentStart: number,
+    contentSize: number,
+    viewportSize: number,
+    scale: number
+): number {
+    if (!(contentSize > 0)) {
+        return candidate;
+    }
+    const span = panSpan(contentSize, viewportSize, scale);
+    const centre = contentStart + span / 2;
+    if (span > 0) {
+        return Number.isFinite(candidate) ? candidate : centre;
+    }
+    return Number.isFinite(centre) ? centre : candidate;
 }
 
 /**
@@ -213,8 +305,9 @@ export function viewportCanPan(bounds: JmViewportBounds, viewport: JmSize, scale
  * box and mode return the same numbers, which is what makes `fitToView`
  * idempotent. Nothing here clamps the origin to the pan band - at an exactly
  * fitting zoom that band is empty (`span == 0` on a binding axis, `span < 0` on
- * the other) and a clamp with nothing to clamp into would keep the old origin,
- * i.e. leave a map in whatever corner a previous zoom pushed it to.
+ * the other) and a clamp with nothing to clamp into keeps the origin it had,
+ * i.e. leaves the map wherever it happened to be. So this writes the middle
+ * instead of going through the pan's clamp.
  *
  * @param bounds - Content rectangle, in map pixels.
  * @param viewport - Visible size, in viewport pixels.
@@ -251,7 +344,9 @@ export function fitViewport(bounds: JmViewportBounds, viewport: JmSize, mode?: J
  * - **`span <= 0`**: the content is smaller than the viewport at this zoom, so
  *   the band is empty. Clamping into an empty band would mean a reversed
  *   interval, and picking one end of it would throw the map off the screen; a
- *   map that already fits has nothing to pan to.
+ *   map that already fits has nothing to pan to. A zoom does not leave the
+ *   origin there, though - it writes the middle, because on a fitting axis
+ *   that is the only legal origin (see {@link settleZoomAxis}).
  * - **A non-finite candidate**: a pointer delta can be `NaN` (a `0/0` from a
  *   box that was not measured), and one `NaN` in the origin leaves every node
  *   unpainted with no error pointing at the cause. Same fallback as
