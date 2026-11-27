@@ -555,6 +555,13 @@ test('each section answers its own question and names only what exists', () => {
         /<sub>`1bcd6d8` · \[workflow run\]\(https:\/\/github\.com\/hizzgdev\/jsmind-v2\/actions\/runs\/45963800674\)<\/sub>\n$/
     );
 
+    // GitHub renders with breaks:true, so a wrapped paragraph posts as a stack
+    // of short lines; the prefixes above would still match one, so count them.
+    const nonEmpty = both.body.split('\n').filter((line: string) => line.trim() !== '');
+    assert.equal(nonEmpty.length, 6, 'marker, two one-line sections, two links, footnote');
+    assert.ok(nonEmpty[1].endsWith('a lopsided layout.'), 'the Image paragraph is one line');
+    assert.ok(nonEmpty[3].endsWith('loading with no network.'), 'the Page paragraph is one line');
+
     // No image: the Image section becomes one status line, and the advice
     // about looking at the picture goes with it.
     const linkOnly = runComment('', 'https://1--x.surge.sh');
