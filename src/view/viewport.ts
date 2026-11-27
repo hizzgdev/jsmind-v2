@@ -195,18 +195,19 @@ export function viewportCanPan(bounds: JmViewportBounds, viewport: JmSize, scale
 }
 
 /**
- * The state that fits the content to the viewport, in one of the two
- * directions, centred.
+ * The state that fits the content to the viewport, in the directions the caller
+ * allows, centred.
  *
  * @remarks
  * The zoom is the largest factor at which both of the content's axes fit,
- * clamped to {@link JmViewportScaleRange} - with the map's own size as one of
- * the bounds, and which bound depends on the mode. `'shrink'` never goes above
- * it, so a map smaller than the box stays at 1x and keeps its text at the size
- * it was written; `'expand'` never goes below it, so a map larger than the box
- * stays at 1x as well. The origin is then the one {@link viewportOriginFor}
- * gives for putting the content's middle in the middle of the box, in both
- * modes - neither one keeps the part of the map the reader was looking at.
+ * clamped to {@link JmViewportScaleRange}. With no mode the map's own size is
+ * no bound at all: a map too large for the box is scaled down until it fits and
+ * one too small is scaled up until it fills the box. `'shrink'` and `'expand'`
+ * name one of those two courses and leave the other state at 1x - `'shrink'`
+ * never goes above the natural size, `'expand'` never below it. The origin is
+ * then the one {@link viewportOriginFor} gives for putting the content's middle
+ * in the middle of the box, whichever mode was asked for: no mode keeps the
+ * part of the map the reader was looking at, and neither does the other.
  *
  * Deliberately independent of the current state: two calls on the same content,
  * box and mode return the same numbers, which is what makes `fitToView`
@@ -217,14 +218,19 @@ export function viewportCanPan(bounds: JmViewportBounds, viewport: JmSize, scale
  *
  * @param bounds - Content rectangle, in map pixels.
  * @param viewport - Visible size, in viewport pixels.
- * @param mode - Which side of the map's natural size the zoom may not cross.
+ * @param mode - Which side of the map's natural size the zoom may not cross, or
+ * omitted to correct both directions.
  * @returns The state to adopt.
  *
  * @private
  */
-export function fitViewport(bounds: JmViewportBounds, viewport: JmSize, mode: JmFitToViewMode): JmViewportTransform {
+export function fitViewport(bounds: JmViewportBounds, viewport: JmSize, mode?: JmFitToViewMode): JmViewportTransform {
     const fitting = Math.min(viewport.width / bounds.width, viewport.height / bounds.height);
-    const scale = clampViewportScale(mode === 'expand' ? Math.max(1, fitting) : Math.min(1, fitting));
+    // The natural size is only a bound where the caller asked for one: without
+    // a mode the fitting factor itself is the answer, whichever side of 1 it
+    // lands on.
+    const bounded = mode === 'expand' ? Math.max(1, fitting) : mode === 'shrink' ? Math.min(1, fitting) : fitting;
+    const scale = clampViewportScale(bounded);
     const centre = new JmPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
     const origin = viewportOriginFor(centre, { x: viewport.width / 2, y: viewport.height / 2 }, scale);
     return { x: origin.x, y: origin.y, scale };

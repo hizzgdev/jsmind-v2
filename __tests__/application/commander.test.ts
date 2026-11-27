@@ -31,12 +31,12 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
     calls: (JmExportImageOptions | undefined)[];
     zooms: ZoomCall[];
     centres: string[];
-    fits: string[];
+    fits: (JmFitToViewMode | undefined)[];
 } {
     const calls: (JmExportImageOptions | undefined)[] = [];
     const zooms: ZoomCall[] = [];
     const centres: string[] = [];
-    const fits: string[] = [];
+    const fits: (JmFitToViewMode | undefined)[] = [];
     const viewport: JmViewport = { x: 4, y: 5, scale: 2, width: 640, height: 480, canPan: true };
     const view: JmViewHandle = {
         async capture(options?: JmExportImageOptions): Promise<JmExportImageResult> {
@@ -62,7 +62,7 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
         centerOn(nodeId: string): void {
             centres.push(nodeId);
         },
-        fitToView(mode: JmFitToViewMode): void {
+        fitToView(mode?: JmFitToViewMode): void {
             // Recorded, not interpreted: the mode is the caller's decision.
             fits.push(mode);
         },
@@ -180,10 +180,11 @@ test('commander - fitToView is forwarded to the view, mode and all', () => {
 
     commander.fitToView('shrink');
     commander.fitToView('expand');
+    commander.fitToView();
 
     // The zoom and the origin are the view's, and so is the box whose size
     // decides both: a commander that computed a fit would need the layout too.
-    // The mode is the one thing it must not invent - which state the map is in
-    // is the caller's question, and a default here would answer it for them.
-    assert.deepStrictEqual(fits, ['shrink', 'expand']);
+    // The mode is the one thing it must not invent - and "no mode" is a request
+    // of its own, not a gap for this layer to fill with one direction.
+    assert.deepStrictEqual(fits, ['shrink', 'expand', undefined]);
 });

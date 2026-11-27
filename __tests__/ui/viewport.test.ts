@@ -36,6 +36,9 @@
  *    `'shrink'` never magnifies a map that fits, `'expand'` never shrinks one
  *    that overflows, and a mode the view does not know is refused without
  *    touching the box.
+ * 15. A fit with no mode corrects both mismatches, and on a map that needs one
+ *    direction it answers exactly what that direction answers - one fitting
+ *    factor with neither bound on the natural size.
  *
  * What is not here: the shell's gestures (double-click, `touch-action`) and the
  * exported page itself, which are measured in `export-html.test.ts`.
@@ -1483,6 +1486,41 @@ test('ui viewport - fitToView shows the whole map, centred, in one command', asy
         kept.right - kept.left > SMALL.width || kept.bottom - kept.top > SMALL.height,
         `the map should still overflow the box: ${(kept.right - kept.left).toFixed(1)}x${(kept.bottom - kept.top).toFixed(1)} in ${SMALL.width}x${SMALL.height}`
     );
+});
+
+test('ui viewport - a fit with no mode corrects both mismatches, one map at a time', async () => {
+    // The mode-less call has to be the answer of whichever direction each map
+    // needs, not a third arithmetic that happens to land nearby. Measured in the
+    // browser because "which direction" is decided from the layout the view
+    // itself measured: a comparison against a hand-computed factor would agree
+    // with a wrong measure.
+    await open(fixture(10, 6), SMALL);
+    await command('jm.commands.fitToView("shrink")');
+    const shrunk = await snapshot();
+    assert.ok(shrunk.viewport.scale < 1, `this map is larger than the box, got ${shrunk.viewport.scale}`);
+
+    await command('jm.commands.fitToView()');
+    const withoutMode = await snapshot();
+    assert.deepStrictEqual(withoutMode.viewport, shrunk.viewport, 'on a map too large, no mode answers what shrink answers');
+    assertPaintMatchesViewport(withoutMode);
+    const extent = paintedExtent(withoutMode);
+    assert.ok(
+        extent.left >= -0.5 && extent.top >= -0.5 && extent.right <= SMALL.width + 0.5 && extent.bottom <= SMALL.height + 0.5,
+        `the whole map is inside the box: ${extent.left.toFixed(1)}..${extent.right.toFixed(1)} x ${extent.top.toFixed(1)}..${extent.bottom.toFixed(1)}`
+    );
+
+    // The other state: a map the default box holds whole at 1x. Here the
+    // mode-less fit has to magnify, which is the half a `min(1, fitting)` would
+    // lose - a viewer with one button would then do nothing on a small map.
+    await open(fixture(), HOST);
+    await command('jm.commands.fitToView("expand")');
+    const expanded = await snapshot();
+    assert.ok(expanded.viewport.scale > 1, `this map is smaller than the box, got ${expanded.viewport.scale}`);
+
+    await command('jm.commands.fitToView()');
+    const filled = await snapshot();
+    assert.deepStrictEqual(filled.viewport, expanded.viewport, 'on a map that fits, no mode answers what expand answers');
+    assertPaintMatchesViewport(filled);
 });
 
 test('ui viewport - expanding is what fits a map smaller than the box, and shrinking leaves it alone', async () => {

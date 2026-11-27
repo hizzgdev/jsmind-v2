@@ -331,6 +331,40 @@ test('viewport - the two modes disagree on a map smaller than the box, and only 
     }
 });
 
+test('viewport - a fit with no mode corrects both directions, and leaves the range as the only bound', () => {
+    // What a viewer with one "fit" button asks for. It is not a third behaviour
+    // to keep in step with the other two: it is the same fitting factor with
+    // neither bound on the natural size, so on a map that needs one direction
+    // it has to be exactly that direction's answer - which the deep comparisons
+    // pin, rather than a scale that merely looks plausible.
+    const small: JmViewportBounds = { left: 30, top: 20, width: 200, height: 100 };
+    const large: JmViewportBounds = { left: 0, top: 0, width: 1000, height: 500 };
+
+    assert.deepStrictEqual(fitViewport(large, WINDOW), fitViewport(large, WINDOW, 'shrink'), 'a large map is shrunk to fit');
+    assert.deepStrictEqual(fitViewport(small, WINDOW), fitViewport(small, WINDOW, 'expand'), 'a small map is blown up to fill the box');
+    assert.strictEqual(fitViewport(large, WINDOW).scale, 0.4);
+    assert.strictEqual(fitViewport(small, WINDOW).scale, 2);
+
+    // Both ends of the range still bind, and what is left is still centred and
+    // still idempotent: the natural size was the only bound dropped.
+    const tiny: JmViewportBounds = { left: 10, top: 10, width: 10, height: 10 };
+    const huge: JmViewportBounds = { left: 0, top: 0, width: 8000, height: 6000 };
+    assert.strictEqual(fitViewport(tiny, WINDOW).scale, JmViewportScaleRange.max);
+    assert.strictEqual(fitViewport(huge, WINDOW).scale, JmViewportScaleRange.min);
+
+    const middle = { x: WINDOW.width / 2, y: WINDOW.height / 2 };
+    for (const bounds of [small, large]) {
+        const fitted = fitViewport(bounds, WINDOW);
+        const back = viewportPointAt(fitted, middle);
+        assert.ok(
+            Math.abs(back.x - (bounds.left + bounds.width / 2)) < 1e-9 &&
+                Math.abs(back.y - (bounds.top + bounds.height / 2)) < 1e-9,
+            `the content should be centred: it put ${back.x}/${back.y} in the middle`
+        );
+        assert.deepStrictEqual(fitViewport(bounds, WINDOW), fitted, 'a second identical fit differs');
+    }
+});
+
 test('viewport - a fit stops at the range ends, and at the natural size', () => {
     // Each mode has two ceilings and the tighter one wins. A map far smaller
     // than the box would want 30x in `'expand'`; the view accepts 4, so the

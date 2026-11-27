@@ -424,12 +424,18 @@ export class JmView implements JmViewHandle {
     }
 
     /**
-     * Fits the map to the viewport, shrinking or expanding it as told.
+     * Fits the map to the viewport, shrinking, expanding, or both.
      *
      * @remarks
      * Two steps, both composed from the arithmetic beside them: the zoom the
      * mode allows, and the origin that puts the content's middle in the middle
      * of the box.
+     *
+     * The mode is optional and narrows the fit rather than defining it: with
+     * none, a map too large for the box is scaled down and one too small is
+     * scaled up, which is what a single "fit" button asks for. `'shrink'` and
+     * `'expand'` each name one of those and leave the other state at its
+     * natural size.
      *
      * The origin is written rather than handed to {@link JmView.panTo}, and
      * that is the answer the whole design turns on. At exactly-fitting zoom the
@@ -450,18 +456,18 @@ export class JmView implements JmViewHandle {
      * again.
      *
      * @param mode - `'shrink'` for a map too large for the box, `'expand'` for
-     * one too small: each takes the map's natural size as the bound the zoom
-     * may not cross, and leaves the other state at 1x.
-     * @throws {@link JsMindError} When `mode` is not one of those two, before
-     * the box is touched, so a refused call leaves the view exactly as it was.
+     * one too small. Omit it to correct both directions.
+     * @throws {@link JsMindError} When `mode` is given as neither of those two,
+     * before the box is touched, so a refused call leaves the view exactly as
+     * it was.
      * @throws {@link JsMindError} When this view has not been given a map yet:
      * there is no content to fit, and the scale and origin a zero-sized box
      * produces would shift the first map that is opened afterwards. A closed
      * map is not the same thing - the view keeps the last map it was shown.
      */
-    fitToView(mode: JmFitToViewMode): void {
-        if (mode !== 'shrink' && mode !== 'expand') {
-            throw new JsMindError(`Unknown fit mode '${String(mode)}'; expected 'shrink' or 'expand'`);
+    fitToView(mode?: JmFitToViewMode): void {
+        if (mode !== undefined && mode !== 'shrink' && mode !== 'expand') {
+            throw new JsMindError(`Unknown fit mode '${String(mode)}'; expected 'shrink', 'expand' or no mode`);
         }
         if (this.mind === null) {
             throw new JsMindError('No mind map is currently open');
