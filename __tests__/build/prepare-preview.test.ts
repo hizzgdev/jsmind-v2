@@ -14,7 +14,9 @@
  * The two paths are pinned to each other rather than each to a literal: the
  * point of the step is that the file it writes is the file that gets rendered.
  * The file is also the only thing that crosses between the steps - the tone is
- * a field inside it, not a step output to carry - and that is pinned too.
+ * a field inside it, not a step output to carry - and that is pinned too. The
+ * same file feeds the exported page, so the two artifacts a reader is offered
+ * describe one map.
  *
  * The YAML is read as text rather than parsed: the repository has no YAML
  * dependency of its own (`js-yaml` arrives with a transitive package), and what
@@ -195,6 +197,28 @@ test('the file the prepare step writes is the file the render step reads', () =>
     assert.ok(prepared, 'prepare should run `node scripts/prepare-preview.ts <in> <out>`');
     assert.ok(rendered, 'the render step should name a data-file');
     assert.equal(prepared?.[1], rendered?.[1]);
+});
+
+test('the page is exported from the file the prepare step wrote', () => {
+    // The image and the page are two views of one map, and the workflow is the
+    // only thing that can make them disagree: a second read of the tracked
+    // fixture would carry the tone this run drew into the image and not into
+    // the page. Pinned path-to-path rather than each to a literal, for the same
+    // reason as the render above - one preparation feeds both.
+    const prepared = /node scripts\/prepare-preview\.ts example\/v2-features\.json (\S+)/.exec(
+        WORKFLOW
+    );
+    const exported = /export html (\S+) (\S+) --title/.exec(WORKFLOW);
+
+    assert.ok(exported, 'the preview job should export a page from the prepared data');
+    assert.equal(exported?.[1], prepared?.[1]);
+
+    // And the exported file is the one the artifact step uploads. A page
+    // written to another path uploads nothing, and the comment would then point
+    // at a run with no artifact in a job that stayed green.
+    const uploaded = /path: (\S+)/.exec(WORKFLOW);
+    assert.ok(uploaded, 'the artifact step should name the file it uploads');
+    assert.equal(exported?.[2], uploaded?.[1]);
 });
 
 test('the preview job turns transparency on, for its own render only', () => {

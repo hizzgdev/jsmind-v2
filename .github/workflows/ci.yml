@@ -619,6 +619,54 @@ jobs:
           output: tmp/preview.png
           transparent: 'true'
 
+      # The page this run exported, from the same prepared data as the image.
+      #
+      # It exists because an image cannot answer the one question that matters
+      # about the export: does the file open on a machine with no network? The
+      # UI test can assert how many nodes a page renders and that a map too
+      # large for the viewport still scrolls; whether the thing survives a
+      # double-click on someone's desktop is a question only a person can try.
+      #
+      # One `run:` rather than a second composite action: `export html` writes a
+      # file and never starts a browser, so the render action's launch retry
+      # would be dead weight on this step.
+      #
+      # The same `tmp/preview-data.json` the image was rendered from, never the
+      # tracked fixture: the page and the image then describe one map, down to
+      # the tone this run drew.
+      - name: Export the HTML page
+        run: node dist/cli.js export html tmp/preview-data.json tmp/preview.html --title "jsMind preview"
+
+      # The uploads endpoint the image goes to is image-only. A probe with
+      # content_type=text%2Fhtml answers 422 "content_type is not included in
+      # the list of allowed content types", and text/plain, application/zip and
+      # application/octet-stream are refused the same way, so the page travels
+      # through the Actions artifact store instead. That store is where the
+      # cost note in the pull request body comes from: the reader has to be
+      # signed in, and the artifact expires.
+      #
+      # `archive: false` so the download is the `.html` itself rather than a zip
+      # holding it. The file is the thing someone double-clicks; handing back an
+      # archive would put an unpack step between the reader and the question
+      # this page exists to answer.
+      #
+      # `continue-on-error` for the same reason the image upload warns instead
+      # of failing on a fork: the picture is the preview, this is the extra, and
+      # artifact storage having a bad day should not cost the reader the image.
+      # The comment step reads this step's outcome and drops its line when the
+      # page is missing.
+      - name: Upload the HTML page
+        id: upload-html
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          path: tmp/preview.html
+          archive: false
+          if-no-files-found: error
+          # Long enough to outlast a review, short enough that abandoned pull
+          # requests do not leave previews behind for a season.
+          retention-days: 30
+
       # The image goes up as a comment attachment, in two steps with different
       # tokens.
       #
@@ -696,9 +744,29 @@ jobs:
           FULL_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
+          # The page's download address, derived from the upload's outcome
+          # rather than from an artifact id: the run's artifacts page is one
+          # stable address, and an empty string here is how the body below
+          # learns the artifact store refused the upload.
+          ARTIFACT_URL: ${{ steps.upload-html.outcome == 'success' && format('https://github.com/{0}/actions/runs/{1}/artifacts', github.repository, github.run_id) || '' }}
         run: |
           set -euo pipefail
           short="${FULL_SHA:0:7}"
+
+          # The page's line, built only when there is a page to point at. A
+          # failed artifact upload is a missing link, not a missing comment:
+          # the image is what a reader came for, so the rest of the body goes
+          # up regardless.
+          #
+          # KiB from the byte count rather than `du`: the file is what the
+          # reader downloads, and a block size is not a size anyone chose.
+          page_line=''
+          if [ -n "${ARTIFACT_URL:-}" ]; then
+            kb=$(( $(wc -c < tmp/preview.html) / 1024 ))
+            page_line="[Download this build's page (.html, about ${kb} KB)]($ARTIFACT_URL) — double-click it to open the same map offline, no network needed."
+          else
+            echo "::warning::the exported page did not upload; leaving its link out of the comment"
+          fi
 
           # Invisible marker so a re-run can find and replace this comment.
           # Without it every push would leave its own screenshot behind and the
@@ -727,6 +795,8 @@ jobs:
           ### Render preview
 
           ![jsMind render preview]($PREVIEW_URL)
+
+          $page_line
 
           Rendered from the latest code on this branch, at \`$short\`.
 
