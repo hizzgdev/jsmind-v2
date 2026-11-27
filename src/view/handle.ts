@@ -202,6 +202,11 @@ export interface JmViewHandle {
      *
      * Two calls on the same map and box give the same numbers, which is what a
      * double-click or a toolbar button pressing twice relies on.
+     *
+     * @throws {@link JsMindError} When this view has not been given a map yet -
+     * there is no content to fit. A map that was closed counts as open here:
+     * the view keeps the last one it was shown, as it does for
+     * {@link JmViewHandle.centerOn}.
      */
     fitToView(): void;
 

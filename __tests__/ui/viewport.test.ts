@@ -1550,3 +1550,57 @@ test('ui viewport - fitting twice gives the same viewport, and canPan follows th
     assert.strictEqual(out.viewport.canPan, false, 'the whole map is inside again');
     assertPaintMatchesViewport(out);
 });
+
+test('ui viewport - fitToView refuses before a map has been shown', async () => {
+    await browser.setContent('<div id="empty" style="width:200px;height:150px"></div>');
+    await browser.loadBundle();
+
+    // A view with no map has no content to fit. Answering anyway would mean a
+    // scale and an origin derived from a zero-sized box, and those would shift
+    // the first map opened afterwards - so the command is refused rather than
+    // silently guessed, the way `capture` and `centerOn` already are.
+    //
+    // The bundle renames the error class on the way through rollup, so the
+    // comparison is against another error from the same bundle rather than
+    // against `JsMindError` by name.
+    const probe = await browser.evaluate<{
+        threw: boolean;
+        isMindError: boolean;
+        isTypeError: boolean;
+        message: string;
+        transform: string;
+        overflow: string;
+    }>(`(async () => {
+        const host = document.getElementById('empty');
+        const jm = await jsMind.create(host);
+        const reference = (() => {
+            try {
+                jsMind.Serializer.create('no-such-format');
+                return null;
+            } catch (error) {
+                return error;
+            }
+        })();
+        const inner = host.shadowRoot.querySelector('.jsmind-inner');
+        try {
+            jm.commands.fitToView();
+            return { threw: false, isMindError: false, isTypeError: false, message: '', transform: inner.style.transform, overflow: getComputedStyle(inner).overflow };
+        } catch (error) {
+            return {
+                threw: true,
+                isMindError: reference !== null && error instanceof reference.constructor,
+                isTypeError: error instanceof TypeError,
+                message: error && error.message ? error.message : '',
+                transform: inner.style.transform,
+                overflow: getComputedStyle(inner).overflow,
+            };
+        }
+    })()`, true);
+
+    assert.strictEqual(probe.threw, true, 'a fit with nothing to fit is refused');
+    assert.strictEqual(probe.isMindError, true, 'and refused with the library\'s own error class');
+    assert.strictEqual(probe.isTypeError, false, 'not with a TypeError');
+    assert.match(probe.message, /no mind map/i, `the message should say what is missing, it said "${probe.message}"`);
+    assert.strictEqual(probe.transform, '', 'a refused command writes no transform');
+    assert.strictEqual(probe.overflow, 'auto', 'and does not take the box over either');
+});

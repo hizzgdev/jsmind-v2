@@ -448,8 +448,16 @@ export class JmView implements JmViewHandle {
      * fit slightly smaller than the second fit of the same map - two answers to
      * one command, visible as a small jump the first time the reader fits it
      * again.
+     *
+     * @throws {@link JsMindError} When this view has not been given a map yet:
+     * there is no content to fit, and the scale and origin a zero-sized box
+     * produces would shift the first map that is opened afterwards. A closed
+     * map is not the same thing - the view keeps the last map it was shown.
      */
     fitToView(): void {
+        if (this.mind === null) {
+            throw new JsMindError('No mind map is currently open');
+        }
         this._activateViewport();
         this._setViewport(fitViewport(this.contentBounds, this._viewportSize()));
     }

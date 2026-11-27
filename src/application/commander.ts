@@ -107,6 +107,8 @@ export class JmCommander {
      * The one command that moves a map that already fits, and the reason a
      * double-click can be the way back from a zoom that left the content in a
      * corner.
+     *
+     * @throws {@link JsMindError} When this view has not been given a map yet.
      */
     fitToView(): void {
         this.view.fitToView();
