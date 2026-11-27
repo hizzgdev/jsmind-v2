@@ -164,11 +164,10 @@ function runDeploy(npxBody: string): { status: number | null; stdout: string; ou
  * Runs the comment step's script with a stub `gh`, and hands back the body it
  * would have posted.
  *
- * The body is assembled inside the step from three variables, so which
- * sentences end up in it is a property of the script - and one that a pattern
- * match on the YAML cannot see: a paragraph written straight into the heredoc
- * passes every text assertion while saying something the comment does not
- * contain.
+ * The body is assembled inside the step from whole sections, so which sentences
+ * end up in it is a property of the script - and one that a pattern match on the
+ * YAML cannot see: a paragraph written straight into the heredoc passes every
+ * text assertion while saying something the comment does not contain.
  */
 function runComment(previewUrl: string, pageUrl: string) {
     const dir = mkdtempSync(join(tmpdir(), 'jsmind-comment-'));
@@ -528,57 +527,65 @@ test('the comment is posted while either half of it exists', () => {
         /if: steps\.upload\.outputs\.url != '' \|\| steps\.surge\.outputs\.url != ''/
     );
 
-    // Each paragraph is built from its own value and interpolated into the
-    // body, so a comment carrying one of the two never claims the other. The
-    // body lines are pinned as bare variables: an image line written straight
-    // into the heredoc would stay correct while the value that feeds it stops
-    // being used.
-    //
-    // The `<sub>` splits on the same line: "transparent background" and
-    // "uploaded as a comment attachment" are image-only claims, and a comment
-    // whose image upload failed would otherwise make them.
-    assert.match(
-        WORKFLOW,
-        /if \[ -n "\$\{PREVIEW_URL:-\}" \]; then\s*\n\s*image_line=[^\n]*\n\s*image_note=/
+    // The marker is the body's first line - a re-run finds the previous
+    // comment by it - and each section is interpolated as a whole block, which
+    // is what lets a missing one be replaced by a status line instead of
+    // leaving a paragraph about something the reader cannot see.
+    assert.match(WORKFLOW, /tmp\/comment\.md <<BODY\n {10}\$MARKER\n {10}\$image_section\n/);
+    assert.match(WORKFLOW, /\n {10}\$page_section\n\n {10}<sub>/);
+    assert.ok(
+        !/\b(image_line|image_note|look_line|page_line|page_note)=/.test(WORKFLOW),
+        'the per-line assemblers are gone; each section is chosen whole'
     );
-    assert.match(WORKFLOW, /if \[ -n "\$\{PAGE_URL:-\}" \]; then\s*\n\s*page_line=/);
-    assert.match(WORKFLOW, /^ {10}\$image_line$/m);
-    assert.match(WORKFLOW, /^ {10}\$page_line$/m);
-    assert.match(WORKFLOW, /^ {10}<sub>.*\$\{image_note\}\$\{page_note\}<\/sub>$/m);
 });
 
-test('the look-for paragraph names what the comment actually contains', () => {
-    // The same defect the `<sub>` had, one paragraph down: with the upload
-    // failed the comment carries no image, and "the one thing this image is
-    // for" then points at nothing. Only the script can be asked which
-    // paragraph the body ends up with - a text assertion passes while the
-    // heredoc keeps the sentence in every case.
+test('each section answers its own question and names only what exists', () => {
+    // Both halves present: two labelled paragraphs, one for the picture and
+    // one for the page, with the commit and the run left as a footnote. Run
+    // the step rather than matching the heredoc - only the script can say
+    // which sentences the reader ends up with.
     const both = runComment('https://example.test/preview.png', 'https://1--x.surge.sh');
     assert.equal(both.status, 0, both.stdout);
-    assert.match(both.body, /the one thing this image is for/);
-    assert.ok(
-        !/Open the exported page and look for those/.test(both.body),
-        'the image branch does not send the reader to the page'
+    assert.match(both.body, /^<!-- jsmind-render-preview -->\n\*\*Image\*\* — the layout of/);
+    assert.match(both.body, /!\[jsMind render preview\]\(https:\/\/example\.test\/preview\.png\)/);
+    assert.match(both.body, /\n\*\*Page\*\* — the same map as one self-contained `\.html`/);
+    assert.match(both.body, /\[Open the exported page\]\(https:\/\/1--x\.surge\.sh\)/);
+    assert.match(
+        both.body,
+        /<sub>`1bcd6d8` · \[workflow run\]\(https:\/\/github\.com\/hizzgdev\/jsmind-v2\/actions\/runs\/45963800674\)<\/sub>\n$/
     );
 
+    // No image: the Image section becomes one status line, and the advice
+    // about looking at the picture goes with it.
     const linkOnly = runComment('', 'https://1--x.surge.sh');
     assert.equal(linkOnly.status, 0, linkOnly.stdout);
-    assert.ok(!/this image/i.test(linkOnly.body), 'no claim about an image the comment does not have');
-    assert.ok(!linkOnly.body.includes('![jsMind render preview]'), 'and no image line either');
+    assert.match(linkOnly.body, /\n\*\*Image\*\* — _did not upload for this run\._\n/);
+    assert.ok(!linkOnly.body.includes('![jsMind render preview]'), 'no image line');
     assert.ok(
-        !/Uploaded as a comment attachment/.test(linkOnly.body),
-        'nor the <sub> sentence about the attachment'
+        !linkOnly.body.includes('Look for what the tests'),
+        'and no advice about looking at an image that is not there'
     );
-    assert.match(linkOnly.body, /Open the exported page and look for those/);
-    assert.match(linkOnly.body, /\[Open the exported page\]\(https:\/\/1--x\.surge\.sh\)/);
     assert.match(linkOnly.stdout, /::warning::the image did not upload/);
+
+    // Neither: two status lines and the footnote, the same shape as a run
+    // that produced both.
+    const neither = runComment('', '');
+    assert.equal(neither.status, 0, neither.stdout);
+    const lines = neither.body.split('\n').filter((line: string) => line.trim() !== '');
+    assert.equal(lines.length, 4, 'marker, two status lines, footnote');
+    assert.match(lines[0], /jsmind-render-preview/);
+    assert.match(lines[3], /^<sub>/);
 });
 
 test('a failed deploy says so, instead of dropping the link silently', () => {
     // The other half of "CI stays green when surge fails": a comment with no
     // link and no word about it reads as if this repository has no live preview
     // at all, so the absent link has to be stated rather than omitted.
-    assert.match(WORKFLOW, /page_line='_The live preview could not be published for this run\._'/);
+    const body = runComment('https://example.test/preview.png', '');
+    assert.equal(body.status, 0, body.stdout);
+    assert.match(body.body, /\n\*\*Page\*\* — _not published for this run\._\n/);
+    assert.ok(!body.body.includes('[Open the exported page]'), 'no link to a page that is not there');
+    assert.match(body.stdout, /::warning::the preview did not deploy/);
 });
 
 test('the page is published, not shipped through the artifact store', () => {
