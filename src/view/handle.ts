@@ -29,6 +29,20 @@
 import type { JmExportImageOptions, JmExportImageResult } from './export.ts';
 
 /**
+ * Which mismatch between the map and its box a fit corrects.
+ *
+ * @remarks
+ * A map and a box can disagree in two ways, and they want different answers: a
+ * map too large to show whole has to be scaled down, and a map smaller than the
+ * box may be scaled up to fill it - or left at its natural size, which is what
+ * a viewer showing text wants. {@link JmViewHandle.fitToView} takes one of these
+ * and does that one thing, never the other.
+ *
+ * @public
+ */
+export type JmFitToViewMode = 'shrink' | 'expand';
+
+/**
  * A rectangle in CSS pixels, relative to the container's top-left corner.
  *
  * @public
@@ -188,27 +202,46 @@ export interface JmViewHandle {
     centerOn(nodeId: string): void;
 
     /**
-     * Scales the map so that all of it fits the viewport, and centres it.
+     * Fits the map to the viewport, in the direction the caller names.
      *
      * @remarks
-     * The zoom is the largest factor at which the content fits, clamped to the
-     * range the view accepts, so a map smaller than the box is enlarged as a
-     * larger one is shrunk. The origin is then the one that puts the content's
-     * middle in the middle of the box.
+     * The zoom is chosen from the content and the box alone, so two calls on
+     * the same map and box give the same numbers - which is what a toolbar
+     * button pressed twice, or a gesture repeated, relies on.
+     *
+     * The mode is required, and that is the point rather than an oversight: the
+     * two disagreements between a map and a box want different answers, and
+     * which one a page is in is a question about that page, not about this
+     * command.
+     *
+     * - `'shrink'` is for a map too large to show whole: the zoom is scaled down
+     *   until all of it fits, and never past its natural size - a map that
+     *   already fits stays at 1x rather than being blown up. This is the one to
+     *   call from a "show me everything" button or a return-from-a-corner
+     *   gesture.
+     * - `'expand'` is for a map smaller than its box: the zoom is scaled up
+     *   until the map fills it, and never down - a map that already overflows
+     *   stays at 1x rather than being shrunk. This is the one for a page whose
+     *   canvas is the frame and wants no empty margin in it.
+     *
+     * Both centre the map, and both are bounds on the same fit: `'shrink'`
+     * takes the natural size as a ceiling, `'expand'` takes it as a floor. Each
+     * one leaves the other state alone, so neither can hide content the caller
+     * did not ask it to hide.
      *
      * Unlike {@link JmViewHandle.centerOn} this does move a map that fits: the
      * pan's band is empty at exactly-fitting zoom, and a fit that waited for a
      * clamp to move it would leave the map wherever the last gesture left it.
      *
-     * Two calls on the same map and box give the same numbers, which is what a
-     * double-click or a toolbar button pressing twice relies on.
-     *
+     * @param mode - Which mismatch to correct. See above.
+     * @throws {@link JsMindError} When `mode` is neither of the two values, so
+     * a typo in a JavaScript caller fails loudly instead of quietly shrinking.
      * @throws {@link JsMindError} When this view has not been given a map yet -
      * there is no content to fit. A map that was closed counts as open here:
      * the view keeps the last one it was shown, as it does for
      * {@link JmViewHandle.centerOn}.
      */
-    fitToView(): void;
+    fitToView(mode: JmFitToViewMode): void;
 
     // The rest of the viewport surface is not implemented yet. It is declared
     // here as one block rather than added one method at a time because the

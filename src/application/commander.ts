@@ -16,7 +16,7 @@
  */
 
 import type { JmExportImageOptions, JmExportImageResult } from '../view/export.ts';
-import type { JmViewHandle, JmViewport, JmViewportAnchor } from '../view/handle.ts';
+import type { JmFitToViewMode, JmViewHandle, JmViewport, JmViewportAnchor } from '../view/handle.ts';
 
 /**
  * Issues commands that change what is displayed, never what is stored.
@@ -101,17 +101,26 @@ export class JmCommander {
     }
 
     /**
-     * Scales the map so that all of it fits the viewport, and centres it.
+     * Fits the map to the viewport, in the direction the caller names.
      *
      * @remarks
-     * The one command that moves a map that already fits, and the reason a
-     * double-click can be the way back from a zoom that left the content in a
-     * corner.
+     * `'shrink'` is the "show me everything" fit for a map too large for the
+     * box, and `'expand'` the "fill the canvas" fit for one too small; each
+     * leaves the other state at 1x. The mode is required because the page
+     * knows which state it is in and the view does not: a default here would be
+     * this layer guessing, and guessing wrong hides content or blows a small
+     * map's text up to the size of the box.
      *
+     * Nothing on the open path calls this. Opening a map shows it as laid out;
+     * fitting it is a decision for whoever is showing it, made when they want
+     * it - which is why a page either calls it after `open` or does not.
+     *
+     * @param mode - `'shrink'` for a map too large for the box, `'expand'` for
+     * one too small.
      * @throws {@link JsMindError} When this view has not been given a map yet.
      */
-    fitToView(): void {
-        this.view.fitToView();
+    fitToView(mode: JmFitToViewMode): void {
+        this.view.fitToView(mode);
     }
 
     // The rest of the viewport commands land here, next to these.

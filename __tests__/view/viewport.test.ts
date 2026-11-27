@@ -280,11 +280,15 @@ test('viewport - centring a point at the content edge is clamped, not pulled pas
 
 test('viewport - fitting the map picks the factor at which it just fits, and centres it', () => {
     // 800x600 content in a 400x300 box: both axes bind at 0.5, so the content
-    // exactly fills the box and the origin is its own top-left corner.
-    const fitted = fitViewport(CONTENT, WINDOW);
+    // exactly fills the box and the origin is its own top-left corner. A map
+    // this size is too large for the box, which is the state `'shrink'` is for;
+    // `'expand'` has nothing to expand here and answers the natural size, so the
+    // two modes do different things to the same map.
+    const fitted = fitViewport(CONTENT, WINDOW, 'shrink');
 
     assert.strictEqual(fitted.scale, 0.5);
     assert.deepStrictEqual(fitted, { x: CONTENT.left, y: CONTENT.top, scale: 0.5 });
+    assert.strictEqual(fitViewport(CONTENT, WINDOW, 'expand').scale, 1, 'expanding must not shrink a map that is too large');
 
     // Read back through the forward mapping: the content's middle has to be the
     // box's middle, and its painted extent has to be the box, not a corner of it.
@@ -294,11 +298,63 @@ test('viewport - fitting the map picks the factor at which it just fits, and cen
     assert.ok(Math.abs(back.y - (CONTENT.top + CONTENT.height / 2)) < 1e-9, `the vertical centre drifted to ${back.y}`);
 });
 
+test('viewport - the two modes disagree on a map smaller than the box, and only there', () => {
+    // The two disagreements the API exists for, in one place. A 200x100 map in a
+    // 400x300 box fits at 2x: `'shrink'` has nothing to shrink and keeps the map
+    // at the size its text was written for, `'expand'` fills the box with it.
+    // The same map at 1000x500 - too large - gets 0.4 from `'shrink'` and 1x
+    // from `'expand'`, so neither mode does the other's job.
+    const small: JmViewportBounds = { left: 30, top: 20, width: 200, height: 100 };
+    const large: JmViewportBounds = { left: 0, top: 0, width: 1000, height: 500 };
+
+    assert.strictEqual(fitViewport(small, WINDOW, 'shrink').scale, 1, 'shrinking must not blow a small map up');
+    assert.strictEqual(fitViewport(small, WINDOW, 'expand').scale, 2, 'expanding fills the box exactly');
+    assert.strictEqual(fitViewport(large, WINDOW, 'shrink').scale, 0.4, 'a large map is scaled down to fit');
+    assert.strictEqual(fitViewport(large, WINDOW, 'expand').scale, 1, 'expanding must not shrink a large map');
+
+    // Both modes centre, so neither leaves the map where the last gesture left
+    // it - which is the whole reason the origin is written rather than panned
+    // to. Only the factor differs between them and the state they are in.
+    const middle = { x: WINDOW.width / 2, y: WINDOW.height / 2 };
+    for (const mode of ['shrink', 'expand'] as const) {
+        for (const bounds of [small, large]) {
+            const fitted = fitViewport(bounds, WINDOW, mode);
+            const back = viewportPointAt(fitted, middle);
+            const label = `${mode} at ${bounds.width}x${bounds.height} (${fitted.scale}x)`;
+            assert.ok(
+                Math.abs(back.x - (bounds.left + bounds.width / 2)) < 1e-9 &&
+                    Math.abs(back.y - (bounds.top + bounds.height / 2)) < 1e-9,
+                `the content should be centred: ${label} put ${back.x}/${back.y} in the middle`
+            );
+            assert.deepStrictEqual(fitViewport(bounds, WINDOW, mode), fitted, `a second identical fit differs: ${label}`);
+        }
+    }
+});
+
+test('viewport - a fit stops at the range ends, and at the natural size', () => {
+    // Each mode has two ceilings and the tighter one wins. A map far smaller
+    // than the box would want 30x in `'expand'`; the view accepts 4, so the
+    // floor of the range wins - and in `'shrink'` the natural size wins first,
+    // at 1x.
+    const tiny: JmViewportBounds = { left: 10, top: 10, width: 10, height: 10 };
+    const enlarged = fitViewport(tiny, WINDOW, 'expand');
+    assert.strictEqual(enlarged.scale, JmViewportScaleRange.max);
+    assert.strictEqual((tiny.left - enlarged.x) * enlarged.scale + (tiny.width * enlarged.scale) / 2, WINDOW.width / 2);
+    assert.strictEqual(fitViewport(tiny, WINDOW, 'shrink').scale, 1, 'shrinking a tiny map leaves it at 1x');
+
+    // And one 100 times the box would want 0.05 in `'shrink'`; the floor wins,
+    // so it is shown as much as the range allows and no further. `'expand'`
+    // never goes below the natural size, so it answers 1x here.
+    const huge: JmViewportBounds = { left: 0, top: 0, width: 8000, height: 6000 };
+    assert.strictEqual(fitViewport(huge, WINDOW, 'shrink').scale, JmViewportScaleRange.min);
+    assert.strictEqual(fitViewport(huge, WINDOW, 'expand').scale, 1);
+});
+
 test('viewport - fitting a map that binds on one axis leaves the other centred', () => {
     // 800x200 in a 400x300 box: the width binds at 0.5, so the content is
     // 400x100 on screen and the leftover 100px is split evenly at top and bottom.
     const wide: JmViewportBounds = { left: 100, top: 50, width: 800, height: 200 };
-    const fitted = fitViewport(wide, WINDOW);
+    const fitted = fitViewport(wide, WINDOW, 'shrink');
 
     assert.strictEqual(fitted.scale, 0.5);
     const paintedTop = (wide.top - fitted.y) * fitted.scale;
@@ -308,27 +364,13 @@ test('viewport - fitting a map that binds on one axis leaves the other centred',
     assert.ok(Math.abs(paintedTop + (paintedBottom - paintedTop) / 2 - WINDOW.height / 2) < 1e-9, 'the content should be centred vertically');
 });
 
-test('viewport - a fit stops at the range ends instead of running past them', () => {
-    // A map far smaller than the box would want 30x; the view accepts 4, and
-    // the content is centred at that factor rather than blown up to the box.
-    const tiny: JmViewportBounds = { left: 10, top: 10, width: 10, height: 10 };
-    const enlarged = fitViewport(tiny, WINDOW);
-    assert.strictEqual(enlarged.scale, JmViewportScaleRange.max);
-    assert.strictEqual((tiny.left - enlarged.x) * enlarged.scale + (tiny.width * enlarged.scale) / 2, WINDOW.width / 2);
-
-    // And one 100 times the box would want 0.05; the floor wins, so it is shown
-    // as much as the range allows and no further.
-    const huge: JmViewportBounds = { left: 0, top: 0, width: 8000, height: 6000 };
-    assert.strictEqual(fitViewport(huge, WINDOW).scale, JmViewportScaleRange.min);
-});
-
 test('viewport - the fit ignores where the view is looking', () => {
     // No state goes in, so a map left in a corner by a zoom fits back to the
     // same numbers as one that was never moved. That is what makes `fitToView`
     // idempotent - and what a `zoomTo` + `centerOn` composition cannot do,
     // because the pan band is empty at exactly-fitting zoom.
-    const first = fitViewport(CONTENT, WINDOW);
-    const second = fitViewport(CONTENT, WINDOW);
+    const first = fitViewport(CONTENT, WINDOW, 'shrink');
+    const second = fitViewport(CONTENT, WINDOW, 'shrink');
 
     assert.deepStrictEqual(second, first);
     // At the fitted factor the pan band really is empty, which is why the
@@ -349,7 +391,7 @@ test('viewport - a pan has room whenever the content overflows, at any factor', 
     const bounds: JmViewportBounds = { left: 0, top: 0, width: 1000, height: 500 };
     const box = new JmSize(900, 600);
 
-    assert.strictEqual(fitViewport(bounds, box).scale, 0.9);
+    assert.strictEqual(fitViewport(bounds, box, 'shrink').scale, 0.9);
     assert.strictEqual(viewportCanPan(bounds, box, 0.9), false, 'exactly fitting leaves no band');
     assert.strictEqual(viewportCanPan(bounds, box, 1), true, '1x overflows here, so a drag must pan');
     assert.strictEqual(viewportCanPan(bounds, box, 0.5), false, 'zoomed out, the whole map is inside');

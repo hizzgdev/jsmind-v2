@@ -203,8 +203,17 @@
      * Double-click returns the map to the whole of itself.
      *
      * @remarks
-     * The view the page opens on, so a reader who zoomed into a corner has one
-     * gesture back - the only one a page without a toolbar can offer.
+     * The page opens on the map as it was laid out - not fitted, because which
+     * view a reader should see first is the page's decision and, on a large
+     * map, a fit is a wall of unreadable text. This gesture is the way to the
+     * whole of it from there, and the way back from a zoom that went into a
+     * corner; it is the only one a page without a toolbar can offer.
+     *
+     * `'shrink'` and not `'expand'`: the reader is asking to see everything,
+     * so the fit may only scale down. Blowing a small map up to the size of the
+     * window would answer a different question than the one the gesture asked,
+     * and the page opens unfitted, so a reader who wanted that would not be
+     * looking at a fitted map in the first place.
      *
      * The presses that make a double-click also reach `installPan`, so the
      * first two can move the map by a pixel or two before the click lands.
@@ -218,7 +227,7 @@
      */
     function installDoubleClick(container, commands) {
         container.addEventListener('dblclick', () => {
-            commands.fitToView();
+            commands.fitToView('shrink');
             // A fit is a zoom change, so what a finger on the map means is
             // re-decided here exactly as it is after a wheel turn.
             syncPanTouchAction(container, commands);
@@ -239,13 +248,16 @@
         const jm = await jsMind.create(container);
         const mind = jsMind.Serializer.create('json').deserialize(data);
         await jm.open(mind);
-        // Two frames: fonts and the shadow stylesheet settle in the first, and
-        // the second measures the layout they produced. Only then is there a
-        // content box to fit.
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        jm.commands.fitToView();
-        // The fit is the first thing to change the zoom, so the touch rule is
-        // decided from its result rather than from the 1x the page opened at.
+        // Nothing is fitted here. A map opens at its natural size, which is the
+        // size its text was written for: fitting a large map to the window
+        // shrinks it until the labels are unreadable, and that is a decision for
+        // whoever is showing the map, not for the page that renders one. The
+        // double-click below is this page's answer to "show me all of it", and
+        // it is only made when the reader asks.
+        //
+        // The touch rule still has to be decided up front, from the state the
+        // map opens in: without it a finger drag on a map that overflows would
+        // scroll the page instead of the map.
         syncPanTouchAction(container, jm.commands);
         installWheel(container, jm.commands);
         installPan(container, jm.commands);

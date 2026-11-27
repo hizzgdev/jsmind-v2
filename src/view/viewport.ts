@@ -24,7 +24,7 @@
  */
 
 import { JmPoint, type JmSize } from '../common/index.ts';
-import type { JmViewportAnchor } from './handle.ts';
+import type { JmFitToViewMode, JmViewportAnchor } from './handle.ts';
 
 /**
  * The zoom range the view accepts.
@@ -195,30 +195,36 @@ export function viewportCanPan(bounds: JmViewportBounds, viewport: JmSize, scale
 }
 
 /**
- * The state that shows the whole content, centred in the viewport.
+ * The state that fits the content to the viewport, in one of the two
+ * directions, centred.
  *
  * @remarks
  * The zoom is the largest factor at which both of the content's axes fit,
- * clamped to {@link JmViewportScaleRange} - a map smaller than the box is
- * enlarged exactly as a larger one is shrunk. The origin is then the one
- * {@link viewportOriginFor} gives for putting the content's middle in the
- * middle of the box.
+ * clamped to {@link JmViewportScaleRange} - with the map's own size as one of
+ * the bounds, and which bound depends on the mode. `'shrink'` never goes above
+ * it, so a map smaller than the box stays at 1x and keeps its text at the size
+ * it was written; `'expand'` never goes below it, so a map larger than the box
+ * stays at 1x and keeps the part of it the reader was reading. The origin is
+ * then the one {@link viewportOriginFor} gives for putting the content's middle
+ * in the middle of the box, in both modes.
  *
- * Deliberately independent of the current state: two calls on the same content
- * and box return the same numbers, which is what makes `fitToView` idempotent.
- * Nothing here clamps the origin to the pan band - at exactly-fitting zoom that
- * band is empty (`span == 0` on a binding axis, `span < 0` on the other) and a
- * clamp with nothing to clamp into would keep the old origin, i.e. leave a map
- * in whatever corner a previous zoom pushed it to.
+ * Deliberately independent of the current state: two calls on the same content,
+ * box and mode return the same numbers, which is what makes `fitToView`
+ * idempotent. Nothing here clamps the origin to the pan band - at an exactly
+ * fitting zoom that band is empty (`span == 0` on a binding axis, `span < 0` on
+ * the other) and a clamp with nothing to clamp into would keep the old origin,
+ * i.e. leave a map in whatever corner a previous zoom pushed it to.
  *
  * @param bounds - Content rectangle, in map pixels.
  * @param viewport - Visible size, in viewport pixels.
+ * @param mode - Which side of the map's natural size the zoom may not cross.
  * @returns The state to adopt.
  *
  * @private
  */
-export function fitViewport(bounds: JmViewportBounds, viewport: JmSize): JmViewportTransform {
-    const scale = clampViewportScale(Math.min(viewport.width / bounds.width, viewport.height / bounds.height));
+export function fitViewport(bounds: JmViewportBounds, viewport: JmSize, mode: JmFitToViewMode): JmViewportTransform {
+    const fitting = Math.min(viewport.width / bounds.width, viewport.height / bounds.height);
+    const scale = clampViewportScale(mode === 'expand' ? Math.max(1, fitting) : Math.min(1, fitting));
     const centre = new JmPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
     const origin = viewportOriginFor(centre, { x: viewport.width / 2, y: viewport.height / 2 }, scale);
     return { x: origin.x, y: origin.y, scale };

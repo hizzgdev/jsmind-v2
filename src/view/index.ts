@@ -6,7 +6,7 @@ import { JmEdgeView } from './edge.ts';
 import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
 import { captureShadowContent, type JmExportImageOptions, type JmExportImageResult } from './export.ts';
-import type { JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
+import type { JmFitToViewMode, JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
 import { viewportCssTransform, panViewport, panViewportTo, viewportOriginFor, zoomViewport, fitViewport, viewportCanPan, type JmViewportBounds, type JmViewportTransform } from './viewport.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
@@ -424,12 +424,12 @@ export class JmView implements JmViewHandle {
     }
 
     /**
-     * Scales the map so that all of it fits the viewport, and centres it.
+     * Fits the map to the viewport, shrinking or expanding it as told.
      *
      * @remarks
-     * Two steps, both composed from the arithmetic beside them: the largest
-     * zoom at which the content fits, and the origin that puts the content's
-     * middle in the middle of the box.
+     * Two steps, both composed from the arithmetic beside them: the zoom the
+     * mode allows, and the origin that puts the content's middle in the middle
+     * of the box.
      *
      * The origin is written rather than handed to {@link JmView.panTo}, and
      * that is the answer the whole design turns on. At exactly-fitting zoom the
@@ -439,8 +439,8 @@ export class JmView implements JmViewHandle {
      * `centerOn` would therefore leave a map in whatever corner it was dragged
      * to, and no drag could bring it back, because the band stays empty. So
      * this composes the same arithmetic with the clamp left out: there is
-     * nothing to clamp into, and the only origin that shows the whole content
-     * is the one that shows its middle.
+     * nothing to clamp into, and the only origin that shows the content the way
+     * the mode asks is the one that shows its middle.
      *
      * The box is taken over before anything is measured. On a page whose map
      * overflows, the inner box is showing a scrollbar at that moment and its
@@ -449,17 +449,25 @@ export class JmView implements JmViewHandle {
      * one command, visible as a small jump the first time the reader fits it
      * again.
      *
+     * @param mode - `'shrink'` for a map too large for the box, `'expand'` for
+     * one too small: each takes the map's natural size as the bound the zoom
+     * may not cross, and leaves the other state at 1x.
+     * @throws {@link JsMindError} When `mode` is not one of those two, before
+     * the box is touched, so a refused call leaves the view exactly as it was.
      * @throws {@link JsMindError} When this view has not been given a map yet:
      * there is no content to fit, and the scale and origin a zero-sized box
      * produces would shift the first map that is opened afterwards. A closed
      * map is not the same thing - the view keeps the last map it was shown.
      */
-    fitToView(): void {
+    fitToView(mode: JmFitToViewMode): void {
+        if (mode !== 'shrink' && mode !== 'expand') {
+            throw new JsMindError(`Unknown fit mode '${String(mode)}'; expected 'shrink' or 'expand'`);
+        }
         if (this.mind === null) {
             throw new JsMindError('No mind map is currently open');
         }
         this._activateViewport();
-        this._setViewport(fitViewport(this.contentBounds, this._viewportSize()));
+        this._setViewport(fitViewport(this.contentBounds, this._viewportSize(), mode));
     }
 
     /**

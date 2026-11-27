@@ -11,7 +11,7 @@ import assert from 'node:assert';
 
 import { JmCommander } from '../../src/application/commander.ts';
 import { JsMindError } from '../../src/common/error.ts';
-import type { JmViewHandle, JmViewport, JmViewportAnchor } from '../../src/view/handle.ts';
+import type { JmFitToViewMode, JmViewHandle, JmViewport, JmViewportAnchor } from '../../src/view/handle.ts';
 import type { JmExportImageOptions, JmExportImageResult } from '../../src/view/export.ts';
 
 /** A zoom request the fake view received. */
@@ -62,8 +62,9 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
         centerOn(nodeId: string): void {
             centres.push(nodeId);
         },
-        fitToView(): void {
-            fits.push('fit');
+        fitToView(mode: JmFitToViewMode): void {
+            // Recorded, not interpreted: the mode is the caller's decision.
+            fits.push(mode);
         },
         getViewport(): JmViewport {
             return viewport;
@@ -114,7 +115,7 @@ test('commander - exportImage surfaces a view failure to the caller', async () =
             // Not exercised here.
         },
         fitToView(): void {
-            // Not exercised here.
+            // Not exercised here, and the mode does not change that.
         },
         getViewport(): JmViewport {
             return { x: 0, y: 0, scale: 1, width: 0, height: 0, canPan: false };
@@ -173,13 +174,16 @@ test('commander - centerOn forwards the node id to the view', () => {
     assert.deepStrictEqual(centres, ['jm-7']);
 });
 
-test('commander - fitToView is forwarded to the view', () => {
+test('commander - fitToView is forwarded to the view, mode and all', () => {
     const { view, fits } = fakeView();
     const commander = new JmCommander(view);
 
-    commander.fitToView();
+    commander.fitToView('shrink');
+    commander.fitToView('expand');
 
     // The zoom and the origin are the view's, and so is the box whose size
     // decides both: a commander that computed a fit would need the layout too.
-    assert.deepStrictEqual(fits, ['fit']);
+    // The mode is the one thing it must not invent - which state the map is in
+    // is the caller's question, and a default here would answer it for them.
+    assert.deepStrictEqual(fits, ['shrink', 'expand']);
 });
