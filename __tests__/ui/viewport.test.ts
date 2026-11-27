@@ -47,9 +47,11 @@ let browser: BrowserHarness;
  * A map with branches on both sides, so nodes land on both sides of the middle
  * of the view.
  *
+ * @param branchCount - How many first-level branches to build.
+ * @param leafCount - How many leaves each branch carries.
  * @returns The document, ready to be serialised into the page.
  */
-function fixture(): unknown {
+function fixture(branchCount = 6, leafCount = 3): unknown {
     const nodes: Record<string, FixtureNode> = {};
     const branches: string[] = [];
     const node = (
@@ -68,11 +70,11 @@ function fixture(): unknown {
         data: {},
     });
 
-    for (let branch = 0; branch < 6; branch += 1) {
+    for (let branch = 0; branch < branchCount; branch += 1) {
         const id = `c${branch}`;
         const side = branch % 2 === 0 ? 1 : -1;
         const leaves: string[] = [];
-        for (let leaf = 0; leaf < 3; leaf += 1) {
+        for (let leaf = 0; leaf < leafCount; leaf += 1) {
             const leafId = `${id}_${leaf}`;
             leaves.push(leafId);
             nodes[leafId] = node(leafId, `分支 ${branch}.${leaf} 的说明文字`, id, [], side);
@@ -119,10 +121,11 @@ interface Snapshot {
  * Opens the fixture in a fresh page and leaves the instance on `window.__jm`.
  *
  * @param document_ - Document to render.
+ * @param host - Size of the container, in CSS pixels. Defaults to {@link HOST}.
  */
-async function open(document_: unknown): Promise<void> {
+async function open(document_: unknown, host = HOST): Promise<void> {
     await browser.setContent(
-        `<div id="container" style="width:${HOST.width}px;height:${HOST.height}px"></div>`
+        `<div id="container" style="width:${host.width}px;height:${host.height}px"></div>`
     );
     await browser.loadBundle();
     await browser.evaluate(
@@ -468,4 +471,57 @@ test('ui viewport - a node added while zoomed is laid out at its layout size', a
         assert.strictEqual(node.width, reference.width, `${node.text} records a different width when zoomed`);
         assert.strictEqual(node.height, reference.height, `${node.text} records a different height when zoomed`);
     }
+});
+
+test('ui viewport - a zoom takes over the scroll the reader had already made', async () => {
+    // A map bigger than its box, so the inner box really scrolls natively
+    // before any zoom arrives. The box is deliberately small: the fixture is
+    // only wide where a chain of nodes stacks, and a scroll offset on one axis
+    // alone would leave half of the handover untested.
+    await open(fixture(10, 6), { width: 420, height: 300 });
+    const ready = await browser.evaluate<{ scrollable: boolean }>(
+        `(() => {
+            const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
+            return { scrollable: inner.scrollWidth > inner.clientWidth && inner.scrollHeight > inner.clientHeight };
+        })()`
+    );
+    assert.ok(ready.scrollable, 'the fixture should overflow its box, otherwise the scroll being taken over proves nothing');
+
+    await command(`
+        const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
+        inner.scrollLeft = 120;
+        inner.scrollTop = 60;
+    `);
+    const scrolled = await snapshot();
+
+    // Until a command arrives the box is still natively scrolled, and the
+    // accessor has to describe that rather than report the map at its origin.
+    assert.strictEqual(scrolled.inner.overflow, 'auto', 'nothing has taken the box over yet');
+    assert.strictEqual(scrolled.inner.transform, '', 'still no transform');
+    assert.deepStrictEqual(
+        { x: scrolled.viewport.x, y: scrolled.viewport.y, scale: scrolled.viewport.scale },
+        { x: 120, y: 60, scale: 1 },
+        'the viewport reports the scroll the reader is looking at'
+    );
+    assertPaintMatchesViewport(scrolled);
+
+    // A zoom folds that displacement into the origin: the map point under the
+    // anchor before the command is still under it after, which is exactly what
+    // a silently dropped scroll offset would break.
+    const anchor = { x: 400, y: 300 };
+    const focus = { x: scrolled.viewport.x + anchor.x, y: scrolled.viewport.y + anchor.y };
+    await command(`jm.commands.zoomTo(1.5, { x: ${anchor.x}, y: ${anchor.y} })`);
+    const zoomed = await snapshot();
+
+    assert.strictEqual(zoomed.inner.overflow, 'hidden', 'the transform is in charge now');
+    assert.strictEqual(zoomed.viewport.scale, 1.5);
+    assert.ok(
+        Math.abs(zoomed.viewport.x + anchor.x / 1.5 - focus.x) < 1e-6,
+        `the anchored map point drifted horizontally: ${zoomed.viewport.x}`
+    );
+    assert.ok(
+        Math.abs(zoomed.viewport.y + anchor.y / 1.5 - focus.y) < 1e-6,
+        `the anchored map point drifted vertically: ${zoomed.viewport.y}`
+    );
+    assertPaintMatchesViewport(zoomed);
 });
