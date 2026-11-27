@@ -309,6 +309,7 @@ export class JmView implements JmViewHandle {
      * @param y - Map-space y, in CSS pixels.
      */
     panTo(x: number, y: number): void {
+        this._activateViewport();
         this._setViewport({ x, y, scale: this.viewport.scale });
     }
 
@@ -319,6 +320,7 @@ export class JmView implements JmViewHandle {
      * @param dy - Pixels to move the map down.
      */
     panBy(dx: number, dy: number): void {
+        this._activateViewport();
         this._setViewport(panViewport(this.viewport, dx, dy));
     }
 
@@ -331,6 +333,7 @@ export class JmView implements JmViewHandle {
      * position wants.
      */
     zoomTo(scale: number, anchor?: JmViewportAnchor): void {
+        this._activateViewport();
         this._setViewport(zoomViewport(this.viewport, scale, anchor ?? this._viewportCentre()));
     }
 
@@ -349,6 +352,7 @@ export class JmView implements JmViewHandle {
         if (!node) {
             throw new JsMindError(`Node '${nodeId}' is not in the open mind map`);
         }
+        this._activateViewport();
         // The node's own box, in map space: the layout point is its top-left
         // corner, and the recorded size is its extent from there.
         const layoutPoint = this.arranger.calculateNodePoint(node).offset(this.viewOffset);
@@ -381,8 +385,15 @@ export class JmView implements JmViewHandle {
      * The map is laid out centred in the content box (see `_updateViewSize`),
      * so the content box's middle is the map's middle: focusing on it centres
      * the map whether the map is larger than the viewport or smaller.
+     *
+     * The box is taken over *before* its size is read. While native scrolling is
+     * in charge, classic scrollbars occupy part of the box, and the fit would
+     * then be computed against a box that is narrower than the one the fit
+     * itself creates - a slightly-too-small scale, and a different one from the
+     * fit a reader gets on the next gesture. Same command, same answer.
      */
     fitToView(): void {
+        this._activateViewport();
         const viewportSize = this._viewportSize();
         const scale = fitViewportScale(this.contentSize, viewportSize);
         const focus = new JmPoint(this.viewSize.width / 2, this.viewSize.height / 2);
@@ -404,6 +415,23 @@ export class JmView implements JmViewHandle {
     }
 
     /**
+     * Takes the inner box over from native scrolling, once.
+     *
+     * @remarks
+     * A transform moves content without extending the scrollable area, so with
+     * both in charge a drag would move the map and a scrollbar would move it
+     * again. Done before any size is read, because the scrollbars it removes
+     * were occupying the box the size is read from.
+     */
+    private _activateViewport(): void {
+        if (this.viewportActive) {
+            return;
+        }
+        this.viewportActive = true;
+        this.innerContainer.element.style.overflow = 'hidden';
+    }
+
+    /**
      * Writes the viewport state onto the inner box.
      *
      * @remarks
@@ -412,17 +440,9 @@ export class JmView implements JmViewHandle {
      * inside it - and `export.ts` resets `transform` on the box it clones, which
      * is what keeps a capture independent of where the view happens to be
      * looking.
-     *
-     * The first call also takes the box over from native scrolling, because a
-     * transform does not extend the scrollable area: with both in charge a drag
-     * would move the map and a scrollbar would move it again.
      */
     private _applyViewport(): void {
         const element = this.innerContainer.element;
-        if (!this.viewportActive) {
-            this.viewportActive = true;
-            element.style.overflow = 'hidden';
-        }
         element.style.transformOrigin = '0 0';
         element.style.transform = viewportCssTransform(this.viewport);
     }
