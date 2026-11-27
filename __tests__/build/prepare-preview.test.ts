@@ -55,6 +55,19 @@ function withTempDir<T>(body: (dir: string) => T): T {
     }
 }
 
+/**
+ * The deploy step's own text, from its `- name:` to the next step.
+ *
+ * The whole workflow is one string, so a bare `/--token/` would also match
+ * prose in a comment; scoping to the step keeps these assertions about the
+ * command that actually runs.
+ */
+function deployStep(): string {
+    const found = /- name: Deploy the preview[\s\S]*?(?=\n {6}- name: )/.exec(WORKFLOW);
+    assert.ok(found, 'the preview job should have a `Deploy the preview` step');
+    return found?.[0] ?? '';
+}
+
 test('pickTone: every tone in the model is reachable, in the model\'s order', () => {
     // The expected list comes from JmTone, so this fails if the picker grows a
     // list of its own and that list drifts from the palette.
@@ -213,40 +226,111 @@ test('the page is exported from the file the prepare step wrote', () => {
     assert.ok(exported, 'the preview job should export a page from the prepared data');
     assert.equal(exported?.[1], prepared?.[1]);
 
-    // And the exported file is the one the artifact step uploads. A page
-    // written to another path uploads nothing, and the comment would then point
-    // at a run with no artifact in a job that stayed green.
-    //
-    // Scoped to the upload step: `/path: (\S+)/` alone takes the first `path:`
-    // anywhere in the workflow, so an unrelated cache step added above would
-    // red this case with a message about the preview page.
-    const uploaded = /id: upload-html[\s\S]*?path: (\S+)/.exec(WORKFLOW);
-    assert.ok(uploaded, 'the artifact step should name the file it uploads');
-    assert.equal(exported?.[2], uploaded?.[1]);
+    // And the exported file is the one the deploy publishes. A page written to
+    // another path publishes whatever an earlier run left there, or nothing,
+    // and the comment then links to a page from another commit in a job that
+    // stayed green.
+    const published = /npx --yes surge (\S+) \S+ --preview/.exec(deployStep());
+    assert.ok(published, 'the deploy step should name the page it publishes');
+    assert.equal(exported?.[2], published?.[1]);
 });
 
-test('the page link is the download URL the upload step reports', () => {
-    // Two ways to get this address wrong, and the first one shipped: an
-    // assembly from the run id (`/actions/runs/<id>/artifacts` is not a GitHub
-    // route - it answers 404, so the comment's link lands on "Page not found"),
-    // and the run page's `#artifacts` anchor, which is a page to read rather
-    // than a file to download. `artifact-url` is the output the action
-    // documents for linking to an artifact from a pull request comment.
-    assert.match(WORKFLOW, /ARTIFACT_URL: \$\{\{ steps\.upload-html\.outputs\.artifact-url \}\}/);
+test('the deploy publishes to the shared domain, and names it once', () => {
+    // One domain for the whole repository is the design: a domain per pull
+    // request would need a teardown nobody runs, and the previews it leaves
+    // behind stay readable indefinitely. A single occurrence of the name keeps
+    // the deploy and the fork warning from drifting apart.
+    const occurrences = WORKFLOW.match(/jsmind-v2-pr-preview\.surge\.sh/g) ?? [];
+    assert.equal(occurrences.length, 1, 'the domain is written once, into $DOMAIN');
+    assert.match(deployStep(), /DOMAIN=jsmind-v2-pr-preview\.surge\.sh/);
+});
+
+test('the comment links the revision the deploy step reports', () => {
+    // The revision id is a timestamp surge picks, so there is nothing local to
+    // assemble the address from. The deploy reads it off surge's own output and
+    // the comment reads the step; a link built from the domain instead would
+    // name a host that does not exist.
+    assert.match(WORKFLOW, /PAGE_URL: \$\{\{ steps\.surge\.outputs\.url \}\}/);
+    assert.match(WORKFLOW, /\[Open the exported page\]\(\$PAGE_URL\)/);
     assert.ok(
-        !/format\('https:\/\/github\.com\/\{0\}\/actions\/runs/.test(WORKFLOW),
-        'the artifact URL is taken from the upload step, not built from the run id'
+        !/https:\/\/\$\{?[A-Za-z_]+\}?\.surge\.sh/.test(WORKFLOW),
+        'the address is read off surge, not assembled from the domain'
+    );
+});
+
+test('the deploy step claims the id and output the comment reads', () => {
+    // `id: surge` and `url` are the contract between two steps in this job, the
+    // same kind of name as the secret and just as silent when it drifts: a
+    // rename leaves the comment with no link and CI green.
+    const deploy = deployStep();
+    assert.match(deploy, /id: surge/);
+    assert.match(deploy, /echo "url=https:\/\/\$host" >> "\$GITHUB_OUTPUT"/);
+});
+
+test('the deploy hands the token to the environment, never to argv', () => {
+    // `--token` would put the credential in the log, which is the one thing
+    // SURGE_TOKEN exists to prevent. Step-scoped rather than a job-level env:
+    // this job already holds two credentials, and a third readable by every
+    // step buys nothing.
+    const deploy = deployStep();
+    assert.match(deploy, /SURGE_TOKEN: \$\{\{ secrets\.SURGE_TOKEN \}\}/);
+    assert.ok(!/--token/.test(deploy), 'the token travels in the environment, not on the command line');
+
+    // Read in exactly one place: a second reference is either a copy that can
+    // drift or a job-level `env:` that hands this credential to every step in a
+    // job which already holds two others.
+    const refs = WORKFLOW.match(/secrets\.SURGE_TOKEN/g) ?? [];
+    assert.equal(refs.length, 1, 'only the deploy step reads the surge secret');
+
+    // `--yes` because npx otherwise waits on a prompt no runner can answer, and
+    // `continue-on-error` because a deploy having a bad day is not a test
+    // failing - the comment simply loses its link.
+    assert.match(deploy, /npx --yes surge /);
+    assert.match(deploy, /continue-on-error: true/);
+});
+
+test('the comment is posted while either half of it exists', () => {
+    // The condition used to be the image alone, so a failed upload took the
+    // link down with it and a fork could never comment at all.
+    assert.match(
+        WORKFLOW,
+        /if: steps\.upload\.outputs\.url != '' \|\| steps\.surge\.outputs\.url != ''/
     );
 
-    // The line promises a file that opens on a double-click, so the upload has
-    // to hand back the page itself and outlive a review: `archive: false` is
-    // what stops GitHub wrapping it in a zip, and the retention is the period
-    // the pull request body tells the reader about. Neither is load-bearing for
-    // a green run, which is exactly why nothing else would notice them going.
-    const upload = /id: upload-html[\s\S]*?retention-days: (\d+)/.exec(WORKFLOW);
-    assert.ok(upload, 'the upload step should set a retention period');
-    assert.match(upload[0], /archive: false/);
-    assert.equal(upload?.[1], '30');
+    // Each paragraph is built from its own value and interpolated into the
+    // body, so a comment carrying one of the two never claims the other. The
+    // body lines are pinned as bare variables: an image line written straight
+    // into the heredoc would stay correct while the value that feeds it stops
+    // being used.
+    //
+    // The `<sub>` splits on the same line: "transparent background" and
+    // "uploaded as a comment attachment" are image-only claims, and a comment
+    // whose image upload failed would otherwise make them.
+    assert.match(
+        WORKFLOW,
+        /if \[ -n "\$\{PREVIEW_URL:-\}" \]; then\s*\n\s*image_line=[^\n]*\n\s*image_note=/
+    );
+    assert.match(WORKFLOW, /if \[ -n "\$\{PAGE_URL:-\}" \]; then\s*\n\s*page_line=/);
+    assert.match(WORKFLOW, /^ {10}\$image_line$/m);
+    assert.match(WORKFLOW, /^ {10}\$page_line$/m);
+    assert.match(WORKFLOW, /^ {10}<sub>.*\$\{image_note\}\$\{page_note\}<\/sub>$/m);
+});
+
+test('a failed deploy says so, instead of dropping the link silently', () => {
+    // The other half of "CI stays green when surge fails": a comment with no
+    // link and no word about it reads as if this repository has no live preview
+    // at all, so the absent link has to be stated rather than omitted.
+    assert.match(WORKFLOW, /page_line='_The live preview could not be published for this run\._'/);
+});
+
+test('the page is published, not shipped through the artifact store', () => {
+    // The artifact route is what this replaced: its download asks the reader to
+    // sign in first and arrives as a file, so "open it" was a detour. A
+    // leftover upload would still be green and unused, which is why its absence
+    // is asserted rather than left to review.
+    assert.ok(!/upload-artifact/.test(WORKFLOW), 'the page is published, not uploaded as an artifact');
+    assert.ok(!/upload-html/.test(WORKFLOW), 'the artifact step is gone, and nothing reads its output');
+    assert.ok(!/ARTIFACT_URL/.test(WORKFLOW), 'the comment does not take an artifact address');
 });
 
 test('the preview job turns transparency on, for its own render only', () => {
