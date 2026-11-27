@@ -555,18 +555,31 @@ class RedeliveryTests(unittest.TestCase):
 
 
 class ClosedPRWeka(FakeWeka):
-    """FakeWeka that records the close-path side effects instead of running them."""
+    """FakeWeka that records the close-path side effects instead of running them.
+
+    `close_events` is one ordered list across all three steps on purpose: the
+    order between cleanup and the groom card is itself the contract (a card that
+    cannot be created must not cost the worktree removal that precedes it), and
+    three separate lists would let the calls be swapped without a red test.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.cleaned = []
         self.stripped = []
+        self.close_events = []
 
     def cleanup_branch(self, branch, merged):
+        self.close_events.append("cleanup")
         self.cleaned.append((branch, merged))
 
     def strip_labels(self, number, labels):
+        self.close_events.append("strip")
         self.stripped.append((number, tuple(labels)))
+
+    def _queue_groom_for_pr(self, number, pr, payload, labels):
+        self.close_events.append("create")
+        return super()._queue_groom_for_pr(number, pr, payload, labels)
 
 
 class GroomAfterPRCloseTests(unittest.TestCase):
@@ -606,6 +619,11 @@ class GroomAfterPRCloseTests(unittest.TestCase):
 
         self.assertEqual(weka.cleaned, [("fix/arranger-cousin-spacing", True)])
         self.assertEqual(weka.stripped, [(PR_NUMBER, ("weka", "weka-reviewed"))])
+        self.assertEqual(
+            weka.close_events, ["cleanup", "strip", "create"],
+            "cleanup must land before the card create: the branches and labels are "
+            "gone whatever the create does",
+        )
 
     def test_a_closed_unmerged_pr_still_queues_a_scout_card(self):
         weka = ClosedPRWeka(config=GROOM)

@@ -171,10 +171,11 @@ event is for:
   (`hermes kanban --board jsmind-v2 list`) or a comment on the PR explaining why not. Only the human account
   can trigger this path — bot events are ignored on purpose — so ask the user to leave the comment instead of
   working around the gate.
-- **Groom card (scout)**: when `groom_board` / `groom_assignee` are configured, the same PR close must leave
-  `#<pr>: Groom — …` on the groom board (`hermes kanban --board groom list`). The first time that branch is
-  switched on, the manual rehearsal in `team/automations/weka/README.md` →「主机侧准备」is the only evidence
-  that the profile and the board are dispatchable; a real merge is too expensive to discover that with.
+- **Groom card (scout)**: when `groom_board` / `groom_assignee` are configured, the manual rehearsal in
+  `team/automations/weka/README.md` →「主机侧准备」is what proves the profile and the board are dispatchable —
+  a real merge is too expensive to discover that with. The rehearsal card's title is its own; the
+  `#<pr>: Groom — …` shape is covered by `test_a_merged_pr_queues_a_scout_card_on_the_groom_board`, and the
+  next real close is the end-to-end confirmation that the branch fires, not a gate for this deploy.
 
 A real event is the one thing here that is not a reset step: it writes to GitHub and can create a card. So it
 is gated on the step-2 diff — run it when that list contained `github-webhook.py` or

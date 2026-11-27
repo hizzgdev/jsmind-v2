@@ -53,7 +53,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 
 - 人类只跟 GitHub 打交道，bot 之间只跟看板打交道；webhook 是两者之间的桥，不跑任何 LLM。
 - **卡只是触发器，GitHub 才是事实来源。** 卡上只有对象 URL 和触发快照，细节由 cody/reed 自己去 GitHub 查。
-- 看板上没有"等人审核"这个状态。人审的门在 GitHub 上：reviewer 请求 + `weka-reviewed` 标签。所以卡不会被 block 也不会有 triage，`block/triage/specify` 那一整套都不涉及。
+- 看板上没有"等人审核"这个状态。人审的门在 GitHub 上：reviewer 请求 + `weka-reviewed` 标签。所以 cody / reed 的卡从不 block，也不会有 triage，`triage/specify` 那一整套不涉及；**scout 的卡会 block**（`SOUL.scout.md` 让它在 URL 解析不出、证据不足、需求自相矛盾时停下来等人），`block` 只属于 groom 那条线。
 
 ## 卡片与编号
 
@@ -129,6 +129,8 @@ scout 一轮做三件事：
 
 **一卡一轮。** scout 的卡生命周期很短，三种情况都算完成并立即 close：建（或补）了一个 issue 并 assign；回复了 owner 的评论；或者判断没有下一步，在触发它的 PR / issue 上写明扫过什么、为什么停在这里。重跑的成本就是一张小卡。
 
+**卡 blocked 时，后续关闭会追加到它上面。** scout 会 block（见 `SOUL.scout.md`：URL 解析不出、证据不足、需求自相矛盾），而 `open_groom_card()` 把板上任何未完成的卡当成那条对话线，`blocked` 也算。所以它一停，之后每次 PR 关闭都追加到这张卡，不会新建平行卡，也不会有别人被拉起来：note 不会丢（人 unblock 之后 scout 重新起来，`kanban_show()` 读得到全部），但在那之前「一卡一轮、重跑就是一张小卡」不成立，要等人处理这张卡。`block` 也只停在这一点上——dispatcher 照常拉起别的板上的卡。
+
 **权限边界**：scout 只读仓库、只写 issue（正文、评论、assignee、`weka` 标签）。不改代码、不开 PR、不改 CI、不碰 review、不动别人的卡。
 
 对话循环：scout assign → 你在 issue 上评论 → webhook 建一张新的 scout 卡（`issue_comment` 那条路）→ 下一轮。你满意之后把 issue 转给 `zzgbot`，就回到开发流程。
@@ -143,7 +145,7 @@ hermes profile create scout --clone \
 hermes -p scout config set model.default deepseek-v4.1-flash
 cp team/automations/weka/SOUL.scout.md ~/.hermes/profiles/scout/SOUL.md
 
-hermes kanban boards create groom        # 显示名「需求梳理」
+hermes kanban boards create groom --name 需求梳理  # --name 默认是 slug 的 Title Case，不写就只有「Groom」
 ```
 
 再把两个键填进 webhook 的 `config.json` 并重启服务（两个键在 §4 有详细说明）：
@@ -400,7 +402,7 @@ hermes -p scout config set model.default deepseek-v4.1-flash
 
 ```bash
 hermes kanban boards create jsmind-v2
-hermes kanban boards create groom        # scout 的板，显示名「需求梳理」
+hermes kanban boards create groom --name 需求梳理   # scout 的板
 hermes project create jsmind-v2 ~/repos/jsmind-v2 --board jsmind-v2 --use
 
 # 调度器并发上限（见上文「并发与资源」）

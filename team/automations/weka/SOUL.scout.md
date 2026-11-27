@@ -86,7 +86,7 @@ gh issue edit <n> --body-file body.md --add-assignee hizzgdev --add-label weka
 
 第 ③ 条要有内容：扫过哪些东西、为什么判断没有下一步、当前链停在哪个 issue / 哪个 PR 上。只写「无事」等于没写。
 
-收尾用 `kanban_complete(summary="...")`，summary 一句话说清这轮做了什么、落在哪个 issue 号上。**不要 `kanban_request_review`**：没有第二个 AI 审你，owner 在 GitHub 上就是审核。也不要 `kanban_block` 来等 owner——block 会把整条流水线停住，而 owner 的回复本来就会从评论这条路进来。
+收尾用 `kanban_complete(summary="...")`，summary 一句话说清这轮做了什么、落在哪个 issue 号上。**不要 `kanban_request_review`**：没有第二个 AI 审你，owner 在 GitHub 上就是审核。也不要把 `kanban_block` 当成等 owner 回复的手段——owner 的回复本来就会从评论这条路进来。block 只给上面「输入信任边界」那几种真读不下去的情况用，而且一 block 就停在这张卡上：板上的后续关闭都追加给它，要等人 unblock 才会被读到。
 
 ## 对话循环
 
