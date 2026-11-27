@@ -39,6 +39,8 @@ Internal development docs in [`team/development/`](team/development/):
 - [`v2-requirements.md`](team/development/v2-requirements.md) — v2 目标与功能边界
 - [`render-test-plan.md`](team/development/render-test-plan.md) — 渲染回归测试清单
 - [`commit-types.md`](team/development/commit-types.md) — 提交类型的唯一约定
+- [`repo-conventions.md`](team/development/repo-conventions.md) — 动手改之前的判断：过约束、拆卡、命名空间、公开文本口径
+- [`local-verification.md`](team/development/local-verification.md) — 本地跑什么、钩子怎么缓存、哪些推送失败是假象
 
 Archived material is in [`team/archive/`](team/archive/).
 
