@@ -44,12 +44,12 @@
 | 布局 `arranger/` | ✅ 完整（644 行测试） | 无 |
 | 模型 `model/` | ✅ 完整，含 `style` / `shadow` / `folded` / `side` / `data`；observer 事件体系完整 | **`onNodeUpdated` / `onNodeMoved` 是空实现** |
 | 序列化 `serialization/` | ✅ `format` / `theme` / `style` 全字段；37 个错误码 | 无 |
-| 视图 `view/` | ✅ Shadow DOM、主题变量、贝塞尔连线、节点级样式、PNG 导出 | **无平移缩放、无交互事件** |
+| 视图 `view/` | ✅ Shadow DOM、主题变量、贝塞尔连线、节点级样式、PNG 导出 | **无交互事件**（平移 / 缩放 / 居中 / 适配已落地） |
 | 应用 `application/` | ✅ `JsMind` 门面 + `JmMindChangeCoordinator` + `JmCommander` | 无 |
-| CLI | ✅ 14 个子命令，含 `export` | **无 `node set-style`** |
-| 产物 / 编辑 / skill / MCP / v1 adapter | ❌ 未开始 | S8 / S10 / S11 / S12 / S13 |
+| CLI | ✅ 14 个子命令，含 `export` | 无 |
+| 产物 / 编辑 / skill / MCP / v1 adapter | 产物（S8、S9 的 HTML）与 skill（S11）已落地；编辑 / MCP / v1 adapter 未开始 | S10 / S12 / S13 |
 
-**测试底子**：300 个单元用例 + 23 个 UI 用例。
+**测试底子**：674 个单元用例 + 71 个 UI 用例。
 
 **应用层的两条通道**（判断标准是「这个操作改不改模型」）：
 
@@ -78,16 +78,16 @@
 第 3 层 ─ 产物
   S7a CLI：context, validate, mind/node, create     ✅
   S7b CLI：export                                   ✅
-  S7c CLI：node set-style                          ⏳
-  S8  自包含 HTML 生成                             ❌
-  S9  导出 PNG / JSON / HTML                       ⚠️ PNG 完成，JSON/HTML 待做
+  S7c CLI：node set-style                          ✅
+  S8  自包含 HTML 生成                             ✅
+  S9  导出 PNG / JSON / HTML                       ⚠️ PNG 与 HTML 完成，JSON 待做
       ↓
 第 4 层 ─ 交互
   S10 编辑                                        ❌
-  S14 查看器：平移 / 缩放 / 居中                    ❌
+  S14 查看器：平移 / 缩放 / 居中                    ✅
       ↓
 第 5 层 ─ Agent 接入
-  S11 skill                                       ❌
+  S11 skill                                       ✅
   S12 MCP                                         ❌
       ↓
 补 ─ 兼容
