@@ -163,6 +163,8 @@ agent 还应当给出两个文件的绝对路径。本页也可以下载这次�
 
 ## 接下来可以看
 
+下一篇：[给指定节点上色，把重点标出来](./162-color-nodes-with-tones)
+
 - [快速上手](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/getting-started) — 安装 jsMind 2.x，自己做一张导图
 - [Skill](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/skill) — skill 的安装与用法
 - [CLI](https://hizzgdev.github.io/jsmind-v2/docs/zh/guide/cli) — 全部命令和参数
