@@ -656,8 +656,19 @@ jobs:
       # Forks never receive repository secrets, so the upload warns and stops
       # rather than failing: the point of CI here is the tests, and the picture
       # is a courtesy.
+      #
+      # `continue-on-error` covers the other way this step goes wrong: the
+      # maintainer's token expires or is revoked, the endpoint answers 401/403,
+      # and the `exit 1` below would otherwise fail the job - taking `Deploy the
+      # preview` and the comment down with it, so a run whose page published
+      # fine would offer the reader nothing at all. With this flag a failed step
+      # leaves `url` empty and the comment step drops only its image line, which
+      # is the shape issue #226 asks for: the image is the extra, the link is
+      # the point. The `::error::` stays, so the failure still lands in the log
+      # and the run's annotations instead of hiding behind a green job.
       - name: Upload the preview
         id: upload
+        continue-on-error: true
         env:
           # Two credentials in one step, doing different jobs.
           #
@@ -713,6 +724,23 @@ jobs:
       # list was empty beforehand and whose bare production address still
       # answers 404.
       #
+      # Everything a maintainer needs to keep this running, in one place - the
+      # domain, the secret name, how to re-issue an expired token, and how long
+      # a revision lives:
+      #
+      #   domain    jsmind-v2-pr-preview.surge.sh
+      #   secret    SURGE_TOKEN, repository secret, read by this step alone
+      #   re-issue  surge tokens add --domain jsmind-v2-pr-preview.surge.sh -m ci
+      #             then store the token it prints as SURGE_TOKEN again; nothing
+      #             in this file changes when it is rotated
+      #   lifetime  surge keeps the 100 most recent revisions per domain and
+      #             drops older ones, so a preview link eventually 404s and a
+      #             re-run of this job produces a fresh one
+      #
+      # A revoked token fails the way the rest of this step fails: surge aborts,
+      # the log says why, the job stays green and the comment loses its link.
+      # A comment that has stopped carrying a link is the symptom to look for.
+      #
       # `npx --yes`: without it npx stops on "Ok to proceed?" and waits for a
       # tty a runner does not have, until the job times out.
       #
@@ -753,9 +781,22 @@ jobs:
           # no pattern matches. Measured on this exact command: the same publish
           # under `CI=true FORCE_COLOR=1` emits 29 escape sequences around this
           # line, and the substitution below leaves none of them.
-          out=$(npx --yes surge tmp/preview.html "$DOMAIN" --preview 2>&1)
+          #
+          # Both commands below are allowed to report a failure instead of being
+          # allowed to end the script on one. Under `set -e` a bare
+          # `out=$(npx ...)` exits on a non-zero status before the next line
+          # runs, so the output collected here with `2>&1` - the only account of
+          # what surge said - would never reach the log, and `grep` finding no
+          # address (status 1, promoted by `pipefail`) would end the script
+          # inside an assignment, making the `-z` branch below unreachable.
+          if ! out=$(npx --yes surge tmp/preview.html "$DOMAIN" --preview 2>&1); then
+            printf '%s\n' "$out"
+            echo "::error::surge exited non-zero; the comment will have no link."
+            exit 1
+          fi
+
           plain=$(printf '%s' "$out" | sed -r 's/\x1b\[[0-9;]*[mK]//g')
-          host=$(printf '%s' "$plain" | grep -oE "[0-9]+--${DOMAIN//./\\.}" | tail -1)
+          host=$(printf '%s' "$plain" | grep -oE "[0-9]+--${DOMAIN//./\\.}" | tail -1 || true)
 
           if [ -z "$host" ]; then
             printf '%s\n' "$plain"

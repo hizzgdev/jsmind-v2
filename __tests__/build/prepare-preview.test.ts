@@ -20,12 +20,24 @@
  *
  * The YAML is read as text rather than parsed: the repository has no YAML
  * dependency of its own (`js-yaml` arrives with a transitive package), and what
- * matters is only that these few strings are present.
+ * matters is only that these few strings are present. The deploy step is the
+ * one exception - its script is extracted and run against a stub `npx`, because
+ * whether a diagnostic prints at all is a property of the shell, not of the
+ * text, and a text assertion passes just as happily with the printout
+ * unreachable.
  */
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    chmodSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -56,16 +68,95 @@ function withTempDir<T>(body: (dir: string) => T): T {
 }
 
 /**
- * The deploy step's own text, from its `- name:` to the next step.
+ * One step's own text, from its `- name:` to the next step.
  *
  * The whole workflow is one string, so a bare `/--token/` would also match
  * prose in a comment; scoping to the step keeps these assertions about the
  * command that actually runs.
  */
-function deployStep(): string {
-    const found = /- name: Deploy the preview[\s\S]*?(?=\n {6}- name: )/.exec(WORKFLOW);
-    assert.ok(found, 'the preview job should have a `Deploy the preview` step');
+function stepText(name: string): string {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const found = new RegExp(`- name: ${escaped}[\\s\\S]*?(?=\\n {6}- name: )`).exec(WORKFLOW);
+    assert.ok(found, `the preview job should have a \`${name}\` step`);
     return found?.[0] ?? '';
+}
+
+function deployStep(): string {
+    return stepText('Deploy the preview');
+}
+
+/**
+ * The comment block immediately above a step.
+ *
+ * The owner-facing documentation issue #226 asks for lives there: beside the
+ * commands it explains, where the person rotating a secret will look.
+ */
+function stepComment(name: string): string {
+    const at = WORKFLOW.indexOf(`      - name: ${name}\n`);
+    assert.ok(at >= 0, `the preview job should have a \`${name}\` step`);
+    const before = WORKFLOW.slice(0, at).split('\n');
+    // The slice ends with the newline that opened the `- name:` line, so the
+    // last element is empty and is not part of the comment block.
+    if (before[before.length - 1] === '') before.pop();
+    const kept: string[] = [];
+    for (let i = before.length - 1; i >= 0; i--) {
+        const line = before[i] ?? '';
+        if (!line.startsWith('      #')) break;
+        kept.unshift(line);
+    }
+    return kept.join('\n');
+}
+
+/**
+ * A step's `run:` body, dedented, ready to hand to bash.
+ *
+ * The shell is the only thing that can tell a diagnostic that prints from one
+ * that `set -e` skips over, so the deploy script is run here rather than
+ * pattern-matched: an assertion on its text would pass just as happily with the
+ * printouts unreachable.
+ */
+function stepScript(name: string): string {
+    const body = /^ {8}run: \|\n([\s\S]*)$/m.exec(stepText(name));
+    assert.ok(body, `${name} should run a script`);
+    return (body?.[1] ?? '')
+        .split('\n')
+        .map(line => (line.startsWith(' '.repeat(10)) ? line.slice(10) : line.trimStart()))
+        .join('\n');
+}
+
+/** Runs a step's script in a temp dir with a stub `npx` first on PATH. */
+function runDeploy(npxBody: string): { status: number | null; stdout: string; output: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'jsmind-deploy-'));
+    try {
+        const bin = join(dir, 'bin');
+        mkdirSync(bin);
+        writeFileSync(join(bin, 'npx'), `#!/usr/bin/env bash\n${npxBody}\n`, 'utf8');
+        chmodSync(join(bin, 'npx'), 0o755);
+
+        const script = join(dir, 'step.sh');
+        writeFileSync(script, stepScript('Deploy the preview'), 'utf8');
+        const outputFile = join(dir, 'github-output');
+        writeFileSync(outputFile, '', 'utf8');
+
+        const run = spawnSync('/bin/bash', [script], {
+            cwd: dir,
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH ?? ''}`,
+                SURGE_TOKEN: 'stub-token',
+                GITHUB_OUTPUT: outputFile,
+            },
+        });
+
+        return {
+            status: run.status,
+            stdout: `${run.stdout}${run.stderr}`,
+            output: readFileSync(outputFile, 'utf8'),
+        };
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 }
 
 test('pickTone: every tone in the model is reachable, in the model\'s order', () => {
@@ -235,14 +326,89 @@ test('the page is exported from the file the prepare step wrote', () => {
     assert.equal(exported?.[2], published?.[1]);
 });
 
-test('the deploy publishes to the shared domain, and names it once', () => {
+test('the deploy publishes to the shared domain, and names it once in code', () => {
     // One domain for the whole repository is the design: a domain per pull
     // request would need a teardown nobody runs, and the previews it leaves
-    // behind stay readable indefinitely. A single occurrence of the name keeps
-    // the deploy and the fork warning from drifting apart.
-    const occurrences = WORKFLOW.match(/jsmind-v2-pr-preview\.surge\.sh/g) ?? [];
+    // behind stay readable indefinitely. Code only - the step's comment states
+    // the same domain again for whoever has to rotate the token, and counting
+    // prose here would make the comment unwritable.
+    const code = deployStep()
+        .split('\n')
+        .filter(line => !line.trimStart().startsWith('#'))
+        .join('\n');
+    const occurrences = code.match(/jsmind-v2-pr-preview\.surge\.sh/g) ?? [];
     assert.equal(occurrences.length, 1, 'the domain is written once, into $DOMAIN');
-    assert.match(deployStep(), /DOMAIN=jsmind-v2-pr-preview\.surge\.sh/);
+    assert.match(code, /DOMAIN=jsmind-v2-pr-preview\.surge\.sh/);
+});
+
+test('the deploy step documents the owner-side facts, token rotation included', () => {
+    // Issue #226 asks for exactly one piece of documentation in this PR: the
+    // comment above this step, carrying the four facts a maintainer needs and
+    // cannot read off the commands - the domain, the secret name, how to
+    // re-issue a token that expired, and how long a revision lives. Rotation is
+    // the one with no other home: the secret is rotated in Settings, and the
+    // symptom of forgetting is a green job with a linkless comment, not an
+    // error.
+    const docs = stepComment('Deploy the preview');
+    assert.match(docs, /jsmind-v2-pr-preview\.surge\.sh/, 'the domain is named');
+    assert.match(docs, /secret\s+SURGE_TOKEN/, 'the secret is named');
+    assert.match(
+        docs,
+        /surge tokens add --domain jsmind-v2-pr-preview\.surge\.sh -m ci/,
+        'the rotation command is written down'
+    );
+    assert.match(docs, /100 most recent revisions/, 'the retention rule is written down');
+});
+
+test('a failed image upload does not take the deploy and the comment with it', () => {
+    // Steps do not continue past a failure by default. Without this flag a
+    // rejected upload - an expired or revoked PR_PREVIEW_TOKEN - fails the job
+    // at this step, so `Deploy the preview` never runs and no comment is
+    // posted: the reader loses the link as well, and issue #226's "image failed
+    // but the comment still goes out" has no path left in the workflow.
+    const upload = stepText('Upload the preview');
+    assert.match(upload, /continue-on-error: true/);
+    assert.match(upload, /::error::Upload failed/, 'the failure still shows in the log');
+    // With `url` empty the comment step still fires on the link alone.
+    assert.match(WORKFLOW, /if: steps\.upload\.outputs\.url != '' \|\| steps\.surge\.outputs\.url != ''/);
+});
+
+test('the deploy reads the address off a coloured surge line', () => {
+    // The measured shape: `CI=true FORCE_COLOR=1` wraps the whole line in
+    // escapes, so a pattern applied to the raw output finds nothing.
+    const run = runDeploy(
+        'printf \'\\033[32mSuccess!\\033[0m - Preview available at \\033[36m1785787164375--jsmind-v2-pr-preview.surge.sh\\033[0m\\n\''
+    );
+    assert.equal(run.status, 0, run.stdout);
+    assert.match(run.output, /^url=https:\/\/1785787164375--jsmind-v2-pr-preview\.surge\.sh$/m);
+    assert.match(run.stdout, /published 1785787164375--jsmind-v2-pr-preview\.surge\.sh/);
+});
+
+test('a failed deploy prints what surge said before it gives up', () => {
+    // `set -e` on a bare `out=$(npx ...)` exits inside the assignment, so the
+    // output the step deliberately captured with 2>&1 - the only account of
+    // why the deploy failed - never reaches the log. This runs the real script
+    // with a failing npx and reads the log: a text assertion would pass with
+    // the printout unreachable.
+    const run = runDeploy(
+        'echo \'Aborted - not logged in and no terminal to ask ... or set SURGE_TOKEN\' >&2\nexit 1'
+    );
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /Aborted - not logged in/, 'surge\'s own words survive');
+    assert.match(run.stdout, /::error::surge exited non-zero/);
+    assert.ok(!/^url=/m.test(run.output), 'a failed deploy publishes no address');
+});
+
+test('a deploy that publishes no address says so instead of dying in the assignment', () => {
+    // The other dead branch: surge exits 0 but the address is missing, `grep`
+    // exits 1, and `pipefail` turns that into a failed assignment. The `-z`
+    // check that follows has to be reachable, or a green-looking deploy leaves
+    // the comment with no link and no explanation.
+    const run = runDeploy('echo \'Success! - published somewhere unexpected\'');
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /published somewhere unexpected/, 'the output is printed');
+    assert.match(run.stdout, /::error::surge published no preview address/);
+    assert.ok(!/^url=/m.test(run.output), 'no address means no url output');
 });
 
 test('the comment links the revision the deploy step reports', () => {
