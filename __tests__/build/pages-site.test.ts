@@ -1018,7 +1018,10 @@ describe('landing page', () => {
         // The mask only cuts a shape out of a painted layer: `background:
         // currentColor` is the layer, so dropping it leaves the arrow fully
         // transparent. Safari ignores the unprefixed mask, hence the prefixed
-        // copy in the same list.
+        // copy in the same list. Compare whole declarations, not substrings:
+        // `mask-image: ...` is also inside `-webkit-mask-image: ...`, so a
+        // substring check would pass with the unprefixed property deleted.
+        const declarations = rule.split(';').map((declaration) => declaration.trim());
         for (const declaration of [
             'width: 11px',
             'height: 11px',
@@ -1029,7 +1032,7 @@ describe('landing page', () => {
             '-webkit-mask-image: var(--external-link-icon)',
             'mask-image: var(--external-link-icon)',
         ]) {
-            assert.ok(rule.includes(declaration), `the arrow should carry ${declaration}`);
+            assert.ok(declarations.includes(declaration), `the arrow should carry ${declaration}`);
         }
 
         const uri = /--external-link-icon: url\("([^"]+)"\)/.exec(rule)?.[1];
