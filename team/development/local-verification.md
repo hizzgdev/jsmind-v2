@@ -1,8 +1,8 @@
 # 本地验证与推送：实际在发生什么
 
-> **分工。** [`ci-classification.md`](ci-classification.md) 管 CI 里哪些检查拦合并、哪些只是信息；[`commit-types.md`](commit-types.md) 管提交类型与 PR 标题；本文管**本地**：推送前该跑什么、钩子怎么判定、推送和开 PR 时哪几种失败是假象。三份互相链接，不互相复述。
+> **分工。** [`ci-classification.md`](ci-classification.md) 管 CI 里哪些检查拦合并、哪些只是信息；[`commit-types.md`](commit-types.md) 管提交类型与 PR 标题；本文管**本地**：推送前该跑什么、钩子怎么判定、推送和开 PR 时哪几种失败是假象。本文链接到那两份，不互相复述；反过来的入链（含 `AGENTS.md` 里的入口行）要等后续改动补——那两份与 `AGENTS.md` 都不在本文的改动范围里。
 >
-> **事实会漂。** 钩子跑几步、缓存文件长什么样、哪些 diff 会触发 CI job，这些都会变。本文的每条结论都能用文末「怎么核对」里的命令重跑；重跑对不上，以命令为准，然后改本文——一份过期的文档比没有更危险，它会让人为了躲一个已经不存在的问题做出错误操作。
+> **事实会漂。** 钩子跑几步、缓存文件长什么样、哪些 diff 会触发 CI job，这些都会变。本文里与脚本、配置有关的判定（第 1、2、4、5、6、11 节）都能用文末「怎么核对」里的命令重跑；其余各节靠推理或工具层行为得出，重跑不了——按各节标的「依据」核对。重跑对不上，以命令为准，然后改本文——一份过期的文档比没有更危险，它会让人为了躲一个已经不存在的问题做出错误操作。
 
 ## 0. 一句话
 
@@ -21,7 +21,7 @@
 
 `format-check` 自己又是两层：`check-eof-newline.mjs`（尾换行）+ eslint（格式与规则）。
 
-**耗时**（本仓库当前 HEAD 实测）：整条约 20 秒，其中 format-check 约 14 秒、type-check 约 7 秒。缓存命中时几乎立刻返回（见第 2 节）。
+**耗时**（本仓库实测，同一台机器上重复测也会波动）：整条大致 20–40 秒，其中 format-check 14–30 秒、type-check 7–11 秒——波动主要来自 eslint 的冷热缓存与机器负载。缓存命中时几乎立刻返回（见第 2 节）。
 
 为什么只这两条：它们秒级、确定性、不需要浏览器也不需要构建。测试要先 build 且是分钟级，放进每次 push 的代价大于收益——它在 CI 里是 required，在那里跑一遍就够。
 
@@ -34,7 +34,7 @@ ls -l .git/hooks/pre-push              # 另一种：符号链接到 scripts/git
 
 `core.hooksPath` 指向 `scripts/git-hooks` 时，改脚本立刻生效，不需要再建链接；两个都配了的话 `core.hooksPath` 优先。
 
-**怎么办**：别为了省这 20 秒加 `--no-verify`。它是唯一一道本地闸门，拆掉之后你要等几分钟才知道 CI 说了什么，而 CI 的红是六条检查器一起说话，定位比本地一条命令贵得多。
+**怎么办**：别为了省这几十秒加 `--no-verify`。它是唯一一道本地闸门，拆掉之后你要等几分钟才知道 CI 说了什么，而 CI 的红是六条检查器一起说话，定位比本地一条命令贵得多。
 
 ## 2. 钩子按 SHA 缓存判定
 
@@ -50,14 +50,14 @@ ls -l .git/hooks/pre-push              # 另一种：符号链接到 scripts/git
 
 所以「一秒内失败」从来不是检查结果，是缓存在说话。
 
-**区分打断与真失败**：看日志末尾那段由 `record_end_time` 写入的内容——`---`、`End time:`、`Total elapsed time:`、`PRE_PUSH_SUCCESS`。有这段 = 检查真的跑完了，是失败，往上翻找红的那一步；只有开头几行、没有结束段 = 上次运行在检查中途被打断（超时、Ctrl-C、进程被杀），文件是半截的，内容不代表任何结论。
+**区分打断与真失败**：看日志末尾有没有 `record_end_time` 写的那一段——`---`、`[pre-push] End time:`、`[pre-push] Total elapsed time:`。有这一段 = 检查真的跑完并给出了结论：末尾还有 `PRE_PUSH_SUCCESS` 是全部通过，没有它就是失败，往上翻找红的那一步。只有开头几行、没有结束段 = 上次运行在检查中途被打断（超时、Ctrl-C、进程被杀），文件是半截的，内容不代表任何结论。
 
 **怎么办**：
 
 - 被打断：`rm logs/pre-push/check-status-<sha>`，再推，钩子会重跑全部检查。
 - 真失败：先读日志里红的那一步，修完再推。修完如果 commit 变了，sha 就变了、缓存自然失效；如果没变（比如只改了工作树又改回来），仍要删掉那个文件，否则一直判失败。
 
-**手动驱动一次钩子**（不 push，也不重复付已经付过的钱）：钩子从 stdin 读 `<local_ref> <local_sha> <remote_ref> <remote_sha>`，只有第二个字段被用作缓存键，首行之后 remote 侧两个字段不再参与判定（唯一例外是 `local_ref` 为 `(delete)` 或零 sha 的删分支操作）。所以可以这样喂：
+**手动驱动一次钩子**（不 push，也不重复付已经付过的钱）：钩子从 stdin 读 `<local_ref> <local_sha> <remote_ref> <remote_sha>`，多行时只取第一行。取到之后 `local_sha` 是缓存键，`local_ref` 只在删分支判定里被看（`pre-push:65-68`：`local_ref` 为 `(delete)` 或 sha 全零就直接放行），两个 remote 字段不再参与任何判定。所以可以这样喂：
 
 ```sh
 printf 'refs/heads/%s %s refs/heads/%s 0000000000000000000000000000000000000000\n' \
@@ -112,7 +112,7 @@ npm run format-check                      # 现在这一层看得见它了
 
 ## 5. `npm run build` 不是类型闸门
 
-**现象**：`src/` 里有一个类型错误，`npm run build` exit 0，`dist/` 照出，CI 也没红；于是「用 build 代替测试」的提案反复出现。
+**现象**：`src/` 里有一个类型错误，本地 `npm run build` exit 0、`dist/` 照出，看着什么都没坏；于是「用 build 代替测试」的提案反复出现。CI 上拦下它的是独立的一步 `Type check`（`.github/workflows/ci.yml:276-278`，`library` 相关文件变动时必跑），不是 `build` 的结论——所以「build 绿了」这件事在本地和 CI 都不构成类型断言。
 
 **机制**：`.config/rollup.config.js` 用 `@rollup/plugin-typescript`，没开 `noEmitOnError`，插件把 TypeScript 诊断降级成 rollup warning（输出形如 `(!) [plugin typescript] TS2322: ...`）后继续产出。诊断被打印了，但构建成功。真正的类型闸是 `npm run type-check`（`tsc --noEmit -p tsconfig.json`）。
 
@@ -121,7 +121,7 @@ npm run format-check                      # 现在这一层看得见它了
 - `npm run type-check` → exit 2，`error TS2322: Type 'string' is not assignable to type 'number'.`
 - `npm run build` → exit 0，同一条 TS2322 以 `(!)` 前缀出现，五个 bundle 全部照常产出。
 
-build 本身约 40 秒（实测），比 type-check 慢一个数量级，这也是它不适合塞进钩子的第二个原因。
+build 本身一分钟上下（两次实测 40 秒与 65 秒），是 type-check 的好几倍，这也是它不适合塞进钩子的第二个原因。
 
 **怎么办**：不要用 build 代替 type-check 或代替测试。它证明的是「能打包」，不是「类型对」也不是「行为对」。
 
@@ -297,8 +297,17 @@ grep -nE "^\s{2}[a-z-]+:|^\s{4}name:" .github/workflows/ci.yml
 
 # 缓存的两种状态（第 2 节）
 grep -n "PRE_PUSH_SUCCESS\|check-status" scripts/git-hooks/pre-push
+
+# 尾换行为什么看不见未跟踪文件（第 4 节）
+grep -n "git ls-files\|trackedFiles" scripts/check-eof-newline.mjs
+
+# build 为什么放过类型错误（第 5 节）：插件有没有开 noEmitOnError
+grep -n "typescript(" .config/rollup.config.js
+
+# render 由哪些路径触发（第 11 节）
+grep -nE "src/\*|render-map/|scripts/(render|prepare)-preview\.ts" .github/workflows/ci.yml
 ```
 
 第 1 节的 `grep` 应该只列出 `format-check` 与 `type-check` 两行。多出 `test` 或 `build`，说明钩子变了，改第 1 节并把第 5、6 节的推论重读一遍。
 
-本文出现的耗时数字全部是成文时在本仓库实测的单次结果（format-check、type-check、整条钩子、build 各一次），只用来给「这值得等吗」一个量级。数字随机器和代码库变化，判据不随它变。
+本文出现的耗时数字都是本仓库实测（format-check、type-check、build 各测过两次，整条钩子测过一次；同一台机器上前后差可达两倍），只给「这值得等吗」一个量级。数字随机器、负载、缓存状态变化，判据不随它变。
