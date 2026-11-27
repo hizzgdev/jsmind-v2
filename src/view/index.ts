@@ -351,7 +351,15 @@ export class JmView implements JmViewHandle {
         element.scrollLeft = 0;
         element.scrollTop = 0;
         this.viewportActive = true;
-        element.style.overflow = 'hidden';
+        // `visible`, not `hidden`: native scrolling has to go, but clipping must
+        // not move to this box. An `overflow` that clips does so in the element's
+        // own coordinate space, and this box is only as big as the view - so
+        // below 1x it would keep showing the same slice of the map, merely
+        // smaller, and the rest of the map would be neither painted nor, before
+        // pan exists, reachable. `visible` produces no scrollbars either, so it
+        // ends native scrolling just as `hidden` does. Clipping stays on `:host`,
+        // which is the same size as the view and already has it.
+        element.style.overflow = 'visible';
     }
 
     /**

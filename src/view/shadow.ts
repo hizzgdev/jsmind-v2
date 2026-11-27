@@ -58,6 +58,12 @@ export const JSMIND_VIEW_STYLES = `
         user-select: none;
     }
 
+    /* The viewport writes overflow: visible on the inner box inline when it
+       takes the box over from native scrolling. Clipping a zoomed-out map here
+       would cut it at the box's own edges, which are only the size of the view;
+       :host above does the clipping, at the same edges but in the space the map
+       is painted in. */
+
     /* Transparent, not omitted: a node is appended here to be measured, and
        the box needs its own background layer or the measured width collapses. */
     .jsmind-nodes {

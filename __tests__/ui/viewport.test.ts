@@ -17,6 +17,7 @@
  * 4. The factor stops at the range's ends instead of running past them.
  * 5. `capture()` does not care what the zoom is.
  * 6. A node added while zoomed is laid out at its layout size.
+ * 7. A zoomed-out map is painted whole: taking the box over must not clip it.
  *
  * Pan, `centerOn` and fit-to-view are later items of the same plan and are not
  * exercised here.
@@ -375,8 +376,83 @@ test('ui viewport - the inner box stops scrolling once the zoom takes it over', 
 
     await command('jm.commands.zoomTo(2)');
     const zoomed = await snapshot();
-    assert.strictEqual(zoomed.inner.overflow, 'hidden', 'the transform is in charge now');
+    // Not `hidden`: the inner box is only as big as the view, and clipping there
+    // would cut a zoomed-out map at the box's own edges (see the clipping test).
+    // `visible` does not scroll either, so native scrolling is still gone.
+    assert.strictEqual(zoomed.inner.overflow, 'visible', 'the transform is in charge now');
     assert.match(zoomed.inner.transform, /scale\(2\)/, 'the zoom is written as a transform');
+});
+
+test('ui viewport - a zoomed-out map is painted whole', async () => {
+    // The box the transform is written on is only as big as the view, and an
+    // `overflow` that clips cuts in the element's own coordinate space - so a
+    // clipping value there would keep showing the same screenful of the map,
+    // merely smaller, and the rest of a zoomed-out map would be neither painted
+    // nor (before pan exists) reachable. Clipping belongs to `:host`, whose box
+    // is the same size but which clips what the transform actually painted.
+    //
+    // `getBoundingClientRect()` cannot see this: it ignores ancestor clipping,
+    // so a node cut away by its own box still reports a box inside the view.
+    // An IntersectionObserver can, because its intersection rect is clipped by
+    // every ancestor between the target and the root.
+    await open(fixture(10, 6), { width: 420, height: 300 });
+
+    const painted = await browser.evaluate<{
+        viewport: { scale: number };
+        inside: { text: string; intersects: boolean }[];
+    }>(
+        `(async () => {
+            const jm = window.__jm;
+            const host = document.getElementById('container');
+            jm.commands.zoomTo(0.2);
+
+            const box = host.getBoundingClientRect();
+            const nodes = [...host.shadowRoot.querySelectorAll('.jsmind-node')];
+
+            const seen = new Map();
+            const observer = new IntersectionObserver(entries => {
+                for (const entry of entries) {
+                    seen.set(entry.target, entry.isIntersecting);
+                }
+            });
+            nodes.forEach(node => observer.observe(node));
+            // Observations are delivered with a rendering update, and there is
+            // no promise to await from out here; a timer is the floor.
+            await new Promise(resolve => setTimeout(resolve, 400));
+            observer.disconnect();
+
+            const inside = [];
+            for (const node of nodes) {
+                const rect = node.getBoundingClientRect();
+                const within =
+                    rect.left >= box.left &&
+                    rect.top >= box.top &&
+                    rect.right <= box.right &&
+                    rect.bottom <= box.bottom;
+                if (within) {
+                    inside.push({
+                        text: (node.textContent || '').trim(),
+                        intersects: seen.get(node) === true,
+                    });
+                }
+            }
+            return { viewport: jm.commands.getViewport(), inside };
+        })()`,
+        true
+    );
+
+    assert.strictEqual(painted.viewport.scale, 0.2, 'the map really is zoomed out');
+    // Without this the assertion below could pass on a map that shows nothing.
+    assert.ok(
+        painted.inside.length >= 20,
+        `a zoomed-out map should fill the view with nodes, only ${painted.inside.length} of its boxes land inside it`
+    );
+    const clipped = painted.inside.filter(entry => !entry.intersects).map(entry => entry.text);
+    assert.deepStrictEqual(
+        clipped,
+        [],
+        `these nodes have a box inside the view but are clipped away: ${clipped.join(', ')}`
+    );
 });
 
 test('ui viewport - capture does not depend on the zoom', async () => {
@@ -513,7 +589,7 @@ test('ui viewport - a zoom takes over the scroll the reader had already made', a
     await command(`jm.commands.zoomTo(1.5, { x: ${anchor.x}, y: ${anchor.y} })`);
     const zoomed = await snapshot();
 
-    assert.strictEqual(zoomed.inner.overflow, 'hidden', 'the transform is in charge now');
+    assert.strictEqual(zoomed.inner.overflow, 'visible', 'the transform is in charge now');
     assert.strictEqual(zoomed.viewport.scale, 1.5);
     assert.ok(
         Math.abs(zoomed.viewport.x + anchor.x / 1.5 - focus.x) < 1e-6,
