@@ -182,17 +182,37 @@ is gated on the step-2 diff — run it when that list contained `github-webhook.
 `github-webhook.service`, otherwise write "no executable change, smoke test not applicable". Quote the
 journal line; "restarted and it is active" is not a smoke test.
 
-### 7. Report
+### 7. Concurrency ceilings: 3 and 1
+
+`max_in_progress` must be 3 and `max_in_progress_per_profile` must be 1 — that is one card for each of the
+three roles the same dispatcher serves (cody implementing, reed reviewing, scout grooming). Both keys are
+read once at gateway boot and cached, so this check only means anything **after** the gateway has been
+restarted on the current `config.yaml`; that restart is the human's, and it happens before this procedure
+runs.
+
+```bash
+hermes config get kanban.max_in_progress             # must be 3
+hermes config get kanban.max_in_progress_per_profile # must be 1
+```
+
+A mismatch stops the deploy short of the report: the `kanban:` section of `~/.hermes/config.yaml` still
+holds the old number, and a gateway restart is what makes the new one take effect. Say exactly that and
+hand both over. Do not edit `config.yaml` here and do not restart the gateway — the desired-state table
+puts that row out of scope, so this step exists to *find* the drift, not to repair it. A red deploy is the
+intended outcome when the document says 3 and the host still runs 2.
+
+### 8. Report
 
 `$OLD` and the new `HEAD`; what the step-2 range listed; that SOUL, profile skills and the webhook were reset
-to master, with the hash pairs and the restart's start time; the smoke evidence or why it did not apply; and
-anything still outside this procedure (`config.yaml` → `kanban:`).
+to master, with the hash pairs and the restart's start time; the smoke evidence or why it did not apply; the
+two concurrency ceilings step 7 read; and anything still outside this procedure (`config.yaml` → `kanban:`).
 
 ## Stop and ask instead of guessing
 
 - The clone is dirty, or sits on a branch other than `master`.
-- The change requires `~/.hermes/config.yaml` → `kanban:`. Those values are read once at gateway boot, and the
-  gateway refuses to restart itself from inside its own process — hand the command over.
+- The change requires `~/.hermes/config.yaml` → `kanban:`, or step 7 reads a value other than 3 / 1. Those
+  values are read once at gateway boot, and the gateway refuses to restart itself from inside its own
+  process — hand the command over.
 - The smoke test prints something other than the expected line: report it. Restarting again to "see if it
   clears" destroys the evidence.
 
