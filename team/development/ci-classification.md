@@ -54,7 +54,7 @@ GitHub 对 required check 的判定：
 - `Required CI Task`（id 27809199）：`required_status_checks`，就是第 1 节那四个名字；`bypass_actors` 为 null，谁也绕不过。
 - `branch-master-protection`（id 27518846）：只有 `deletion` 与 `non_fast_forward`，没有 `required_status_checks`。
 
-**查 required 名单要查前者。** 查 `branch-master-protection`（或 `/branches/master/protection`，它因缺少 admin 权限返回 404）只会得到空输出，看起来像「没有门」，实际是查错了对象。
+**查 required 名单要查前者。** 查 `branch-master-protection` 得到空输出，看起来像「没有门」，实际是查错了对象；`/branches/master/protection` 那个接口更糟——它因缺少 admin 权限直接返回 404（`gh` 退出码非 0），同样长得像「没有保护」。
 
 名单本身现查，别背：遍历 rulesets 取 `required_status_checks` 的 `context`（命令见第 5 节）。判据不会随规则变化：
 
