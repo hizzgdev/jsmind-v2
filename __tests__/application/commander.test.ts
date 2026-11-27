@@ -11,8 +11,14 @@ import assert from 'node:assert';
 
 import { JmCommander } from '../../src/application/commander.ts';
 import { JsMindError } from '../../src/common/error.ts';
-import type { JmViewHandle } from '../../src/view/handle.ts';
+import type { JmViewHandle, JmViewport, JmViewportAnchor } from '../../src/view/handle.ts';
 import type { JmExportImageOptions, JmExportImageResult } from '../../src/view/export.ts';
+
+/** A zoom request the fake view received. */
+interface ZoomCall {
+    scale: number;
+    anchor?: JmViewportAnchor;
+}
 
 /**
  * A view that records what it was asked and returns a fixed result.
@@ -23,8 +29,11 @@ import type { JmExportImageOptions, JmExportImageResult } from '../../src/view/e
 function fakeView(result: Partial<JmExportImageResult> = {}): {
     view: JmViewHandle;
     calls: (JmExportImageOptions | undefined)[];
+    zooms: ZoomCall[];
 } {
     const calls: (JmExportImageOptions | undefined)[] = [];
+    const zooms: ZoomCall[] = [];
+    const viewport: JmViewport = { x: 4, y: 5, scale: 2, width: 640, height: 480 };
     const view: JmViewHandle = {
         async capture(options?: JmExportImageOptions): Promise<JmExportImageResult> {
             calls.push(options);
@@ -37,8 +46,14 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
                 ...result,
             };
         },
+        zoomTo(scale: number, anchor?: JmViewportAnchor): void {
+            zooms.push({ scale, anchor });
+        },
+        getViewport(): JmViewport {
+            return viewport;
+        },
     };
-    return { view, calls };
+    return { view, calls, zooms };
 }
 
 test('commander - exportImage passes the options through to the view', async () => {
@@ -79,6 +94,12 @@ test('commander - exportImage surfaces a view failure to the caller', async () =
         async capture(): Promise<JmExportImageResult> {
             throw new JsMindError('the browser could not encode the canvas');
         },
+        zoomTo(): void {
+            // Not exercised here.
+        },
+        getViewport(): JmViewport {
+            return { x: 0, y: 0, scale: 1, width: 0, height: 0 };
+        },
     };
     const commander = new JmCommander(view);
 
@@ -88,4 +109,33 @@ test('commander - exportImage surfaces a view failure to the caller', async () =
         () => commander.exportImage(),
         (error: Error) => error instanceof JsMindError && /encode/.test(error.message)
     );
+});
+
+test('commander - zoomTo passes the requested anchor through to the view', () => {
+    const { view, zooms } = fakeView();
+    const commander = new JmCommander(view);
+
+    commander.zoomTo(1.75, { x: 120, y: 80 });
+
+    assert.deepStrictEqual(zooms, [{ scale: 1.75, anchor: { x: 120, y: 80 } }]);
+});
+
+test('commander - zoomTo without an anchor leaves the choice of anchor to the view', () => {
+    const { view, zooms } = fakeView();
+    const commander = new JmCommander(view);
+
+    commander.zoomTo(0.5);
+
+    // Not the middle of the viewport: the view owns that default, and inventing
+    // one here would make "caller said nothing" indistinguishable from "caller
+    // asked for the centre", which are separate rules once a keyboard shortcut
+    // zooms about something else.
+    assert.deepStrictEqual(zooms, [{ scale: 0.5, anchor: undefined }]);
+});
+
+test('commander - getViewport returns what the view reports', () => {
+    const { view } = fakeView();
+    const commander = new JmCommander(view);
+
+    assert.deepStrictEqual(commander.getViewport(), { x: 4, y: 5, scale: 2, width: 640, height: 480 });
 });

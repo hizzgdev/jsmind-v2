@@ -241,6 +241,99 @@ test('ui - export html writes one page that renders over file:// with no browser
     );
 });
 
+/**
+ * Reads every rendered node's painted box, in viewport pixels.
+ *
+ * @remarks
+ * Viewport coordinates rather than box-relative ones on purpose: a wheel event
+ * is dispatched in viewport coordinates, so this is the space the anchor
+ * assertion lives in.
+ *
+ * @param harness - Browser to read from.
+ * @returns One box per rendered node.
+ */
+async function paintedNodes(harness: BrowserHarness): Promise<
+    { left: number; top: number; right: number; bottom: number; width: number; height: number }[]
+> {
+    return await harness.evaluate(
+        `[...document.getElementById('jsmind').shadowRoot.querySelectorAll('.jsmind-node')].map(el => {
+            const rect = el.getBoundingClientRect();
+            return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+        })`
+    );
+}
+
+test('ui - the wheel zooms about the pointer on an exported page', async () => {
+    const { document: data } = bigMap();
+
+    await withExportedPage(data, async ({ output }) => {
+        const harness = await BrowserHarness.launch();
+        try {
+            await harness.setViewport(1200, 800);
+            await harness.navigate(pathToFileURL(output).href);
+
+            const opened = await paintedNodes(harness);
+            const centres = opened.map(node => ({
+                x: node.left + node.width / 2,
+                y: (node.top + node.bottom) / 2,
+            }));
+            const onScreen = (point: { x: number; y: number }): boolean =>
+                point.x > 50 && point.x < 1150 && point.y > 50 && point.y < 750;
+            const distanceFromMiddle = (point: { x: number; y: number }): number =>
+                Math.hypot(point.x - 600, point.y - 400);
+
+            // Aim at the node furthest from the middle of the window. A zoom
+            // anchored anywhere else - or one that ignored the pointer - moves
+            // that node instead of holding it, and a node near the middle would
+            // hardly move even under a wrong anchor, so the choice is the test.
+            let aimIndex = -1;
+            for (const [index, point] of centres.entries()) {
+                if (!onScreen(point)) {
+                    continue;
+                }
+                if (aimIndex < 0 || distanceFromMiddle(point) > distanceFromMiddle(centres[aimIndex]!)) {
+                    aimIndex = index;
+                }
+            }
+            assert.notStrictEqual(aimIndex, -1, 'some node centre should be on screen to aim at');
+            const aim = centres[aimIndex]!;
+            assert.ok(
+                distanceFromMiddle(aim) > 150,
+                `the aim point should be well off the middle of the window: ${distanceFromMiddle(aim).toFixed(0)}px`
+            );
+
+            const scrollBefore = await harness.evaluate<[number, number]>('[window.scrollX, window.scrollY]');
+
+            // One upward notch: the map gets bigger, and the point under the
+            // pointer stays under it.
+            await harness.wheelAt(aim.x, aim.y, -400);
+            await harness.settle();
+
+            const zoomed = await paintedNodes(harness);
+            const scale = zoomed[aimIndex]!.width / opened[aimIndex]!.width;
+            assert.ok(scale > 1.5, `one long wheel notch should zoom in well past 1.5x, got ${scale.toFixed(2)}`);
+
+            const pinned = zoomed[aimIndex]!;
+            const pinnedCentre = {
+                x: pinned.left + pinned.width / 2,
+                y: (pinned.top + pinned.bottom) / 2,
+            };
+            assert.ok(
+                Math.abs(pinnedCentre.x - aim.x) < 2 && Math.abs(pinnedCentre.y - aim.y) < 2,
+                `the node under the pointer should stay under it: ${aim.x.toFixed(1)}/${aim.y.toFixed(1)} -> ` +
+                    `${pinnedCentre.x.toFixed(1)}/${pinnedCentre.y.toFixed(1)}`
+            );
+
+            // The wheel belongs to the map: the page around it is not scrolled
+            // by the same gesture.
+            const scrollAfter = await harness.evaluate<[number, number]>('[window.scrollX, window.scrollY]');
+            assert.deepStrictEqual(scrollAfter, scrollBefore, 'zooming should not scroll the page');
+        } finally {
+            await harness.close();
+        }
+    });
+});
+
 test('ui - a map larger than the window scrolls into view instead of being cropped', async () => {
     const { document: data, nodeCount } = bigMap();
 

@@ -464,6 +464,29 @@ export class BrowserHarness {
     }
 
     /**
+     * Dispatches a real wheel event at a viewport point.
+     *
+     * @remarks
+     * A real event rather than a synthesised one, because the shell's handler
+     * reads `clientX`/`clientY` and calls `preventDefault`: a dispatched
+     * `WheelEvent` would prove the arithmetic and say nothing about whether the
+     * listener is reachable from where the reader actually scrolls.
+     *
+     * @param x - CSS pixel X, as `getBoundingClientRect()` reports it.
+     * @param y - CSS pixel Y, as `getBoundingClientRect()` reports it.
+     * @param deltaY - Scroll amount; negative zooms in.
+     */
+    async wheelAt(x: number, y: number, deltaY: number): Promise<void> {
+        await this.send('Input.dispatchMouseEvent', {
+            type: 'mouseWheel',
+            x,
+            y,
+            deltaX: 0,
+            deltaY,
+        });
+    }
+
+    /**
      * Shuts the browser down and removes its temporary profile.
      */
     async close(): Promise<void> {

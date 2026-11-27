@@ -16,7 +16,7 @@
  */
 
 import type { JmExportImageOptions, JmExportImageResult } from '../view/export.ts';
-import type { JmViewHandle } from '../view/handle.ts';
+import type { JmViewHandle, JmViewport, JmViewportAnchor } from '../view/handle.ts';
 
 /**
  * Issues commands that change what is displayed, never what is stored.
@@ -46,10 +46,30 @@ export class JmCommander {
         return await this.view.capture(options);
     }
 
-    // Future viewport commands land here, next to this one:
+    /**
+     * Changes the zoom factor, holding one point still.
+     *
+     * @param scale - Requested factor, clamped by the view.
+     * @param anchor - Point to hold still, in the view's own pixels. Defaults to
+     * the middle of the viewport.
+     */
+    zoomTo(scale: number, anchor?: JmViewportAnchor): void {
+        this.view.zoomTo(scale, anchor);
+    }
+
+    /**
+     * Reads the current viewport.
+     *
+     * @returns The origin, the zoom factor and the visible size.
+     */
+    getViewport(): JmViewport {
+        return this.view.getViewport();
+    }
+
+    // The rest of the viewport commands land here, next to these two:
     //
     // panTo(x: number, y: number): void;
-    // zoomTo(scale: number): void;
+    // panBy(dx: number, dy: number): void;
     // centerOn(nodeId: string): void;
     //
     // Folding and moving do not, for the reason given in the handle: they change

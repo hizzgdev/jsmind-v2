@@ -6,6 +6,12 @@
  * Nothing here reaches the network and nothing here knows where the map came
  * from, so the same shell serves a page that was exported to disk and one an
  * editor fills in memory — only the data source changes.
+ *
+ * Gestures are reported, not implemented: the shell says what the reader did
+ * ("turned the wheel there") and the library decides what that means for the
+ * map. Measuring the rendered tree here instead would fork the layout from the
+ * library's, and the editor this shell is meant to serve later would inherit
+ * the fork.
  */
 /* global jsMind */
 (function () {
@@ -19,6 +25,25 @@
 
     /** Element that carries a failure message. */
     const ERROR_ID = 'jsmind-error';
+
+    /**
+     * How hard the wheel zooms, per pixel of reported scroll.
+     *
+     * Exponential rather than additive so that scrolling up then down by the
+     * same amount returns to the same zoom, whatever the current level. 0.0015
+     * puts a 100-pixel mouse notch at about 1.16x.
+     */
+    const ZOOM_PER_WHEEL_PIXEL = 0.0015;
+
+    /**
+     * Pixels in one line of a line-mode wheel event.
+     *
+     * Firefox reports `deltaMode === 1` (lines) while Chrome and Safari report
+     * pixels, and a bare line count fed to the ratio below would zoom by a
+     * rounding error. 16 is the height browsers assume for a line in wheel
+     * units.
+     */
+    const PIXELS_PER_WHEEL_LINE = 16;
 
     /**
      * Reads the mind map document embedded in this page.
@@ -65,6 +90,43 @@
     }
 
     /**
+     * Zooms with the wheel, about the pointer.
+     *
+     * @remarks
+     * Anchored on the pointer, so the map point under the cursor stays under
+     * the cursor: the reader aims at a branch and the branch comes closer.
+     * Zooming about the middle of the view instead would drift whatever was
+     * being looked at out of the window. Which point stays still is passed in
+     * rather than inferred, which is what keeps a trackpad pinch - it arrives
+     * here as ctrl+wheel - on this same path instead of needing its own.
+     *
+     * @param {HTMLElement} container - Element to listen on.
+     * @param {object} commands - The library's command surface.
+     */
+    function installWheel(container, commands) {
+        container.addEventListener(
+            'wheel',
+            event => {
+                if (event.deltaY === 0) {
+                    return;
+                }
+                // Keeps the browser from scrolling the page or zooming the whole
+                // page itself: the wheel over a map means "zoom the map".
+                event.preventDefault();
+
+                const delta = event.deltaMode === 1 ? event.deltaY * PIXELS_PER_WHEEL_LINE : event.deltaY;
+                const current = commands.getViewport().scale;
+                const box = container.getBoundingClientRect();
+                commands.zoomTo(current * Math.exp(-delta * ZOOM_PER_WHEEL_PIXEL), {
+                    x: event.clientX - box.left,
+                    y: event.clientY - box.top,
+                });
+            },
+            { passive: false }
+        );
+    }
+
+    /**
      * Renders one document into one container.
      *
      * Independent of where the document came from: this is the entry an online
@@ -82,6 +144,7 @@
         // the second measures the layout they produced.
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         fitToContent(container);
+        installWheel(container, jm.commands);
         return jm;
     }
 
