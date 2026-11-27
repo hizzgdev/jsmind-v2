@@ -221,7 +221,7 @@ webhook 的回归测试用标准库 `unittest`，同样没有第三方依赖。�
 python3 -m unittest discover -s team/automations/weka -p 'test_*.py' -v
 ```
 
-守的就是上文那条不变量——让 `busy_cards()` 返回一张 `running` 卡，再模拟人留言，断言"建了卡"或"在 PR 上留了痕"，而不是**什么都没发生**。CI 的 `checks` job 里跑同一条命令（见 `.github/workflows/ci.yml`），所以这条不变量不会只靠谁记得跑。
+守的就是上文那条不变量——让 `busy_cards()` 返回一张 `running` 卡，再模拟人留言，断言"建了卡"、追加到了卡上、或"在对象上留了痕"，而不是**什么都没发生**。CI 的 `checks` job 里跑同一条命令（见 `.github/workflows/ci.yml`），所以这条不变量不会只靠谁记得跑。
 
 ## 并发与资源
 
@@ -456,6 +456,6 @@ hermes kanban --board jsmind-v2 runs <task>     # 每次尝试的结果
 tail -n 40 ~/.hermes/profiles/<worker>/logs/managed-worker.log   # worker 真正的报错
 ```
 
-日志里出现 `[SKIP] unhandled event: xxx`，说明 GitHub 送来了这个脚本不认识的事件——多半是 Settings → Webhooks 里少勾了对应的 events，或者脚本来不及支持这个动作。出现 `[GATE]` 则是收到了但条件不满足，括号里会写清是哪一条（没有 `weka-reviewed`、不是仓库所有者、PR 不归 weka 管、PR 已关闭）。其中"没有 `weka-reviewed`"这一条会在 PR 上留一句说明（见「拒绝与失败必须留痕」），所以这类问题现在不用翻 journal 也能看见。
+日志里出现 `[SKIP] unhandled event: xxx`，说明 GitHub 送来了这个脚本不认识的事件——多半是 Settings → Webhooks 里少勾了对应的 events，或者脚本来不及支持这个动作。出现 `[GATE]` 则是收到了但条件不满足，括号里会写清是哪一条（没有 `weka-reviewed`、不是仓库所有者、PR / issue 不归 weka 管、对象已关闭且没有 open 卡）。其中"没有 `weka-reviewed`"这一条会在 PR 上留一句说明（见「拒绝与失败必须留痕」），所以这类问题现在不用翻 journal 也能看见。
 
 卡崩两次会被自动 block。先看 `weka-working` 是不是还挂在对象上——挂着但板上没卡在跑，说明 worker 起不来，直接看上面那个 `managed-worker.log`。
