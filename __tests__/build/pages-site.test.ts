@@ -2020,13 +2020,13 @@ describe('tutorial post listing', () => {
         const posts = listTutorialPosts(ROOT);
         assert.ok(posts.length >= 1);
         const first = posts[0];
-        assert.strictEqual(first.id, '161');
-        assert.strictEqual(first.slug, '161-first-mind-map-with-skill');
-        assert.strictEqual(first.date, '2026-11-26');
-        assert.strictEqual(first.titles.en, 'Build your first mind map with the jsMind Skill');
-        assert.strictEqual(first.titles.zh, '用 jsMind Skill 做你的第一张思维导图');
-        assert.strictEqual(first.hrefs.en, 'tutorials/en/posts/161-first-mind-map-with-skill.html');
-        assert.strictEqual(first.hrefs.zh, 'tutorials/zh/posts/161-first-mind-map-with-skill.html');
+        assert.strictEqual(first.id, '162');
+        assert.strictEqual(first.slug, '162-color-nodes-with-tones');
+        assert.strictEqual(first.date, '2026-11-28');
+        assert.strictEqual(first.titles.en, 'Color specific nodes to mark what matters');
+        assert.strictEqual(first.titles.zh, '给指定节点上色，把重点标出来');
+        assert.strictEqual(first.hrefs.en, 'tutorials/en/posts/162-color-nodes-with-tones.html');
+        assert.strictEqual(first.hrefs.zh, 'tutorials/zh/posts/162-color-nodes-with-tones.html');
 
         const dates = posts.map((post) => post.date);
         const sorted = [...dates].sort((a, b) => b.localeCompare(a));
