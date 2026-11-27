@@ -116,6 +116,15 @@ export interface JmViewHandle {
      * move is clamped to the content's bounds: the map cannot be sent into an
      * empty viewport it would then be unable to leave.
      *
+     * A clamp needs a band to clamp into, and there is one only while the map is
+     * larger than the viewport. When the whole map fits at the current zoom the
+     * band is empty, and this call leaves the origin unchanged: no-op, not a
+     * move to the nearest edge and not a centring. No pan writes an origin
+     * outside that band, which is also the answer for a `centerOn` built on top
+     * of this one: a node can only be brought to the middle while the map
+     * overflows the view, and while the map fits there is nothing to bring into
+     * view.
+     *
      * @param x - Map-space x to show at the left edge.
      * @param y - Map-space y to show at the top edge.
      */
@@ -128,7 +137,8 @@ export interface JmViewHandle {
      * The delta is in viewport pixels, not map pixels: a drag reports how far
      * the pointer travelled, and dividing by the zoom is arithmetic the view
      * already owns. Positive `dx` moves the map right, which shows map points
-     * further left. Clamped the same way as {@link JmViewHandle.panTo}.
+     * further left. Clamped the same way as {@link JmViewHandle.panTo}, including
+     * its no-op while the map fits the viewport.
      *
      * @param dx - Horizontal travel in viewport pixels.
      * @param dy - Vertical travel in viewport pixels.
