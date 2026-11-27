@@ -31,11 +31,13 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
     calls: (JmExportImageOptions | undefined)[];
     zooms: ZoomCall[];
     centres: string[];
+    fits: string[];
 } {
     const calls: (JmExportImageOptions | undefined)[] = [];
     const zooms: ZoomCall[] = [];
     const centres: string[] = [];
-    const viewport: JmViewport = { x: 4, y: 5, scale: 2, width: 640, height: 480 };
+    const fits: string[] = [];
+    const viewport: JmViewport = { x: 4, y: 5, scale: 2, width: 640, height: 480, canPan: true };
     const view: JmViewHandle = {
         async capture(options?: JmExportImageOptions): Promise<JmExportImageResult> {
             calls.push(options);
@@ -60,11 +62,14 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
         centerOn(nodeId: string): void {
             centres.push(nodeId);
         },
+        fitToView(): void {
+            fits.push('fit');
+        },
         getViewport(): JmViewport {
             return viewport;
         },
     };
-    return { view, calls, zooms, centres };
+    return { view, calls, zooms, centres, fits };
 }
 
 test('commander - exportImage passes the options through to the view', async () => {
@@ -108,8 +113,11 @@ test('commander - exportImage surfaces a view failure to the caller', async () =
         zoomTo(): void {
             // Not exercised here.
         },
+        fitToView(): void {
+            // Not exercised here.
+        },
         getViewport(): JmViewport {
-            return { x: 0, y: 0, scale: 1, width: 0, height: 0 };
+            return { x: 0, y: 0, scale: 1, width: 0, height: 0, canPan: false };
         },
     };
     const commander = new JmCommander(view);
@@ -148,7 +156,9 @@ test('commander - getViewport returns what the view reports', () => {
     const { view } = fakeView();
     const commander = new JmCommander(view);
 
-    assert.deepStrictEqual(commander.getViewport(), { x: 4, y: 5, scale: 2, width: 640, height: 480 });
+    // `canPan` is part of the report: a caller deciding `touch-action` before a
+    // gesture starts reads it here instead of measuring the content itself.
+    assert.deepStrictEqual(commander.getViewport(), { x: 4, y: 5, scale: 2, width: 640, height: 480, canPan: true });
 });
 
 test('commander - centerOn forwards the node id to the view', () => {
@@ -161,4 +171,15 @@ test('commander - centerOn forwards the node id to the view', () => {
     // in the middle are the view's, and a commander that resolved either would
     // need the model and the layout as well.
     assert.deepStrictEqual(centres, ['jm-7']);
+});
+
+test('commander - fitToView is forwarded to the view', () => {
+    const { view, fits } = fakeView();
+    const commander = new JmCommander(view);
+
+    commander.fitToView();
+
+    // The zoom and the origin are the view's, and so is the box whose size
+    // decides both: a commander that computed a fit would need the layout too.
+    assert.deepStrictEqual(fits, ['fit']);
 });

@@ -4,9 +4,9 @@
  * @remarks
  * `viewport.ts` is pure functions of a state object precisely so that the
  * geometry behind a zoom can be pinned here: which point the zoom holds still,
- * what the origin becomes, where the factor stops. What a *browser* does with
- * the resulting `transform` string is measured in `__tests__/ui/viewport.test.ts`
- * - the split is the point, not a shortcut.
+ * what the origin becomes, where the factor stops, and what "fit the whole map"
+ * means. What a *browser* does with the resulting `transform` string is measured
+ * in `__tests__/ui/viewport.test.ts` - the split is the point, not a shortcut.
  */
 
 import { test } from 'node:test';
@@ -16,8 +16,10 @@ import { JmPoint, JmSize } from '../../src/common/index.ts';
 import {
     JmViewportScaleRange,
     clampViewportScale,
+    fitViewport,
     panViewport,
     panViewportTo,
+    viewportCanPan,
     viewportCssTransform,
     viewportOriginFor,
     viewportPointAt,
@@ -274,4 +276,89 @@ test('viewport - centring a point at the content edge is clamped, not pulled pas
     // than in the middle of a 400px box.
     const painted = (nearEdge.x - clamped.x) * clamped.scale;
     assert.ok(painted < middle.x - 100, `the point sits at ${painted}px from the left edge, not at ${middle.x}`);
+});
+
+test('viewport - fitting the map picks the factor at which it just fits, and centres it', () => {
+    // 800x600 content in a 400x300 box: both axes bind at 0.5, so the content
+    // exactly fills the box and the origin is its own top-left corner.
+    const fitted = fitViewport(CONTENT, WINDOW);
+
+    assert.strictEqual(fitted.scale, 0.5);
+    assert.deepStrictEqual(fitted, { x: CONTENT.left, y: CONTENT.top, scale: 0.5 });
+
+    // Read back through the forward mapping: the content's middle has to be the
+    // box's middle, and its painted extent has to be the box, not a corner of it.
+    const middle = { x: WINDOW.width / 2, y: WINDOW.height / 2 };
+    const back = viewportPointAt(fitted, middle);
+    assert.ok(Math.abs(back.x - (CONTENT.left + CONTENT.width / 2)) < 1e-9, `the horizontal centre drifted to ${back.x}`);
+    assert.ok(Math.abs(back.y - (CONTENT.top + CONTENT.height / 2)) < 1e-9, `the vertical centre drifted to ${back.y}`);
+});
+
+test('viewport - fitting a map that binds on one axis leaves the other centred', () => {
+    // 800x200 in a 400x300 box: the width binds at 0.5, so the content is
+    // 400x100 on screen and the leftover 100px is split evenly at top and bottom.
+    const wide: JmViewportBounds = { left: 100, top: 50, width: 800, height: 200 };
+    const fitted = fitViewport(wide, WINDOW);
+
+    assert.strictEqual(fitted.scale, 0.5);
+    const paintedTop = (wide.top - fitted.y) * fitted.scale;
+    const paintedBottom = paintedTop + wide.height * fitted.scale;
+    assert.ok(Math.abs(paintedTop) > 0.5, 'the loose axis should not be flush with the box');
+    assert.ok(Math.abs(paintedTop - (WINDOW.height - paintedBottom)) < 1e-9, `the gap should be symmetric: ${paintedTop} vs ${paintedBottom}`);
+    assert.ok(Math.abs(paintedTop + (paintedBottom - paintedTop) / 2 - WINDOW.height / 2) < 1e-9, 'the content should be centred vertically');
+});
+
+test('viewport - a fit stops at the range ends instead of running past them', () => {
+    // A map far smaller than the box would want 30x; the view accepts 4, and
+    // the content is centred at that factor rather than blown up to the box.
+    const tiny: JmViewportBounds = { left: 10, top: 10, width: 10, height: 10 };
+    const enlarged = fitViewport(tiny, WINDOW);
+    assert.strictEqual(enlarged.scale, JmViewportScaleRange.max);
+    assert.strictEqual((tiny.left - enlarged.x) * enlarged.scale + (tiny.width * enlarged.scale) / 2, WINDOW.width / 2);
+
+    // And one 100 times the box would want 0.05; the floor wins, so it is shown
+    // as much as the range allows and no further.
+    const huge: JmViewportBounds = { left: 0, top: 0, width: 8000, height: 6000 };
+    assert.strictEqual(fitViewport(huge, WINDOW).scale, JmViewportScaleRange.min);
+});
+
+test('viewport - the fit ignores where the view is looking', () => {
+    // No state goes in, so a map left in a corner by a zoom fits back to the
+    // same numbers as one that was never moved. That is what makes `fitToView`
+    // idempotent - and what a `zoomTo` + `centerOn` composition cannot do,
+    // because the pan band is empty at exactly-fitting zoom.
+    const first = fitViewport(CONTENT, WINDOW);
+    const second = fitViewport(CONTENT, WINDOW);
+
+    assert.deepStrictEqual(second, first);
+    // At the fitted factor the pan band really is empty, which is why the
+    // origin had to be written rather than panned to.
+    assert.strictEqual(viewportCanPan(CONTENT, WINDOW, first.scale), false);
+    assert.deepStrictEqual(
+        panViewportTo({ x: INSIDE.x, y: INSIDE.y, scale: first.scale }, new JmPoint(1e9, 1e9), CONTENT, WINDOW),
+        { x: INSIDE.x, y: INSIDE.y, scale: first.scale },
+        'a pan at the fitted factor must not move the map'
+    );
+});
+
+test('viewport - a pan has room whenever the content overflows, at any factor', () => {
+    // A 1000x500 map in a 900x600 box: the fit is 0.9, and at 0.9 the bands are
+    // empty (0 horizontally, negative vertically). At 1.0 the map overflows
+    // horizontally - so a finger drag must pan - even though the factor is not
+    // above 1. That case is why `scale > 1` was the wrong test for the shell.
+    const bounds: JmViewportBounds = { left: 0, top: 0, width: 1000, height: 500 };
+    const box = new JmSize(900, 600);
+
+    assert.strictEqual(fitViewport(bounds, box).scale, 0.9);
+    assert.strictEqual(viewportCanPan(bounds, box, 0.9), false, 'exactly fitting leaves no band');
+    assert.strictEqual(viewportCanPan(bounds, box, 1), true, '1x overflows here, so a drag must pan');
+    assert.strictEqual(viewportCanPan(bounds, box, 0.5), false, 'zoomed out, the whole map is inside');
+
+    // The report has to agree with the clamp it stands for, at every factor:
+    // a pan moves the origin exactly when `canPan` says it can.
+    for (const scale of [0.5, 0.9, 1, 2]) {
+        const moved = panViewportTo({ x: 0, y: 0, scale }, new JmPoint(1e9, 1e9), bounds, box);
+        const panned = moved.x !== 0 || moved.y !== 0;
+        assert.strictEqual(panned, viewportCanPan(bounds, box, scale), `at ${scale}x the report and the clamp disagree`);
+    }
 });

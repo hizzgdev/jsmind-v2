@@ -51,6 +51,20 @@ export interface JmViewport {
     width: number;
     /** Visible height in CSS pixels. */
     height: number;
+    /**
+     * Whether a pan would move the map at this zoom.
+     *
+     * @remarks
+     * True while the content overflows the visible box on at least one axis -
+     * exactly when {@link JmViewHandle.panTo} is allowed to change the origin.
+     * A caller deciding *before* a gesture starts needs this, because the
+     * browser settles `touch-action` before the first touchmove: a map that
+     * fits should hand the gesture to the page rather than swallow a drag that
+     * can only be a no-op. Asking here is also what keeps that caller from
+     * measuring the content itself, which would fork the layout from the
+     * view's own.
+     */
+    canPan: boolean;
 }
 
 /**
@@ -172,6 +186,24 @@ export interface JmViewHandle {
      * that map instead of throwing.
      */
     centerOn(nodeId: string): void;
+
+    /**
+     * Scales the map so that all of it fits the viewport, and centres it.
+     *
+     * @remarks
+     * The zoom is the largest factor at which the content fits, clamped to the
+     * range the view accepts, so a map smaller than the box is enlarged as a
+     * larger one is shrunk. The origin is then the one that puts the content's
+     * middle in the middle of the box.
+     *
+     * Unlike {@link JmViewHandle.centerOn} this does move a map that fits: the
+     * pan's band is empty at exactly-fitting zoom, and a fit that waited for a
+     * clamp to move it would leave the map wherever the last gesture left it.
+     *
+     * Two calls on the same map and box give the same numbers, which is what a
+     * double-click or a toolbar button pressing twice relies on.
+     */
+    fitToView(): void;
 
     // The rest of the viewport surface is not implemented yet. It is declared
     // here as one block rather than added one method at a time because the

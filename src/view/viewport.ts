@@ -151,6 +151,80 @@ export function zoomViewport(
 }
 
 /**
+ * How far the origin may travel on one axis, in map pixels.
+ *
+ * @remarks
+ * The content's extent minus what the viewport covers at this zoom: positive
+ * while the content overflows, zero when it exactly fills, negative when it
+ * leaves empty canvas showing. It is one expression, shared by the clamp that
+ * uses it and by {@link viewportCanPan} that reports it, so "the band is empty"
+ * cannot come to mean two different things.
+ *
+ * @param contentSize - Content's extent on this axis, in map pixels.
+ * @param viewportSize - Visible extent on this axis, in viewport pixels.
+ * @param scale - Zoom factor, which turns viewport pixels into map pixels.
+ * @returns The travel available, in map pixels.
+ *
+ * @private
+ */
+function panSpan(contentSize: number, viewportSize: number, scale: number): number {
+    return contentSize - viewportSize / scale;
+}
+
+/**
+ * Whether a pan would move the map at a given zoom.
+ *
+ * @remarks
+ * True while the content overflows the viewport on at least one axis, which is
+ * exactly when {@link panViewportTo} is allowed to write a new origin. The
+ * caller that needs this is one deciding *before* a gesture begins: a browser
+ * settles `touch-action` before the first touchmove, so a handler that claimed
+ * or released the gesture after the fact would be too late. Asking here keeps
+ * that decision on the same arithmetic the pan itself uses - measuring the
+ * content outside the view would fork the layout from it.
+ *
+ * @param bounds - Content rectangle, in map pixels.
+ * @param viewport - Visible size, in viewport pixels.
+ * @param scale - Zoom factor.
+ * @returns Whether the origin has anywhere to go.
+ *
+ * @private
+ */
+export function viewportCanPan(bounds: JmViewportBounds, viewport: JmSize, scale: number): boolean {
+    return panSpan(bounds.width, viewport.width, scale) > 0 || panSpan(bounds.height, viewport.height, scale) > 0;
+}
+
+/**
+ * The state that shows the whole content, centred in the viewport.
+ *
+ * @remarks
+ * The zoom is the largest factor at which both of the content's axes fit,
+ * clamped to {@link JmViewportScaleRange} - a map smaller than the box is
+ * enlarged exactly as a larger one is shrunk. The origin is then the one
+ * {@link viewportOriginFor} gives for putting the content's middle in the
+ * middle of the box.
+ *
+ * Deliberately independent of the current state: two calls on the same content
+ * and box return the same numbers, which is what makes `fitToView` idempotent.
+ * Nothing here clamps the origin to the pan band - at exactly-fitting zoom that
+ * band is empty (`span == 0` on a binding axis, `span < 0` on the other) and a
+ * clamp with nothing to clamp into would keep the old origin, i.e. leave a map
+ * in whatever corner a previous zoom pushed it to.
+ *
+ * @param bounds - Content rectangle, in map pixels.
+ * @param viewport - Visible size, in viewport pixels.
+ * @returns The state to adopt.
+ *
+ * @private
+ */
+export function fitViewport(bounds: JmViewportBounds, viewport: JmSize): JmViewportTransform {
+    const scale = clampViewportScale(Math.min(viewport.width / bounds.width, viewport.height / bounds.height));
+    const centre = new JmPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+    const origin = viewportOriginFor(centre, { x: viewport.width / 2, y: viewport.height / 2 }, scale);
+    return { x: origin.x, y: origin.y, scale };
+}
+
+/**
  * Clamps one axis of the origin into the band that keeps the content reachable.
  *
  * @remarks
@@ -193,7 +267,7 @@ function clampViewportAxis(
     if (!Number.isFinite(candidate)) {
         return origin;
     }
-    const span = contentSize - viewportSize / scale;
+    const span = panSpan(contentSize, viewportSize, scale);
     if (!(span > 0)) {
         return origin;
     }

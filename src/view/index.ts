@@ -7,7 +7,7 @@ import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
 import { captureShadowContent, type JmExportImageOptions, type JmExportImageResult } from './export.ts';
 import type { JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
-import { viewportCssTransform, panViewport, panViewportTo, viewportOriginFor, zoomViewport, type JmViewportBounds, type JmViewportTransform } from './viewport.ts';
+import { viewportCssTransform, panViewport, panViewportTo, viewportOriginFor, zoomViewport, fitViewport, viewportCanPan, type JmViewportBounds, type JmViewportTransform } from './viewport.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
@@ -345,6 +345,7 @@ export class JmView implements JmViewHandle {
             scale: this.viewport.scale,
             width: size.width,
             height: size.height,
+            canPan: viewportCanPan(this.contentBounds, size, this.viewport.scale),
         };
     }
 
@@ -420,6 +421,37 @@ export class JmView implements JmViewHandle {
         const focus = new JmPoint(corner.x + size.width / 2, corner.y + size.height / 2);
         const origin = viewportOriginFor(focus, this._viewportCentre(), this.viewport.scale);
         this.panTo(origin.x, origin.y);
+    }
+
+    /**
+     * Scales the map so that all of it fits the viewport, and centres it.
+     *
+     * @remarks
+     * Two steps, both composed from the arithmetic beside them: the largest
+     * zoom at which the content fits, and the origin that puts the content's
+     * middle in the middle of the box.
+     *
+     * The origin is written rather than handed to {@link JmView.panTo}, and
+     * that is the answer the whole design turns on. At exactly-fitting zoom the
+     * pan's band is empty - `span == 0` on the binding axis, `span < 0` on the
+     * loose one - so `panTo` keeps the origin it had, and `centerOn` (which is
+     * built on it) does not move either. A fit composed from `zoomTo` and
+     * `centerOn` would therefore leave a map in whatever corner it was dragged
+     * to, and no drag could bring it back, because the band stays empty. So
+     * this composes the same arithmetic with the clamp left out: there is
+     * nothing to clamp into, and the only origin that shows the whole content
+     * is the one that shows its middle.
+     *
+     * The box is taken over before anything is measured. On a page whose map
+     * overflows, the inner box is showing a scrollbar at that moment and its
+     * client size is that much narrower; reading it first would make the first
+     * fit slightly smaller than the second fit of the same map - two answers to
+     * one command, visible as a small jump the first time the reader fits it
+     * again.
+     */
+    fitToView(): void {
+        this._activateViewport();
+        this._setViewport(fitViewport(this.contentBounds, this._viewportSize()));
     }
 
     /**

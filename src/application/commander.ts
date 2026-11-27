@@ -100,6 +100,18 @@ export class JmCommander {
         this.view.centerOn(nodeId);
     }
 
+    /**
+     * Scales the map so that all of it fits the viewport, and centres it.
+     *
+     * @remarks
+     * The one command that moves a map that already fits, and the reason a
+     * double-click can be the way back from a zoom that left the content in a
+     * corner.
+     */
+    fitToView(): void {
+        this.view.fitToView();
+    }
+
     // The rest of the viewport commands land here, next to these.
     //
     // Folding and moving do not, for the reason given in the handle: they change

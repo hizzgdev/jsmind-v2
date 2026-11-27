@@ -63,59 +63,35 @@
     }
 
     /**
-     * Grows the host to the size the renderer gave the map.
-     *
-     * The renderer centers the map in a box of its own and clips what leaves
-     * it, so a host left at the viewport size silently crops a map that is
-     * larger than the window. The shadow root's scroll box reports the map's
-     * real size through scrollWidth/scrollHeight; sizing the host to that turns
-     * the inner box into a no-op and leaves the page with one native scrollbar.
-     *
-     * Item 3 of the export plan (pan, zoom and fit-to-screen) replaces this
-     * hand-rolled fit. Until it lands this is what keeps a large map reachable.
-     *
-     * @param {HTMLElement} container - The element the map is rendered into.
-     */
-    function fitToContent(container) {
-        const root = container.shadowRoot;
-        if (!root) {
-            return;
-        }
-        const inner = root.querySelector('.jsmind-inner');
-        if (!inner) {
-            return;
-        }
-        container.style.width = inner.scrollWidth + 'px';
-        container.style.height = inner.scrollHeight + 'px';
-    }
-
-    /**
-     * Claims touch drags for the map only while a pan has room, and gives them
-     * back to the page otherwise.
+     * Claims touch drags for the map while a pan has room, and gives them back
+     * to the page otherwise.
      *
      * @remarks
      * On a touch screen this is the only lever there is: `preventDefault`
      * cannot cancel a pan the browser has already started, so `touch-action`
      * has to say what a finger on the map means *before* the gesture begins.
+     * Which means it also has to be re-decided after everything that changes
+     * the zoom - the wheel, the double-click that fits the map - because
+     * whether a drag can move the map is a function of the zoom.
      *
-     * Setting it once, unconditionally, is the tempting one-line version and it
-     * is wrong here. A page whose host is the map's own size - which is what
-     * {@link fitToContent} makes of an exported page at 1x - has no pan band at
-     * 1x, so a drag does nothing; but the page itself can still be larger than
-     * the window. Taking the scroll away there leaves the far half of that map
-     * unreachable by finger, which is a worse deal than the drag it buys.
+     * The test is the library's own: `canPan` is the same "is there a band to
+     * pan inside" that the pan itself checks. It used to be `scale > 1` here,
+     * which was true only while this shell grew the host to the map's own size
+     * - at that size a band opens as soon as the zoom passes 1. The host is now
+     * the viewport, so the band is about the content and the box: a map a
+     * little larger than the window fits at 0.9, and at 1.0 it is already
+     * overflowing while the old test still said the drag belonged to the page.
+     * Nothing scrolls the page any more, so that answer left a region no finger
+     * could move.
      *
-     * `scale > 1` is the whole test the shell can make. Whether a band exists
-     * depends on the content's size, and measuring that here would fork the
-     * layout from the library's; with the host at the map's size the band is
-     * empty at 1x and opens as soon as the zoom rises above it. An embedder that
-     * sizes the host differently has to decide this for itself.
+     * Asking rather than measuring: the content's size is the library's, and
+     * measuring it here would fork the layout from the one being drawn.
      *
      * @param {HTMLElement} container - Element to listen on.
      * @param {object} commands - The library's command surface.
      */
     function syncPanTouchAction(container, commands) {
-        container.style.touchAction = commands.getViewport().scale > 1 ? 'none' : '';
+        container.style.touchAction = commands.getViewport().canPan ? 'none' : '';
     }
 
     /**
@@ -176,10 +152,6 @@
      * @param {object} commands - The library's command surface.
      */
     function installPan(container, commands) {
-        // A drag must not turn into a page scroll - but only where the drag can
-        // actually pan, which the zoom decides; see `syncPanTouchAction`.
-        syncPanTouchAction(container, commands);
-
         /** Pointer the gesture belongs to, or null when nothing is being dragged. */
         let draggedPointer = null;
         /** Last pointer position, in viewport pixels. */
@@ -228,6 +200,32 @@
     }
 
     /**
+     * Double-click returns the map to the whole of itself.
+     *
+     * @remarks
+     * The view the page opens on, so a reader who zoomed into a corner has one
+     * gesture back - the only one a page without a toolbar can offer.
+     *
+     * The presses that make a double-click also reach `installPan`, so the
+     * first two can move the map by a pixel or two before the click lands.
+     * Nothing has to be done about that: this runs after the second press has
+     * ended and writes the whole viewport, so whatever those drags did is
+     * replaced by the fit. A movement threshold would only stop small drags
+     * from working.
+     *
+     * @param {HTMLElement} container - Element to listen on.
+     * @param {object} commands - The library's command surface.
+     */
+    function installDoubleClick(container, commands) {
+        container.addEventListener('dblclick', () => {
+            commands.fitToView();
+            // A fit is a zoom change, so what a finger on the map means is
+            // re-decided here exactly as it is after a wheel turn.
+            syncPanTouchAction(container, commands);
+        });
+    }
+
+    /**
      * Renders one document into one container.
      *
      * Independent of where the document came from: this is the entry an online
@@ -242,11 +240,16 @@
         const mind = jsMind.Serializer.create('json').deserialize(data);
         await jm.open(mind);
         // Two frames: fonts and the shadow stylesheet settle in the first, and
-        // the second measures the layout they produced.
+        // the second measures the layout they produced. Only then is there a
+        // content box to fit.
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        fitToContent(container);
+        jm.commands.fitToView();
+        // The fit is the first thing to change the zoom, so the touch rule is
+        // decided from its result rather than from the 1x the page opened at.
+        syncPanTouchAction(container, jm.commands);
         installWheel(container, jm.commands);
         installPan(container, jm.commands);
+        installDoubleClick(container, jm.commands);
         return jm;
     }
 
