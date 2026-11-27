@@ -7,8 +7,10 @@ Standard library only, like the script under test. Run from the repository root:
 
 The invariant these tests pin down: a human comment on a PR that carries
 `weka-reviewed` must end in a new card, a comment on the PR's open card, or a
-comment on the PR explaining why neither happened. "Nothing happened" is the
-bug, so every assertion here is about a side effect, never about a log line.
+comment on the PR explaining why neither happened; a human comment on a `weka`
+issue must end in a card for whoever is assigned, or a comment on the issue
+saying why not. "Nothing happened" is the bug, so every assertion here is about
+a side effect, never about a log line.
 """
 import importlib.util
 import os
@@ -31,6 +33,8 @@ weka_webhook = _load_webhook()
 
 PR_NUMBER = 151
 PR_TITLE = "fix(arranger): correct cousin spacing calculation"
+ISSUE_NUMBER = 223
+ISSUE_TITLE = "Deliver GitHub comments to cards in every state"
 CONFIG = {
     "target_label": "weka",
     "assignee": "cody",
@@ -38,6 +42,7 @@ CONFIG = {
     "bot_login": "zzgbot",
     "kanban_board": "test-board",
 }
+GROOM = {"groom_board": "groom-board", "groom_assignee": "scout"}
 
 
 def pr_payload(labels=("weka", "weka-reviewed"), state="open", number=PR_NUMBER, action="created"):
@@ -71,30 +76,101 @@ def comment_payload(body, number=PR_NUMBER, login="hizzgdev"):
     return payload
 
 
+def review_payload(state="changes_requested", number=PR_NUMBER, review_id=9):
+    """A `pull_request_review.submitted` payload from the human."""
+    payload = pr_payload(number=number)
+    payload["action"] = "submitted"
+    payload["review"] = {
+        "id": review_id,
+        "state": state,
+        "body": "please fix the spacing on the right side",
+        "html_url": f"https://github.com/hizzgdev/jsmind-v2/pull/{number}#pullrequestreview-{review_id}",
+        "user": {"login": "hizzgdev"},
+    }
+    return payload
+
+
+def inline_payload(path="src/arranger.ts", line=42, number=PR_NUMBER, comment_id=5):
+    """A `pull_request_review_comment.created` payload from the human."""
+    payload = pr_payload(number=number)
+    payload["action"] = "created"
+    payload["comment"] = {
+        "id": comment_id,
+        "body": "this line reads wrong",
+        "path": path,
+        "line": line,
+        "user": {"login": "hizzgdev"},
+        "html_url": f"https://github.com/hizzgdev/jsmind-v2/pull/{number}#discussion_r{comment_id}",
+    }
+    return payload
+
+
+def issue_payload(assignees=("hizzgdev",), labels=("weka",), state="open", number=ISSUE_NUMBER):
+    """The slice of a GitHub issue payload the issue-comment path reads."""
+    return {
+        "number": number,
+        "title": ISSUE_TITLE,
+        "html_url": f"https://github.com/hizzgdev/jsmind-v2/issues/{number}",
+        "state": state,
+        "labels": [{"name": name} for name in labels],
+        "assignees": [{"login": login} for login in assignees],
+    }
+
+
+def issue_comment_payload(body="这一段需求再确认一下", *, assignees=("hizzgdev",),
+                          labels=("weka",), state="open", login="hizzgdev",
+                          comment_id=77, number=ISSUE_NUMBER):
+    """An `issue_comment.created` payload for a comment on a plain issue.
+
+    No `pull_request` key on the issue: that absence is exactly what used to
+    make `handle_issue_comment` return before doing anything.
+    """
+    return {
+        "action": "created",
+        "issue": issue_payload(assignees=assignees, labels=labels, state=state, number=number),
+        "comment": {
+            "id": comment_id,
+            "body": body,
+            "user": {"login": login},
+            "html_url": f"https://github.com/hizzgdev/jsmind-v2/issues/{number}#issuecomment-{comment_id}",
+        },
+    }
+
+
 class FakeWeka(weka_webhook.Weka):
     """A Weka that records its side effects instead of performing them."""
 
-    def __init__(self, cards=(), busy=(), kanban_ok=True):
-        super().__init__(dict(CONFIG))
-        self.cards = list(cards)          # values open_card_for() should return
-        self.busy = list(busy)            # values busy_cards() should return
+    def __init__(self, cards=(), busy=(), kanban_ok=True, groom_cards=(), config=None):
+        super().__init__({**CONFIG, **(config or {})})
+        self.cards = list(cards)              # values open_card_for() should return
+        self.groom_cards = list(groom_cards)  # the same, on the groom board
+        self.busy = list(busy)                # values busy_cards() should return
         self.kanban_ok = kanban_ok
         self.kanban_calls = []
-        self.pr_comments = []             # (number, body) visible on GitHub
+        self.board_calls = []                 # (args, board) for every kanban call
+        self.object_comments = []             # (number, body) visible on GitHub
 
-    def kanban(self, *args):
+    def kanban(self, *args, board=None):
         self.kanban_calls.append(args)
+        self.board_calls.append((args, board))
         return self.kanban_ok
 
-    def open_card_for(self, number):
-        return self.cards[0] if self.cards else None
+    def open_card_for(self, number, board=None):
+        # Any board argument is the groom board here; None is the flow's own.
+        pool = self.groom_cards if board else self.cards
+        return pool[0] if pool else None
 
     def busy_cards(self):
         return self.busy
 
-    def comment_on_pr(self, number, body):
-        self.pr_comments.append((number, body))
+    def comment_on_object(self, number, body):
+        self.object_comments.append((number, body))
         return True
+
+    def _run(self, cmd):
+        # A subprocess here means a test run would post to GitHub or touch git:
+        # every method that reaches out has to be intercepted explicitly.
+        raise AssertionError(f"FakeWeka must not run a subprocess: {cmd}")
 
     # -- assertions helpers --------------------------------------------------
 
@@ -103,6 +179,15 @@ class FakeWeka(weka_webhook.Weka):
 
     def card_comments(self):
         return [call for call in self.kanban_calls if call[0] == "comment"]
+
+    def comment_boards(self):
+        return [board for args, board in self.board_calls if args[0] == "comment"]
+
+    def create_boards(self):
+        return [board for args, board in self.board_calls if args[0] == "create"]
+
+    def create_keys(self):
+        return [args[args.index("--idempotency-key") + 1] for args in self.creates()]
 
     def trigger(self, text="this branch spacing is off, please re-check"):
         self._create_rework_card(
@@ -128,10 +213,10 @@ class ARunningCardElsewhereTests(unittest.TestCase):
         self.assertEqual(
             len(creates), 1,
             "a card running elsewhere is the dispatcher's problem, not a reason to drop "
-            f"the human request; calls={weka.kanban_calls} comments={weka.pr_comments}",
+            f"the human request; calls={weka.kanban_calls} comments={weka.object_comments}",
         )
         self.assertTrue(creates[0][1].startswith(f"#{PR_NUMBER}: Rework — "), creates[0][1])
-        self.assertEqual(weka.pr_comments, [], "a created card needs no excuse on the PR")
+        self.assertEqual(weka.object_comments, [], "a created card needs no excuse on the PR")
 
     def test_a_card_in_review_does_not_swallow_the_rework(self):
         weka = FakeWeka(busy=[("t_1", "review", "#150: Rework — something")])
@@ -150,12 +235,12 @@ class RefusalsAreVisibleTests(unittest.TestCase):
         weka.trigger()
 
         self.assertTrue(
-            weka.pr_comments,
+            weka.object_comments,
             "hermes kanban create returned False; the request is in no queue, so the PR "
             "must say so instead of nothing",
         )
-        self.assertIn("返工卡失败", weka.pr_comments[0][1])
-        self.assertEqual(weka.pr_comments[0][0], PR_NUMBER)
+        self.assertIn("返工卡失败", weka.object_comments[0][1])
+        self.assertEqual(weka.object_comments[0][0], PR_NUMBER)
 
     def test_a_pr_without_weka_reviewed_says_why_on_the_pr(self):
         weka = FakeWeka()
@@ -171,8 +256,8 @@ class RefusalsAreVisibleTests(unittest.TestCase):
         )
 
         self.assertEqual(weka.creates(), [])
-        self.assertTrue(weka.pr_comments, "the kept gate must explain itself on the PR")
-        self.assertIn("weka-reviewed", weka.pr_comments[0][1])
+        self.assertTrue(weka.object_comments, "the kept gate must explain itself on the PR")
+        self.assertIn("weka-reviewed", weka.object_comments[0][1])
 
     def test_an_unrelated_pr_is_not_replied_to(self):
         weka = FakeWeka()
@@ -184,7 +269,7 @@ class RefusalsAreVisibleTests(unittest.TestCase):
         )
 
         self.assertEqual(weka.creates(), [])
-        self.assertEqual(weka.pr_comments, [], "weka must not comment on PRs it never owned")
+        self.assertEqual(weka.object_comments, [], "weka must not comment on PRs it never owned")
 
     def test_a_closed_pr_is_not_replied_to(self):
         weka = FakeWeka()
@@ -195,7 +280,7 @@ class RefusalsAreVisibleTests(unittest.TestCase):
             text="thanks for the fix", ref_url="", idem_key="k",
         )
 
-        self.assertEqual(weka.pr_comments, [], "a merged PR has nothing left to rework")
+        self.assertEqual(weka.object_comments, [], "a merged PR has nothing left to rework")
 
 
 class AnOpenCardAbsorbsTheCommentTests(unittest.TestCase):
@@ -209,6 +294,8 @@ class AnOpenCardAbsorbsTheCommentTests(unittest.TestCase):
         self.assertEqual(len(comments), 1)
         self.assertEqual(comments[0][1], "t_rework")
         self.assertIn("the label on line 42 is wrong", comments[0][2])
+        self.assertEqual(weka.comment_boards(), [None],
+                         "a PR card lives on this flow's board, so no --board override")
 
     def test_a_card_still_absorbs_the_comment_after_the_label_was_stripped(self):
         """cody strips weka-reviewed on pickup, so the label cannot gate this."""
@@ -221,14 +308,291 @@ class AnOpenCardAbsorbsTheCommentTests(unittest.TestCase):
         )
 
         self.assertEqual(len(weka.card_comments()), 1)
-        self.assertEqual(weka.pr_comments, [], "no refusal note: the request was absorbed")
+        self.assertEqual(weka.object_comments, [], "no refusal note: the request was absorbed")
 
     def test_a_failed_append_is_reported_on_the_pr(self):
         weka = FakeWeka(cards=[("t_rework", "running")], kanban_ok=False)
 
         weka.trigger()
 
-        self.assertTrue(weka.pr_comments, "the comment on the card failed too: say it on the PR")
+        self.assertTrue(weka.object_comments, "the comment on the card failed too: say it on the PR")
+
+
+class IssueCommentRoutingTests(unittest.TestCase):
+    """A comment on a plain issue used to leave `handle_issue_comment` at once."""
+
+    def test_a_human_assigned_issue_creates_a_scout_card_on_the_groom_board(self):
+        weka = FakeWeka(config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload())
+
+        creates = weka.creates()
+        self.assertEqual(len(creates), 1, weka.kanban_calls)
+        create = creates[0]
+        self.assertEqual(create[1], f"#{ISSUE_NUMBER}: {ISSUE_TITLE}")
+        self.assertEqual(create[create.index("--assignee") + 1], "scout")
+        self.assertEqual(weka.create_boards(), ["groom-board"])
+        self.assertIn("这一段需求再确认一下", create[create.index("--body") + 1])
+        self.assertNotIn(
+            "--workspace", create,
+            "a conversation about an issue is not a code task: no checkout of the repo",
+        )
+        self.assertEqual(weka.object_comments, [], "a created card needs no excuse")
+
+    def test_an_unconfigured_groom_branch_is_skipped_with_a_trace(self):
+        weka = FakeWeka()          # no groom_board / groom_assignee
+
+        weka.handle_issue_comment(issue_comment_payload())
+
+        self.assertEqual(weka.creates(), [], "the branch stays off until it is configured")
+        self.assertEqual(len(weka.object_comments), 1)
+        self.assertEqual(weka.object_comments[0][0], ISSUE_NUMBER)
+        self.assertIn("groom_board", weka.object_comments[0][1])
+
+    def test_a_bot_assigned_issue_reuses_the_rework_path(self):
+        weka = FakeWeka()
+
+        weka.handle_issue_comment(issue_comment_payload(assignees=("zzgbot",)))
+
+        creates = weka.creates()
+        self.assertEqual(len(creates), 1, weka.kanban_calls)
+        create = creates[0]
+        self.assertTrue(create[1].startswith(f"#{ISSUE_NUMBER}: Rework — "), create[1])
+        self.assertEqual(create[create.index("--assignee") + 1], "cody")
+        self.assertEqual(weka.create_boards(), [None], "the implementation board")
+        self.assertIn("--project", create, "an implementation card still gets a worktree")
+        self.assertEqual(weka.object_comments, [])
+
+    def test_an_unassigned_issue_gets_a_trace_and_no_card(self):
+        weka = FakeWeka(config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(assignees=()))
+
+        self.assertEqual(weka.creates(), [])
+        self.assertEqual(len(weka.object_comments), 1)
+        note = weka.object_comments[0][1]
+        self.assertIn("zzgbot", note)
+        self.assertIn("hizzgdev", note)
+
+    def test_an_issue_without_the_label_stays_silent(self):
+        weka = FakeWeka(config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(labels=("bug",)))
+
+        self.assertEqual(weka.kanban_calls, [])
+        self.assertEqual(
+            weka.object_comments, [],
+            "weka does not answer a thread nobody handed to it",
+        )
+
+    def test_a_closed_issue_without_a_card_creates_nothing(self):
+        weka = FakeWeka(config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(state="closed"))
+
+        self.assertEqual(weka.kanban_calls, [])
+        self.assertEqual(
+            weka.object_comments, [],
+            "a closed issue has no next step for the human to take",
+        )
+
+    def test_an_open_card_absorbs_the_issue_comment(self):
+        weka = FakeWeka(cards=[("t_issue", "running")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload())
+
+        self.assertEqual(weka.creates(), [], "one open card per number: no second card")
+        comments = weka.card_comments()
+        self.assertEqual(len(comments), 1)
+        self.assertEqual(comments[0][1], "t_issue")
+        self.assertIn("这一段需求再确认一下", comments[0][2])
+
+    def test_a_card_still_absorbs_the_comment_after_the_label_was_stripped(self):
+        """The card lookup is before the label gate, like the PR path's."""
+        weka = FakeWeka(cards=[("t_issue", "running")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(labels=("bug",)))
+
+        self.assertEqual(weka.creates(), [], "the running card owns the number")
+        self.assertEqual(weka.card_comments()[0][1], "t_issue")
+        self.assertEqual(weka.object_comments, [], "no refusal note: the card took the comment")
+
+    def test_a_closed_issue_keeps_feeding_the_card_that_is_still_open(self):
+        """`Closes #N` closes the issue while the work is still on the board."""
+        weka = FakeWeka(cards=[("t_issue", "review")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(state="closed"))
+
+        self.assertEqual(weka.creates(), [])
+        self.assertEqual(weka.card_comments()[0][1], "t_issue")
+
+    def test_the_groom_card_takes_a_comment_on_a_closed_issue(self):
+        weka = FakeWeka(groom_cards=[("t_scout", "running")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(state="closed"))
+
+        self.assertEqual(weka.creates(), [], "the scout card on its board owns the number")
+        self.assertEqual(weka.card_comments()[0][1], "t_scout")
+        self.assertEqual(
+            weka.comment_boards(), [GROOM["groom_board"]],
+            "the comment is addressed at the board the card was found on; the CLI "
+            "resolves the task inside that board's own database",
+        )
+        self.assertEqual(weka.object_comments, [], "no false 'append failed' trace")
+
+    def test_the_implementation_card_wins_when_both_boards_hold_one(self):
+        weka = FakeWeka(cards=[("t_issue", "running")],
+                        groom_cards=[("t_scout", "running")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload())
+
+        self.assertEqual(weka.card_comments()[0][1], "t_issue",
+                         "the card that is writing code hears the human first")
+        self.assertEqual(weka.comment_boards(), [None],
+                         "the implementation card lives on this flow's board")
+
+    def test_a_second_comment_continues_the_groom_conversation(self):
+        weka = FakeWeka(groom_cards=[("t_scout", "blocked")], config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload())
+
+        self.assertEqual(weka.creates(), [], "the scout card on its board owns the number")
+        self.assertEqual(weka.card_comments()[0][1], "t_scout")
+        self.assertEqual(weka.comment_boards(), [GROOM["groom_board"]])
+
+    def test_a_failed_scout_create_is_reported_on_the_issue(self):
+        weka = FakeWeka(kanban_ok=False, config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload())
+
+        self.assertTrue(weka.object_comments, "the request is in no queue: say so on the issue")
+        self.assertIn("groom 卡失败", weka.object_comments[0][1])
+
+    def test_weka_does_not_answer_its_own_trace_on_an_issue(self):
+        weka = FakeWeka(config=GROOM)
+        payload = issue_comment_payload(f"{weka_webhook.TRACE_MARKER}\n这条评论没有进卡")
+
+        weka.handle_issue_comment(payload)
+
+        self.assertEqual(weka.kanban_calls, [])
+        self.assertEqual(weka.object_comments, [])
+
+    def test_a_comment_from_someone_else_is_ignored(self):
+        weka = FakeWeka(config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload(login="randomuser"))
+
+        self.assertEqual(weka.kanban_calls, [])
+        self.assertEqual(weka.object_comments, [])
+
+
+class DedupeWeka(FakeWeka):
+    """Models `hermes kanban create --idempotency-key` and the card it leaves.
+
+    `create_task()` returns the existing task instead of a duplicate, and the CLI
+    exits 0 for that, which is why a redelivery must not read as a failure.
+
+    The card the first delivery created is open by the time the second arrives,
+    so `open_card_for()` has to see it — that is what the second delivery
+    actually does, and it is how the note below gets appended.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.keys = set()
+        self.created_titles = []
+
+    def kanban(self, *args, board=None):
+        if args[0] == "create":
+            key = args[args.index("--idempotency-key") + 1]
+            if key in self.keys:
+                return True
+            self.keys.add(key)
+            self.created_titles.append(args[1])
+            # `board=None` is this flow's own board; anything else is the groom board.
+            pool = self.groom_cards if board else self.cards
+            pool.append((f"t_created_{len(self.created_titles)}", "ready"))
+        return super().kanban(*args, board=board)
+
+
+class RedeliveryTests(unittest.TestCase):
+    """A redelivered comment must not create a second card.
+
+    What it does do is append a second note: by the time GitHub redelivers, the
+    card from the first delivery is open, so the delivery lands on the
+    "already has a card" branch. The idempotency key guards the create, not the
+    append — the known limit the README records, pinned here so nobody reads the
+    class name as a stronger promise.
+    """
+
+    def test_a_redelivered_issue_comment_creates_one_card_and_repeats_the_note(self):
+        weka = DedupeWeka(config=GROOM)
+        payload = issue_comment_payload()
+
+        weka.handle_issue_comment(payload)
+        weka.handle_issue_comment(payload)
+
+        self.assertEqual(len(weka.created_titles), 1, weka.kanban_calls)
+        self.assertEqual(weka.create_keys()[0], f"gh-issue-{ISSUE_NUMBER}-comment-77")
+        self.assertEqual(weka.object_comments, [], "a deduplicated create is not a failure")
+        # Second delivery: one note on the card the first one created, on the
+        # board that card lives on.
+        self.assertEqual(len(weka.card_comments()), 1, weka.kanban_calls)
+        self.assertIn("这一段需求再确认一下", weka.card_comments()[0][2])
+        self.assertEqual(weka.comment_boards(), ["groom-board"])
+
+
+class PRCommentRegressionTests(unittest.TestCase):
+    """The three PR shapes keep producing exactly what they produced before."""
+
+    def test_a_conversation_comment_creates_the_rework_card(self):
+        weka = FakeWeka()
+
+        weka.handle_issue_comment(comment_payload("please also handle the edge case"))
+
+        creates = weka.creates()
+        self.assertEqual(len(creates), 1)
+        self.assertTrue(creates[0][1].startswith(f"#{PR_NUMBER}: Rework — "), creates[0][1])
+        self.assertEqual(creates[0][creates[0].index("--idempotency-key") + 1],
+                         f"gh-pr-{PR_NUMBER}-comment-1")
+        body = creates[0][creates[0].index("--body") + 1]
+        self.assertIn("## branch", body)
+        self.assertIn("gh pr view", body)
+        self.assertEqual(weka.create_boards(), [None])
+
+    def test_a_submitted_review_creates_the_rework_card(self):
+        weka = FakeWeka()
+
+        weka.handle_pr_review(review_payload())
+
+        creates = weka.creates()
+        self.assertEqual(len(creates), 1)
+        self.assertEqual(creates[0][creates[0].index("--idempotency-key") + 1],
+                         f"gh-pr-{PR_NUMBER}-review-9")
+        self.assertIn("pull_request_review.submitted (changes_requested)",
+                      creates[0][creates[0].index("--body") + 1])
+
+    def test_an_inline_comment_creates_the_rework_card(self):
+        weka = FakeWeka()
+
+        weka.handle_pr_review_comment(inline_payload())
+
+        creates = weka.creates()
+        self.assertEqual(len(creates), 1)
+        self.assertEqual(creates[0][creates[0].index("--idempotency-key") + 1],
+                         f"gh-pr-{PR_NUMBER}-review-comment-5")
+        self.assertIn("src/arranger.ts:42", creates[0][creates[0].index("--body") + 1])
+
+    def test_an_issue_payload_never_reaches_the_pr_path(self):
+        """The fork is decided once, on `pull_request` being present."""
+        weka = FakeWeka(config=GROOM)
+
+        weka.handle_issue_comment(issue_comment_payload())
+
+        self.assertEqual(
+            [key for key in weka.create_keys() if key.startswith("gh-pr-")], [],
+            "a plain issue must not be keyed as a PR",
+        )
 
 
 class SelfFeedingTests(unittest.TestCase):
@@ -263,7 +627,7 @@ class SelfFeedingTests(unittest.TestCase):
 class CommentShapeTests(unittest.TestCase):
     """The trace goes through gh, and carries the marker that stops the loop."""
 
-    def test_comment_on_pr_posts_a_marked_body_via_gh(self):
+    def test_comment_on_object_posts_a_marked_body_via_gh(self):
         weka = weka_webhook.Weka(dict(CONFIG))
         weka._slug = "hizzgdev/jsmind-v2"
         weka._slug_known = True
@@ -276,7 +640,7 @@ class CommentShapeTests(unittest.TestCase):
         weka._run = fake_run  # type: ignore[method-assign]
         weka.gh = "/usr/bin/gh"
 
-        self.assertTrue(weka.comment_on_pr(PR_NUMBER, "为什么没有建卡"))
+        self.assertTrue(weka.comment_on_object(PR_NUMBER, "为什么没有建卡"))
 
         self.assertEqual(calls[0][:5], [
             "/usr/bin/gh", "api", "-X", "POST", "repos/hizzgdev/jsmind-v2/issues/151/comments",
@@ -288,7 +652,7 @@ class CommentShapeTests(unittest.TestCase):
     def test_a_comment_without_a_number_is_a_no_op_not_a_crash(self):
         weka = weka_webhook.Weka(dict(CONFIG))
 
-        self.assertFalse(weka.comment_on_pr(None, "x"))
+        self.assertFalse(weka.comment_on_object(None, "x"))
 
 
 class ScriptedGitWeka(weka_webhook.Weka):

@@ -5,5 +5,7 @@
   "kanban_board": "jsmind-v2",
   "assignee": "cody",
   "human_login": "hizzgdev",
-  "bot_login": "zzgbot"
+  "bot_login": "zzgbot",
+  "groom_board": null,
+  "groom_assignee": null
 }
