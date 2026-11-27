@@ -16,7 +16,8 @@ Events handled:
   issue why neither happened
 - pull_request_review_comment (created by the human, same
   gate as a review)                                        -> create rework card
-- pull_request (closed)                                   -> clean up worktree, strip labels
+- pull_request (closed)                                   -> clean up worktree, strip labels,
+  queue a groom (scout) card
 - issues (closed)                                         -> strip leftover labels
 
 Closing is the fallback that ends a label's life on the object. Both close
@@ -210,6 +211,30 @@ class Weka:
             )
         except Exception as exc:
             print(f"[WARN] card lookup failed for #{number}: {exc}", file=sys.stderr)
+            return None
+        return (rows[0][0], rows[0][1]) if rows else None
+
+    def open_groom_card(self) -> tuple[str, str] | None:
+        """`(task_id, status)` of the one open card on the groom board, else None.
+
+        Groom is a single conversation lane, not one lane per number: a round of
+        "what should the repository do next" reads the same milestones, roadmap
+        and open issues whatever object triggered it. So the idempotency key here
+        is the board, not a number — a second trigger while scout is still
+        working appends to that card instead of opening a parallel conversation
+        about the same state of the repository.
+        """
+        if not self.groom_board:
+            return None
+        try:
+            rows = self._query(
+                "SELECT id, status FROM tasks WHERE status NOT IN ('done', 'archived') "
+                "ORDER BY created_at DESC LIMIT 1",
+                (),
+                board=self.groom_board,
+            )
+        except Exception as exc:
+            print(f"[WARN] groom card lookup failed: {exc}", file=sys.stderr)
             return None
         return (rows[0][0], rows[0][1]) if rows else None
 
@@ -639,6 +664,88 @@ class Weka:
             ),
         )
 
+    def _queue_groom_for_pr(self, number: int | None, pr: dict, payload: dict,
+                            labels: list[str]) -> None:
+        """Ask scout for the next round after a PR closes, or note the close.
+
+        Every close counts, merged or not: that event is what moves the
+        repository on — a merged branch lands, an abandoned one frees its issue —
+        and the next step is planned from the state it left behind. The scope is
+        the cleanup that runs next to it, so there is no label gate here either.
+
+        Idempotency is the board, not the number (see `open_groom_card`): one
+        open scout card *is* the conversation. A close that arrives while it is
+        still running is appended to it, so the event is not lost and the board
+        never grows a second lane about the same repository state.
+
+        No `--workspace worktree --project`: scout reads documents and writes an
+        issue, so a checkout of this repository buys nothing (same reasoning as
+        `_create_groom_card`).
+        """
+        if not (self.groom_board and self.groom_assignee):
+            # Journal only, unlike an unconfigured groom branch reached from an
+            # issue comment: a close is not a human request, so a note on the PR
+            # would be noise nobody asked for.
+            print(
+                f"[GATE] PR #{number} closed: groom_board/groom_assignee not configured, "
+                "no groom card",
+                file=sys.stderr,
+            )
+            return
+        merged = bool(pr.get("merged"))
+        actor = (payload.get("sender") or {}).get("login") or "github"
+        existing = self.open_groom_card()
+        if existing:
+            self._append_to_card(
+                existing,
+                number=number,
+                event="pull_request.closed",
+                actor=actor,
+                text=(f"PR #{number} 已关闭（merged={str(merged).lower()}）："
+                      f"{pr.get('html_url') or ''}"),
+                board=self.groom_board,
+            )
+            return
+        title = (pr.get("title") or "").strip()
+        self._create_card(
+            number,
+            f"#{number}: Groom — {title}"[:120],
+            self._pr_groom_body(number, pr, labels, merged=merged, actor=actor),
+            f"gh-pr-{number}-closed",
+            board=self.groom_board,
+            assignee=self.groom_assignee,
+            create_args=(),
+            failure_text=(
+                f"PR #{number} 已关闭，但建 groom 卡失败（`hermes kanban create` 非零退出），"
+                "下一轮需求梳理没有进队列。webhook journal 里有具体错误，也可以在 GitHub 的 "
+                "webhook 投递记录里 redeliver 这一条。"
+            ),
+        )
+
+    @staticmethod
+    def _pr_groom_body(number: int | None, pr: dict, labels: list[str], *,
+                       merged: bool, actor: str) -> str:
+        """Body of a groom card created by a PR close."""
+        branch = ((pr.get("head") or {}).get("ref")) or ""
+        state = "merged" if merged else "closed without merging"
+        return (
+            f"{pr.get('html_url') or ''}\n\n"
+            "## trigger\n"
+            "- event: pull_request.closed\n"
+            f"- merged: {str(merged).lower()} ({state})\n"
+            f"- actor: {actor}\n"
+            f"- received: {_now()}\n"
+            f"- labels at trigger: {', '.join(labels) or '(none)'}\n"
+            f"- branch: {branch or '(unknown)'}\n"
+            "\n## what this card is for\n"
+            f"PR #{number} 已关闭，仓库进入下一轮。按 `SOUL.scout.md` 跑一轮：读 "
+            "`team/development/milestones.md`、`roadmap.md`、tracker issue 的清单、"
+            "open issues 和这个 PR，判断下一步该做什么；已有 open issue 覆盖同一件事就"
+            "补全它，没有就新建，然后把 issue assign 给 hizzgdev。\n"
+            "\n> Source of truth is GitHub. Read the PR and any linked issue yourself:\n"
+            f"> `gh pr view {number} --comments`\n"
+        )
+
     def _create_issue_rework_card(self, number: int | None, issue: dict, labels: list[str], *,
                                   event: str, actor: str, text: str, ref_url: str,
                                   idem_key: str) -> None:
@@ -914,6 +1021,10 @@ class Weka:
 
         self.cleanup_branch(branch, merged)
         self.strip_labels(number, labels)
+        # Last, so this cannot cost the cleanup that precedes it: the worktree and
+        # the labels are gone either way, and a failed create leaves its trace on
+        # the PR instead of raising.
+        self._queue_groom_for_pr(number, pr, payload, labels)
 
     @staticmethod
     def _pr_number(payload: dict) -> int | None:

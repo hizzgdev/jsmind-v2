@@ -137,6 +137,14 @@ def issue_comment_payload(body="这一段需求再确认一下", *, assignees=("
     }
 
 
+def closed_pr_payload(merged=True, labels=("weka", "weka-reviewed"), number=PR_NUMBER):
+    """A `pull_request.closed` payload: the slice `handle_pr` reads."""
+    payload = pr_payload(labels=labels, state="closed", number=number, action="closed")
+    payload["pull_request"]["merged"] = merged
+    payload["sender"] = {"login": "hizzgdev"}
+    return payload
+
+
 class FakeWeka(weka_webhook.Weka):
     """A Weka that records its side effects instead of performing them."""
 
@@ -159,6 +167,10 @@ class FakeWeka(weka_webhook.Weka):
         # Any board argument is the groom board here; None is the flow's own.
         pool = self.groom_cards if board else self.cards
         return pool[0] if pool else None
+
+    def open_groom_card(self):
+        # One stream on the groom board: the first entry stands for it.
+        return self.groom_cards[0] if self.groom_cards else None
 
     def busy_cards(self):
         return self.busy
@@ -540,6 +552,141 @@ class RedeliveryTests(unittest.TestCase):
         self.assertEqual(len(weka.card_comments()), 1, weka.kanban_calls)
         self.assertIn("这一段需求再确认一下", weka.card_comments()[0][2])
         self.assertEqual(weka.comment_boards(), ["groom-board"])
+
+
+class ClosedPRWeka(FakeWeka):
+    """FakeWeka that records the close-path side effects instead of running them.
+
+    `close_events` is one ordered list across all three steps on purpose: the
+    order between cleanup and the groom card is itself the contract (a card that
+    cannot be created must not cost the worktree removal that precedes it), and
+    three separate lists would let the calls be swapped without a red test.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.cleaned = []
+        self.stripped = []
+        self.close_events = []
+
+    def cleanup_branch(self, branch, merged):
+        self.close_events.append("cleanup")
+        self.cleaned.append((branch, merged))
+
+    def strip_labels(self, number, labels):
+        self.close_events.append("strip")
+        self.stripped.append((number, tuple(labels)))
+
+    def _queue_groom_for_pr(self, number, pr, payload, labels):
+        self.close_events.append("create")
+        return super()._queue_groom_for_pr(number, pr, payload, labels)
+
+
+class GroomAfterPRCloseTests(unittest.TestCase):
+    """A close is the moment to plan the next round: one scout card lands.
+
+    Merged or abandoned, the close is what moves the repository on, so the next
+    step is planned from the state it left behind rather than from an event that
+    only fires on success.
+    """
+
+    def test_a_merged_pr_queues_a_scout_card_on_the_groom_board(self):
+        weka = ClosedPRWeka(config=GROOM)
+
+        weka.handle_pr(closed_pr_payload(merged=True))
+
+        creates = weka.creates()
+        self.assertEqual(len(creates), 1, weka.kanban_calls)
+        create = creates[0]
+        self.assertEqual(create[1], f"#{PR_NUMBER}: Groom — {PR_TITLE}")
+        self.assertEqual(create[create.index("--assignee") + 1], "scout")
+        self.assertEqual(weka.create_boards(), [GROOM["groom_board"]])
+        self.assertEqual(weka.create_keys(), [f"gh-pr-{PR_NUMBER}-closed"])
+        self.assertNotIn(
+            "--workspace", create,
+            "scout reads documents and writes an issue: a checkout of this repo buys nothing",
+        )
+        body = create[create.index("--body") + 1]
+        self.assertIn(f"pull/{PR_NUMBER}", body)
+        self.assertIn("merged: true", body)
+        self.assertIn("SOUL.scout.md", body)
+        self.assertEqual(weka.object_comments, [], "a created card needs no excuse on the PR")
+
+    def test_cleanup_runs_before_the_groom_card(self):
+        weka = ClosedPRWeka(config=GROOM)
+
+        weka.handle_pr(closed_pr_payload())
+
+        self.assertEqual(weka.cleaned, [("fix/arranger-cousin-spacing", True)])
+        self.assertEqual(weka.stripped, [(PR_NUMBER, ("weka", "weka-reviewed"))])
+        self.assertEqual(
+            weka.close_events, ["cleanup", "strip", "create"],
+            "cleanup must land before the card create: the branches and labels are "
+            "gone whatever the create does",
+        )
+
+    def test_a_closed_unmerged_pr_still_queues_a_scout_card(self):
+        weka = ClosedPRWeka(config=GROOM)
+
+        weka.handle_pr(closed_pr_payload(merged=False))
+
+        creates = weka.creates()
+        self.assertEqual(len(creates), 1, weka.kanban_calls)
+        self.assertIn("merged: false", creates[0][creates[0].index("--body") + 1])
+
+    def test_an_open_groom_card_absorbs_the_close_instead_of_a_second_lane(self):
+        weka = ClosedPRWeka(groom_cards=[("t_scout", "running")], config=GROOM)
+
+        weka.handle_pr(closed_pr_payload())
+
+        self.assertEqual(weka.creates(), [], "one open groom card is the whole conversation")
+        comments = weka.card_comments()
+        self.assertEqual(len(comments), 1)
+        self.assertEqual(comments[0][1], "t_scout")
+        self.assertIn("merged=true", comments[0][2])
+        self.assertEqual(
+            weka.comment_boards(), [GROOM["groom_board"]],
+            "the comment is addressed at the board the card was found on",
+        )
+
+    def test_the_implementation_card_does_not_absorb_the_next_round(self):
+        """The card that owned the PR number is completed by the same close."""
+        weka = ClosedPRWeka(cards=[("t_rework", "running")], config=GROOM)
+
+        weka.handle_pr(closed_pr_payload())
+
+        self.assertEqual(len(weka.creates()), 1)
+        self.assertEqual(weka.create_boards(), [GROOM["groom_board"]])
+
+    def test_an_unconfigured_groom_branch_stays_silent_on_the_pr(self):
+        weka = ClosedPRWeka()
+
+        weka.handle_pr(closed_pr_payload())
+
+        self.assertEqual(weka.creates(), [], "the branch stays off until it is configured")
+        self.assertEqual(
+            weka.object_comments, [],
+            "a close is not a human request to answer; a note here would be noise",
+        )
+        self.assertEqual(weka.cleaned, [("fix/arranger-cousin-spacing", True)],
+                         "cleanup still happens with the groom branch off")
+
+    def test_a_failed_groom_create_is_reported_on_the_pr(self):
+        weka = ClosedPRWeka(kanban_ok=False, config=GROOM)
+
+        weka.handle_pr(closed_pr_payload())
+
+        self.assertTrue(weka.object_comments, "the next round is in no queue: say it")
+        self.assertIn("groom 卡失败", weka.object_comments[0][1])
+        self.assertEqual(weka.object_comments[0][0], PR_NUMBER)
+
+    def test_a_non_close_action_queues_nothing(self):
+        weka = ClosedPRWeka(config=GROOM)
+
+        weka.handle_pr(pr_payload(action="edited"))
+
+        self.assertEqual(weka.creates(), [])
+        self.assertEqual(weka.cleaned, [])
 
 
 class PRCommentRegressionTests(unittest.TestCase):
