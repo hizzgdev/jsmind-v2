@@ -47,6 +47,23 @@ export interface JmViewport {
 }
 
 /**
+ * A point in the view's own box, measured from its top-left corner.
+ *
+ * @remarks
+ * This is not a map coordinate and not a page coordinate: it is what a pointer
+ * event carries once the box's own origin has been subtracted, which is the one
+ * thing a caller holding a pointer has to work out. Turning it into a map
+ * position is the view's job, and {@link JmViewHandle.zoomTo} is the only place
+ * it crosses back in.
+ *
+ * @public
+ */
+export interface JmViewportAnchor {
+    x: number;
+    y: number;
+}
+
+/**
  * What the application layer is allowed to ask of the view.
  *
  * @public
@@ -60,16 +77,38 @@ export interface JmViewHandle {
      */
     capture(options?: JmExportImageOptions): Promise<JmExportImageResult>;
 
-    // The viewport methods below are not implemented yet. They are declared
-    // here rather than added one at a time because the shape is what matters:
-    // the application layer holds a handle whose surface grows by adding
-    // methods, not by widening a constructor with another callback per feature.
+    /**
+     * Changes the zoom factor, holding one point still.
+     *
+     * @remarks
+     * The anchor is explicit because a zoom has to keep something fixed, and
+     * which something decides how the gesture feels: a wheel zooms about the
+     * pointer, a control without a pointer position zooms about the middle of
+     * the box. Passing the anchor in keeps the two from being mixed by accident,
+     * and keeps the mapping from a screen point to a map point inside the view.
+     *
+     * @param scale - Requested factor, clamped to the range the view accepts.
+     * @param anchor - Point to hold still, in the view's own pixels. Defaults to
+     * the middle of the viewport.
+     */
+    zoomTo(scale: number, anchor?: JmViewportAnchor): void;
+
+    /**
+     * Reads the current viewport.
+     *
+     * @returns The origin, the zoom factor and the visible size.
+     */
+    getViewport(): JmViewport;
+
+    // The rest of the viewport surface is not implemented yet. It is declared
+    // here as one block rather than added one method at a time because the
+    // shape is what matters: the application layer holds a handle whose surface
+    // grows by adding methods, not by widening a constructor with another
+    // callback per feature.
     //
     // panTo(x: number, y: number): void;
     // panBy(dx: number, dy: number): void;
-    // zoomTo(scale: number): void;
     // centerOn(nodeId: string): void;
-    // getViewport(): JmViewport;
     //
     // Interaction will arrive as semantic events, not as coordinate helpers.
     // Turning a pointer position into a node id, or into a map position, needs

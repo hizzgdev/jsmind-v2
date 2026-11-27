@@ -40,6 +40,12 @@ export const JSMIND_VIEW_STYLES = `
         -webkit-user-select: none;
         user-select: none;
         background-color: var(--jm-background);
+        /* The viewport scales the inner box, and a scaled box paints past the
+           edge it started at: zoomed in, the map would grow the *page's*
+           scrollable area and hand the reader a scrollbar that scrolls the wrong
+           thing. Clipping here keeps the map inside the view. A view that is
+           never zoomed has nothing outside this box to clip. */
+        overflow: hidden;
     }
 
     .jsmind-inner {

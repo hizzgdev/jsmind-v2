@@ -62,6 +62,19 @@ class JsMind {
     private readonly commander: JmCommander;
 
     /**
+     * Commands that change what is displayed - export, zoom - without changing
+     * the map.
+     *
+     * @remarks
+     * Reachable from outside so that the caller can hold on to it: a shell, a
+     * toolbar button or a keyboard shortcut keeps this reference and calls it,
+     * instead of going through the instance every time.
+     */
+    get commands(): JmCommander {
+        return this.commander;
+    }
+
+    /**
      * Creates a new jsMind instance.
      *
      * @param options - Configuration options for the jsMind instance.

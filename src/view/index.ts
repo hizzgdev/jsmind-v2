@@ -6,6 +6,8 @@ import { JmEdgeView } from './edge.ts';
 import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
 import { captureShadowContent, type JmExportImageOptions, type JmExportImageResult } from './export.ts';
+import type { JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
+import { viewportCssTransform, zoomViewport, type JmViewportTransform } from './viewport.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
@@ -17,7 +19,7 @@ import type { Arranger } from '../arranger/index.ts';
  * View of mind map.
  * @public
  */
-export class JmView {
+export class JmView implements JmViewHandle {
     private readonly container: HTMLElement;
 
     private readonly shadowRoot: ShadowRoot;
@@ -46,6 +48,21 @@ export class JmView {
     private readonly viewSize: JmSize = new JmSize(1, 1);
 
     private readonly viewOffset: JmPoint = new JmPoint(0, 0);
+
+    /** How the map sits in the viewport. Identity until a zoom asks for more. */
+    private readonly viewport: JmViewportTransform = { x: 0, y: 0, scale: 1 };
+
+    /**
+     * Whether the viewport has taken the inner box over from native scrolling.
+     *
+     * @remarks
+     * A view that is never asked to zoom keeps the old behaviour: the map
+     * overflows the inner box and the browser's own scrollbars reach it. A
+     * transform moves content without extending the scrollable area, so the two
+     * cannot both be in charge - the first zoom replaces the scrollbars with the
+     * transform, and this flag says which one owns the box.
+     */
+    private viewportActive = false;
 
     private constructor(container: HTMLElement, shadowRoot: ShadowRoot, innerContainer: JmElement, nodeView: JmNodeView, edgeView: JmEdgeView, arranger: Arranger, options: ViewOptions) {
         this.container = container;
@@ -112,16 +129,58 @@ export class JmView {
     }
 
     async measureNodeSizes(mind: JmMind): Promise<void> {
-        const promises = Object.values(mind._nodes).map((node: JmNode)=>this.measureNodeSize(node));
-        await Promise.all(promises);
+        await this._whileUnscaled(() =>
+            Promise.all(Object.values(mind._nodes).map((node: JmNode)=>this._measureNode(node)))
+        );
     }
 
     async measureNodeSize(node: JmNode): Promise<JmSize> {
+        return await this._whileUnscaled(() => this._measureNode(node));
+    }
+
+    /**
+     * Measures one node and records its size for the layout.
+     *
+     * @param node - Node to measure.
+     * @returns The measured size, in layout pixels.
+     */
+    private async _measureNode(node: JmNode): Promise<JmSize> {
         return this.nodeView.createAndMeasure(node)
             .then((size: JmSize)=>{
                 this.arranger.recordNodeSize(node, size);
                 return size;
             });
+    }
+
+    /**
+     * Runs a measurement with the viewport transform out of the way.
+     *
+     * @remarks
+     * Measurement reads `getBoundingClientRect()`, and a rect includes every
+     * transform above the element: a node measured at 2x would be recorded as
+     * twice its size, and the layout computed from that would be wrong. So the
+     * transform is cleared for the measurement and put back afterwards.
+     *
+     * No flicker: the wait inside a measurement is a `requestAnimationFrame`
+     * callback, and callbacks run before paint, so the transform is back in
+     * place before the frame that would have shown the unscaled tree.
+     *
+     * Nothing to do for a view that was never zoomed, which is every caller that
+     * does not touch the viewport API.
+     *
+     * @param work - Measurement to run.
+     * @returns What the measurement returned.
+     */
+    private async _whileUnscaled<T>(work: () => Promise<T>): Promise<T> {
+        if (!this.viewportActive) {
+            return await work();
+        }
+        this.innerContainer.element.style.transform = 'none';
+        try {
+            return await work();
+        } finally {
+            this._applyViewport();
+        }
     }
 
     async settle(mind: JmMind, _changedNodeIds: string[] = []): Promise<void> {
@@ -220,6 +279,115 @@ export class JmView {
      */
     async capture(options?: JmExportImageOptions): Promise<JmExportImageResult> {
         return await captureShadowContent(this.container, this.shadowRoot, this.viewSize, options);
+    }
+
+    /**
+     * Changes the zoom factor, holding one point still.
+     *
+     * @param scale - Requested factor, clamped to the range the view accepts.
+     * @param anchor - Point to hold still, in the view's own pixels. Defaults to
+     * the middle of the viewport, which is what a control without a pointer
+     * position wants.
+     */
+    zoomTo(scale: number, anchor?: JmViewportAnchor): void {
+        this._activateViewport();
+        const state = zoomViewport(this.viewport, scale, anchor ?? this._viewportCentre());
+        this.viewport.x = state.x;
+        this.viewport.y = state.y;
+        this.viewport.scale = state.scale;
+        this._applyViewport();
+    }
+
+    /**
+     * Reads the current viewport.
+     *
+     * @remarks
+     * `x`/`y` name the map-space point at the viewport's top-left corner, and
+     * that has to mean the same thing before and after the first zoom: while
+     * native scrolling is in charge the displacement is the scroll offset, and a
+     * reader who scrolled the map and then read the viewport would otherwise be
+     * told the map is still at its origin.
+     *
+     * The scroll term is divided by the zoom for the same reason it is added
+     * when the box is taken over: scrolling happens in the element's own
+     * untransformed space, and the transform then scales it along with the
+     * content.
+     *
+     * @returns The origin, the zoom factor and the visible size.
+     */
+    getViewport(): JmViewport {
+        const size = this._viewportSize();
+        const element = this.innerContainer.element;
+        return {
+            x: this.viewport.x + element.scrollLeft / this.viewport.scale,
+            y: this.viewport.y + element.scrollTop / this.viewport.scale,
+            scale: this.viewport.scale,
+            width: size.width,
+            height: size.height,
+        };
+    }
+
+    /**
+     * Takes the inner box over from native scrolling, once.
+     *
+     * @remarks
+     * `transform` moves content without extending the scrollable area, so with
+     * both in charge a zoom would move the map and a scrollbar would move it
+     * again. Done before any size is read, because the scrollbars it removes
+     * were occupying the box the size is read from.
+     *
+     * Whatever the reader had already scrolled to becomes part of the state
+     * before the scrollbars go: a scroll offset and a viewport origin describe
+     * the same displacement, so folding one into the other is what keeps the
+     * picture from jumping at the moment the transform takes over.
+     */
+    private _activateViewport(): void {
+        if (this.viewportActive) {
+            return;
+        }
+        const element = this.innerContainer.element;
+        this.viewport.x += element.scrollLeft / this.viewport.scale;
+        this.viewport.y += element.scrollTop / this.viewport.scale;
+        element.scrollLeft = 0;
+        element.scrollTop = 0;
+        this.viewportActive = true;
+        element.style.overflow = 'hidden';
+    }
+
+    /**
+     * Writes the viewport state onto the inner box.
+     *
+     * @remarks
+     * The transform lives on the inner box rather than on a wrapper of its own
+     * for two reasons: the box is already there and the content is positioned
+     * inside it, and `export.ts` resets `transform` on the box it clones, which
+     * is what keeps a capture independent of where the view happens to be
+     * looking.
+     */
+    private _applyViewport(): void {
+        const element = this.innerContainer.element;
+        element.style.transformOrigin = '0 0';
+        element.style.transform = viewportCssTransform(this.viewport);
+    }
+
+    /**
+     * The visible box's size, in CSS pixels.
+     *
+     * @returns Width and height of the inner box, read from layout so the
+     * viewport transform cannot change what it reports.
+     */
+    private _viewportSize(): JmSize {
+        return new JmSize(this.innerContainer.element.clientWidth, this.innerContainer.element.clientHeight);
+    }
+
+    /**
+     * The middle of the visible box, in the view's own pixels.
+     *
+     * @returns The default zoom anchor.
+     */
+    private _viewportCentre(): JmViewportAnchor {
+        const size = this._viewportSize();
+        return { x: size.width / 2, y: size.height / 2 };
     }
 
     private _updateViewSize(mind: JmMind): void {
