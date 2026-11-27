@@ -229,3 +229,49 @@ test('viewport - a pan that is not a finite number leaves the origin alone', () 
     });
     assert.deepStrictEqual(panViewportTo(INSIDE, new JmPoint(Number.NaN, Number.NaN), CONTENT, WINDOW), INSIDE);
 });
+
+test('viewport - centring a map point puts it under the middle of the box at any zoom', () => {
+    // `centerOn` composes exactly these two functions: `viewportOriginFor` for
+    // the arithmetic and the pan's clamp for the bounds. The composition is
+    // pinned here, without a browser, because "which point ends up where" is
+    // the whole claim.
+    const middle = { x: WINDOW.width / 2, y: WINDOW.height / 2 };
+
+    // 0.5x is left out on purpose: at that factor the box sees the whole 800px
+    // content, the pan band is empty, and a pan - and so a centring built on it -
+    // is a no-op rather than a move.
+    for (const scale of [1, 2, 4]) {
+        const focus = new JmPoint(500, 350);
+        const origin = viewportOriginFor(focus, middle, scale);
+        const centred = panViewportTo({ x: INSIDE.x, y: INSIDE.y, scale }, origin, CONTENT, WINDOW);
+
+        assert.strictEqual(centred.scale, scale, 'centring does not change the zoom');
+
+        // Read back through the forward mapping: the point the caller asked to
+        // centre has to be the one under the box's middle.
+        const back = viewportPointAt(centred, middle);
+        assert.ok(Math.abs(back.x - focus.x) < 1e-9, `at ${scale}x the centre drifted to ${back.x}`);
+        assert.ok(Math.abs(back.y - focus.y) < 1e-9, `at ${scale}x the centre drifted to ${back.y}`);
+    }
+});
+
+test('viewport - centring a point at the content edge is clamped, not pulled past it', () => {
+    // A node near the left edge of the map: centring it would need an origin
+    // left of the content, and the box would show empty canvas beside the map.
+    // The clamp wins, so the point lands short of the middle - which is what a
+    // pan contract that never reveals blank canvas has to mean for `centerOn`.
+    const middle = { x: WINDOW.width / 2, y: WINDOW.height / 2 };
+    const nearEdge = new JmPoint(CONTENT.left + 20, CONTENT.top + CONTENT.height / 2);
+
+    const origin = viewportOriginFor(nearEdge, middle, 2);
+    assert.ok(origin.x < CONTENT.left, 'the unclamped origin would sit outside the content');
+
+    const clamped = panViewportTo(INSIDE, origin, CONTENT, WINDOW);
+    assert.strictEqual(clamped.x, CONTENT.left, 'the origin stops at the content edge');
+    assert.strictEqual(clamped.y, origin.y, 'the axis with room is untouched');
+
+    // Where the point actually appears: against the view's left edge rather
+    // than in the middle of a 400px box.
+    const painted = (nearEdge.x - clamped.x) * clamped.scale;
+    assert.ok(painted < middle.x - 100, `the point sits at ${painted}px from the left edge, not at ${middle.x}`);
+});

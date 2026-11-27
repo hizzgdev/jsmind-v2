@@ -145,13 +145,35 @@ export interface JmViewHandle {
      */
     panBy(dx: number, dy: number): void;
 
+    /**
+     * Moves the map so that one node's centre sits in the middle of the
+     * viewport.
+     *
+     * @remarks
+     * The zoom is left alone. This is a move, and a caller that centred a node
+     * at the factor the reader had chosen should still be at that factor
+     * afterwards - a command with "zoom to fit" in its name is a different one.
+     *
+     * The origin is the one {@link JmViewHandle.panTo} would write for that
+     * position, so it is clamped the same way: a node near the content's edge
+     * gets as close to the middle as the band allows, and while the whole map
+     * fits the viewport the call is a no-op because there is nowhere to move to.
+     *
+     * A node whose ancestor is folded still has the layout position it is not
+     * drawn at, and this centres that position. Expanding the ancestor would be
+     * a change to the mind, which a display command does not make.
+     *
+     * @param nodeId - Id of a node in the open mind map.
+     * @throws {@link JsMindError} When no map is open, or when the id is not one
+     * of its nodes.
+     */
+    centerOn(nodeId: string): void;
+
     // The rest of the viewport surface is not implemented yet. It is declared
     // here as one block rather than added one method at a time because the
     // shape is what matters: the application layer holds a handle whose surface
     // grows by adding methods, not by widening a constructor with another
     // callback per feature.
-    //
-    // centerOn(nodeId: string): void;
     //
     // Interaction will arrive as semantic events, not as coordinate helpers.
     // Turning a pointer position into a node id, or into a map position, needs

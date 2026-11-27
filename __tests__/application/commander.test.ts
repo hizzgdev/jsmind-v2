@@ -30,9 +30,11 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
     view: JmViewHandle;
     calls: (JmExportImageOptions | undefined)[];
     zooms: ZoomCall[];
+    centres: string[];
 } {
     const calls: (JmExportImageOptions | undefined)[] = [];
     const zooms: ZoomCall[] = [];
+    const centres: string[] = [];
     const viewport: JmViewport = { x: 4, y: 5, scale: 2, width: 640, height: 480 };
     const view: JmViewHandle = {
         async capture(options?: JmExportImageOptions): Promise<JmExportImageResult> {
@@ -49,11 +51,20 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
         zoomTo(scale: number, anchor?: JmViewportAnchor): void {
             zooms.push({ scale, anchor });
         },
+        panTo(): void {
+            // Not exercised here.
+        },
+        panBy(): void {
+            // Not exercised here.
+        },
+        centerOn(nodeId: string): void {
+            centres.push(nodeId);
+        },
         getViewport(): JmViewport {
             return viewport;
         },
     };
-    return { view, calls, zooms };
+    return { view, calls, zooms, centres };
 }
 
 test('commander - exportImage passes the options through to the view', async () => {
@@ -138,4 +149,16 @@ test('commander - getViewport returns what the view reports', () => {
     const commander = new JmCommander(view);
 
     assert.deepStrictEqual(commander.getViewport(), { x: 4, y: 5, scale: 2, width: 640, height: 480 });
+});
+
+test('commander - centerOn forwards the node id to the view', () => {
+    const { view, centres } = fakeView();
+    const commander = new JmCommander(view);
+
+    commander.centerOn('jm-7');
+
+    // The id is the whole request. Where that node is and what origin puts it
+    // in the middle are the view's, and a commander that resolved either would
+    // need the model and the layout as well.
+    assert.deepStrictEqual(centres, ['jm-7']);
 });

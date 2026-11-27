@@ -86,9 +86,19 @@ export class JmCommander {
         this.view.panBy(dx, dy);
     }
 
-    // The rest of the viewport commands land here, next to these:
-    //
-    // centerOn(nodeId: string): void;
+    /**
+     * Moves the map so that one node's centre sits in the middle of the
+     * viewport, leaving the zoom alone.
+     *
+     * @param nodeId - Id of a node in the open mind map.
+     * @throws {@link JsMindError} When no map is open, or the id is not one of
+     * its nodes.
+     */
+    centerOn(nodeId: string): void {
+        this.view.centerOn(nodeId);
+    }
+
+    // The rest of the viewport commands land here, next to these.
     //
     // Folding and moving do not, for the reason given in the handle: they change
     // the mind, and the mind already notifies the view. A command that reached
