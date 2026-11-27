@@ -4,6 +4,8 @@ weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签�
 
 名字是 we(webhook) + ka(kanban) 拼出来的。
 
+运行时判据（状态语义、踩过的坑、排障顺序）在 [operating-notes.md](operating-notes.md)；动这套流程之前先读它。这份 README 管"怎么建起来"，那份管"怎么判断它现在是什么状态"。
+
 三条基本约定，后文展开：
 
 - **卡只是触发器**，事实来源是 GitHub 上的 issue/PR。卡里只有对象 URL 和触发快照。
