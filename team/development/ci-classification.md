@@ -1,6 +1,6 @@
 # CI 检查分类
 
-> **本文定义哪些检查拦合并、哪些只是信息。** 规则集在 GitHub 上配置（Settings → Rules → `branch-master-protection`），本文是它的代码侧对照表：新增检查先在这里定它属于哪一档，改一个 required 检查的名字之前先读第 3 节。
+> **本文定义哪些检查拦合并、哪些只是信息。** 规则集在 GitHub 上配置（Settings → Rules）；required 那几个名字在 `Required CI Task` 里，`branch-master-protection` 只管禁删除与 force push。本文是它们的代码侧对照表：新增检查先在这里定它属于哪一档，改一个 required 检查的名字之前先读第 3 节。
 
 ## 1. 分类
 
@@ -49,18 +49,19 @@ GitHub 对 required check 的判定：
 
 ## 4. 规则集
 
-`branch-master-protection`（ruleset id 27518846）目前只有 `deletion` 与 `non_fast_forward` 两条规则，没有 `required_status_checks`。配 required 检查属于仓库管理员操作，PR 改不了。
+两个 ruleset，各管一件事（`gh api repos/hizzgdev/jsmind-v2/rulesets` 现查）：
 
-开 required 之后，名单里放且只放这四个名字：
+- `Required CI Task`（id 27809199）：`required_status_checks`，就是第 1 节那四个名字；`bypass_actors` 为 null，谁也绕不过。
+- `branch-master-protection`（id 27518846）：只有 `deletion` 与 `non_fast_forward`，没有 `required_status_checks`。
 
-```
-Format, types, tests, build
-Docs site
-UI tests
-Change detection
-```
+**查 required 名单要查前者。** 查 `branch-master-protection`（或 `/branches/master/protection`，它因缺少 admin 权限返回 404）只会得到空输出，看起来像「没有门」，实际是查错了对象。
 
-在改名落地之后加。要求绑定的是名字字符串：改名不跟着改规则集，旧名字没有人上报，PR 卡在一个永远不会来的检查上；反过来先加名单再改名，中间那段时间所有 PR 都不可合并。
+名单本身现查，别背：遍历 rulesets 取 `required_status_checks` 的 `context`（命令见第 5 节）。判据不会随规则变化：
+
+- **required 绑的是 job 的 `name:` 字符串。** 要改 job 名，就在那条 job 被列为 required 之前改：改名不跟着改规则集，旧名字没有人上报，PR 卡在一个永远不会来的检查上；反过来先加名单再改名，中间那段时间所有 PR 都不可合并。
+- **配 required 检查属于仓库管理员操作**，PR 改不了。
+
+被 `if:` 跳过的 job 算通过、`needs:` 失败也是被跳过，这两条判据在 [`repo-conventions.md`](repo-conventions.md) 的「合并门」一节，本文不复述。
 
 ## 5. 怎么确认
 
@@ -69,9 +70,12 @@ Change detection
 gh api repos/hizzgdev/jsmind-v2/actions/runs/<id>/jobs \
   --jq '.jobs[] | "\(.name)\t\(.conclusion)"'
 
-# 规则集里现在有几个 required 名字
-gh api repos/hizzgdev/jsmind-v2/rulesets/27518846 \
-  --jq '.rules[] | select(.type == "required_status_checks")'
+# required 名单：必须遍历 rulesets——只有一个带 required_status_checks，
+# 单独查某个 id 可能拿到空输出，那不代表没有门
+for id in $(gh api repos/hizzgdev/jsmind-v2/rulesets --jq '.[].id'); do
+  gh api "repos/hizzgdev/jsmind-v2/rulesets/$id" \
+    --jq '.name as $n | .rules[]? | select(.type == "required_status_checks") | .parameters.required_status_checks[] | "\($n): \(.context)"'
+done
 ```
 
 只改 `docs/` 的 PR 上，`UI tests`、`Optional tests` 是 skipped，`Docs site` **会跑**：分类器对 `docs/` 下任何文件都置 `docs=true`，剩下的交给这个 job 自己判断这批文件动不动发布出来的站点 —— 不影响时（只动了 `docs/architecture/`、`docs/images/` 之类）它内部的步骤跳过，结论仍是 success，不是 skipped。只改 `docs/`、`skills/` 之外的 `*.md`（根目录 `README.md`、`team/` 下的文档、`scripts/README.md` 之类）的 PR 上，三个 job 全是 skipped。两种都可合并。
