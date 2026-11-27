@@ -90,6 +90,35 @@
     }
 
     /**
+     * Claims touch drags for the map only while a pan has room, and gives them
+     * back to the page otherwise.
+     *
+     * @remarks
+     * On a touch screen this is the only lever there is: `preventDefault`
+     * cannot cancel a pan the browser has already started, so `touch-action`
+     * has to say what a finger on the map means *before* the gesture begins.
+     *
+     * Setting it once, unconditionally, is the tempting one-line version and it
+     * is wrong here. A page whose host is the map's own size - which is what
+     * {@link fitToContent} makes of an exported page at 1x - has no pan band at
+     * 1x, so a drag does nothing; but the page itself can still be larger than
+     * the window. Taking the scroll away there leaves the far half of that map
+     * unreachable by finger, which is a worse deal than the drag it buys.
+     *
+     * `scale > 1` is the whole test the shell can make. Whether a band exists
+     * depends on the content's size, and measuring that here would fork the
+     * layout from the library's; with the host at the map's size the band is
+     * empty at 1x and opens as soon as the zoom rises above it. An embedder that
+     * sizes the host differently has to decide this for itself.
+     *
+     * @param {HTMLElement} container - Element to listen on.
+     * @param {object} commands - The library's command surface.
+     */
+    function syncPanTouchAction(container, commands) {
+        container.style.touchAction = commands.getViewport().scale > 1 ? 'none' : '';
+    }
+
+    /**
      * Zooms with the wheel, about the pointer.
      *
      * @remarks
@@ -121,6 +150,9 @@
                     x: event.clientX - box.left,
                     y: event.clientY - box.top,
                 });
+                // The zoom is what opens and closes the band a pan needs, so
+                // what a finger on the map means is re-decided here.
+                syncPanTouchAction(container, commands);
             },
             { passive: false }
         );
@@ -144,10 +176,9 @@
      * @param {object} commands - The library's command surface.
      */
     function installPan(container, commands) {
-        // A drag must not turn into a page scroll. For touch this is the only
-        // lever there is - `preventDefault` cannot cancel a pan the browser has
-        // already started - and for a mouse the press is suppressed below.
-        container.style.touchAction = 'none';
+        // A drag must not turn into a page scroll - but only where the drag can
+        // actually pan, which the zoom decides; see `syncPanTouchAction`.
+        syncPanTouchAction(container, commands);
 
         /** Pointer the gesture belongs to, or null when nothing is being dragged. */
         let draggedPointer = null;

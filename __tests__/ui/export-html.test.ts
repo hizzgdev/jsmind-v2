@@ -263,6 +263,23 @@ async function paintedNodes(harness: BrowserHarness): Promise<
     );
 }
 
+/**
+ * Reads the touch behaviour the shell has put on the map's host.
+ *
+ * @remarks
+ * What the browser will let a finger do on the map: `none` means a drag is the
+ * map's, `auto` means it is the page's. Reading it through `getComputedStyle`
+ * rather than the inline value keeps the assertion about the behaviour a device
+ * sees, and it is the only state that decides this - `preventDefault` on the
+ * press cannot stop a touch pan.
+ *
+ * @param harness - Browser to read from.
+ * @returns The computed `touch-action` of the host element.
+ */
+async function touchActionOf(harness: BrowserHarness): Promise<string> {
+    return await harness.evaluate<string>('getComputedStyle(document.getElementById(\'jsmind\')).touchAction');
+}
+
 test('ui - the wheel zooms about the pointer on an exported page', async () => {
     const { document: data } = bigMap();
 
@@ -429,6 +446,41 @@ test('ui - a drag pans the map on an exported page', async () => {
             assert.deepStrictEqual(scrollAfter, scrollBefore, 'dragging the map should not scroll the page');
             const selected = await harness.evaluate<string>('String(window.getSelection())');
             assert.strictEqual(selected, '', 'a drag should not select text');
+        } finally {
+            await harness.close();
+        }
+    });
+});
+
+test('ui - the map claims touch drags only while a pan has room', async () => {
+    // `touch-action: none` is what turns a finger drag into a pan instead of a
+    // page scroll, and the browser settles it before the gesture starts. An
+    // exported page at 1x has its host grown to the map's own size, so there is
+    // no pan band and a drag does nothing - claiming the gesture anyway would
+    // take the page's touch scroll away and leave the far half of a map larger
+    // than the window unreachable by finger.
+    const { document: data } = bigMap();
+
+    await withExportedPage(data, async ({ output }) => {
+        const harness = await BrowserHarness.launch();
+        try {
+            await harness.setViewport(1200, 800);
+            await harness.navigate(pathToFileURL(output).href);
+
+            assert.strictEqual(await touchActionOf(harness), 'auto', 'at 1x the touch scroll is still the page\'s');
+
+            await harness.wheelAt(600, 400, -400);
+            await harness.settle();
+            assert.ok(translateOf(await innerTransform(harness)).scale > 1, 'the wheel should have zoomed in');
+            assert.strictEqual(await touchActionOf(harness), 'none', 'zoomed in, a finger drag pans the map');
+
+            // Out again, past the point where the band closes: the map has no
+            // pan left, so the gesture goes back to the page instead of being
+            // swallowed by a drag that would move nothing.
+            await harness.wheelAt(600, 400, 4000);
+            await harness.settle();
+            assert.ok(translateOf(await innerTransform(harness)).scale <= 1, 'the wheel should have zoomed back out');
+            assert.strictEqual(await touchActionOf(harness), 'auto', 'zoomed out, the touch scroll is the page\'s again');
         } finally {
             await harness.close();
         }

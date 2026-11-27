@@ -993,8 +993,8 @@ test('ui viewport - a map that already fits the box cannot be dragged', async ()
     const before_ = await snapshot();
     assert.strictEqual(before_.viewport.scale, 0.1);
     const extent = paintedExtent(before_);
-    assert.ok(extent.left >= 0 && extent.right <= SMALL.width, 'the zoomed-out map fits the box horizontally');
-    assert.ok(extent.top >= 0 && extent.bottom <= SMALL.height, 'the zoomed-out map fits the box vertically');
+    assert.ok(extent.left >= 0 && extent.right <= TIGHT.width, 'the zoomed-out map fits the box horizontally');
+    assert.ok(extent.top >= 0 && extent.bottom <= TIGHT.height, 'the zoomed-out map fits the box vertically');
 
     await browser.dragBy({ x: 5, y: 5 }, 100, 80);
     const after_ = await snapshot();
