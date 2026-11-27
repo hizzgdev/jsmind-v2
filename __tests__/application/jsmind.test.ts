@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
 import JsMind from '../../src/application/jsmind.ts';
 import { DEFAULT_OPTIONS, type JsMindOptions } from '../../src/common/option.ts';
+import { DomUtility } from '../../src/common/dom.ts';
 import { JmMind } from '../../src/model/mind.ts';
 import { JmNodeContent } from '../../src/model/data/node-content.ts';
 import { JSMIND_THEME_DEFAULT, JmTone, type JmNodeStyle } from '../../src/model/data/style.ts';
@@ -81,6 +82,28 @@ async function waitFor(condition: () => boolean, what: string): Promise<void> {
         await new Promise((resolve) => setTimeout(resolve, 5));
     }
     assert.fail(`timed out waiting for ${what}`);
+}
+
+
+/**
+ * Builds a fixed rect, so a stubbed measurement returns a size without layout.
+ *
+ * @param width - Rect width in pixels.
+ * @param height - Rect height in pixels.
+ * @returns A rect with the origin at (0, 0).
+ */
+function stubRect(width: number, height: number): DOMRect {
+    return {
+        width,
+        height,
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        bottom: height,
+        right: width,
+        toJSON: () => ({}),
+    } as DOMRect;
 }
 
 
@@ -254,7 +277,7 @@ describe('JsMind', async () => {
         );
     });
 
-    it('repaints every node a loop restyles in one pass', async () => {
+    it('repaints every node a loop restyles in one measurement pass', async () => {
         const jm = await JsMind.create(JSMIND_CONTAINER_ID, DEFAULT_OPTIONS);
         const mind = new JmMind({ name: 'Recoloured' }, { rootNodeId: 'loop_root' });
         const ids = ['loop_a', 'loop_b', 'loop_c'];
@@ -264,9 +287,30 @@ describe('JsMind', async () => {
         await jm.open(mind);
         assert.strictEqual(paintedNodeCount(), 4);
 
-        // Count the settle passes: the whole point of collecting the changed
-        // nodes for one frame is that the map is arranged and painted once, not
-        // once per node.
+        // Count measurement batches, not settle passes. Every measurement waits
+        // for a frame, so a repaint that walks the nodes one await at a time
+        // shows up here as one batch per node - and it still settles once, which
+        // is why counting `settle` passes cannot tell the two implementations
+        // apart. A batch is a group of measurements that overlap: all of them
+        // start before the first one finishes.
+        const originalMeasureElement = DomUtility.measureElement;
+        let inFlight = 0;
+        let batches = 0;
+        let widest = 0;
+        DomUtility.measureElement = async (): Promise<DOMRect> => {
+            if (inFlight === 0) {
+                batches++;
+            }
+            inFlight++;
+            widest = Math.max(widest, inFlight);
+            try {
+                return await new Promise<DOMRect>((resolve) => {
+                    requestAnimationFrame(() => resolve(stubRect(60, 20)));
+                });
+            } finally {
+                inFlight--;
+            }
+        };
         const settle = JmView.prototype.settle;
         let passes = 0;
         JmView.prototype.settle = async function (this: JmView, ...args) {
@@ -280,16 +324,85 @@ describe('JsMind', async () => {
                 node.style = { tone: JmTone.Warning };
             }
 
-            const dangerFill = JSMIND_THEME_DEFAULT.tones![JmTone.Warning]!.fillColor;
-            await waitFor(() => ids.every((id) => readFill(id) === dangerFill), 'all three nodes to be repainted');
+            const warningFill = JSMIND_THEME_DEFAULT.tones![JmTone.Warning]!.fillColor;
+            await waitFor(() => ids.every((id) => readFill(id) === warningFill), 'all three nodes to be repainted');
             // Give a second pass the chance it would have had if one had been
             // scheduled, so "one pass" is measured rather than assumed.
             await new Promise((resolve) => setTimeout(resolve, 30));
 
+            assert.strictEqual(batches, 1, `restyling ${ids.length} nodes should measure them in one batch, got ${batches}`);
+            assert.strictEqual(widest, ids.length, 'every restyled node should be measured in that same batch');
             assert.strictEqual(passes, 1, `restyling ${ids.length} nodes should settle the map once, got ${passes}`);
         } finally {
+            DomUtility.measureElement = originalMeasureElement;
             JmView.prototype.settle = settle;
         }
+    });
+
+    it('measures a restyled batch unscaled even while the map is zoomed', async () => {
+        const jm = await JsMind.create(JSMIND_CONTAINER_ID, DEFAULT_OPTIONS);
+        const mind = new JmMind({ name: 'Zoomed' }, { rootNodeId: 'zoom_root' });
+        const ids = ['zoom_a', 'zoom_b'];
+        for (const id of ids) {
+            mind.addNode(JmNodeContent.createText(id), { parentId: 'zoom_root' }, { nodeId: id });
+        }
+        await jm.open(mind);
+        jm.commands.zoomTo(2);
+        const inner = viewRoot().querySelector('.jsmind-inner') as HTMLElement;
+        assert.notStrictEqual(inner.style.transform, 'none', 'the map should be zoomed before the restyle');
+
+        // Sampled where a real measurement reads its box - after the frame, not
+        // when the measurement was requested. The transform has to be out of the
+        // way for the whole batch: a per-node unscaled window (the tempting
+        // `Promise.all` over `refreshNodeStyle`) puts it back as soon as the
+        // first node finishes, and the rest would measure at 2x.
+        const originalMeasureElement = DomUtility.measureElement;
+        const sampled: string[] = [];
+        DomUtility.measureElement = async (): Promise<DOMRect> => {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            sampled.push(inner.style.transform);
+            return stubRect(50, 20);
+        };
+        try {
+            for (const id of ids) {
+                const node = mind.findNodeById(id);
+                assert.ok(node, `node ${id} should exist`);
+                node.style = { tone: JmTone.Danger };
+            }
+
+            await waitFor(() => sampled.length === ids.length, 'every restyled node to be measured');
+            assert.ok(
+                sampled.every((transform) => transform === 'none'),
+                `every node in the batch should be measured unscaled, got ${JSON.stringify(sampled)}`
+            );
+            assert.notStrictEqual(inner.style.transform, 'none', 'the zoom should be back once the batch is measured');
+        } finally {
+            DomUtility.measureElement = originalMeasureElement;
+        }
+    });
+
+    it('takes a node deleted from the model off the canvas for good', async () => {
+        const jm = await JsMind.create(JSMIND_CONTAINER_ID, DEFAULT_OPTIONS);
+        const mind = buildMap('Deleting');
+        mind.addNode(JmNodeContent.createText('Doomed'), { parentId: 'shared_child' }, { nodeId: 'doomed_node' });
+        await jm.open(mind);
+        assert.strictEqual(paintedNodeCount(), 3);
+
+        // The documented way to refresh an open map is to reopen it, so a
+        // deleted node that survives its own removal would be painted beside the
+        // next rendering - the ghost the issue is about.
+        mind.removeNode('shared_child');
+        await waitFor(() => paintedNodeCount() === 1, 'the deleted subtree to leave the canvas');
+        assert.strictEqual(viewRoot().querySelectorAll('[data-jm-node-id="doomed_node"]').length, 0,
+            'the deleted node\'s own child must go with it');
+
+        jm.close();
+        await jm.open(buildMap('Next', { tone: JmTone.Primary }));
+
+        assert.strictEqual(paintedNodeCount(), 2, 'the deleted subtree must not come back with the next map');
+        assert.strictEqual(paintedLineCount(), 1);
+        assert.strictEqual(viewRoot().querySelectorAll('[data-jm-node-id="doomed_node"]').length, 0,
+            'nothing painted for the deleted subtree should remain');
     });
 
     it('a style change followed by close does not paint the closed map back', async () => {

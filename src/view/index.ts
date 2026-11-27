@@ -163,21 +163,35 @@ export class JmView implements JmViewHandle {
     }
 
     /**
-     * Repaints one node after its style changed, and records its new size.
+     * Repaints the nodes whose style changed, in one pass, and records their
+     * new sizes.
      *
      * @remarks
-     * The size is recorded because the layout is computed from it, and a style
-     * is allowed to change the box. Measurement happens unscaled for the same
-     * reason every other measurement does: a rect includes the viewport
-     * transform, so measuring at 2x would record a node twice its size.
+     * Batched rather than repainted one node at a time for the same reason
+     * `measureNodeSizes` batches its measurements: a measurement resolves on the
+     * next animation frame, so awaiting one node at a time paints a restyled map
+     * one node per frame - visible as colours crawling across the map, and as a
+     * map laid out to the old sizes until the last node lands.
      *
-     * @param node - The node whose style changed.
-     * @returns The size the node occupies after the repaint.
+     * The whole batch sits inside a single {@link _whileUnscaled}. Each
+     * `JmNodeView.refreshNodeStyle` has to measure unscaled, and letting every
+     * node open its own unscaled window would restore the viewport transform as
+     * soon as the first one finished, leaving the rest measuring at the zoomed
+     * scale.
+     *
+     * The sizes are recorded because the layout is computed from them, and a
+     * style is allowed to change the box.
+     *
+     * @param nodes - The nodes to repaint.
      */
-    async refreshNodeStyle(node: JmNode): Promise<JmSize> {
-        const size = await this._whileUnscaled(() => this.nodeView.refreshNodeStyle(node));
-        this.arranger.recordNodeSize(node, size);
-        return size;
+    async refreshNodesStyle(nodes: JmNode[]): Promise<void> {
+        if (nodes.length === 0) {
+            return;
+        }
+        await this._whileUnscaled(async () => {
+            const sizes = await Promise.all(nodes.map((node: JmNode)=>this.nodeView.refreshNodeStyle(node)));
+            nodes.forEach((node: JmNode, index: number)=>this.arranger.recordNodeSize(node, sizes[index]));
+        });
     }
 
     /**
@@ -190,13 +204,47 @@ export class JmView implements JmViewHandle {
      * kept its cached element and size would be measured to its old dimensions
      * and never appended, which reads as a map that renders nothing.
      *
+     * Walked over the model, so a node already removed from the map is not
+     * reached: {@link releaseNode} is what takes those off the canvas, at the
+     * moment the model reports them gone.
+     *
      * @param mind - The map whose rendering should go.
      */
     clear(mind: JmMind): void {
-        Object.values(mind._nodes).forEach((node: JmNode)=>{
-            this.nodeView.releaseNode(node);
-            this.edgeView.releaseLine(node);
-        });
+        Object.values(mind._nodes).forEach((node: JmNode)=>this._releaseNode(node));
+    }
+
+    /**
+     * Removes a node and its whole subtree from the rendered tree, and forgets
+     * them.
+     *
+     * @remarks
+     * For a node that left the model. `clear` cannot do this job: it walks the
+     * model, and a removed node is no longer in it, so nothing would ever reach
+     * the elements painted for it - a node deleted while the map is open would
+     * stay on the canvas, and would still be there when another map is opened
+     * over it.
+     *
+     * The subtree goes too because the model removes descendants with their
+     * parent, and the parent link is what the event still carries.
+     *
+     * @param node - The removed node, root of the subtree to release.
+     */
+    releaseNode(node: JmNode): void {
+        this._releaseNode(node);
+        node.children.forEach((child: JmNode)=>this.releaseNode(child));
+    }
+
+    /**
+     * Removes one node's element and line, and drops its cached element.
+     *
+     * @param node - Node whose rendering should go.
+     *
+     * @private
+     */
+    private _releaseNode(node: JmNode): void {
+        this.nodeView.releaseNode(node);
+        this.edgeView.releaseLine(node);
     }
 
     /**

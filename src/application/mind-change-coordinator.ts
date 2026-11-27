@@ -84,6 +84,19 @@ export class JmMindChangeCoordinator extends JmMindObserver {
 
     onNodeRemoved(mind: JmMind, event: JmMindEventDataOnNodeRemoved): void {
         debug('onNodeRemoved', mind.meta.name, event);
+        // The model has already dropped the node and its subtree, so `clear` -
+        // which walks the model - can never reach what was painted for them.
+        // Releasing them here, while the event still names them, is what keeps a
+        // deleted node off the canvas: otherwise deleting a node and then
+        // reopening the map (the documented way to refresh a view) leaves a
+        // ghost sitting beside the new rendering.
+        const removedIds = new Set(event.removedNodeIds);
+        this.pendingStyleNodes.forEach((node: JmNode)=>{
+            if (removedIds.has(node.id)) {
+                this.pendingStyleNodes.delete(node);
+            }
+        });
+        this.view.releaseNode(event.node);
     }
 
     onNodeUpdated(_mind: JmMind, event: JmMindEventDataOnNodeUpdated): void {
@@ -141,9 +154,7 @@ export class JmMindChangeCoordinator extends JmMindObserver {
         if (!mind || nodes.length === 0) {
             return;
         }
-        for (const node of nodes) {
-            await this.view.refreshNodeStyle(node);
-        }
+        await this.view.refreshNodesStyle(nodes);
         this.arranger.calculate(mind);
         await this.view.settle(mind);
     }
