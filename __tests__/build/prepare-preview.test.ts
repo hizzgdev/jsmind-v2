@@ -216,9 +216,37 @@ test('the page is exported from the file the prepare step wrote', () => {
     // And the exported file is the one the artifact step uploads. A page
     // written to another path uploads nothing, and the comment would then point
     // at a run with no artifact in a job that stayed green.
-    const uploaded = /path: (\S+)/.exec(WORKFLOW);
+    //
+    // Scoped to the upload step: `/path: (\S+)/` alone takes the first `path:`
+    // anywhere in the workflow, so an unrelated cache step added above would
+    // red this case with a message about the preview page.
+    const uploaded = /id: upload-html[\s\S]*?path: (\S+)/.exec(WORKFLOW);
     assert.ok(uploaded, 'the artifact step should name the file it uploads');
     assert.equal(exported?.[2], uploaded?.[1]);
+});
+
+test('the page link is the download URL the upload step reports', () => {
+    // Two ways to get this address wrong, and the first one shipped: an
+    // assembly from the run id (`/actions/runs/<id>/artifacts` is not a GitHub
+    // route - it answers 404, so the comment's link lands on "Page not found"),
+    // and the run page's `#artifacts` anchor, which is a page to read rather
+    // than a file to download. `artifact-url` is the output the action
+    // documents for linking to an artifact from a pull request comment.
+    assert.match(WORKFLOW, /ARTIFACT_URL: \$\{\{ steps\.upload-html\.outputs\.artifact-url \}\}/);
+    assert.ok(
+        !/format\('https:\/\/github\.com\/\{0\}\/actions\/runs/.test(WORKFLOW),
+        'the artifact URL is taken from the upload step, not built from the run id'
+    );
+
+    // The line promises a file that opens on a double-click, so the upload has
+    // to hand back the page itself and outlive a review: `archive: false` is
+    // what stops GitHub wrapping it in a zip, and the retention is the period
+    // the pull request body tells the reader about. Neither is load-bearing for
+    // a green run, which is exactly why nothing else would notice them going.
+    const upload = /id: upload-html[\s\S]*?retention-days: (\d+)/.exec(WORKFLOW);
+    assert.ok(upload, 'the upload step should set a retention period');
+    assert.match(upload[0], /archive: false/);
+    assert.equal(upload?.[1], '30');
 });
 
 test('the preview job turns transparency on, for its own render only', () => {

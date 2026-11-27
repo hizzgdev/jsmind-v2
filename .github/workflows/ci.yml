@@ -653,8 +653,8 @@ jobs:
       # `continue-on-error` for the same reason the image upload warns instead
       # of failing on a fork: the picture is the preview, this is the extra, and
       # artifact storage having a bad day should not cost the reader the image.
-      # The comment step reads this step's outcome and drops its line when the
-      # page is missing.
+      # A failed upload leaves this step's `artifact-url` output empty, and the
+      # comment step drops its line on that.
       - name: Upload the HTML page
         id: upload-html
         continue-on-error: true
@@ -744,11 +744,21 @@ jobs:
           FULL_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
-          # The page's download address, derived from the upload's outcome
-          # rather than from an artifact id: the run's artifacts page is one
-          # stable address, and an empty string here is how the body below
-          # learns the artifact store refused the upload.
-          ARTIFACT_URL: ${{ steps.upload-html.outcome == 'success' && format('https://github.com/{0}/actions/runs/{1}/artifacts', github.repository, github.run_id) || '' }}
+          # The page's download address, taken from the upload step instead of
+          # assembled from the run id. `artifact-url` is the output
+          # `upload-artifact` documents for exactly this use - a download link
+          # in a pull request comment - and it names one artifact rather than a
+          # run.
+          #
+          # The address it replaces was `/actions/runs/<id>/artifacts`, and
+          # GitHub has no such route: it answers 404 with a nine-byte body, so
+          # the comment's link went to "Page not found". The run page's
+          # `#artifacts` anchor does exist, but that is a page to read, not a
+          # file to download.
+          #
+          # Empty when the upload failed, which is how the body below learns to
+          # leave its line out.
+          ARTIFACT_URL: ${{ steps.upload-html.outputs.artifact-url }}
         run: |
           set -euo pipefail
           short="${FULL_SHA:0:7}"
