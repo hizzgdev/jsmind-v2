@@ -384,6 +384,19 @@ function anchorHrefs(html: string): string[] {
     return hrefs;
 }
 
+/**
+ * The one string an href contributes to an order comparison: its slug.
+ *
+ * Order is asserted as a sequence of slugs rather than of titles, because the
+ * slug starts with the post number (`<number>-<english-slug>.html`, fixed by
+ * `team/development/tutorials-plan.md`) — so comparing slugs compares the
+ * numbering and nothing a title edit can move.
+ */
+function tutorialSlugFromHref(href: string): string {
+    const path = href.split(/[?#]/)[0];
+    return path.slice(path.lastIndexOf('/') + 1).replace(/\.html$/, '');
+}
+
 function imgSrcByAlt(html: string, alt: string): string | null {
     for (const tag of html.match(/<img\b[^>]*>/gi) ?? []) {
         const attrs = new Map<string, string>();
@@ -805,10 +818,17 @@ describe('landing page', () => {
             /<ul class="recent-list"[^>]*>[\s\S]*?<li/,
             'the first tutorial should appear in the recent-tutorials list'
         );
-        assert.ok(page.includes('Build your first mind map with the jsMind Skill'));
-        assert.ok(page.includes('用 jsMind Skill 做你的第一张思维导图'));
-        assert.ok(page.includes('tutorials/en/posts/161-first-mind-map-with-skill.html'));
-        assert.ok(page.includes('tutorials/zh/posts/161-first-mind-map-with-skill.html'));
+        // ...and in the order the build computed, not merely present: the list
+        // is rendered from `scripts/`, so the slugs have to come out in the
+        // sequence `recentTutorialPosts()` returns. Comparing sequences is what
+        // a reordered list cannot satisfy; "the post appears somewhere" could.
+        const recentItems = /<ul class="recent-list"[^>]*>([\s\S]*?)<\/ul>/.exec(page)?.[1] ?? '';
+        assert.notStrictEqual(recentItems, '', 'the page should carry a recent-tutorials list');
+        assert.deepStrictEqual(
+            anchorHrefs(recentItems).map(tutorialSlugFromHref),
+            recentTutorialPosts(listTutorialPosts(ROOT)).map((post) => post.slug),
+            'the recent-tutorials list should render the posts in the order the build computed'
+        );
         assert.ok(
             !page.includes('class="recent-empty"'),
             'the empty-state sentence must not sit under a real list'
@@ -1523,6 +1543,21 @@ describe('pages site assembly', () => {
                     const file = resolvePublishedHref(href, pageUrl, TUTORIALS_BASE, tutorialsDir);
                     assert.ok(existsSync(file), `${rel}: ${href} should resolve to ${file}`);
                 }
+                // ...and in the loader's order, which is newest first. The
+                // checks above pass on a list rendered backwards (the same set
+                // of links resolves either way), so the order is asserted as a
+                // sequence of slugs. The expectation comes from `scripts/`,
+                // which computes the order independently of the column's own
+                // `toTutorialList()`, so a direction flip in either shows here.
+                // Both sides break same-date ties by a different key (title
+                // there, slug here); no two posts share a date today.
+                assert.deepStrictEqual(
+                    postHrefs.map(tutorialSlugFromHref),
+                    listTutorialPosts(ROOT)
+                        .filter((post) => post.hrefs[locale])
+                        .map((post) => post.slug),
+                    `${rel} should list the posts newest first`
+                );
 
                 assertVisibleAiNotice(html, css, rel, locale);
 
@@ -1566,19 +1601,6 @@ describe('pages site assembly', () => {
                 // A language page is a real page, so it is not a redirect.
                 assert.ok(!html.includes(`localStorage.getItem('${DOCS_LANG_STORAGE_KEY}')`));
             }
-
-            const enEntry = readFileSync(join(tutorialsDir, 'en', 'index.html'), 'utf8');
-            const zhEntry = readFileSync(join(tutorialsDir, 'zh', 'index.html'), 'utf8');
-            assert.ok(
-                enEntry.includes('Build your first mind map with the jsMind Skill'),
-                'the en entry page should list the first tutorial'
-            );
-            assert.ok(
-                zhEntry.includes('用 jsMind Skill 做你的第一张思维导图'),
-                'the zh entry page should list the first tutorial'
-            );
-            assert.ok(enEntry.includes('161-first-mind-map-with-skill'));
-            assert.ok(zhEntry.includes('161-first-mind-map-with-skill'));
 
             // The first article is built for both locales, and Chinese pages
             // must receive the override assets without rewriting the shared
