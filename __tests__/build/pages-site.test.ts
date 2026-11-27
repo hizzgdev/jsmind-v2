@@ -1015,12 +1015,18 @@ describe('landing page', () => {
         assert.match(rule, /content: '';/, 'the arrow should be generated before it is drawn');
         assert.match(rule, /display: inline-block;/, 'the arrow should get a box of its own');
 
+        // The mask only cuts a shape out of a painted layer: `background:
+        // currentColor` is the layer, so dropping it leaves the arrow fully
+        // transparent. Safari ignores the unprefixed mask, hence the prefixed
+        // copy in the same list.
         for (const declaration of [
             'width: 11px',
             'height: 11px',
             'margin-top: -1px',
             'margin-left: 4px',
             'flex-shrink: 0',
+            'background: currentColor',
+            '-webkit-mask-image: var(--external-link-icon)',
             'mask-image: var(--external-link-icon)',
         ]) {
             assert.ok(rule.includes(declaration), `the arrow should carry ${declaration}`);
