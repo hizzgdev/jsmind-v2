@@ -54,7 +54,7 @@ gh issue create --title "<标题>" --label weka --assignee hizzgdev --body-file 
 gh issue edit <n> --body-file body.md --add-assignee hizzgdev --add-label weka
 ```
 
-- 标题用中文，写清要做什么。issue 是给人读的需求，不带 `tooling(...)` / `feat(...)` 这类提交前缀。
+- 标题用英文，写清要做什么。issue 是给人读的需求，不带 `tooling(...)` / `feat(...)` 这类提交前缀。
 - **`weka` 标签不能少**：owner 在 issue 上的评论靠它进入 groom 分支（webhook 的标签门）。补全一个旧 issue 时，它缺这个标签就补上，否则下一轮对话进不来。
 - 正文草稿写在你的临时工作区里，用 `--body-file` 提交。不要用 `--body "..."` 拼多行正文。
 
