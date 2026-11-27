@@ -200,9 +200,12 @@ HERMES_HOME=$HOME/.hermes hermes config get kanban.max_in_progress_per_profile #
 systemctl --user show hermes-gateway -p ExecMainStartTimestamp
 stat -c '%y' ~/.hermes/config.yaml
 
-# what it resolved at boot — the number it is enforcing now
+# the cap it booted with
 grep -E 'kanban dispatcher: max_in_progress(_per_profile)?=' ~/.hermes/logs/gateway.log | tail -2
 ```
+
+The boot line is a cap, not live concurrency: a tick may start fewer — none while host memory pressure is
+`critical`, at most one while it is `elevated` (`kanban_db_dispatch.py`).
 
 The two `config get` lines are not the check on their own. They resolve `config.yaml` through
 `get_config_value()` → `load_config()` and never ask the running gateway, which read both keys once in

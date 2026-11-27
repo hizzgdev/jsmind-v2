@@ -324,14 +324,14 @@ kanban:
 两个都是正整数，用 `hermes config set` 写：
 
 ```bash
-hermes config set kanban.max_in_progress_per_profile 1
-hermes config set kanban.max_in_progress 3
+HERMES_HOME=$HOME/.hermes hermes config set kanban.max_in_progress_per_profile 1
+HERMES_HOME=$HOME/.hermes hermes config set kanban.max_in_progress 3
 ```
 
 为什么设这两个值：
 
 - 每个 profile 最多同时运行一个实例。同一个 profile 的两张卡会抢同一个工作区和分支，串行比并行稳。
-- 整机上限定成 3，正好是三个角色各一张：`cody` 实现、`reed` 评审、`scout` 需求梳理（同一块板的调度器也吃这个配额）。三个都有位置，谁也不会把另一个饿死。
+- 整机上限定成 3，正好是三个角色各一张：`cody` 实现、`reed` 评审、`scout` 需求梳理（groom 板上的卡同样占用这 3 个名额——上限按整机算、跨 board 计数）。三个都有位置，谁也不会把另一个饿死。
 - worker 是完整的 Hermes 会话，各自要跑构建和测试；并行数直接叠加 CPU 和内存占用。放开名额不会让流程变快，只会让几个 worker 抢同一台机器，一起变慢。
 
 `max_in_progress` 不显式设置时，调度器按内存总量推一个默认值（每 512MB 一个名额，下限 2、上限 8）。这个默认值偏向让机器跑满，建议显式写死。
@@ -413,8 +413,8 @@ hermes kanban boards create groom --name 需求梳理   # scout 的板
 hermes project create jsmind-v2 ~/repos/jsmind-v2 --board jsmind-v2 --use
 
 # 调度器并发上限（见上文「并发与资源」）
-hermes config set kanban.max_in_progress_per_profile 1
-hermes config set kanban.max_in_progress 3
+HERMES_HOME=$HOME/.hermes hermes config set kanban.max_in_progress_per_profile 1
+HERMES_HOME=$HOME/.hermes hermes config set kanban.max_in_progress 3
 ```
 
 `--use` 把 project 设为 active。board 的 DB 会落在
