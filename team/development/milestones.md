@@ -200,7 +200,7 @@ CI 只保证「流程能跑通、产物能生成」。
 | M1 | S7c（`node set-style`）、S7a 的 `context` 增强、新增 skill、新增 E2E |
 | M2 | S8（HTML）、S14（查看器）、S9 的 HTML 部分 |
 | M3 | S10（编辑）、S12（MCP）、S13（v1 adapter）、第 9 节（自定义渲染） |
-| **已完成** | S1 schema/style、S2 validation、S5 curved edges、S6 Shadow DOM、S7a CLI、S7b export、S7c set-style、S8 HTML、S9 PNG 与 HTML、S11 skill |
+| **已完成** | S1 schema/style、S2 validation、S5 curved edges、S6 Shadow DOM、S7a CLI、S7b export、S7c set-style、S8 HTML、S9 PNG 与 HTML、S11 skill、S14 查看器 |
 
 未在 M1–M3 里单独列出的 S 项（S3、S4、S11）要么已并入其他项，
 要么是内部重构，不构成对外的里程碑。

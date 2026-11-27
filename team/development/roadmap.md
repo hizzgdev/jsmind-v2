@@ -149,7 +149,7 @@ CLI 骨架、`context`（唯一允许模糊匹配）、`validate`、`mind` 命�
 
 #### S9 `feat(view): export to PNG, JSON and HTML` ⚠️
 
-- **PNG 已完成**：`jsMind.exportImage()` + `jsmind export image`。SVG 序列化 → data URL → canvas → PNG
+- **PNG 与 HTML 已完成**：`jsMind.exportImage()` + `jsmind export image`。SVG 序列化 → data URL → canvas → PNG；HTML 由 S8 的自包含产物提供
 - 尚未开始：导出面板 UI、JSON 入口
 
 ### 第 4 层：交互
