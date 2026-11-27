@@ -204,9 +204,9 @@ export function viewportCanPan(bounds: JmViewportBounds, viewport: JmSize, scale
  * the bounds, and which bound depends on the mode. `'shrink'` never goes above
  * it, so a map smaller than the box stays at 1x and keeps its text at the size
  * it was written; `'expand'` never goes below it, so a map larger than the box
- * stays at 1x and keeps the part of it the reader was reading. The origin is
- * then the one {@link viewportOriginFor} gives for putting the content's middle
- * in the middle of the box, in both modes.
+ * stays at 1x as well. The origin is then the one {@link viewportOriginFor}
+ * gives for putting the content's middle in the middle of the box, in both
+ * modes - neither one keeps the part of the map the reader was looking at.
  *
  * Deliberately independent of the current state: two calls on the same content,
  * box and mode return the same numbers, which is what makes `fitToView`
