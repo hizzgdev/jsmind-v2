@@ -185,34 +185,56 @@ journal line; "restarted and it is active" is not a smoke test.
 ### 7. Concurrency ceilings: 3 and 1
 
 `max_in_progress` must be 3 and `max_in_progress_per_profile` must be 1 — that is one card for each of the
-three roles the same dispatcher serves (cody implementing, reed reviewing, scout grooming). Both keys are
-read once at gateway boot and cached, so this check only means anything **after** the gateway has been
-restarted on the current `config.yaml`; that restart is the human's, and it happens before this procedure
-runs.
+three roles the same dispatcher serves (cody implementing, reed reviewing, scout grooming). Both keys are read
+once at gateway boot and cached for the life of the process, so there are three separate things to prove here
+and a green on one says nothing about the next: what the file says, whether the running process started after
+that file was written, and what the process actually resolved.
 
 ```bash
-hermes config get kanban.max_in_progress             # must be 3
-hermes config get kanban.max_in_progress_per_profile # must be 1
+# the file. Pin the home: from a profile shell this reads that profile's
+# config.yaml, where neither key lives, and prints null on a correct host.
+HERMES_HOME=$HOME/.hermes hermes config get kanban.max_in_progress             # must be 3
+HERMES_HOME=$HOME/.hermes hermes config get kanban.max_in_progress_per_profile # must be 1
+
+# the process started after that file was last written
+systemctl --user show hermes-gateway -p ExecMainStartTimestamp
+stat -c '%y' ~/.hermes/config.yaml
+
+# what it resolved at boot — the number it is enforcing now
+grep -E 'kanban dispatcher: max_in_progress(_per_profile)?=' ~/.hermes/logs/gateway.log | tail -2
 ```
 
-A mismatch stops the deploy short of the report: the `kanban:` section of `~/.hermes/config.yaml` still
-holds the old number, and a gateway restart is what makes the new one take effect. Say exactly that and
-hand both over. Do not edit `config.yaml` here and do not restart the gateway — the desired-state table
-puts that row out of scope, so this step exists to *find* the drift, not to repair it. A red deploy is the
-intended outcome when the document says 3 and the host still runs 2.
+The two `config get` lines are not the check on their own. They resolve `config.yaml` through
+`get_config_value()` → `load_config()` and never ask the running gateway, which read both keys once in
+`_kanban_dispatcher_boot()` and has not re-read them since. On a host where the file was updated and nobody
+restarted, the file says 3 and the dispatcher still enforces 2: the `get` lines print a clean 3 / 1, the
+start-time comparison and the boot line do not. That is the drift this step exists to find.
+
+Quote the boot line in the report, and keep the `kanban dispatcher:` anchor — inbound chat text that mentions
+the key is logged too, and a loose `grep max_in_progress` matches it. A gateway started on a config without
+these keys prints the `unset; using memory-derived default …` warning in place of the number, which is a stop
+as well: 3 was asked for explicitly.
+
+If any of the three disagree — file not 3 / 1, gateway started before `config.yaml` was written, boot line
+carrying another number — stop short of the report and hand over exactly this: the `kanban:` section of
+`~/.hermes/config.yaml` still holds the old number, the gateway reads it once at boot, and a restart is what
+makes the new one take effect. Do not edit `config.yaml` here and do not restart the gateway — the
+desired-state table puts that row out of scope, and the gateway refuses to restart itself from inside its own
+process. A red deploy on a freshly changed document is the intended outcome, not a defect in this step.
 
 ### 8. Report
 
 `$OLD` and the new `HEAD`; what the step-2 range listed; that SOUL, profile skills and the webhook were reset
 to master, with the hash pairs and the restart's start time; the smoke evidence or why it did not apply; the
-two concurrency ceilings step 7 read; and anything still outside this procedure (`config.yaml` → `kanban:`).
+two concurrency ceilings as step 7 found them (the file's numbers and the value the gateway booted with); and
+anything still outside this procedure (`config.yaml` → `kanban:`).
 
 ## Stop and ask instead of guessing
 
 - The clone is dirty, or sits on a branch other than `master`.
-- The change requires `~/.hermes/config.yaml` → `kanban:`, or step 7 reads a value other than 3 / 1. Those
-  values are read once at gateway boot, and the gateway refuses to restart itself from inside its own
-  process — hand the command over.
+- The change requires `~/.hermes/config.yaml` → `kanban:`, or step 7 finds the file, the gateway's start time
+  and the boot log disagreeing with 3 / 1. Those values are read once at gateway boot, and the gateway refuses
+  to restart itself from inside its own process — hand the command over.
 - The smoke test prints something other than the expected line: report it. Restarting again to "see if it
   clears" destroys the evidence.
 
@@ -220,8 +242,10 @@ two concurrency ceilings step 7 read; and anything still outside this procedure 
 
 - **Do not add auto-restart-on-change.** A `systemd.path` unit or a self-exec would close the gap and is
   deliberately not wanted: it would restart mid-request, unattended. A human running this file is the trigger.
-- **Do not compare timestamps.** No `stat`, no mtime, no "touched after the last deploy". Either the live
-  file's hash equals master's, or it is not deployed.
+- **Do not compare timestamps to decide whether a file needs deploying.** No `stat`, no mtime, no "touched
+  after the last deploy". Either the live file's hash equals master's, or it is not deployed. Step 7's `stat`
+  answers a different question — whether a *process* re-read a config it only reads at boot — and file
+  metadata is the right evidence for that one; it says nothing about whether a file is deployed.
 - **Do not skip a step because the diff was empty.** The diff explains the report and gates one side-effectful
   probe; it does not decide what gets synced.
 - Do not merge, reconcile or preserve anything under `~/.hermes/profiles/*/`. Those are copies, and this

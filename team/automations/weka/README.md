@@ -340,12 +340,12 @@ hermes config set kanban.max_in_progress 3
 
 ```bash
 systemctl --user restart hermes-gateway
-grep 'max_in_progress' ~/.hermes/logs/gateway.log | tail -2
+grep -E 'kanban dispatcher: max_in_progress(_per_profile)?=' ~/.hermes/logs/gateway.log | tail -2
 ```
 
-日志会打印实际生效的值：`max_in_progress_per_profile=1`；`max_in_progress` 显式设置后，那条 `kanban.max_in_progress unset; using memory-derived default …` 就不再出现。
+这两行是 gateway 启动时解析出的实际值（`kanban dispatcher: max_in_progress=3`、`kanban dispatcher: max_in_progress_per_profile=1`）。前缀不能省：日志里回显的聊天文本也会带键名，只 grep `max_in_progress` 会把那句回显一起捞进来。`max_in_progress` 显式设置后，那条 `kanban.max_in_progress unset; using memory-derived default …` 就不再出现。
 
-`team/automations/skills/weka-deploy/SKILL.md` 在收尾前会再核对一次，不一致就红：文档写死的这两个数是靠那次 deploy 守住的，不是靠测试。
+`team/automations/skills/weka-deploy/SKILL.md` 收尾前会核对三样：`~/.hermes/config.yaml` 里的值、gateway 是否在那个文件最后一次写入之后启动、启动日志里解析出的实际值。守住的是这三样，不是运行中的实时状态——`hermes config get` 只读文件，不问进程，文件改了没重启时它照样打印 3。测试守不了这条：CI 里没有 `~/.hermes/config.yaml`。
 
 ### 流程变慢先看这两个键
 
