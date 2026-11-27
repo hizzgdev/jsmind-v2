@@ -240,6 +240,60 @@ function iconHrefs(html: string): string[] {
 }
 
 /**
+ * One of the theme's own glyphs, as the SVG source the docs navbar draws.
+ *
+ * `icons.css` keeps every `vpi-*` icon URL-encoded in a `--icon` custom
+ * property, and several classes share one rule (`.vpi-chevron-right,
+ * .vpi-chevron-down, …`), so the selector list is what gets matched, not the
+ * first selector. Comparing the product page against this is comparing it with
+ * what vitepress@1.6.4 actually ships instead of with a hand-copied path.
+ */
+function vitepressIcon(name: string): string {
+    const css = readFileSync(
+        join(ROOT, 'node_modules/vitepress/dist/client/theme-default/styles/icons.css'),
+        'utf8'
+    );
+    for (const block of css.split('}')) {
+        const [selectors = '', ...body] = block.split('{');
+        if (!selectors.split(',').some((selector) => selector.trim() === `.${name}`)) {
+            continue;
+        }
+        const uri = /--icon: url\("([^"]+)"\)/.exec(body.join('{'));
+        if (uri) {
+            return decodeURIComponent(uri[1].replace('data:image/svg+xml,', ''));
+        }
+    }
+    throw new Error(`vitepress should ship a ${name} glyph`);
+}
+
+/**
+ * One `<svg>` of a page by its class, split into its opening tag and its body.
+ *
+ * A missing icon has to fail the test rather than read as `undefined` further
+ * down, so the throw lives here instead of at every use.
+ */
+function svgByClass(page: string, className: string): { openingTag: string; body: string } {
+    const match = new RegExp(
+        `<svg class="[^"]*\\b${className}\\b[^"]*"[^>]*>([\\s\\S]*?)</svg>`
+    ).exec(page);
+    assert.ok(match, `the page should draw an svg.${className}`);
+    const [openingTag = '', body = ''] = match;
+    return { openingTag, body };
+}
+
+/**
+ * The two language names a VitePress site declares, in config order.
+ *
+ * Both VitePress sites and the product page's language panel have to name the
+ * languages the same way — reading the pair out of the configs is what keeps
+ * this test from becoming a third copy of it.
+ */
+function localeLabels(configPath: string): string[] {
+    const config = readFileSync(join(ROOT, configPath), 'utf8');
+    return [...config.matchAll(/^\s*label: '([^']+)',$/gm)].map(([, label]) => label);
+}
+
+/**
  * The file an href must resolve to in the published tree.
  *
  * The site is served under a URL prefix, not at the domain root, so the href
@@ -780,9 +834,12 @@ describe('landing page', () => {
             /<a class="[^"]*header-social[^"]*" href="https:\/\/github\.com\/hizzgdev\/jsmind-v2"/,
             'the GitHub link should be the one icon in the right-hand area'
         );
-        // The old pill of two buttons is gone: the switch is a menu now.
+        // The old pill of two buttons is gone: the switch is VitePress's own
+        // flyout, which names the current language in a title rather than
+        // marking one of the entries as current.
         assert.ok(!page.includes('class="lang-switch"'));
-        assert.ok(!page.includes('aria-pressed'), 'the language entries mark the current one with aria-current');
+        assert.ok(!page.includes('aria-pressed'));
+        assert.ok(!page.includes('aria-current'), 'the language panel marks the current language with a title, not aria-current');
 
         // A page people look at, so it dresses the tab like the playground.
         assert.deepStrictEqual(iconHrefs(page), [...SITE_ICON_FILES]);
@@ -826,7 +883,122 @@ describe('landing page', () => {
                 `${url}zh/`,
                 `the ${label} link should follow the page into Chinese`
             );
+            // The label is text, not just a link: without a `data-en` /
+            // `data-zh` pair `applyLanguage()` leaves it in English while the
+            // rest of the page switches, so the two have to exist and differ.
+            assert.strictEqual(
+                attrs.get('data-en'),
+                label,
+                `the ${label} label should carry its English text`
+            );
+            const zhLabel = attrs.get('data-zh');
+            assert.ok(zhLabel, `the ${label} label should carry a Chinese counterpart`);
+            assert.notStrictEqual(
+                zhLabel,
+                label,
+                `the ${label} label should actually change with the language`
+            );
         }
+    });
+
+    it('draws the header controls with the glyphs and language names VitePress ships', () => {
+        const page = landingPageHtml();
+
+        // The glyphs are the theme's own path data: a redrawn globe or a
+        // filled sun would look like the docs at a glance and still be a
+        // different icon, which is exactly what this compares away.
+        const glyphs: ReadonlyArray<readonly [string, string]> = [
+            ['vpi-languages', 'header-lang-glyph'],
+            ['vpi-chevron-down', 'header-lang-chevron'],
+            ['vpi-sun', 'appearance-sun'],
+            ['vpi-moon', 'appearance-moon'],
+        ];
+        for (const [icon, className] of glyphs) {
+            const shipped = vitepressIcon(icon);
+            const svg = svgByClass(page, className);
+            const paths = [...svg.body.matchAll(/ d="([^"]+)"/g)].map(([, path]) => path);
+            assert.ok(paths.length > 0, `${icon} should carry a path`);
+            // The whole path data, not a substring of it: a shorter redraw that
+            // happens to sit inside the theme's path would pass a `includes`
+            // check while drawing a different glyph.
+            assert.deepStrictEqual(
+                paths,
+                [...shipped.matchAll(/ d=['"]([^'"]+)['"]/g)].map(([, path]) => path),
+                `${icon} should be the path data vitepress@1.6.4 ships, not a redrawn one`
+            );
+            // Same stroke as the docs: a filled or heavier version of the same
+            // path is a different icon on screen.
+            for (const attribute of [
+                'fill="none"',
+                'stroke="currentColor"',
+                'stroke-linecap="round"',
+                'stroke-linejoin="round"',
+                'stroke-width="2"',
+            ]) {
+                assert.ok(
+                    svg.openingTag.includes(attribute),
+                    `${icon} should be stroked like the docs: ${attribute}`
+                );
+            }
+            // The sun's disc is a circle, so it has to travel with the icon.
+            const circle = /<circle[^>]*>/.exec(svg.body)?.[0];
+            if (circle !== undefined) {
+                assert.match(circle, /cx="12"/);
+                assert.match(circle, /cy="12"/);
+                assert.ok(
+                    shipped.includes('cx=\'12\' cy=\'12\' r=\'4\''),
+                    `${icon} should carry the same disc`
+                );
+            }
+        }
+
+        // The panel is VPNavBarTranslations.vue's shape: the language the
+        // reader is in is a title, and only the other one is an entry. Both
+        // VitePress sites name the pair in their configs, so the product page
+        // takes the names from there instead of keeping a third copy.
+        assert.deepStrictEqual(
+            localeLabels('docs/.vitepress/config.ts'),
+            localeLabels('tutorials/.vitepress/config.ts'),
+            'the two VitePress sites should name the languages the same way'
+        );
+        const [english, chinese] = localeLabels('docs/.vitepress/config.ts');
+        assert.ok(
+            page.includes(`<p class="header-lang-title">${english}</p>`),
+            'the panel should name the language the reader is in, like the docs menu'
+        );
+        const entry =
+            /<button type="button" class="header-lang-option" data-lang="([^"]+)"[^>]*>([^<]+)<\/button>/.exec(
+                page
+            );
+        assert.ok(entry, 'the panel should offer the other language as an entry');
+        const [entryLang = '', entryText = ''] = entry.slice(1);
+        assert.strictEqual(entryLang, 'zh', 'English readers should be offered Chinese');
+        assert.strictEqual(entryText, chinese, 'the entry should print the name the docs print');
+    });
+
+    it('shows the language panel on hover as well as on aria-expanded', () => {
+        const page = landingPageHtml();
+
+        // VPFlyout.vue's menu is shown by *either* condition — `:hover` on the
+        // flyout or `[aria-expanded="true"]` on the button. Both halves have to
+        // be here: the script flips the attribute on click, so a click landing
+        // while the pointer rests on the flyout sets it back to "false", and
+        // only the `:hover` rule keeps the panel up — which is also what makes
+        // the first tap of a touch screen (`mouseenter` then `click`) open it
+        // instead of cancelling itself out.
+        const shownBy = [...page.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+            .filter(([, , body = '']) => /visibility:\s*visible/.test(body))
+            .flatMap(([, selectors = '']) => selectors.split(',').map((selector) => selector.trim()))
+            .filter((selector) => selector.endsWith('.header-lang-menu'));
+
+        assert.ok(
+            shownBy.includes('.header-lang-button[aria-expanded="true"] + .header-lang-menu'),
+            'the panel should open when `aria-expanded` says so'
+        );
+        assert.ok(
+            shownBy.includes('.header-lang:hover .header-lang-menu'),
+            'the panel should open while the flyout is hovered, as VPFlyout.vue does'
+        );
     });
 });
 
