@@ -9,7 +9,7 @@
 `team/automations/`、`team/development/`、`team/archive/` 已落地；`team/marketing/` 是约定位置，可能尚未创建。
 
 - `team/automations/`：自动化流程与团队协作约定，按流程分目录。从 [automations/README.md](automations/README.md) 进入，具体流程、标签和重建步骤都在各自目录里说明，这里不逐条展开。
-- `team/development/`：milestones、roadmap、对内需求和渲染测试计划；版本标注规则见 [development/versioning-conventions.md](development/versioning-conventions.md)，CI 检查的 required / optional 分类见 [development/ci-classification.md](development/ci-classification.md)，CI 产出什么给人看（图、页面、将来的在线 e2e）见 [development/ci-verification.md](development/ci-verification.md)，一个 issue 要写成什么样才可核对见 [development/task-briefs.md](development/task-briefs.md)。
+- `team/development/`：milestones、roadmap、对内需求和渲染测试计划；版本标注规则见 [development/versioning-conventions.md](development/versioning-conventions.md)，CI 检查的 required / optional 分类见 [development/ci-classification.md](development/ci-classification.md)，CI 产出什么给人看（图、页面、将来的在线 e2e）见 [development/ci-verification.md](development/ci-verification.md)，一个 issue 要写成什么样才可核对见 [development/task-briefs.md](development/task-briefs.md)，改这个仓库之前的判断层（拆卡、命名空间、过约束、合并门）见 [development/repo-conventions.md](development/repo-conventions.md)，推送前本地跑什么、钩子怎么缓存、哪些推送失败是假象见 [development/local-verification.md](development/local-verification.md)。
 - `team/archive/`：不再维护但仍有参考价值的内容。
 - `team/marketing/`：营销草稿的约定位置，可能尚未创建。真正对外的文案再进入落地页或 `docs/`。
 
