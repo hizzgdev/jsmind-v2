@@ -11,7 +11,7 @@
 | required | CI | `ui` | `UI tests` | 真实浏览器加载 `dist/` 跑断言 |
 | required | CI | `changes` | `Change detection` | 分类器，只决定别的 job 跑不跑，见 3.3 |
 | optional | CI | `optional-tests` | `Optional tests` | 失败是信息不是门，见 3.2 |
-| optional | CI | `preview` | `Render preview` | 出图并贴评论，仅 PR |
+| optional | CI | `preview` | `Render preview` | 出图、发 live preview 并贴评论，仅 PR |
 | production | Forward Hubie events | `forward` | `Custom webhook` | 事件转发，不是检查 |
 | — | Publish npm package | `publish-npm` | `Stage v2-preview` | 发版，不是检查 |
 | — | Deploy static content to Pages | `build` / `deploy` | — | 站点发布，不是检查 |
