@@ -4,7 +4,7 @@
 The `jsmind` CLI is currently a preview. Commands and options will change in later updates. Please check this page for the commands that are current.
 :::
 
-The CLI is the command-line interface for jsMind V2 map data. You can create a map, inspect its tree and ids, change structure and node attributes, validate a file, and export an image.
+The CLI is the command-line interface for jsMind V2 map data. You can create a map, inspect its tree and ids, change structure and node attributes, validate a file, and export an image or a page that opens offline.
 
 ## Install
 
@@ -147,11 +147,14 @@ style: theme=default defaultTone=primary overrides=defaultTone,tones,node
 
 ```
 jsmind export image <file> <out.png> [options]
+jsmind export html <file> [out.html] [options]
 ```
 
-Renders a mind map to an image. The size is the map's own size: whitespace inside the viewport is kept, and a map larger than the viewport is not cropped.
+`export` is a group, and the word after it names what to produce: `image` renders a picture, `html` writes one page that opens offline. `jsmind export --help` lists both, each with the options it takes. The kind is not optional — a bare `jsmind export <file> <out.png>` is an argument error (`2`) rather than an `image` export with the kind guessed.
 
-`export` is a group, and the word after it names what to produce. `image` is the only kind today; `jsmind export --help` lists them. The kind is not optional — a bare `jsmind export <file> <out.png>` is an argument error (`2`) rather than an `image` export with the kind guessed.
+### `export image`
+
+Renders a mind map to an image. The size is the map's own size: whitespace inside the viewport is kept, and a map larger than the viewport is not cropped.
 
 `export image` requires a Chromium browser. Set `CHROME_PATH` if it is not in a standard location, and `JSMIND_BROWSER_START_MS` (`Since: 2.1.0`) if the browser needs longer than the default 60 seconds to start.
 
@@ -171,6 +174,21 @@ The output file is **overwritten in place**: an existing image at that path is r
 `--type` chooses the encoding, not the file name: the bytes are the format it names, and the output path is written exactly as given. When the two disagree — `out.png --type jpeg` — the export still runs, with one warning on stderr and exit code `0`: some artifacts are named for the tool that consumes them, so neither side is overridden. The comparison reads the extension only (`.png`, `.jpg` / `.jpeg`, `.webp`), and an extension that names no image format is not compared at all.
 
 With the default width, height, and scale, a typical export is 2400×1600 pixels.
+
+### `export html`
+
+Writes one `.html` file and nothing beside it: the renderer, the shell and the map are inlined, so the page opens from a `file://` URL on a machine with no network. No browser is started to write it — that is the difference from `image`, which needs one to produce its bytes (`Since: 2.3.0`).
+
+The output path is optional. Without it the page takes the input's name with an `.html` extension, so `map.json` becomes `map.html`.
+
+The map is kept in the page as text, in a `<script type="application/json">` block, so anything that can read the file can read the map back out of it — an agent does not need a browser to see what the page contains. Nothing in the file points anywhere else: no stylesheet, no script, no image, no CDN.
+
+A map larger than the window scrolls; it is not cropped to the viewport. Pan, zoom and a toolbar come with a later step, and until then the page scrolls and stays still.
+
+| Option | Meaning | Version |
+| --- | --- | --- |
+| `--title <text>` | The page's `<title>`. Defaults to the map's `meta.name`, then to the file name | `Since: 2.3.0` |
+| `--json` | Machine-readable output: `{"file": …, "output": …}` | `Since: 2.3.0` |
 
 ## `mind`
 

@@ -322,14 +322,15 @@ test('help - every single-page command prints only its own block', () => {
 
 test('help - `export` answers as a group, at both levels it has', () => {
     // `export` is the first command with a second level that is not a
-    // subcommand: the word after it picks what is produced. One kind is not
-    // enough to earn a page of its own, so the kind word is accepted and the
-    // group block answers — the half of the old "no second level" assumption
-    // that is still worth pinning is that the ladder must not fall back to the
-    // whole manual.
+    // subcommand: the word after it picks what is produced. Both kinds share
+    // the group page — each is one line in its list, with its own options
+    // section below — so the kind word is accepted and the group block answers.
+    // The half of the old "no second level" assumption still worth pinning is
+    // that the ladder must not fall back to the whole manual.
     for (const args of [
         ['export', '--help'],
         ['export', 'image', '--help'],
+        ['export', 'html', '--help'],
         ['help', 'export'],
     ]) {
         const run = runCli(args);

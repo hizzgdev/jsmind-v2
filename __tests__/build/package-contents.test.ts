@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path';
 import { before, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
+import { JSDOM } from 'jsdom';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -31,6 +32,7 @@ const PUBLISHED_FILES = [
     'dist/jsmind.umd.js',
     'dist/jsmind.umd.js.map',
     'dist/jsmind.d.ts',
+    'dist/artifact.html',
 ];
 
 const V2_HOME = 'https://github.com/hizzgdev/jsmind-v2/';
@@ -279,6 +281,42 @@ describe('built package entry', () => {
             assert.ok(text.includes(V2_HOME), `${file} banner is not the v2 repo`);
             assert.ok(!text.includes('https://github.com/hizzgdev/jsmind/'), `${file} still names v1`);
         }
+    });
+
+    it('ships the standalone export page as one self-contained file', () => {
+        // `jsmind export html` writes `dist/artifact.html` with the title and
+        // the map replaced, so the shipped copy has to be a page that needs
+        // nothing beside it: no stylesheet, no script, no icon, no URL. The
+        // licence banner's URL is a comment, not a reference, which is why the
+        // check looks at attributes rather than at the string "http".
+        const pkg = readPackage();
+        assert.ok(pkg.files.includes('dist/artifact.html'), 'the page must be in files');
+
+        const html = readFileSync(join(ROOT, 'dist/artifact.html'), 'utf8');
+        const document = new JSDOM(html).window.document;
+
+        assert.deepStrictEqual(
+            [...document.querySelectorAll('[src], [href], [srcset]')].map((node) => node.outerHTML),
+            [],
+            'the page must not fetch anything'
+        );
+        assert.strictEqual(document.querySelectorAll('link').length, 0);
+        assert.doesNotMatch(html, /\s(?:src|href)\s*=\s*["']/, 'no attribute points anywhere');
+
+        const scripts = [...document.querySelectorAll('script')];
+        assert.strictEqual(scripts.length, 3, 'the data block, the bundle and the shell');
+
+        // The two slots the CLI fills are still slots in the shipped page.
+        const data = document.querySelector('script[type="application/json"]');
+        assert.strictEqual(data?.id, 'jsmind-data');
+        assert.strictEqual(data?.textContent, '{{DATA}}');
+        assert.strictEqual(document.title, '{{TITLE}}');
+
+        // And the inlined bundle is the renderer, not a stub: it must define the
+        // global the shell calls.
+        const sandbox: { jsMind?: JsMindLibrary } = {};
+        vm.runInNewContext(scripts[1]?.textContent ?? '', sandbox, { filename: 'artifact-bundle.js' });
+        assertLibrary(sandbox.jsMind, 'the inlined UMD bundle');
     });
 
     it('resolves import and require through the package exports', () => {

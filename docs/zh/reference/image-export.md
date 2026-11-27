@@ -56,7 +56,7 @@ const url = URL.createObjectURL(blob);
 
 ## 3. 命令行
 
-`export` 的第一个位置参数是产出种类；目前只有 `image` 一种。
+`export` 的第一个位置参数是产出种类。本页讲 `image`；另一种 `html` 见指南中的 [CLI](/zh/guide/cli) 页面。
 
 ```bash
 jsmind export image <file> <out.png> [options]

@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { ioError } from './exit.ts';
 
 /** Directory this module lives in, as a filesystem path. */
-const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+export const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
 /** How many levels up from this module the manifest can sit. */
 const MAX_LEVELS = 3;

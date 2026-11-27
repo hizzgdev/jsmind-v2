@@ -371,15 +371,18 @@ Wrote mind.json
 
 ```bash
 jsmind export image <file> <out.png> [--width N] [--height N] [--scale N] [--type F] [--json]
+jsmind export html <file> [out.html] [--title <text>] [--json]
 ```
 
-**`export` 是一个组，第一个位置参数是产出种类。** 目前只有 `image` 一种（`--type` 才是编码：png / jpeg / webp）；种类词不可省略，裸写 `jsmind export <file> <out.png>` 是参数错误，不会猜成 `image`。
+**`export` 是一个组，第一个位置参数是产出种类。** 目前有两种：`image`（`--type` 才是编码：png / jpeg / webp）和 `html`（`Since: 2.3.0`）；种类词不可省略，裸写 `jsmind export <file> <out.png>` 是参数错误，不会猜成 `image`。每种有独立的选项白名单，所以 `--title` 只在 `html` 上合法。
 
-**出图需要浏览器，所以它不再是纯数据命令。** 早期设计里这个位置留给 `render`，只打印布局调试信息；真要出图就得有渲染引擎，改名成 `export` 以对齐它的实际职责，也和 JS API 的 `exportImage()` 一致。
+**出图需要浏览器，所以 `image` 不是纯数据命令。** 早期设计里这个位置留给 `render`，只打印布局调试信息；真要出图就得有渲染引擎，改名成 `export` 以对齐它的实际职责，也和 JS API 的 `exportImage()` 一致。
 
 **图片尺寸就是内容尺寸**：内容比视口小就保留空白，比视口大就撑开，不按视口裁剪。
 
 **需要 Chromium**，找不到会明确报错而不是导出空白图。
+
+**`html` 是另一类产物：一个能离线打开的单文件页面**（`Since: 2.3.0`）。它不启动浏览器，产物旁边不产生任何伴生文件，页面里也没有指向外部的 `src=` / `href=` —— 渲染器内联，不引 CDN。导图以 JSON 文本放在 `<script type="application/json" id="jsmind-data">` 里，agent 能静态读回；塞进脚本块时 `</script>`、`<!--` 和 U+2028 / U+2029 必须转义，标题进 `<title>` 前按 HTML 转义 `&` `<` `>`。模板不是 `src/` 里的单个文件，而是与 `site/` 平级的 `artifact/` 目录（`page.html` / `shell.css` / `shell.js`），由 `scripts/assemble-artifact.ts` 在构建期装配成随包发布的 `dist/artifact.html`；CLI 运行时只做两次字符串替换，不重新打包。比视口大的导图靠原生滚动看全，不裁剪。
 
 **实现细节见[导出图片](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/image-export)。**
 
