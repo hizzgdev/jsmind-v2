@@ -75,7 +75,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 | --- | --- | --- |
 | issue 建卡 | ① 标签里有 `weka`；② `zzgbot` 在 assignees 里（多个指派人也算，不要求它是唯一或第一个）；③ 事件是 `opened` / `labeled` / `assigned` 三者之一 | 建卡；该编号已有 open 卡则把这次事件追加成那张卡的 comment |
 | issue 评论 → 已有 open 卡 | ① 该编号在实现板或 groom 板上有 open 卡（两张都有时取实现板那张） | 把评论正文追加到那张卡。**不看标签、不看指派、不看 issue 是否已关闭**，与 PR 路径的「open 卡吸收」同一条规则 |
-| issue 评论 → groom | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ assignees 里有 `hizzgdev`；⑤ 配置了 `groom_board` / `groom_assignee` | 在 `groom_board` 上建 scout 卡（该 board 上该编号已有 open 卡则追加），指派给 `groom_assignee` |
+| issue 评论 → groom | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ assignees 里有 `hizzgdev`；⑤ 配置了 `groom_board` / `groom_assignee` | 在 `groom_board` 上建 scout 卡，指派给 `groom_assignee` |
 | issue 评论 → 实现 | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ assignees 里有 `zzgbot` | 建 `#<n>: Rework — …` 卡给 cody（与 PR 返工同一形状），正文带评论原文 |
 | issue 评论 → 没人接 | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ 两个 assignee 都不在 | 在 issue 上留一句说明，不建卡 |
 | PR 返工 | ① 该编号已有 open 卡 | 把评论正文追加到那张卡。**这一条不看标签**：cody 开工第一件事就是摘掉 `weka-reviewed`，返工进行中的留言不能被标签挡住 |
