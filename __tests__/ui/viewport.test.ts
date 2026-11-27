@@ -21,12 +21,19 @@
  * 8. A drag moves the map by exactly the pointer's travel, at any zoom.
  * 9. A pan stops at the content instead of leaving an empty viewport, and a map
  *    that already fits cannot be dragged at all.
+ * 10. `centerOn` puts a node's centre in the middle of the box, at the zoom it
+ *    was called at, and a native scroll the reader had already made does not
+ *    change where it lands.
+ * 11. `centerOn` inherits the pan's clamp: a node at the content's edge stops
+ *    short of the middle rather than pulling empty canvas into view, and while
+ *    the whole map fits the box the call leaves the origin where it was.
+ * 12. `centerOn` refuses ids that are not nodes of the map, including the ones
+ *    that only exist on `Object.prototype`.
  *
- * `centerOn` and fit-to-view are later items of the same plan and are not
- * exercised here.
+ * Fit-to-view is a later item of the same plan and is not exercised here.
  */
 
-import { test, before, after } from 'node:test';
+import { test, before, after, type TestContext } from 'node:test';
 import assert from 'node:assert';
 
 import { BrowserHarness } from './helpers.ts';
@@ -1003,6 +1010,50 @@ test('ui viewport - a map that already fits the box cannot be dragged', async ()
     assert.deepStrictEqual(paintedExtent(after_), extent, 'and every node stays where it was, none of them dragged off the box');
 });
 
+test('ui viewport - centerOn of a map that fits the box moves nothing', async () => {
+    await open(fixture(), TIGHT);
+
+    // The same state the drag above is a no-op in: the content brought inside
+    // the box and then zoomed out until it is smaller than the box on both
+    // axes, so the clamp has no band to move the origin in. Centring goes
+    // through the pan rather than writing the origin it computed, so it
+    // inherits that. An implementation that wrote it anyway would shove the map
+    // into a corner - and leave it there, since the empty band means a pan
+    // cannot bring it back.
+    const middle = middleOf(await panLimits());
+    await command(`jm.commands.panTo(${middle.x}, ${middle.y})`);
+    await command('jm.commands.zoomTo(0.1)');
+    const before_ = await snapshot();
+    assert.strictEqual(before_.viewport.scale, 0.1);
+    const extent = paintedExtent(before_);
+    assert.ok(
+        extent.left >= 0 && extent.right <= TIGHT.width,
+        `the zoomed-out map fits the box horizontally: ${extent.left}..${extent.right} in ${TIGHT.width}, origin ${before_.viewport.x}/${before_.viewport.y}`
+    );
+    assert.ok(
+        extent.top >= 0 && extent.bottom <= TIGHT.height,
+        `the zoomed-out map fits the box vertically: ${extent.top}..${extent.bottom} in ${TIGHT.height}`
+    );
+
+    // A leaf at the content's edge, so the origin a centring would compute is
+    // far from the one the zoom left behind: the root sits near the middle and
+    // would make a no-op and a centring look alike.
+    const leaf = identifierFor('分支 0.0 的说明文字');
+    const beforeCentre = centreOf(before_, '分支 0.0 的说明文字');
+    const beforeMiddle = middleOfBox(before_);
+    assert.ok(
+        Math.abs(beforeCentre.x - beforeMiddle.x) > 5 || Math.abs(beforeCentre.y - beforeMiddle.y) > 5,
+        `the node should not already be in the middle: ${beforeCentre.x.toFixed(2)}/${beforeCentre.y.toFixed(2)} against ${beforeMiddle.x}/${beforeMiddle.y}`
+    );
+
+    await command(`jm.commands.centerOn('${leaf}')`);
+    const after_ = await snapshot();
+
+    assert.deepStrictEqual(origin(after_), origin(before_), 'a map that fits has no middle to move to');
+    assert.deepStrictEqual(paintedExtent(after_), extent, 'and every node stays where it was, none of them pushed off the box');
+    assertPaintMatchesViewport(after_);
+});
+
 test('ui viewport - zoom and pan alternate without overwriting each other', async () => {
     await open(fixture(10, 6), TIGHT);
     const limits = await panLimits();
@@ -1077,4 +1128,278 @@ test('ui viewport - capture does not depend on the pan', async () => {
     // clone that kept the pan would shift the content inside the same canvas.
     assert.deepStrictEqual(panned.css, atRest.css, 'capture size does not depend on the pan');
     assert.strictEqual(panned.bytes, atRest.bytes, 'the same pixels, so the same encoded size');
+});
+
+/** The text the fixture gives the root, which is not on either side of the map. */
+const ROOT_TEXT = '缩放测试';
+
+/** Centring the root, as the page would be asked. */
+const CENTRE_ROOT = 'jm.commands.centerOn(\'root\')';
+
+/**
+ * The rendered node whose text is `text`.
+ *
+ * @param state - Snapshot to search.
+ * @param text - The node's content, which is what the snapshot identifies it by.
+ * @returns Its painted box.
+ */
+function findNode(state: Snapshot, text: string): RenderedNode {
+    const node = state.nodes.find(entry => entry.text === text);
+    if (!node) {
+        throw new Error(`the page should render a node reading "${text}"`);
+    }
+    return node;
+}
+
+/**
+ * The fixture id behind a rendered node.
+ *
+ * @remarks
+ * The snapshot identifies nodes by their text, and `centerOn` takes an id, so
+ * the one has to be read back as the other. The mapping is the one
+ * {@link fixture} writes: `root`, `c<n>` for a branch and `c<n>_<m>` for a leaf.
+ *
+ * @param text - The node's content.
+ * @returns Its id in the document.
+ */
+function identifierFor(text: string): string {
+    if (text === ROOT_TEXT) {
+        return 'root';
+    }
+    const branch = /^主题 (\d+)$/.exec(text);
+    if (branch) {
+        return `c${branch[1]}`;
+    }
+    const leaf = /^分支 (\d+)\.(\d+) 的说明文字$/.exec(text);
+    if (leaf) {
+        return `c${leaf[1]}_${leaf[2]}`;
+    }
+    throw new Error(`the fixture has no node reading "${text}"`);
+}
+
+/**
+ * A node's painted centre and the middle of the visible box.
+ *
+ * @param state - Snapshot to measure.
+ * @param text - Node to measure.
+ * @returns Both points, in the same space: CSS pixels from the host's corner.
+ */
+function centreOf(state: Snapshot, text: string): { x: number; y: number } {
+    const node = findNode(state, text);
+    return { x: node.left + node.width / 2, y: node.top + node.height / 2 };
+}
+
+/**
+ * The middle of the visible box, in the space the snapshot's boxes are in.
+ *
+ * @param state - Snapshot to read.
+ * @returns The centre, in CSS pixels from the host's corner.
+ */
+function middleOfBox(state: Snapshot): { x: number; y: number } {
+    return { x: state.viewport.width / 2, y: state.viewport.height / 2 };
+}
+
+/**
+ * Asserts that one node's centre is the middle of the visible box, within a
+ * pixel of rounding.
+ *
+ * @param state - Snapshot to check.
+ * @param text - Node that should be centred.
+ * @returns What was measured, so a caller can report it.
+ */
+function assertCentred(state: Snapshot, text: string): { centre: { x: number; y: number }; middle: { x: number; y: number } } {
+    const centre = centreOf(state, text);
+    const middle = middleOfBox(state);
+    assert.ok(
+        Math.abs(centre.x - middle.x) <= 1,
+        `${text}: the centre is at x=${centre.x.toFixed(2)}, the middle of the ${state.viewport.width}px box is ${middle.x}`
+    );
+    assert.ok(
+        Math.abs(centre.y - middle.y) <= 1,
+        `${text}: the centre is at y=${centre.y.toFixed(2)}, the middle of the ${state.viewport.height}px box is ${middle.y}`
+    );
+    return { centre, middle };
+}
+
+test('ui viewport - centerOn puts a node in the middle of the box, at 1x and at 2x', async (t: TestContext) => {
+    // A box much smaller than the map on both axes, so the origin has room to
+    // move on both. With the map inside the box there would be nothing to move
+    // and the assertions below would pass on a no-op.
+    await open(fixture(10, 6), SMALL);
+
+    const atRest = await snapshot();
+    assert.strictEqual(atRest.viewport.scale, 1, 'the page opens at 1x');
+    assert.strictEqual(atRest.inner.overflow, 'auto', 'nothing has taken the box over yet');
+
+    await command(CENTRE_ROOT);
+    const atOne = await snapshot();
+    const one = assertCentred(atOne, ROOT_TEXT);
+
+    // The zoom is not the command's business: centring is a move.
+    assert.strictEqual(atOne.viewport.scale, atRest.viewport.scale, 'centerOn leaves the zoom alone');
+    // Same handover a pan makes: without it the origin would be written on top
+    // of the native scroll offset and the picture would jump.
+    assert.strictEqual(atOne.inner.overflow, 'visible', 'centerOn takes the box over, as a pan does');
+    assertPaintMatchesViewport(atOne);
+    t.diagnostic(
+        `1x: node centre ${one.centre.x.toFixed(2)}/${one.centre.y.toFixed(2)}, ` +
+            `box middle ${one.middle.x}/${one.middle.y}, origin ${atOne.viewport.x}/${atOne.viewport.y}`
+    );
+
+    // 2x, from a view the zoom has already pushed the node away from the middle
+    // of: the arithmetic that carries the scale is only exercised here, since a
+    // centring that ignored it would still look right at 1x.
+    await command('jm.commands.zoomTo(2, { x: 60, y: 60 })');
+    const zoomed = await snapshot();
+    assert.strictEqual(zoomed.viewport.scale, 2, 'the view really is at 2x');
+    const beforeCentre = centreOf(zoomed, ROOT_TEXT);
+    const beforeMiddle = middleOfBox(zoomed);
+    assert.ok(
+        Math.abs(beforeCentre.x - beforeMiddle.x) > 20 || Math.abs(beforeCentre.y - beforeMiddle.y) > 20,
+        `the node should be off-centre before the call: ${beforeCentre.x.toFixed(2)}/${beforeCentre.y.toFixed(2)} against ${beforeMiddle.x}/${beforeMiddle.y}`
+    );
+
+    await command(CENTRE_ROOT);
+    const atTwo = await snapshot();
+    const two = assertCentred(atTwo, ROOT_TEXT);
+
+    assert.strictEqual(atTwo.viewport.scale, 2, 'still at the factor the reader chose');
+    assert.notStrictEqual(atTwo.viewport.x, zoomed.viewport.x, 'the origin really moved');
+    assertPaintMatchesViewport(atTwo);
+    t.diagnostic(
+        `2x: node centre ${two.centre.x.toFixed(2)}/${two.centre.y.toFixed(2)}, ` +
+            `box middle ${two.middle.x}/${two.middle.y}, origin ${atTwo.viewport.x}/${atTwo.viewport.y}`
+    );
+});
+
+test('ui viewport - centerOn after a native scroll lands where it does without one', async () => {
+    const document_ = fixture(10, 6);
+
+    // The reference: the same page, the same command, no scroll in the way.
+    await open(document_, TIGHT);
+    await command(CENTRE_ROOT);
+    const straight = await snapshot();
+
+    // A fresh page, so the first command is still the one that has to fold the
+    // scroll in - the handover a pan makes, done once.
+    await open(document_, TIGHT);
+    const scrolled = await browser.evaluate<{ scrollLeft: number; scrollTop: number }>(
+        `(() => {
+            const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
+            inner.scrollLeft = Math.round((inner.scrollWidth - inner.clientWidth) / 2);
+            inner.scrollTop = Math.round((inner.scrollHeight - inner.clientHeight) / 2);
+            return { scrollLeft: inner.scrollLeft, scrollTop: inner.scrollTop };
+        })()`
+    );
+    assert.ok(
+        scrolled.scrollLeft > 40 && scrolled.scrollTop > 40,
+        `the box should really be scrolled: ${scrolled.scrollLeft}/${scrolled.scrollTop}`
+    );
+    const before_ = await snapshot();
+    assert.strictEqual(before_.inner.overflow, 'auto', 'nothing has taken the box over yet');
+    assert.strictEqual(before_.viewport.x, scrolled.scrollLeft, 'the accessor reports the scroll the reader is looking at');
+
+    await command(CENTRE_ROOT);
+    const after_ = await snapshot();
+
+    // The scroll is folded into the origin once, at the handover - and the
+    // origin `centerOn` writes does not depend on where the view was, so it has
+    // to be the same one a page that never scrolled ends on. Eating the offset
+    // twice would move it by exactly the scroll, which is what this compares.
+    assert.ok(
+        Math.abs(after_.viewport.x - straight.viewport.x) < 0.01,
+        `the origin drifted by ${(after_.viewport.x - straight.viewport.x).toFixed(2)}px horizontally`
+    );
+    assert.ok(
+        Math.abs(after_.viewport.y - straight.viewport.y) < 0.01,
+        `the origin drifted by ${(after_.viewport.y - straight.viewport.y).toFixed(2)}px vertically`
+    );
+    assertCentred(after_, ROOT_TEXT);
+    assertPaintMatchesViewport(after_);
+});
+
+test('ui viewport - centerOn of a node at the edge stops at the content', async () => {
+    await open(fixture(10, 6), SMALL);
+    const initial = await snapshot();
+    const middle = middleOfBox(initial);
+
+    // The node furthest out on the horizontal axis: centring it would need an
+    // origin left of the content, and that is exactly the case the pan's clamp
+    // refuses.
+    const leftmost = initial.nodes.reduce((best, node) => (node.left < best.left ? node : best));
+    await command(`jm.commands.centerOn('${identifierFor(leftmost.text)}')`);
+    const after_ = await snapshot();
+
+    const node = findNode(after_, leftmost.text);
+    const centre = node.left + node.width / 2;
+    assert.ok(
+        centre < middle.x - 40,
+        `an edge node cannot reach the middle: it painted at ${centre.toFixed(1)}, the middle is ${middle.x}`
+    );
+    // And nothing was pulled in beside the map to make up the difference: the
+    // clamp is the same one a pan has, so the content stays against the edge.
+    const extent = paintedExtent(after_);
+    assert.ok(extent.left >= -0.5, `the map should stay against the left edge, it starts at ${extent.left.toFixed(1)}`);
+    assertPaintMatchesViewport(after_);
+});
+
+test('ui viewport - centerOn refuses an id that is not a node of the map', async () => {
+    await open(fixture(10, 6), SMALL);
+
+    // `constructor`, `__proto__` and `toString` all exist on `Object.prototype`
+    // and `mind._nodes` is a plain object, so a bare `_nodes[id]` lookup answers
+    // with a function and the failure surfaces later as a `TypeError` from
+    // reading `layout` off it. A refused call is not allowed to move the view
+    // either, so the box is still on native scrolling afterwards.
+    //
+    // The bundle renames the error class on the way through rollup, so
+    // `instanceof JsMindError` cannot be written out by name here. One error
+    // from another path in the same bundle gives the class to compare against,
+    // which is the same claim: the same class, not a `TypeError`.
+    const probe = await browser.evaluate<{
+        reference: string;
+        outcomes: { id: string; threw: boolean; isMindError: boolean; isTypeError: boolean; isError: boolean; message: string }[];
+    }>(`(() => {
+        const jm = window.__jm;
+        const reference = (() => {
+            try {
+                jsMind.Serializer.create('no-such-format');
+                return null;
+            } catch (error) {
+                return error;
+            }
+        })();
+        const outcomes = ['constructor', '__proto__', 'toString', 'no-such-node'].map(id => {
+            try {
+                jm.commands.centerOn(id);
+                return { id, threw: false, isMindError: false, isTypeError: false, isError: false, message: '' };
+            } catch (error) {
+                return {
+                    id,
+                    threw: true,
+                    isMindError: reference !== null && error instanceof reference.constructor,
+                    isTypeError: error instanceof TypeError,
+                    isError: error instanceof Error,
+                    message: error && error.message ? error.message : '',
+                };
+            }
+        });
+        return { reference: reference === null ? '' : String(reference.message), outcomes };
+    })()`);
+    assert.ok(probe.reference.length > 0, 'the page should have a library error to compare classes against');
+
+    for (const outcome of probe.outcomes) {
+        assert.strictEqual(outcome.threw, true, `centerOn('${outcome.id}') should be refused`);
+        assert.strictEqual(outcome.isMindError, true, `centerOn('${outcome.id}') did not throw a JsMindError`);
+        assert.strictEqual(outcome.isTypeError, false, `centerOn('${outcome.id}') threw a TypeError`);
+        assert.strictEqual(outcome.isError, true, `centerOn('${outcome.id}') did not throw an Error`);
+        assert.ok(
+            outcome.message.includes(outcome.id),
+            `centerOn('${outcome.id}') should name the id in its message, it said "${outcome.message}"`
+        );
+    }
+
+    const state = await snapshot();
+    assert.deepStrictEqual(origin(state), { x: 0, y: 0, scale: 1 }, 'a refused command does not move the view');
+    assert.strictEqual(state.inner.overflow, 'auto', 'and does not take the box over either');
 });

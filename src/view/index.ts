@@ -7,7 +7,7 @@ import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
 import { captureShadowContent, type JmExportImageOptions, type JmExportImageResult } from './export.ts';
 import type { JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
-import { viewportCssTransform, panViewport, panViewportTo, zoomViewport, type JmViewportBounds, type JmViewportTransform } from './viewport.ts';
+import { viewportCssTransform, panViewport, panViewportTo, viewportOriginFor, zoomViewport, type JmViewportBounds, type JmViewportTransform } from './viewport.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
@@ -75,6 +75,18 @@ export class JmView implements JmViewHandle {
      * `_updateViewSize` is the only place that knows it.
      */
     private readonly contentBounds: JmViewportBounds = { left: 0, top: 0, width: 0, height: 0 };
+
+    /**
+     * The map currently on screen.
+     *
+     * @remarks
+     * Kept because {@link JmView.centerOn} is the one viewport command that
+     * names something in the map rather than a place: it needs the node by id,
+     * and node ids only exist in the model. Set on every settle, which is what
+     * the coordinator runs on open and after a change, so what a command reads
+     * here is the map and the layout the reader is looking at.
+     */
+    private mind: JmMind | null = null;
 
     private constructor(container: HTMLElement, shadowRoot: ShadowRoot, innerContainer: JmElement, nodeView: JmNodeView, edgeView: JmEdgeView, arranger: Arranger, options: ViewOptions) {
         this.container = container;
@@ -196,6 +208,7 @@ export class JmView implements JmViewHandle {
     }
 
     async settle(mind: JmMind, _changedNodeIds: string[] = []): Promise<void> {
+        this.mind = mind;
         this._updateViewSize(mind);
         this.nodeView.updateCanvasSize(this.viewSize);
         this.edgeView.updateEdgeViewsSize(this.viewSize);
@@ -361,6 +374,52 @@ export class JmView implements JmViewHandle {
     panBy(dx: number, dy: number): void {
         this._activateViewport();
         this._setViewport(panViewport(this.viewport, dx, dy, this.contentBounds, this._viewportSize()));
+    }
+
+    /**
+     * Moves the map so that one node's centre sits in the middle of the
+     * viewport, leaving the zoom alone.
+     *
+     * @remarks
+     * The node's box lives in two spaces that differ by `viewOffset`: the
+     * arranger gives its corner in layout space, and what the viewport's
+     * `x`/`y` are written against - the same space the renderer puts in
+     * `style.left/top` - is that plus the centring offset. Without the offset
+     * the map misses the middle by however far the content's own centre has
+     * been shifted, which is hundreds of pixels on a wide map.
+     *
+     * The box is taken over before the middle is measured, not after: the
+     * handover removes the scrollbars, they are part of the box's width, and a
+     * centre read with them still there would come out half a scrollbar away
+     * from the one the origin is measured against.
+     *
+     * The origin then goes through {@link JmView.panTo}, so it is clamped to the
+     * content exactly as a pan is: an edge node stops short of the middle rather
+     * than pulling empty canvas into view, and a map that fits its box does not
+     * move at all.
+     *
+     * @param nodeId - Id of a node in the open mind map.
+     */
+    centerOn(nodeId: string): void {
+        const mind = this.mind;
+        if (!mind) {
+            throw new JsMindError('No mind map is currently open');
+        }
+        // `_nodes` is a plain object, so `_nodes['constructor']` answers with
+        // `Object.prototype.constructor` rather than `undefined`: the lookup
+        // succeeds and the failure surfaces later as a `TypeError` from reading
+        // `layout` off a function. Asking the object whether it owns the key is
+        // what keeps an id that only exists on the prototype outside the map.
+        const node = Object.prototype.hasOwnProperty.call(mind._nodes, nodeId) ? mind._nodes[nodeId] : undefined;
+        if (!node) {
+            throw new JsMindError(`Node '${nodeId}' is not in the open mind map`);
+        }
+        this._activateViewport();
+        const corner = this.arranger.calculateNodePoint(node).offset(this.viewOffset);
+        const size = node._data.layout.size;
+        const focus = new JmPoint(corner.x + size.width / 2, corner.y + size.height / 2);
+        const origin = viewportOriginFor(focus, this._viewportCentre(), this.viewport.scale);
+        this.panTo(origin.x, origin.y);
     }
 
     /**
