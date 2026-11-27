@@ -487,6 +487,52 @@ export class BrowserHarness {
     }
 
     /**
+     * Drags with a real left-button pointer.
+     *
+     * @remarks
+     * A real mouse rather than dispatched `PointerEvent`s: the gesture handlers
+     * capture the pointer and turn moves into a pan, and a synthesised event
+     * would prove the listener's arithmetic while saying nothing about whether
+     * Chrome delivers the moves at all. Chrome derives pointer events from
+     * mouse input, so this is the same path a hand takes.
+     *
+     * The travel is split into moves because a gesture is a stream, not a jump:
+     * one move would still pass an assertion on the total, but not the one about
+     * a drag that leaves the element mid-way.
+     *
+     * @param from - Press point, in CSS pixels.
+     * @param dx - Total horizontal travel.
+     * @param dy - Total vertical travel.
+     * @param steps - How many `pointermove`s to split the travel into.
+     */
+    async dragBy(from: { x: number; y: number }, dx: number, dy: number, steps = 6): Promise<void> {
+        await this.send('Input.dispatchMouseEvent', {
+            type: 'mousePressed',
+            x: from.x,
+            y: from.y,
+            button: 'left',
+            clickCount: 1,
+        });
+        for (let step = 1; step <= steps; step += 1) {
+            await this.send('Input.dispatchMouseEvent', {
+                type: 'mouseMoved',
+                x: from.x + (dx * step) / steps,
+                y: from.y + (dy * step) / steps,
+                button: 'left',
+                buttons: 1,
+            });
+        }
+        await this.send('Input.dispatchMouseEvent', {
+            type: 'mouseReleased',
+            x: from.x + dx,
+            y: from.y + dy,
+            button: 'left',
+            clickCount: 1,
+        });
+        await this.settle();
+    }
+
+    /**
      * Shuts the browser down and removes its temporary profile.
      */
     async close(): Promise<void> {

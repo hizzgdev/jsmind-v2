@@ -23,7 +23,7 @@
  * @packageDocumentation
  */
 
-import { JmPoint } from '../common/index.ts';
+import { JmPoint, type JmSize } from '../common/index.ts';
 import type { JmViewportAnchor } from './handle.ts';
 
 /**
@@ -50,6 +50,28 @@ export interface JmViewportTransform {
     y: number;
     /** Zoom factor, 1 being unscaled. */
     scale: number;
+}
+
+/**
+ * The map-space rectangle a pan has to leave reachable.
+ *
+ * @remarks
+ * In map pixels, so a limit and an origin can be compared without converting
+ * either of them first. The map is drawn centred in the view's canvas, which is
+ * why the caller has to work the corners out: the renderer knows where it put
+ * the content, and nothing else does.
+ *
+ * @private
+ */
+export interface JmViewportBounds {
+    /** Map-space x of the content's left edge. */
+    left: number;
+    /** Map-space y of the content's top edge. */
+    top: number;
+    /** Content width in map pixels. */
+    width: number;
+    /** Content height in map pixels. */
+    height: number;
 }
 
 /**
@@ -126,6 +148,112 @@ export function zoomViewport(
     const focus = viewportPointAt(transform, anchor);
     const origin = viewportOriginFor(focus, anchor, next);
     return { x: origin.x, y: origin.y, scale: next };
+}
+
+/**
+ * Clamps one axis of the origin into the band that keeps the content reachable.
+ *
+ * @remarks
+ * The band's near end shows the content's near edge against the viewport's near
+ * edge, and its far end shows the content's far edge against the far edge; in
+ * between, the viewport is all content. Past either end the reader would be
+ * looking at empty canvas, which is the state this exists to prevent.
+ *
+ * Two candidates are dropped rather than clamped, both for the same reason -
+ * they have no sensible clamped value:
+ *
+ * - **`span <= 0`**: the content is smaller than the viewport at this zoom, so
+ *   the band is empty. Clamping into an empty band would mean a reversed
+ *   interval, and picking one end of it would throw the map off the screen; a
+ *   map that already fits has nothing to pan to.
+ * - **A non-finite candidate**: a pointer delta can be `NaN` (a `0/0` from a
+ *   box that was not measured), and one `NaN` in the origin leaves every node
+ *   unpainted with no error pointing at the cause. Same fallback as
+ *   {@link clampViewportScale}.
+ *
+ * @param origin - Current value on this axis, kept when the candidate is
+ * dropped.
+ * @param candidate - Proposed value.
+ * @param contentStart - Content's near edge, in map pixels.
+ * @param contentSize - Content's extent on this axis, in map pixels.
+ * @param viewportSize - Visible extent on this axis, in viewport pixels.
+ * @param scale - Zoom factor, which turns viewport pixels into map pixels.
+ * @returns The value to store.
+ *
+ * @private
+ */
+function clampViewportAxis(
+    origin: number,
+    candidate: number,
+    contentStart: number,
+    contentSize: number,
+    viewportSize: number,
+    scale: number
+): number {
+    if (!Number.isFinite(candidate)) {
+        return origin;
+    }
+    const span = contentSize - viewportSize / scale;
+    if (!(span > 0)) {
+        return origin;
+    }
+    return Math.min(contentStart + span, Math.max(contentStart, candidate));
+}
+
+/**
+ * Moves the origin to a requested map-space point, clamped.
+ *
+ * @param transform - Current viewport state.
+ * @param target - Map-space point to show at the viewport's top-left corner.
+ * @param bounds - Content rectangle the origin has to stay inside.
+ * @param viewport - Visible size, in viewport pixels.
+ * @returns The new state.
+ *
+ * @private
+ */
+export function panViewportTo(
+    transform: JmViewportTransform,
+    target: JmPoint,
+    bounds: JmViewportBounds,
+    viewport: JmSize
+): JmViewportTransform {
+    return {
+        x: clampViewportAxis(transform.x, target.x, bounds.left, bounds.width, viewport.width, transform.scale),
+        y: clampViewportAxis(transform.y, target.y, bounds.top, bounds.height, viewport.height, transform.scale),
+        scale: transform.scale,
+    };
+}
+
+/**
+ * Moves the origin by a gesture, in viewport pixels.
+ *
+ * @remarks
+ * A pointer reports how far it travelled on screen, not in the map, so the
+ * division by the zoom happens here: dragging by 100px at 2x uncovers 50 map
+ * pixels. Moving the map to the right means showing map points further left,
+ * hence the subtraction - `x` reads like a scroll offset.
+ *
+ * Drags and absolute moves share {@link panViewportTo}'s clamp, so a gesture can
+ * never take the map somewhere a command could not.
+ *
+ * @param transform - Current viewport state.
+ * @param dx - Pointer travel on the x axis, in viewport pixels.
+ * @param dy - Pointer travel on the y axis, in viewport pixels.
+ * @param bounds - Content rectangle the origin has to stay inside.
+ * @param viewport - Visible size, in viewport pixels.
+ * @returns The new state.
+ *
+ * @private
+ */
+export function panViewport(
+    transform: JmViewportTransform,
+    dx: number,
+    dy: number,
+    bounds: JmViewportBounds,
+    viewport: JmSize
+): JmViewportTransform {
+    const target = new JmPoint(transform.x - dx / transform.scale, transform.y - dy / transform.scale);
+    return panViewportTo(transform, target, bounds, viewport);
 }
 
 /**

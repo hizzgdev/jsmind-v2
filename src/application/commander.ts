@@ -66,10 +66,28 @@ export class JmCommander {
         return this.view.getViewport();
     }
 
-    // The rest of the viewport commands land here, next to these two:
+    /**
+     * Puts a map-space point at the viewport's top-left corner.
+     *
+     * @param x - Map-space x to show at the left edge.
+     * @param y - Map-space y to show at the top edge.
+     */
+    panTo(x: number, y: number): void {
+        this.view.panTo(x, y);
+    }
+
+    /**
+     * Moves the viewport by a distance on screen.
+     *
+     * @param dx - Horizontal travel in viewport pixels.
+     * @param dy - Vertical travel in viewport pixels.
+     */
+    panBy(dx: number, dy: number): void {
+        this.view.panBy(dx, dy);
+    }
+
+    // The rest of the viewport commands land here, next to these:
     //
-    // panTo(x: number, y: number): void;
-    // panBy(dx: number, dy: number): void;
     // centerOn(nodeId: string): void;
     //
     // Folding and moving do not, for the reason given in the handle: they change

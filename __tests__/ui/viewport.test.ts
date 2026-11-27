@@ -18,8 +18,11 @@
  * 5. `capture()` does not care what the zoom is.
  * 6. A node added while zoomed is laid out at its layout size.
  * 7. A zoomed-out map is painted whole: taking the box over must not clip it.
+ * 8. A drag moves the map by exactly the pointer's travel, at any zoom.
+ * 9. A pan stops at the content instead of leaving an empty viewport, and a map
+ *    that already fits cannot be dragged at all.
  *
- * Pan, `centerOn` and fit-to-view are later items of the same plan and are not
+ * `centerOn` and fit-to-view are later items of the same plan and are not
  * exercised here.
  */
 
@@ -41,6 +44,30 @@ interface FixtureNode {
 
 /** The window the map is shown in. */
 const HOST = { width: 1000, height: 650 };
+
+/**
+ * A box smaller than the fixture on both axes, so there is somewhere to pan.
+ *
+ * @remarks
+ * Panning is only possible when the content is bigger than the box it is shown
+ * in, and the default {@link HOST} is wide enough to hold this fixture whole -
+ * which would make every drag a no-op and prove nothing.
+ */
+const SMALL = { width: 420, height: 300 };
+
+/**
+ * The tightest box still worth dragging in.
+ *
+ * @remarks
+ * How far the origin can travel is the content's size minus the box, and the
+ * content's size comes from the fonts the machine has - a CI runner without
+ * this fixture's CJK font lays the same map out a third narrower. The tests
+ * about *movement* therefore use the smallest box that can still hold a
+ * gesture: the smaller the box, the wider the range, and a fixed 240px drag
+ * then has room on any machine. Clamping and capture are measured on
+ * {@link SMALL} instead, where they do not depend on the range's width.
+ */
+const TIGHT = { width: 150, height: 120 };
 
 let browser: BrowserHarness;
 
@@ -214,6 +241,140 @@ function assertPaintMatchesViewport(state: Snapshot): void {
             `${node.text}: getViewport says y=${y} at scale ${scale} -> ${expectedTop.toFixed(2)}, painted at ${node.top.toFixed(2)}`
         );
     }
+}
+
+/**
+ * The three numbers a pan writes.
+ *
+ * @param state - Snapshot to read.
+ * @returns The origin and the zoom, without the view size.
+ */
+function origin(state: Snapshot): { x: number; y: number; scale: number } {
+    return { x: state.viewport.x, y: state.viewport.y, scale: state.viewport.scale };
+}
+
+/**
+ * The box the whole map is painted in, relative to the host's corner.
+ *
+ * @param state - Snapshot to measure.
+ * @returns Leftmost, rightmost, topmost and bottommost painted edge.
+ */
+function paintedExtent(state: Snapshot): { left: number; right: number; top: number; bottom: number } {
+    return {
+        left: Math.min(...state.nodes.map(node => node.left)),
+        right: Math.max(...state.nodes.map(node => node.left + node.width)),
+        top: Math.min(...state.nodes.map(node => node.top)),
+        bottom: Math.max(...state.nodes.map(node => node.top + node.height)),
+    };
+}
+
+/**
+ * Installs a caller that turns pointer travel into `panBy`.
+ *
+ * @remarks
+ * The library exposes the movement, not the pointer handling: `artifact/shell.js`
+ * ships this gesture for exported pages and an embedder is expected to wire the
+ * same one. The harness installs it so a test can drive the library with real
+ * pointer events; the shell's own copy of the handler is covered where it lives,
+ * on an exported page (`export-html.test.ts`).
+ *
+ * Without `setPointerCapture` a fast drag stops being delivered the moment the
+ * pointer leaves the box, which is what the capture in the shell exists for.
+ */
+async function installDragCaller(): Promise<void> {
+    await browser.evaluate(`(() => {
+        const container = document.getElementById('container');
+        let captured = null;
+        let lastX = 0;
+        let lastY = 0;
+        container.addEventListener('pointerdown', event => {
+            if (captured !== null || event.button !== 0) {
+                return;
+            }
+            captured = event.pointerId;
+            lastX = event.clientX;
+            lastY = event.clientY;
+            container.setPointerCapture(event.pointerId);
+            event.preventDefault();
+        });
+        container.addEventListener('pointermove', event => {
+            if (event.pointerId !== captured) {
+                return;
+            }
+            const dx = event.clientX - lastX;
+            const dy = event.clientY - lastY;
+            if (dx === 0 && dy === 0) {
+                return;
+            }
+            lastX = event.clientX;
+            lastY = event.clientY;
+            window.__jm.commands.panBy(dx, dy);
+        });
+        const end = event => {
+            if (event.pointerId === captured) {
+                captured = null;
+            }
+        };
+        container.addEventListener('pointerup', end);
+        container.addEventListener('pointercancel', end);
+        container.addEventListener('lostpointercapture', end);
+        return true;
+    })()`);
+}
+
+/**
+ * The two ends of the range the origin is clamped to, and how wide it is.
+ *
+ * @remarks
+ * The range comes from the rendered content, and the content's width comes from
+ * the fonts the machine has: a CI runner without this fixture's CJK font lays
+ * the same map out noticeably narrower than a laptop does. Asking for the ends
+ * keeps the assertions about *movement between them* - the numbers a reader can
+ * check - instead of about where a particular machine's typography puts the
+ * content. A test that hardcodes a corner position passes on a laptop and fails
+ * on the runner for a reason that has nothing to do with panning.
+ *
+ * Asking is also the only way to read them: the origin is public, the content
+ * rectangle is not.
+ *
+ * @returns Both ends, in map pixels, and the span between them.
+ */
+async function panLimits(): Promise<{
+    near: { x: number; y: number };
+    far: { x: number; y: number };
+    span: { x: number; y: number };
+}> {
+    const near = await browser.evaluate<{ x: number; y: number }>(
+        `(() => {
+            window.__jm.commands.panTo(-1e9, -1e9);
+            return window.__jm.commands.getViewport();
+        })()`
+    );
+    const far = await browser.evaluate<{ x: number; y: number }>(
+        `(() => {
+            window.__jm.commands.panTo(1e9, 1e9);
+            return window.__jm.commands.getViewport();
+        })()`
+    );
+    await browser.settle();
+    return {
+        near: { x: near.x, y: near.y },
+        far: { x: far.x, y: far.y },
+        span: { x: far.x - near.x, y: far.y - near.y },
+    };
+}
+
+/**
+ * The middle of the range, which leaves the most room in either direction.
+ *
+ * @param limits - Range to pick from.
+ * @returns A point inside it.
+ */
+function middleOf(limits: { near: { x: number; y: number }; span: { x: number; y: number } }): {
+    x: number;
+    y: number;
+} {
+    return { x: limits.near.x + limits.span.x / 2, y: limits.near.y + limits.span.y / 2 };
 }
 
 before(async () => {
@@ -600,4 +761,320 @@ test('ui viewport - a zoom takes over the scroll the reader had already made', a
         `the anchored map point drifted vertically: ${zoomed.viewport.y}`
     );
     assertPaintMatchesViewport(zoomed);
+});
+
+test('ui viewport - a pan writes the origin it was given, and the map follows it', async () => {
+    await open(fixture(10, 6), TIGHT);
+    const limits = await panLimits();
+
+    // The origin asked for is inside the range and the same at both zooms, so
+    // the two halves of this test are about the translate, not the clamp.
+    const target = { x: limits.near.x + 50, y: limits.near.y + 150 };
+    assert.ok(limits.span.x > 50 && limits.span.y > 150, `the content must overflow the box: ${limits.span.x}/${limits.span.y}`);
+
+    await command(`jm.commands.panTo(${target.x}, ${target.y})`);
+    const panned = await snapshot();
+
+    // `panTo` names a map point to show at the corner, in the same space
+    // `getViewport()` reports - so a caller can read, keep and restore it.
+    assert.deepStrictEqual(origin(panned), { x: target.x, y: target.y, scale: 1 });
+    assert.strictEqual(panned.inner.overflow, 'visible', 'a pan takes the box over from native scrolling');
+    assert.strictEqual(
+        panned.inner.transform,
+        `translate(${-target.x}px, ${-target.y}px) scale(1)`,
+        'the origin is written as a translate, with the scale applied to both'
+    );
+    assertPaintMatchesViewport(panned);
+
+    // At a zoom the translate carries the scale with it, which is what keeps
+    // the origin in map pixels rather than screen pixels.
+    await command('jm.commands.zoomTo(2, { x: 100, y: 100 })');
+    await command(`jm.commands.panTo(${target.x}, ${target.y})`);
+    const zoomed = await snapshot();
+
+    assert.deepStrictEqual(origin(zoomed), { x: target.x, y: target.y, scale: 2 });
+    assert.strictEqual(zoomed.inner.transform, `translate(${-target.x * 2}px, ${-target.y * 2}px) scale(2)`);
+    assertPaintMatchesViewport(zoomed);
+});
+
+test('ui viewport - a drag moves the view by exactly the pointer travel', async () => {
+    await open(fixture(10, 6), TIGHT);
+    await installDragCaller();
+
+    const travel = { x: 240, y: 160 };
+
+    const checkDrag = async (scale: number) => {
+        // Started at the far end of the range, so the whole range is room to
+        // travel in and nothing here can be clamped - a clamped drag is the
+        // next test's claim, and mixing the two would let a wrong delta hide
+        // behind a correct clamp.
+        const limits = await panLimits();
+        assert.ok(
+            limits.span.x > travel.x + 10 && limits.span.y > travel.y + 10,
+            `the content must overflow the box by more than the drag: ${limits.span.x}/${limits.span.y} against ${travel.x}/${travel.y}`
+        );
+        await command(`jm.commands.panTo(${limits.far.x}, ${limits.far.y})`);
+        const before_ = await snapshot();
+        assert.deepStrictEqual(origin(before_), { x: limits.far.x, y: limits.far.y, scale });
+
+        await browser.dragBy({ x: 5, y: 5 }, travel.x, travel.y);
+        const after_ = await snapshot();
+
+        assert.deepStrictEqual(
+            origin(after_),
+            { x: limits.far.x - travel.x / scale, y: limits.far.y - travel.y / scale, scale },
+            `at ${scale}x the origin moves by the travel divided by the zoom`
+        );
+        for (const [index, was] of before_.nodes.entries()) {
+            const now = after_.nodes[index]!;
+            assert.ok(
+                Math.abs(now.left - was.left - travel.x) < 0.5,
+                `${now.text}: the map should have moved right by ${travel.x}, it moved ${(now.left - was.left).toFixed(2)}`
+            );
+            assert.ok(
+                Math.abs(now.top - was.top - travel.y) < 0.5,
+                `${now.text}: the map should have moved down by ${travel.y}, it moved ${(now.top - was.top).toFixed(2)}`
+            );
+        }
+        assertPaintMatchesViewport(after_);
+    };
+
+    // At 1x the pointer travel is the map travel.
+    await checkDrag(1);
+
+    // At 2x it is divided by the zoom on the way in and multiplied back on the
+    // way out, so the map still moves by exactly the travel on screen - which
+    // is why this is checked at a scale other than 1.
+    await command('jm.commands.zoomTo(2, { x: 125, y: 90 })');
+    await checkDrag(2);
+});
+
+test('ui viewport - a zoomed map can be dragged into every corner and stops at the content', async () => {
+    await open(fixture(10, 6), SMALL);
+    await installDragCaller();
+    await command('jm.commands.zoomTo(2, { x: 210, y: 150 })');
+
+    // Each drag is smaller than the overflow, so a corner takes several of them
+    // and the gesture stays inside the box - which is what a hand does. The
+    // press point is chosen per direction so the pointer never leaves the box:
+    // Chrome stops delivering moves once the position is outside it.
+    const unit = { dx: 230, dy: 160 };
+    const dragTowards = async (dx: number, dy: number) => {
+        await browser.dragBy(
+            { x: dx >= 0 ? 10 : SMALL.width - 10, y: dy >= 0 ? 10 : SMALL.height - 10 },
+            dx,
+            dy
+        );
+    };
+    const dragUntilStopped = async (dx: number, dy: number) => {
+        let previous = await snapshot();
+        // At 2x a 160px drag moves the origin by 80 map pixels, so the tallest
+        // overflow in the fixture takes two dozen gestures before the one that
+        // changes nothing.
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+            await dragTowards(dx, dy);
+            const state = await snapshot();
+            if (state.viewport.x === previous.viewport.x && state.viewport.y === previous.viewport.y) {
+                return state;
+            }
+            previous = state;
+        }
+        throw new Error('the view never stopped moving');
+    };
+
+    // Down and right: the content's top-left corner comes to the viewport's.
+    const topLeft = await dragUntilStopped(unit.dx, unit.dy);
+    const near = paintedExtent(topLeft);
+    // `:host` clips, so a box past the edge would be cut: the map has to be
+    // pressed against the edge, not floating in the middle of the view.
+    assert.ok(near.left >= 0 && near.left < 40, `the leftmost box sits at ${near.left.toFixed(2)}, not against the left edge`);
+    assert.ok(near.top >= 0 && near.top < 40, `the topmost box sits at ${near.top.toFixed(2)}, not against the top edge`);
+    assertPaintMatchesViewport(topLeft);
+
+    // One more drag of the same length must not move it at all: the clamp is a
+    // wall, not a slow drift.
+    await dragTowards(unit.dx, unit.dy);
+    assert.deepStrictEqual(origin(await snapshot()), origin(topLeft), 'a drag past the edge must stop moving the view');
+
+    // Right-hand corner: at 2x there is room for the origin to travel, and it
+    // ends with the map's right edge against the viewport's.
+    const topRight = await dragUntilStopped(-unit.dx, 0);
+    assert.ok(topRight.viewport.x > topLeft.viewport.x, 'at 2x the right-hand side is reachable');
+    assert.strictEqual(topRight.viewport.y, topLeft.viewport.y, 'a horizontal drag leaves the vertical origin alone');
+    const right = paintedExtent(topRight);
+    assert.ok(
+        right.right <= SMALL.width && right.right > SMALL.width - 40,
+        `the rightmost box sits at ${right.right.toFixed(2)} of ${SMALL.width}`
+    );
+    assertPaintMatchesViewport(topRight);
+
+    // Bottom-right, then bottom-left, then back: every corner is a limit, and a
+    // round trip lands exactly where it started.
+    const bottomRight = await dragUntilStopped(0, -unit.dy);
+    const bottom = paintedExtent(bottomRight);
+    assert.ok(
+        bottom.bottom <= SMALL.height && bottom.bottom > SMALL.height - 40,
+        `the bottommost box sits at ${bottom.bottom.toFixed(2)} of ${SMALL.height}`
+    );
+    assert.deepStrictEqual(origin(await dragUntilStopped(0, -unit.dy)), origin(bottomRight), 'the bottom limit holds');
+
+    const bottomLeftBack = await dragUntilStopped(unit.dx, 0);
+    assert.strictEqual(bottomLeftBack.viewport.y, bottomRight.viewport.y, 'the horizontal drag left the vertical limit alone');
+    assert.strictEqual(bottomLeftBack.viewport.x, topLeft.viewport.x, 'the left limit is the same one reached from the other side');
+    assertPaintMatchesViewport(bottomLeftBack);
+
+    const roundTrip = await dragUntilStopped(0, unit.dy);
+    assert.deepStrictEqual(origin(roundTrip), origin(topLeft), 'a round trip must land on the origin it started from');
+});
+
+test('ui viewport - a pan takes over the scroll the reader had already made', async () => {
+    // The first pan arrives while native scrolling is still in charge, and the
+    // scroll offset is the same displacement the origin describes. Folding one
+    // into the other is what keeps the picture from jumping at the handover.
+    await open(fixture(10, 6), TIGHT);
+    await installDragCaller();
+
+    // Half-way through the native scroll range: an offset the box really has,
+    // whatever size the fonts made the content.
+    const scrolled = await browser.evaluate<{ scrollLeft: number; scrollTop: number }>(
+        `(() => {
+            const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
+            inner.scrollLeft = Math.round((inner.scrollWidth - inner.clientWidth) / 2);
+            inner.scrollTop = Math.round((inner.scrollHeight - inner.clientHeight) / 2);
+            return { scrollLeft: inner.scrollLeft, scrollTop: inner.scrollTop };
+        })()`
+    );
+    assert.ok(scrolled.scrollLeft > 50, `the box should really be scrolled: ${scrolled.scrollLeft}`);
+
+    const before_ = await snapshot();
+    assert.strictEqual(before_.viewport.x, scrolled.scrollLeft, 'the accessor reports the scroll the reader is looking at');
+    assert.strictEqual(before_.inner.overflow, 'auto', 'nothing has taken the box over yet');
+
+    // Dragging the map left raises the origin: the whole range above the scroll
+    // offset is room for it, so this cannot be clamped.
+    await browser.dragBy({ x: 100, y: 100 }, -100, 0);
+    const panned = await snapshot();
+
+    // The scroll folded into the origin, then the drag applied: the origin is
+    // the scroll offset plus the travel, not the travel on its own.
+    assert.deepStrictEqual(origin(panned), {
+        x: scrolled.scrollLeft + 100,
+        y: scrolled.scrollTop,
+        scale: 1,
+    });
+    assert.strictEqual(panned.inner.overflow, 'visible');
+    assertPaintMatchesViewport(panned);
+});
+
+test('ui viewport - a map that already fits the box cannot be dragged', async () => {
+    await open(fixture(), TIGHT);
+    await installDragCaller();
+
+    // First the same gesture where there is room, so "nothing moved" below
+    // cannot be a drag that never reached the view.
+    const limits = await panLimits();
+    // A drag of 100/80 from the middle of the range needs half of it on each
+    // side, so 200/160 is the floor and this is that with a little room.
+    assert.ok(limits.span.x > 210 && limits.span.y > 170, `the content must overflow the box: ${limits.span.x}/${limits.span.y}`);
+    const start = middleOf(limits);
+    await command(`jm.commands.panTo(${start.x}, ${start.y})`);
+
+    // Both gestures here stay inside the box on purpose: this test is about the
+    // range being empty or not, and a drag that leaves the box would also be
+    // relying on the pointer capture - which has its own case above.
+    await browser.dragBy({ x: 5, y: 5 }, 100, 80);
+    const moved = await snapshot();
+    assert.deepStrictEqual(origin(moved), { x: start.x - 100, y: start.y - 80, scale: 1 }, 'the drag reaches the view');
+
+    // Now zoomed out until the content is smaller than the box on both axes.
+    // The range is empty there, so a drag has to leave the origin alone instead
+    // of pushing the map out of an otherwise complete view.
+    await command('jm.commands.zoomTo(0.1)');
+    const before_ = await snapshot();
+    assert.strictEqual(before_.viewport.scale, 0.1);
+    const extent = paintedExtent(before_);
+    assert.ok(extent.left >= 0 && extent.right <= TIGHT.width, 'the zoomed-out map fits the box horizontally');
+    assert.ok(extent.top >= 0 && extent.bottom <= TIGHT.height, 'the zoomed-out map fits the box vertically');
+
+    await browser.dragBy({ x: 5, y: 5 }, 100, 80);
+    const after_ = await snapshot();
+
+    assert.deepStrictEqual(origin(after_), origin(before_), 'a map that fits has nowhere to pan to');
+    assert.deepStrictEqual(paintedExtent(after_), extent, 'and every node stays where it was, none of them dragged off the box');
+});
+
+test('ui viewport - zoom and pan alternate without overwriting each other', async () => {
+    await open(fixture(10, 6), TIGHT);
+    const limits = await panLimits();
+    // The anchored zoom moves the origin by 125 - 125/2.4 and the pan by 50
+    // more, so the range has to be at least twice that on each axis.
+    assert.ok(limits.span.x > 260 && limits.span.y > 190, `the content must overflow the box: ${limits.span.x}/${limits.span.y}`);
+    const middle = middleOf(limits);
+
+    // The pan is the origin the next zoom has to start from: a zoom that reset
+    // it, or a pan that recomputed it from zero, would move the anchored point.
+    await command(`jm.commands.panTo(${middle.x}, ${middle.y})`);
+    const panned = await snapshot();
+    assertPaintMatchesViewport(panned);
+
+    await command('jm.commands.zoomTo(2.4, { x: 125, y: 90 })');
+    const zoomed = await snapshot();
+    const focus = {
+        x: panned.viewport.x + 125 / panned.viewport.scale,
+        y: panned.viewport.y + 90 / panned.viewport.scale,
+    };
+    assert.ok(
+        Math.abs(zoomed.viewport.x + 125 / zoomed.viewport.scale - focus.x) < 1e-6,
+        'the anchored map point drifted horizontally'
+    );
+    assert.ok(
+        Math.abs(zoomed.viewport.y + 90 / zoomed.viewport.scale - focus.y) < 1e-6,
+        'the anchored map point drifted vertically'
+    );
+    assertPaintMatchesViewport(zoomed);
+
+    await command('jm.commands.panBy(120, 80)');
+    const afterPan = await snapshot();
+    assert.ok(
+        Math.abs(afterPan.viewport.x - (zoomed.viewport.x - 120 / zoomed.viewport.scale)) < 1e-6,
+        'panBy should continue from the zoomed origin, not from zero'
+    );
+    assert.ok(
+        Math.abs(afterPan.viewport.y - (zoomed.viewport.y - 80 / zoomed.viewport.scale)) < 1e-6,
+        'panBy should continue from the zoomed origin vertically'
+    );
+    assertPaintMatchesViewport(afterPan);
+
+    await command('jm.commands.zoomTo(1)');
+    assertPaintMatchesViewport(await snapshot());
+});
+
+test('ui viewport - capture does not depend on the pan', async () => {
+    await open(fixture(10, 6), SMALL);
+
+    const capture = async (): Promise<{ css: [number, number]; bytes: number }> =>
+        await browser.evaluate(
+            `(async () => {
+                const result = await window.__jm.exportImage({ scale: 1 });
+                return { css: [result.cssWidth, result.cssHeight], bytes: result.blob.size };
+            })()`,
+            true
+        );
+
+    // At rest: no transform, the box still on native scrolling. This has to be
+    // taken before any command, because the first one hands the box over.
+    const atRest = await capture();
+
+    const limits = await panLimits();
+    const target = { x: limits.near.x + 20, y: limits.near.y + 20 };
+    assert.ok(target.x !== 0 && target.y !== 0, 'the panned position has to differ from the rest one');
+    await command(`jm.commands.panTo(${target.x}, ${target.y})`);
+    assert.strictEqual((await snapshot()).inner.overflow, 'visible', 'the view really is panned before the second capture');
+    const panned = await capture();
+
+    // `export.ts` resets the transform on the box it clones, so the picture is
+    // the map and not the current view of it. Both dimensions and byte size: a
+    // clone that kept the pan would shift the content inside the same canvas.
+    assert.deepStrictEqual(panned.css, atRest.css, 'capture size does not depend on the pan');
+    assert.strictEqual(panned.bytes, atRest.bytes, 'the same pixels, so the same encoded size');
 });

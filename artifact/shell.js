@@ -90,6 +90,35 @@
     }
 
     /**
+     * Claims touch drags for the map only while a pan has room, and gives them
+     * back to the page otherwise.
+     *
+     * @remarks
+     * On a touch screen this is the only lever there is: `preventDefault`
+     * cannot cancel a pan the browser has already started, so `touch-action`
+     * has to say what a finger on the map means *before* the gesture begins.
+     *
+     * Setting it once, unconditionally, is the tempting one-line version and it
+     * is wrong here. A page whose host is the map's own size - which is what
+     * {@link fitToContent} makes of an exported page at 1x - has no pan band at
+     * 1x, so a drag does nothing; but the page itself can still be larger than
+     * the window. Taking the scroll away there leaves the far half of that map
+     * unreachable by finger, which is a worse deal than the drag it buys.
+     *
+     * `scale > 1` is the whole test the shell can make. Whether a band exists
+     * depends on the content's size, and measuring that here would fork the
+     * layout from the library's; with the host at the map's size the band is
+     * empty at 1x and opens as soon as the zoom rises above it. An embedder that
+     * sizes the host differently has to decide this for itself.
+     *
+     * @param {HTMLElement} container - Element to listen on.
+     * @param {object} commands - The library's command surface.
+     */
+    function syncPanTouchAction(container, commands) {
+        container.style.touchAction = commands.getViewport().scale > 1 ? 'none' : '';
+    }
+
+    /**
      * Zooms with the wheel, about the pointer.
      *
      * @remarks
@@ -121,9 +150,81 @@
                     x: event.clientX - box.left,
                     y: event.clientY - box.top,
                 });
+                // The zoom is what opens and closes the band a pan needs, so
+                // what a finger on the map means is re-decided here.
+                syncPanTouchAction(container, commands);
             },
             { passive: false }
         );
+    }
+
+    /**
+     * Pans with a drag.
+     *
+     * @remarks
+     * One handler for mouse, pen and touch: a pointer event carries all three,
+     * and `setPointerCapture` keeps the moves arriving after the pointer leaves
+     * the map - without it a fast drag stops at the element's edge and the map
+     * lags behind the hand for the rest of the gesture.
+     *
+     * The shell reports travel and nothing else. How far the pointer moved is
+     * all it knows; turning that into a map offset is the library's arithmetic,
+     * because `panBy` divides by the zoom and clamps to the content. Measuring a
+     * size here would fork the layout from the library's own.
+     *
+     * @param {HTMLElement} container - Element to listen on.
+     * @param {object} commands - The library's command surface.
+     */
+    function installPan(container, commands) {
+        // A drag must not turn into a page scroll - but only where the drag can
+        // actually pan, which the zoom decides; see `syncPanTouchAction`.
+        syncPanTouchAction(container, commands);
+
+        /** Pointer the gesture belongs to, or null when nothing is being dragged. */
+        let draggedPointer = null;
+        /** Last pointer position, in viewport pixels. */
+        let lastX = 0;
+        let lastY = 0;
+
+        container.addEventListener('pointerdown', event => {
+            // Left button only, and one pointer at a time: a second finger on a
+            // map that is already being dragged would fight the first.
+            if (draggedPointer !== null || event.button !== 0) {
+                return;
+            }
+            draggedPointer = event.pointerId;
+            lastX = event.clientX;
+            lastY = event.clientY;
+            container.setPointerCapture(event.pointerId);
+            // Suppresses the default the press would otherwise start: a text
+            // selection, or a native drag of whatever is under the pointer.
+            event.preventDefault();
+        });
+
+        container.addEventListener('pointermove', event => {
+            if (event.pointerId !== draggedPointer) {
+                return;
+            }
+            const dx = event.clientX - lastX;
+            const dy = event.clientY - lastY;
+            if (dx === 0 && dy === 0) {
+                return;
+            }
+            lastX = event.clientX;
+            lastY = event.clientY;
+            commands.panBy(dx, dy);
+        });
+
+        const endDrag = event => {
+            if (event.pointerId === draggedPointer) {
+                draggedPointer = null;
+            }
+        };
+        container.addEventListener('pointerup', endDrag);
+        container.addEventListener('pointercancel', endDrag);
+        // Capture can be lost without an up (the element was removed, the tab
+        // lost focus); the next press has to start a new gesture regardless.
+        container.addEventListener('lostpointercapture', endDrag);
     }
 
     /**
@@ -145,6 +246,7 @@
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         fitToContent(container);
         installWheel(container, jm.commands);
+        installPan(container, jm.commands);
         return jm;
     }
 
