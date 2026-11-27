@@ -19,6 +19,9 @@
  * 5. A zoom holds the map point under its anchor still.
  * 6. At 2x the far corners are still reachable.
  * 7. `capture()` does not care where the viewport is.
+ * 8. A command takes over whatever the reader had scrolled to natively, so the
+ *    picture does not jump and the same command gives the same answer.
+ * 9. `centerOn` refuses an id that only exists on `Object.prototype`.
  */
 
 import { test, before, after } from 'node:test';
@@ -551,5 +554,96 @@ test('ui viewport - a node added while zoomed is laid out at its layout size', a
         );
         assert.strictEqual(node.width, reference.width, `${node.text} records a different width when zoomed`);
         assert.strictEqual(node.height, reference.height, `${node.text} records a different height when zoomed`);
+    }
+});
+
+test('ui viewport - a command takes over the native scroll it replaces', async () => {
+    // Baseline first: the same fit on a view that was never scrolled. A command
+    // that dropped the scroll offset would fit a different picture here, and
+    // "same command, same answer" is the claim this case is about.
+    await open(bigDocument());
+    await command('jm.commands.fitToView()');
+    const baseline = await snapshot();
+
+    await open(bigDocument());
+    const scrolledTo = { left: 300, top: 200 };
+    await command(`
+        const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
+        inner.scrollLeft = ${scrolledTo.left};
+        inner.scrollTop = ${scrolledTo.top};
+    `);
+    const scrolled = await snapshot();
+
+    // Until a command arrives the box is still natively scrolled, and the
+    // accessor has to describe that rather than report the map at its origin.
+    assert.strictEqual(scrolled.inner.overflow, 'auto', 'nothing has taken the box over yet');
+    assert.strictEqual(scrolled.inner.transform, '', 'still no transform');
+    assert.deepStrictEqual(
+        { x: scrolled.viewport.x, y: scrolled.viewport.y, scale: scrolled.viewport.scale },
+        { x: scrolledTo.left, y: scrolledTo.top, scale: 1 },
+        'the viewport reports the scroll the reader is looking at'
+    );
+    assertPaintMatchesViewport(scrolled);
+
+    // A zoom folds the offset in: the map point under the anchor before the
+    // command is still under it after, which is exactly what a scroll that was
+    // silently dropped would break.
+    const anchor = { x: 400, y: 300 };
+    const focus = { x: scrolledTo.left + anchor.x, y: scrolledTo.top + anchor.y };
+    await command(`jm.commands.zoomTo(1.5, { x: ${anchor.x}, y: ${anchor.y} })`);
+    const zoomed = await snapshot();
+
+    assert.strictEqual(zoomed.inner.overflow, 'hidden', 'the transform is in charge now');
+    assert.strictEqual(zoomed.viewport.scale, 1.5);
+    assert.ok(
+        Math.abs(zoomed.viewport.x + anchor.x / 1.5 - focus.x) < 1e-6,
+        `the anchored map point drifted horizontally: ${zoomed.viewport.x}`
+    );
+    assert.ok(
+        Math.abs(zoomed.viewport.y + anchor.y / 1.5 - focus.y) < 1e-6,
+        `the anchored map point drifted vertically: ${zoomed.viewport.y}`
+    );
+    assertPaintMatchesViewport(zoomed);
+
+    await command('jm.commands.fitToView()');
+    const fitted = await snapshot();
+
+    assert.deepStrictEqual(
+        { x: fitted.viewport.x, y: fitted.viewport.y, scale: fitted.viewport.scale },
+        { x: baseline.viewport.x, y: baseline.viewport.y, scale: baseline.viewport.scale },
+        'a fit after scrolling lands where a fit without scrolling does'
+    );
+    assertPaintMatchesViewport(fitted);
+});
+
+test('ui viewport - centerOn refuses an id that only exists on the prototype', async () => {
+    // `mind._nodes` is a plain object, so `_nodes['constructor']` is a function
+    // rather than "no node": the lookup succeeds, and a caller that branches on
+    // the documented error gets a `TypeError` from somewhere inside instead.
+    await open(bigDocument());
+
+    const outcomes = await browser.evaluate<{ id: string; message: string; typeError: boolean }[]>(`(() => {
+        const jm = window.__jm;
+        return ['no-such-node', 'constructor', 'toString', '__proto__'].map(id => {
+            try {
+                jm.commands.centerOn(id);
+                return { id, message: 'no error', typeError: false };
+            } catch (error) {
+                return { id, message: error.message, typeError: error instanceof TypeError };
+            }
+        });
+    })()`);
+
+    for (const outcome of outcomes) {
+        assert.strictEqual(
+            outcome.typeError,
+            false,
+            `centerOn('${outcome.id}') threw a TypeError instead of the documented error`
+        );
+        assert.strictEqual(
+            outcome.message,
+            `Node '${outcome.id}' is not in the open mind map`,
+            `centerOn('${outcome.id}') should say the node is not in the map`
+        );
     }
 });

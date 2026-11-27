@@ -322,12 +322,48 @@ test('ui - a map larger than the window is fitted to it and moved by gestures', 
             }
             assert.deepStrictEqual(dragged.page, [1200, 1200, 800, 800], 'dragging does not scroll the page');
 
-            // The wheel zooms: one upward notch scales the map up, anchored on
-            // the pointer, so the node under it keeps its place on screen.
-            await harness.wheelAt(500, 400, -400);
+            // The wheel zooms: one upward notch scales the map up, anchored on the
+            // pointer, so the node under it keeps its place on screen. Aiming at
+            // a node well away from the middle of the window is what makes the
+            // anchor observable - a zoom about the centre of the viewport, or
+            // one that ignored the pointer, moves that node instead.
+            const centres = dragged.nodes.map(node => ({
+                x: node.left + node.width / 2,
+                y: (node.top + node.bottom) / 2,
+            }));
+            const onScreen = (point: { x: number; y: number }): boolean =>
+                point.x > 100 && point.x < 1100 && point.y > 100 && point.y < 700;
+            const distanceFromMiddle = (point: { x: number; y: number }): number =>
+                Math.hypot(point.x - 600, point.y - 400);
+
+            let aimIndex = -1;
+            for (const [index, point] of centres.entries()) {
+                if (!onScreen(point)) {
+                    continue;
+                }
+                if (aimIndex < 0 || distanceFromMiddle(point) > distanceFromMiddle(centres[aimIndex]!)) {
+                    aimIndex = index;
+                }
+            }
+            assert.notStrictEqual(aimIndex, -1, 'some node centre should be on screen to aim at');
+            const aim = centres[aimIndex]!;
+            assert.ok(
+                distanceFromMiddle(aim) > 150,
+                `the aim point should be well off the middle of the window: ${distanceFromMiddle(aim).toFixed(0)}px`
+            );
+
+            await harness.wheelAt(aim.x, aim.y, -400);
             const zoomed = await paintedMap(harness);
             const scale = zoomed.nodes[0]!.width / dragged.nodes[0]!.width;
             assert.ok(scale > 1.5, `one long wheel notch should zoom in well past 1.5x, got ${scale.toFixed(2)}`);
+
+            const pinned = zoomed.nodes[aimIndex]!;
+            const pinnedCentre = { x: pinned.left + pinned.width / 2, y: (pinned.top + pinned.bottom) / 2 };
+            assert.ok(
+                Math.abs(pinnedCentre.x - aim.x) < 2 && Math.abs(pinnedCentre.y - aim.y) < 2,
+                `the node under the pointer should stay under it: ${aim.x.toFixed(1)}/${aim.y.toFixed(1)} -> ` +
+                    `${pinnedCentre.x.toFixed(1)}/${pinnedCentre.y.toFixed(1)}`
+            );
 
             // At that zoom, a reader can still drag their way to the far corner:
             // the map is bigger than the window, so no single drag crosses it.

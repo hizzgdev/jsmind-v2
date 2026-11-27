@@ -348,7 +348,14 @@ export class JmView implements JmViewHandle {
         if (!mind) {
             throw new JsMindError('No mind map is currently open');
         }
-        const node = mind._nodes[nodeId];
+        // `_nodes` is a plain object, so `_nodes['constructor']` is the
+        // `Object.prototype` member rather than a node: the lookup succeeds and
+        // the failure then surfaces as a `TypeError` from reading `layout` off
+        // a function. Asking the object whether it owns the key is what keeps
+        // an id that only exists on the prototype outside the map.
+        const node = Object.prototype.hasOwnProperty.call(mind._nodes, nodeId)
+            ? mind._nodes[nodeId]
+            : undefined;
         if (!node) {
             throw new JsMindError(`Node '${nodeId}' is not in the open mind map`);
         }
@@ -365,13 +372,25 @@ export class JmView implements JmViewHandle {
     /**
      * Reads the current viewport.
      *
+     * @remarks
+     * `x`/`y` name the map-space point at the viewport's top-left corner, and
+     * that has to mean the same thing before and after the first command: while
+     * native scrolling is in charge the displacement is the scroll offset, and
+     * a reader who scrolled the map and then read the viewport would otherwise
+     * be told the map is still at its origin.
+     *
+     * The scroll term is divided by the zoom for the same reason it is added at
+     * activation: scrolling happens in the element's own untransformed space,
+     * and the transform then scales it along with the content.
+     *
      * @returns The origin, the zoom factor and the visible size.
      */
     getViewport(): JmViewport {
         const size = this._viewportSize();
+        const element = this.innerContainer.element;
         return {
-            x: this.viewport.x,
-            y: this.viewport.y,
+            x: this.viewport.x + element.scrollLeft / this.viewport.scale,
+            y: this.viewport.y + element.scrollTop / this.viewport.scale,
             scale: this.viewport.scale,
             width: size.width,
             height: size.height,
@@ -422,13 +441,25 @@ export class JmView implements JmViewHandle {
      * both in charge a drag would move the map and a scrollbar would move it
      * again. Done before any size is read, because the scrollbars it removes
      * were occupying the box the size is read from.
+     *
+     * Whatever the reader had already scrolled to becomes part of the state
+     * before the scrollbars go: a scroll offset and a viewport origin describe
+     * the same displacement, so folding one into the other is what keeps the
+     * picture from jumping at the moment the transform takes over. Scrolling
+     * happens in the element's own space and the transform then scales that
+     * space, which is why the offset is divided by the zoom.
      */
     private _activateViewport(): void {
         if (this.viewportActive) {
             return;
         }
+        const element = this.innerContainer.element;
+        this.viewport.x += element.scrollLeft / this.viewport.scale;
+        this.viewport.y += element.scrollTop / this.viewport.scale;
+        element.scrollLeft = 0;
+        element.scrollTop = 0;
         this.viewportActive = true;
-        this.innerContainer.element.style.overflow = 'hidden';
+        element.style.overflow = 'hidden';
     }
 
     /**
