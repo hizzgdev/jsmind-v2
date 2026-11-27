@@ -410,8 +410,8 @@ test('ui - a drag pans the map on an exported page', async () => {
             await harness.navigate(pathToFileURL(output).href);
 
             // Zoomed in so there is room to pan in the first place. The page
-            // opens at 1x and writes no transform, so the factor to reach is a
-            // constant and the wheel delta follows from it.
+            // opens at 1x and writes the identity transform, so the factor to
+            // reach is a constant and the wheel delta follows from it.
             const targetScale = 3;
             await harness.wheelAt(600, 400, -Math.log(targetScale) / ZOOM_PER_WHEEL_PIXEL);
             await harness.settle();
