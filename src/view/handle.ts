@@ -29,6 +29,20 @@
 import type { JmExportImageOptions, JmExportImageResult } from './export.ts';
 
 /**
+ * Which mismatch between the map and its box a fit corrects.
+ *
+ * @remarks
+ * A map and a box can disagree in two ways, and they want different answers: a
+ * map too large to show whole has to be scaled down, and a map smaller than the
+ * box may be scaled up to fill it - or left at its natural size, which is what
+ * a viewer showing text wants. {@link JmViewHandle.fitToView} takes one of these
+ * and does that one thing, never the other; leaving it out corrects both.
+ *
+ * @public
+ */
+export type JmFitToViewMode = 'shrink' | 'expand';
+
+/**
  * A rectangle in CSS pixels, relative to the container's top-left corner.
  *
  * @public
@@ -51,6 +65,20 @@ export interface JmViewport {
     width: number;
     /** Visible height in CSS pixels. */
     height: number;
+    /**
+     * Whether a pan would move the map at this zoom.
+     *
+     * @remarks
+     * True while the content overflows the visible box on at least one axis -
+     * exactly when {@link JmViewHandle.panTo} is allowed to change the origin.
+     * A caller deciding *before* a gesture starts needs this, because the
+     * browser settles `touch-action` before the first touchmove: a map that
+     * fits should hand the gesture to the page rather than swallow a drag that
+     * can only be a no-op. Asking here is also what keeps that caller from
+     * measuring the content itself, which would fork the layout from the
+     * view's own.
+     */
+    canPan: boolean;
 }
 
 /**
@@ -172,6 +200,53 @@ export interface JmViewHandle {
      * that map instead of throwing.
      */
     centerOn(nodeId: string): void;
+
+    /**
+     * Fits the map to the viewport, centred, in the directions the caller
+     * allows.
+     *
+     * @remarks
+     * The zoom is chosen from the content and the box alone, so two calls on
+     * the same map and box give the same numbers - which is what a toolbar
+     * button pressed twice, or a gesture repeated, relies on.
+     *
+     * With no mode both disagreements between a map and a box are corrected: a
+     * map too large to show whole is scaled down until all of it fits, and one
+     * smaller than its box is scaled up until it fills it. That is the
+     * unqualified "fit" a viewer with a single button offers.
+     *
+     * Naming a mode narrows it to one direction, for callers that already know
+     * which state they are in and must leave the other one alone:
+     *
+     * - `'shrink'` is for a map too large to show whole: the zoom is scaled down
+     *   until all of it fits, and never past its natural size - a map that
+     *   already fits stays at 1x rather than being blown up. This is the one to
+     *   call from a "show me everything" button or a return-from-a-corner
+     *   gesture.
+     * - `'expand'` is for a map smaller than its box: the zoom is scaled up
+     *   until the map fills it, and never down - a map that already overflows
+     *   stays at 1x rather than being shrunk. This is the one for a page whose
+     *   canvas is the frame and wants no empty margin in it.
+     *
+     * Every call centres the map. The two modes are bounds on the same fit -
+     * `'shrink'` takes the natural size as a ceiling, `'expand'` as a floor -
+     * and calling with neither takes it as no bound at all. So each call
+     * corrects exactly what it was asked to and does nothing to the rest.
+     *
+     * Unlike {@link JmViewHandle.centerOn} this does move a map that fits: the
+     * pan's band is empty at exactly-fitting zoom, and a fit that waited for a
+     * clamp to move it would leave the map wherever the last gesture left it.
+     *
+     * @param mode - Which mismatch to correct. Omit it to correct both.
+     * @throws {@link JsMindError} When `mode` is given as neither of the two
+     * values, so a typo in a JavaScript caller fails loudly instead of quietly
+     * shrinking.
+     * @throws {@link JsMindError} When this view has not been given a map yet -
+     * there is no content to fit. A map that was closed counts as open here:
+     * the view keeps the last one it was shown, as it does for
+     * {@link JmViewHandle.centerOn}.
+     */
+    fitToView(mode?: JmFitToViewMode): void;
 
     // The rest of the viewport surface is not implemented yet. It is declared
     // here as one block rather than added one method at a time because the

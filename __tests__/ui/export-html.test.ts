@@ -8,13 +8,16 @@
  * only *looks* right in the source would pass every other check.
  *
  * The second case is the one the design decision is about: a map larger than
- * the window must be reachable by scrolling the page, not cropped to the
- * viewport. It measures the corners after scrolling there.
+ * the window opens at the size its text was written for, cropped by the window
+ * like any canvas, and the page itself never grows a scrollbar to reach the
+ * rest - the map's own viewport moves instead. Fitting the whole map is a
+ * command, not a default: a double-click is what asks for it, and that is what
+ * the same case measures next.
  *
  * It drives `dist/cli.js`, so it needs a build and a Chromium binary.
  */
 
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import assert from 'node:assert';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -27,6 +30,17 @@ import { BrowserHarness } from './helpers.ts';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '../..');
 const CLI = join(REPO_ROOT, 'dist/cli.js');
+
+/**
+ * How hard one pixel of wheel scroll zooms the shell's map.
+ *
+ * @remarks
+ * `artifact/shell.js` holds the same number as `ZOOM_PER_WHEEL_PIXEL`. A test
+ * that asks for a particular factor has to speak the shell's units, and this is
+ * the one place the two numbers are compared: if the shell's constant changes,
+ * the factor assertions below move with it.
+ */
+const ZOOM_PER_WHEEL_PIXEL = 0.0015;
 
 /** One node in a fixture document. */
 interface FixtureNode {
@@ -395,13 +409,18 @@ test('ui - a drag pans the map on an exported page', async () => {
             await harness.setViewport(1200, 800);
             await harness.navigate(pathToFileURL(output).href);
 
-            // Zoomed in, because at 1x the shell has already grown the host to
-            // the map's own size: the whole map is on the page and a pan has
-            // nowhere to go (fit-to-view replaces this in the next item).
-            await harness.wheelAt(600, 400, -400);
+            // Zoomed in so there is room to pan in the first place. The page
+            // opens at 1x and writes no transform, so the factor to reach is a
+            // constant and the wheel delta follows from it.
+            const targetScale = 3;
+            await harness.wheelAt(600, 400, -Math.log(targetScale) / ZOOM_PER_WHEEL_PIXEL);
             await harness.settle();
             const zoomed = await innerTransform(harness);
             assert.match(zoomed, /scale\(/, 'the wheel should have zoomed the map');
+            assert.ok(
+                translateOf(zoomed).scale > targetScale * 0.99,
+                `the map should be zoomed well past 1x: ${translateOf(zoomed).scale}`
+            );
 
             // A drag to the content's top-left corner first, so the measured
             // gesture below has room in its direction and cannot be clamped -
@@ -452,13 +471,21 @@ test('ui - a drag pans the map on an exported page', async () => {
     });
 });
 
-test('ui - the map claims touch drags only while a pan has room', async () => {
+test('ui - the map claims touch drags only while a pan has room', async (t: TestContext) => {
     // `touch-action: none` is what turns a finger drag into a pan instead of a
-    // page scroll, and the browser settles it before the gesture starts. An
-    // exported page at 1x has its host grown to the map's own size, so there is
-    // no pan band and a drag does nothing - claiming the gesture anyway would
-    // take the page's touch scroll away and leave the far half of a map larger
-    // than the window unreachable by finger.
+    // page scroll, and the browser settles it before the gesture starts - so it
+    // has to be decided from the state the reader is in, not once at load.
+    //
+    // The page opens unfitted, at the map's natural size, and this map is
+    // larger than the window - so the first answer is `none`: a finger drag is
+    // the map's, and nothing else would move it. Zooming out far enough closes
+    // the band and hands the gesture back to the page; zooming back in opens it
+    // again.
+    //
+    // The factor in the middle of that range is the case a `scale > 1` rule
+    // gets wrong: below 1x the content already overflows, nothing on the page
+    // can scroll, and a drag handed to the page would be a region no finger can
+    // move. The rule is the view's own `canPan` for exactly that reason.
     const { document: data } = bigMap();
 
     await withExportedPage(data, async ({ output }) => {
@@ -467,27 +494,178 @@ test('ui - the map claims touch drags only while a pan has room', async () => {
             await harness.setViewport(1200, 800);
             await harness.navigate(pathToFileURL(output).href);
 
-            assert.strictEqual(await touchActionOf(harness), 'auto', 'at 1x the touch scroll is still the page\'s');
+            assert.strictEqual(await innerTransform(harness), '', 'the page opens at 1x, with no fit applied');
+            assert.strictEqual(await touchActionOf(harness), 'none', 'overflowing at 1x, a finger drag belongs to the map');
 
-            await harness.wheelAt(600, 400, -400);
-            await harness.settle();
-            assert.ok(translateOf(await innerTransform(harness)).scale > 1, 'the wheel should have zoomed in');
-            assert.strictEqual(await touchActionOf(harness), 'none', 'zoomed in, a finger drag pans the map');
-
-            // Out again, past the point where the band closes: the map has no
-            // pan left, so the gesture goes back to the page instead of being
-            // swallowed by a drag that would move nothing.
+            // Out until the whole map is inside the window: the band closes and
+            // the gesture goes back to the page.
             await harness.wheelAt(600, 400, 4000);
             await harness.settle();
-            assert.ok(translateOf(await innerTransform(harness)).scale <= 1, 'the wheel should have zoomed back out');
-            assert.strictEqual(await touchActionOf(harness), 'auto', 'zoomed out, the touch scroll is the page\'s again');
+            const out = translateOf(await innerTransform(harness));
+            assert.ok(out.scale < 1, `zoomed far out the whole map is inside, got ${out.scale}`);
+            assert.strictEqual(await touchActionOf(harness), 'auto', 'fitted, the touch scroll is the page\'s');
+
+            // And back in, but only part of the way: a factor below 1x that
+            // still overflows the window. The wheel is asked for the factor
+            // rather than given a notch, because where the band opens depends
+            // on the map's size and that depends on the fonts this machine has.
+            const target = 0.6;
+            await harness.wheelAt(600, 400, -Math.log(target / out.scale) / ZOOM_PER_WHEEL_PIXEL);
+            await harness.settle();
+            const zoomed = translateOf(await innerTransform(harness));
+            assert.ok(
+                Math.abs(zoomed.scale - target) < 0.02 && zoomed.scale < 1,
+                `the map should be inside 1x but past the fit, got ${zoomed.scale}`
+            );
+            assert.strictEqual(await touchActionOf(harness), 'none', 'overflowing below 1x, a finger drag belongs to the map');
+
+            // A zoom anchored on the pointer leaves the origin wherever the
+            // arithmetic put it, and that can be outside the band a pan may
+            // travel in - the first drag would then snap it back into the band
+            // and move further than the hand did. Push it to the content's near
+            // edge first, which is exactly where that clamp lands, so the
+            // measured gesture below has room in its own direction.
+            await harness.dragBy({ x: 700, y: 550 }, 0, 400);
+            const settled = translateOf(await innerTransform(harness));
+            assert.ok(settled.scale === zoomed.scale, 'the warm-up drag moves the map, not the zoom');
+
+            // The claimed gesture really pans: a value the handler then ignored
+            // would read the same. Only the axes whose content overflows may
+            // move - this map is taller than it is wide.
+            const before_ = await paintedNodes(harness);
+            const extent = {
+                left: Math.min(...before_.map(node => node.left)),
+                right: Math.max(...before_.map(node => node.right)),
+                top: Math.min(...before_.map(node => node.top)),
+                bottom: Math.max(...before_.map(node => node.bottom)),
+            };
+            const room = {
+                x: extent.right - extent.left > 1200 + 1,
+                y: extent.bottom - extent.top > 800 + 1,
+            };
+            assert.strictEqual(room.x || room.y, true, 'the map should overflow at this zoom, or the case proves nothing');
+
+            await harness.dragBy({ x: 700, y: 550 }, -120, -80);
+            const after_ = await paintedNodes(harness);
+            for (const [index, was] of before_.entries()) {
+                const now = after_[index]!;
+                const expectedX: number = room.x ? -120 : 0;
+                const expectedY: number = room.y ? -80 : 0;
+                assert.ok(
+                    Math.abs(now.left - was.left - expectedX) < 1 && Math.abs(now.top - was.top - expectedY) < 1,
+                    `node ${index} moved ${(now.left - was.left).toFixed(1)}/${(now.top - was.top).toFixed(1)}, not ${expectedX}/${expectedY}`
+                );
+            }
+
+            // The double-click - the other path that changes the zoom - is
+            // re-decided too, and it is the one gesture that fits the page: from
+            // this zoomed-in state it puts the whole map inside the window and
+            // hands the gesture back to the page.
+            await harness.doubleClickAt(600, 400);
+            const returned = translateOf(await innerTransform(harness));
+            const touchReturned = await touchActionOf(harness);
+
+            assert.ok(returned.scale < 1, `a map larger than the window fits below 1x, got ${returned.scale}`);
+            assert.strictEqual(touchReturned, 'auto', 'and the fit handed the gesture back to the page');
+
+            t.diagnostic(
+                'touch-action: open 1x -> none, ' +
+                    `wheel out ${out.scale.toFixed(4)} -> auto, ` +
+                    `wheel ${zoomed.scale.toFixed(4)} -> none, ` +
+                    `dblclick ${returned.scale.toFixed(4)} -> ${touchReturned}`
+            );
         } finally {
             await harness.close();
         }
     });
 });
 
-test('ui - a map larger than the window scrolls into view instead of being cropped', async () => {
+/**
+ * Measures the exported page the way a reader meets it.
+ *
+ * @remarks
+ * Everything the case is about, in one round trip: how many nodes the document
+ * has, where the page's own scroll limits are, how big the map's host is, what
+ * transform the view has written (empty means nothing has moved the map yet),
+ * how many nodes are past the window's edge, how many the window actually
+ * shows, and where the painted map's centre sits.
+ *
+ * `getBoundingClientRect` ignores clipping, so the count of painted nodes is
+ * taken through an `IntersectionObserver` against the window instead: a node
+ * inside a clipped edge has a rect and is still not shown.
+ *
+ * @param harness - Browser to measure.
+ * @returns The measurement.
+ */
+async function measurePage(harness: BrowserHarness): Promise<{
+    nodes: number;
+    page: [number, number];
+    window: [number, number];
+    host: [number, number];
+    transform: string;
+    outside: number;
+    centre: [number, number];
+    painted: number;
+}> {
+    return await harness.evaluate<{
+        nodes: number;
+        page: [number, number];
+        window: [number, number];
+        host: [number, number];
+        transform: string;
+        outside: number;
+        centre: [number, number];
+        painted: number;
+    }>(`(async () => {
+        const host = document.getElementById('jsmind');
+        const root = host.shadowRoot;
+        const nodes = [...root.querySelectorAll('.jsmind-node')];
+        const rects = nodes.map(node => node.getBoundingClientRect());
+
+        const seen = new Set();
+        const observer = new IntersectionObserver(entries => {
+            for (const entry of entries) {
+                if (entry.isIntersecting) {
+                    seen.add(entry.target);
+                }
+            }
+        }, { root: null });
+        nodes.forEach(node => observer.observe(node));
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        observer.disconnect();
+
+        const page = document.scrollingElement;
+        return {
+            nodes: nodes.length,
+            page: [page.scrollWidth, page.scrollHeight],
+            window: [window.innerWidth, window.innerHeight],
+            host: [host.clientWidth, host.clientHeight],
+            transform: root.querySelector('.jsmind-inner').style.transform,
+            outside: rects.filter(rect =>
+                rect.left < -1 || rect.top < -1 || rect.right > window.innerWidth + 1 || rect.bottom > window.innerHeight + 1
+            ).length,
+            centre: [
+                (Math.min(...rects.map(rect => rect.left)) + Math.max(...rects.map(rect => rect.right))) / 2,
+                (Math.min(...rects.map(rect => rect.top)) + Math.max(...rects.map(rect => rect.bottom))) / 2,
+            ],
+            painted: seen.size,
+        };
+    })()`, true);
+}
+
+test('ui - an exported page opens unfitted, and a double-click fits the whole map', async (t: TestContext) => {
+    // The requirement this case exists for: `fitToView` is a method, not a
+    // default action. A page that renders a map shows it at the size its text
+    // was written for, cropped by the window like any canvas - so a large map
+    // opening cropped is the point here, not a regression. It is what proves
+    // nothing fitted the map behind the reader's back, which a reading of
+    // "every node is inside" alone could never tell apart from a page that
+    // quietly shrank the map to a wall of unreadable text.
+    //
+    // What must hold either way is that the *page* does not grow a scrollbar:
+    // the map's own viewport is what moves, and the double-click - the one
+    // gesture that asks for the whole map - puts all of it back inside the
+    // window without the page scrolling to reach it.
     const { document: data, nodeCount } = bigMap();
 
     await withExportedPage(data, async ({ output }) => {
@@ -496,46 +674,53 @@ test('ui - a map larger than the window scrolls into view instead of being cropp
             await harness.setViewport(1200, 800);
             await harness.navigate(pathToFileURL(output).href);
 
-            const before = await harness.evaluate<{
-                nodes: number;
-                scrolls: [boolean, boolean];
-                host: [number, number];
-            }>(`(() => {
-                const host = document.getElementById('jsmind');
-                const nodes = host.shadowRoot.querySelectorAll('.jsmind-node');
-                const page = document.documentElement;
-                return {
-                    nodes: nodes.length,
-                    scrolls: [page.scrollWidth > window.innerWidth, page.scrollHeight > window.innerHeight],
-                    host: [host.clientWidth, host.clientHeight],
-                };
-            })()`);
+            const opened = await measurePage(harness);
 
-            assert.strictEqual(before.nodes, nodeCount, 'the whole document is rendered');
-            assert.strictEqual(before.scrolls[0], true, 'the page scrolls horizontally');
-            assert.strictEqual(before.scrolls[1], true, 'the page scrolls vertically');
-            assert.ok(before.host[0] > 1200 && before.host[1] > 800, 'the host grew past the viewport');
-
-            // Scroll to the far corner: two nodes that were off-screen must now
-            // be inside the window, which is what "not cropped" means.
-            const after = await harness.evaluate<{ scroll: [number, number]; visible: boolean }>(
-                `(() => {
-                    window.scrollTo(document.documentElement.scrollWidth, document.documentElement.scrollHeight);
-                    return new Promise(resolve => requestAnimationFrame(() => {
-                        const nodes = [...document.getElementById('jsmind').shadowRoot.querySelectorAll('.jsmind-node')];
-                        const right = Math.max(...nodes.map(node => node.getBoundingClientRect().right));
-                        const bottom = Math.max(...nodes.map(node => node.getBoundingClientRect().bottom));
-                        resolve({
-                            scroll: [window.scrollX, window.scrollY],
-                            visible: right <= window.innerWidth + 1 && bottom <= window.innerHeight + 1,
-                        });
-                    }));
-                })()`,
-                true
+            assert.strictEqual(opened.nodes, nodeCount, 'the whole document is rendered');
+            assert.deepStrictEqual(opened.page, opened.window, 'the page itself has nothing to scroll');
+            assert.deepStrictEqual(opened.host, opened.window, 'the host stayed the size of the window');
+            assert.strictEqual(opened.transform, '', 'nothing has moved the map: the page opens it at 1x');
+            assert.ok(
+                opened.outside > 0,
+                `a map larger than the window is cropped at 1x, so some node is past the edge, but all ${nodeCount} are inside`
+            );
+            assert.ok(
+                opened.painted < nodeCount,
+                `only the part of the map that fits is shown: ${opened.painted}/${nodeCount}`
             );
 
-            assert.ok(after.scroll[0] > 0 && after.scroll[1] > 0, 'the page actually scrolled');
-            assert.strictEqual(after.visible, true, 'the far corner of the map is reachable');
+            // The reader asks for the whole map. `'shrink'` is the mode the page
+            // uses, so the map is scaled down until it fits and centred; a page
+            // that opened already fitted would land on these same numbers, which
+            // is why the transform before this line had to be empty.
+            await harness.doubleClickAt(600, 400);
+            const fitted = await measurePage(harness);
+
+            const scale = translateOf(fitted.transform).scale;
+            assert.ok(scale > 0 && scale < 1, `a map larger than the window fits below 1x, got ${scale}`);
+            assert.strictEqual(fitted.outside, 0, 'no node is left outside the window');
+            assert.strictEqual(fitted.painted, nodeCount, 'every node is actually shown, not merely inside a clipped edge');
+            assert.deepStrictEqual(fitted.page, fitted.window, 'and the page still has nothing to scroll');
+            assert.ok(
+                Math.abs(fitted.centre[0] - fitted.window[0] / 2) <= 2 && Math.abs(fitted.centre[1] - fitted.window[1] / 2) <= 2,
+                `the map should be centred: ${fitted.centre[0].toFixed(1)}/${fitted.centre[1].toFixed(1)} in ${fitted.window.join('x')}`
+            );
+
+            // Zoom in and drag away, then double-click again: the same answer
+            // field for field, which is what makes the gesture usable twice.
+            await harness.wheelAt(600, 400, -400);
+            await harness.settle();
+            await harness.dragBy({ x: 700, y: 550 }, -260, -180);
+            assert.notStrictEqual(await innerTransform(harness), fitted.transform, 'the page really is showing something else');
+
+            await harness.doubleClickAt(600, 400);
+            assert.strictEqual(await innerTransform(harness), fitted.transform, 'fitting twice gives the same view');
+
+            t.diagnostic(
+                `opened at 1x with ${opened.outside} nodes past the edge (${opened.painted}/${nodeCount} shown), ` +
+                    `page ${opened.page.join('x')} in ${opened.window.join('x')}; ` +
+                    `fitted at ${scale.toFixed(4)}x, centre ${fitted.centre[0].toFixed(1)}/${fitted.centre[1].toFixed(1)}`
+            );
         } finally {
             await harness.close();
         }

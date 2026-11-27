@@ -6,8 +6,8 @@ import { JmEdgeView } from './edge.ts';
 import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
 import { captureShadowContent, type JmExportImageOptions, type JmExportImageResult } from './export.ts';
-import type { JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
-import { viewportCssTransform, panViewport, panViewportTo, viewportOriginFor, zoomViewport, type JmViewportBounds, type JmViewportTransform } from './viewport.ts';
+import type { JmFitToViewMode, JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
+import { viewportCssTransform, panViewport, panViewportTo, viewportOriginFor, zoomViewport, fitViewport, viewportCanPan, type JmViewportBounds, type JmViewportTransform } from './viewport.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
@@ -345,6 +345,7 @@ export class JmView implements JmViewHandle {
             scale: this.viewport.scale,
             width: size.width,
             height: size.height,
+            canPan: viewportCanPan(this.contentBounds, size, this.viewport.scale),
         };
     }
 
@@ -420,6 +421,59 @@ export class JmView implements JmViewHandle {
         const focus = new JmPoint(corner.x + size.width / 2, corner.y + size.height / 2);
         const origin = viewportOriginFor(focus, this._viewportCentre(), this.viewport.scale);
         this.panTo(origin.x, origin.y);
+    }
+
+    /**
+     * Fits the map to the viewport, shrinking, expanding, or both.
+     *
+     * @remarks
+     * Two steps, both composed from the arithmetic beside them: the zoom the
+     * mode allows, and the origin that puts the content's middle in the middle
+     * of the box.
+     *
+     * The mode is optional and narrows the fit rather than defining it: with
+     * none, a map too large for the box is scaled down and one too small is
+     * scaled up, which is what a single "fit" button asks for. `'shrink'` and
+     * `'expand'` each name one of those and leave the other state at its
+     * natural size.
+     *
+     * The origin is written rather than handed to {@link JmView.panTo}, and
+     * that is the answer the whole design turns on. At exactly-fitting zoom the
+     * pan's band is empty - `span == 0` on the binding axis, `span < 0` on the
+     * loose one - so `panTo` keeps the origin it had, and `centerOn` (which is
+     * built on it) does not move either. A fit composed from `zoomTo` and
+     * `centerOn` would therefore leave a map in whatever corner it was dragged
+     * to, and no drag could bring it back, because the band stays empty. So
+     * this composes the same arithmetic with the clamp left out: there is
+     * nothing to clamp into, and the only origin that shows the content the way
+     * the mode asks is the one that shows its middle.
+     *
+     * The box is taken over before anything is measured. On a page whose map
+     * overflows, the inner box is showing a scrollbar at that moment and its
+     * client size is that much narrower; reading it first would make the first
+     * fit slightly smaller than the second fit of the same map - two answers to
+     * one command, visible as a small jump the first time the reader fits it
+     * again.
+     *
+     * @param mode - `'shrink'` for a map too large for the box, `'expand'` for
+     * one too small. Omit it to correct both directions.
+     * @throws {@link JsMindError} When `mode` is given as neither of those two,
+     * before the box is touched, so a refused call leaves the view exactly as
+     * it was.
+     * @throws {@link JsMindError} When this view has not been given a map yet:
+     * there is no content to fit, and the scale and origin a zero-sized box
+     * produces would shift the first map that is opened afterwards. A closed
+     * map is not the same thing - the view keeps the last map it was shown.
+     */
+    fitToView(mode?: JmFitToViewMode): void {
+        if (mode !== undefined && mode !== 'shrink' && mode !== 'expand') {
+            throw new JsMindError(`Unknown fit mode '${String(mode)}'; expected 'shrink', 'expand' or no mode`);
+        }
+        if (this.mind === null) {
+            throw new JsMindError('No mind map is currently open');
+        }
+        this._activateViewport();
+        this._setViewport(fitViewport(this.contentBounds, this._viewportSize(), mode));
     }
 
     /**

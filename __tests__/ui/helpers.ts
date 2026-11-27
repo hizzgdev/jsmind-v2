@@ -464,6 +464,29 @@ export class BrowserHarness {
     }
 
     /**
+     * Dispatches a real double click at a viewport point.
+     *
+     * @remarks
+     * Two press/release pairs with a rising `clickCount`, which is what a
+     * browser sees when a reader double-clicks: the second release carries
+     * `clickCount: 2` and the `dblclick` follows it. A synthesised
+     * `MouseEvent('dblclick')` would skip the two presses - and those presses
+     * are exactly what a drag handler could swallow, so it would prove the
+     * listener is wired without proving the gesture survives the drag.
+     *
+     * @param x - CSS pixel X, as `getBoundingClientRect()` reports it.
+     * @param y - CSS pixel Y, as `getBoundingClientRect()` reports it.
+     */
+    async doubleClickAt(x: number, y: number): Promise<void> {
+        for (const clickCount of [1, 2]) {
+            const params = { x, y, button: 'left', clickCount };
+            await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...params });
+            await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...params });
+        }
+        await this.settle();
+    }
+
+    /**
      * Dispatches a real wheel event at a viewport point.
      *
      * @remarks

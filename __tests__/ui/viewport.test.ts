@@ -29,8 +29,19 @@
  *    the whole map fits the box the call leaves the origin where it was.
  * 12. `centerOn` refuses ids that are not nodes of the map, including the ones
  *    that only exist on `Object.prototype`.
+ * 13. `fitToView` shows the whole map centred, from any state the view is in,
+ *    and fitting twice gives the same viewport; `canPan` reports whether a pan
+ *    would move the map, at any factor.
+ * 14. The two fit modes each correct one mismatch and leave the other alone:
+ *    `'shrink'` never magnifies a map that fits, `'expand'` never shrinks one
+ *    that overflows, and a mode the view does not know is refused without
+ *    touching the box.
+ * 15. A fit with no mode corrects both mismatches, and on a map that needs one
+ *    direction it answers exactly what that direction answers - one fitting
+ *    factor with neither bound on the natural size.
  *
- * Fit-to-view is a later item of the same plan and is not exercised here.
+ * What is not here: the shell's gestures (double-click, `touch-action`) and the
+ * exported page itself, which are measured in `export-html.test.ts`.
  */
 
 import { test, before, after, type TestContext } from 'node:test';
@@ -147,7 +158,7 @@ interface RenderedNode {
 
 /** Everything one measurement needs from the page. */
 interface Snapshot {
-    viewport: { x: number; y: number; scale: number; width: number; height: number };
+    viewport: { x: number; y: number; scale: number; width: number; height: number; canPan: boolean };
     nodes: RenderedNode[];
     inner: { transform: string; overflow: string };
 }
@@ -1402,4 +1413,370 @@ test('ui viewport - centerOn refuses an id that is not a node of the map', async
     const state = await snapshot();
     assert.deepStrictEqual(origin(state), { x: 0, y: 0, scale: 1 }, 'a refused command does not move the view');
     assert.strictEqual(state.inner.overflow, 'auto', 'and does not take the box over either');
+});
+
+test('ui viewport - fitToView shows the whole map, centred, in one command', async () => {
+    // A box far smaller than the map on both axes, so a fit has to shrink it -
+    // and so "everything inside" cannot pass by accident.
+    await open(fixture(10, 6), SMALL);
+
+    const atRest = await snapshot();
+    assert.strictEqual(atRest.viewport.scale, 1, 'the page opens at 1x');
+    assert.strictEqual(atRest.inner.overflow, 'auto', 'nothing has taken the box over yet');
+    assert.strictEqual(atRest.viewport.canPan, true, 'at 1x the map overflows the box');
+
+    await command('jm.commands.fitToView("shrink")');
+    const fitted = await snapshot();
+
+    assert.ok(fitted.viewport.scale < 1, `a map larger than the box has to be shrunk, got ${fitted.viewport.scale}`);
+    assert.strictEqual(fitted.inner.overflow, 'visible', 'the fit takes the box over, as a zoom does');
+    // The written origin has to be the one the browser painted: an origin
+    // computed without the clamp, from the layout, is exactly the kind of
+    // number that could disagree with the picture.
+    assertPaintMatchesViewport(fitted);
+
+    const extent = paintedExtent(fitted);
+    assert.ok(extent.left >= -0.5 && extent.top >= -0.5, `the map starts inside the box: ${extent.left}/${extent.top}`);
+    assert.ok(
+        extent.right <= SMALL.width + 0.5 && extent.bottom <= SMALL.height + 0.5,
+        `the map ends inside the box: ${extent.right}/${extent.bottom} in ${SMALL.width}x${SMALL.height}`
+    );
+
+    // The factor is the largest at which the map fits, so one axis is filled to
+    // within a pixel or two of the box. Not exactly: these are the nodes' own
+    // boxes, and the layout's bounds are a little larger than them (the
+    // expanders sit outside a node's box). The exact arithmetic is pinned in
+    // `__tests__/view/viewport.test.ts`; what is checked here is that the fit
+    // used the content and not the padded canvas, which would leave a margin on
+    // both axes.
+    const gaps = {
+        x: SMALL.width - (extent.right - extent.left),
+        y: SMALL.height - (extent.bottom - extent.top),
+    };
+    assert.ok(
+        Math.min(gaps.x / SMALL.width, gaps.y / SMALL.height) <= 0.02,
+        `one axis should be filled to within 2%: gaps ${gaps.x.toFixed(1)}/${gaps.y.toFixed(1)}`
+    );
+
+    const middle = middleOfBox(fitted);
+    // Two pixels, not one: these boxes are the nodes alone and the fit centres
+    // the layout's own bounds, which sit a little outside them. What this rules
+    // out is a map parked at an edge.
+    assert.ok(
+        Math.abs((extent.left + extent.right) / 2 - middle.x) <= 2,
+        `the map is centred horizontally: ${((extent.left + extent.right) / 2).toFixed(2)} against ${middle.x}`
+    );
+    assert.ok(
+        Math.abs((extent.top + extent.bottom) / 2 - middle.y) <= 2,
+        `the map is centred vertically: ${((extent.top + extent.bottom) / 2).toFixed(2)} against ${middle.y}`
+    );
+
+    assert.strictEqual(fitted.viewport.canPan, false, 'nothing overflows once it is fitted');
+
+    // The other mode does nothing to this state, and the nothing is the point:
+    // `'expand'` is for a map smaller than the box, so a map that overflows is
+    // left at its natural size rather than shrunk. A reader who asked to fill
+    // the canvas did not ask to lose the part of the map that does not fit.
+    await command('jm.commands.fitToView("expand")');
+    const expanded = await snapshot();
+    assert.strictEqual(expanded.viewport.scale, 1, 'expanding must not shrink a map that overflows');
+    assertPaintMatchesViewport(expanded);
+    const kept = paintedExtent(expanded);
+    assert.ok(
+        kept.right - kept.left > SMALL.width || kept.bottom - kept.top > SMALL.height,
+        `the map should still overflow the box: ${(kept.right - kept.left).toFixed(1)}x${(kept.bottom - kept.top).toFixed(1)} in ${SMALL.width}x${SMALL.height}`
+    );
+});
+
+test('ui viewport - a fit with no mode corrects both mismatches, one map at a time', async () => {
+    // The mode-less call has to be the answer of whichever direction each map
+    // needs, not a third arithmetic that happens to land nearby. Measured in the
+    // browser because "which direction" is decided from the layout the view
+    // itself measured: a comparison against a hand-computed factor would agree
+    // with a wrong measure.
+    await open(fixture(10, 6), SMALL);
+    await command('jm.commands.fitToView("shrink")');
+    const shrunk = await snapshot();
+    assert.ok(shrunk.viewport.scale < 1, `this map is larger than the box, got ${shrunk.viewport.scale}`);
+
+    await command('jm.commands.fitToView()');
+    const withoutMode = await snapshot();
+    assert.deepStrictEqual(withoutMode.viewport, shrunk.viewport, 'on a map too large, no mode answers what shrink answers');
+    assertPaintMatchesViewport(withoutMode);
+    const extent = paintedExtent(withoutMode);
+    assert.ok(
+        extent.left >= -0.5 && extent.top >= -0.5 && extent.right <= SMALL.width + 0.5 && extent.bottom <= SMALL.height + 0.5,
+        `the whole map is inside the box: ${extent.left.toFixed(1)}..${extent.right.toFixed(1)} x ${extent.top.toFixed(1)}..${extent.bottom.toFixed(1)}`
+    );
+
+    // The other state: a map the default box holds whole at 1x. Here the
+    // mode-less fit has to magnify, which is the half a `min(1, fitting)` would
+    // lose - a viewer with one button would then do nothing on a small map.
+    await open(fixture(), HOST);
+    await command('jm.commands.fitToView("expand")');
+    const expanded = await snapshot();
+    assert.ok(expanded.viewport.scale > 1, `this map is smaller than the box, got ${expanded.viewport.scale}`);
+
+    await command('jm.commands.fitToView()');
+    const filled = await snapshot();
+    assert.deepStrictEqual(filled.viewport, expanded.viewport, 'on a map that fits, no mode answers what expand answers');
+    assertPaintMatchesViewport(filled);
+});
+
+test('ui viewport - expanding is what fits a map smaller than the box, and shrinking leaves it alone', async () => {
+    // The state the other mode exists for. The default host holds this fixture
+    // whole, so at 1x there is nothing to shrink - and `'shrink'` must not
+    // answer by blowing the map up to the box, which is the case a fit that
+    // always took the largest factor would get wrong on a small map: two or
+    // three nodes with their text at the size of the window.
+    await open(fixture(), HOST);
+    const atRest = await snapshot();
+    assert.strictEqual(atRest.viewport.scale, 1, 'the page opens at 1x');
+    assert.strictEqual(atRest.viewport.canPan, false, 'the map fits the box whole at 1x');
+    const resting = paintedExtent(atRest);
+    assert.ok(
+        resting.right - resting.left < HOST.width && resting.bottom - resting.top < HOST.height,
+        `the fixture should leave margin on both axes: ${(resting.right - resting.left).toFixed(1)}x${(resting.bottom - resting.top).toFixed(1)} in ${HOST.width}x${HOST.height}`
+    );
+
+    await command('jm.commands.fitToView("shrink")');
+    const shrunk = await snapshot();
+    assert.strictEqual(shrunk.viewport.scale, 1, 'shrinking a map that already fits leaves it at its natural size');
+    assertPaintMatchesViewport(shrunk);
+    const afterShrink = paintedExtent(shrunk);
+    assert.ok(
+        Math.abs((afterShrink.left + afterShrink.right) / 2 - HOST.width / 2) <= 2 &&
+            Math.abs((afterShrink.top + afterShrink.bottom) / 2 - HOST.height / 2) <= 2,
+        `and centres it: ${((afterShrink.left + afterShrink.right) / 2).toFixed(1)}/${((afterShrink.top + afterShrink.bottom) / 2).toFixed(1)}`
+    );
+
+    await command('jm.commands.fitToView("expand")');
+    const expanded = await snapshot();
+    assert.ok(expanded.viewport.scale > 1, `expanding should magnify the map, got ${expanded.viewport.scale}`);
+    assertPaintMatchesViewport(expanded);
+
+    // Filled, as far as the layout allows. Two bounds, both about the nodes the
+    // reader can see rather than about a magic tolerance: `room` is the largest
+    // factor at which the nodes' own boxes would fit, so the fit can only be at
+    // or below it (the layout's bounds include the fold expanders, which sit
+    // outside a node's box), and it has to be close to it - a fit well below
+    // would leave a margin the box did not ask for.
+    const extent = paintedExtent(expanded);
+    assert.ok(
+        extent.left >= -0.5 && extent.top >= -0.5 && extent.right <= HOST.width + 0.5 && extent.bottom <= HOST.height + 0.5,
+        `the expanded map is all inside the box: ${extent.left.toFixed(1)}..${extent.right.toFixed(1)} x ${extent.top.toFixed(1)}..${extent.bottom.toFixed(1)}`
+    );
+    const room = Math.min(
+        HOST.width / (resting.right - resting.left),
+        HOST.height / (resting.bottom - resting.top)
+    );
+    assert.ok(
+        expanded.viewport.scale <= room + 1e-9,
+        `the fit cannot be larger than the nodes allow: ${expanded.viewport.scale} > ${room}`
+    );
+    assert.ok(
+        expanded.viewport.scale >= room * 0.9,
+        `and it should be close to it: ${expanded.viewport.scale} against ${room}`
+    );
+    const middle = middleOfBox(expanded);
+    assert.ok(
+        Math.abs((extent.left + extent.right) / 2 - middle.x) <= 2 &&
+            Math.abs((extent.top + extent.bottom) / 2 - middle.y) <= 2,
+        `the expanded map is centred: ${((extent.left + extent.right) / 2).toFixed(2)}/${((extent.top + extent.bottom) / 2).toFixed(2)}`
+    );
+
+    // Twice is the same as once, in both modes: the mode is part of the answer,
+    // so a second call must not creep.
+    await command('jm.commands.fitToView("expand")');
+    assert.deepStrictEqual((await snapshot()).viewport, expanded.viewport, 'expanding twice gives the same viewport');
+});
+
+test('ui viewport - fitToView is the way back from a corner the clamp cannot leave', async () => {
+    // A box small enough to drag in, and a map that fits it at 0.1x - the same
+    // state the two cases above end in. Shrink the map there from the far
+    // corner and it ends up off-centre; at that zoom the pan band is empty, so
+    // neither a drag nor a centring can move it - which is the state #257's
+    // review recorded as unrecoverable. The fit is the exit, and this is the
+    // case an implementation built on `zoomTo` + `centerOn` fails: both would
+    // leave the map where it was.
+    await open(fixture(), TIGHT);
+
+    const limits = await panLimits();
+    await command(`jm.commands.panTo(${limits.far.x}, ${limits.far.y})`);
+    await command('jm.commands.zoomTo(0.1)');
+    const corner = await snapshot();
+    assert.strictEqual(corner.viewport.scale, 0.1);
+    assert.strictEqual(corner.viewport.canPan, false, 'at 0.1x the whole map fits, so nothing can move');
+
+    await command('jm.commands.panBy(-400, -300)');
+    await command(CENTRE_ROOT);
+    assert.deepStrictEqual(origin(await snapshot()), origin(corner), 'neither a drag nor a centring leaves the corner');
+
+    const before_ = paintedExtent(corner);
+    const beforeCentre = { x: (before_.left + before_.right) / 2, y: (before_.top + before_.bottom) / 2 };
+    const middle = middleOfBox(corner);
+    assert.ok(
+        Math.abs(beforeCentre.x - middle.x) > 5 || Math.abs(beforeCentre.y - middle.y) > 5,
+        `the map should start off-centre: ${beforeCentre.x.toFixed(1)}/${beforeCentre.y.toFixed(1)} against ${middle.x}/${middle.y}`
+    );
+
+    await command('jm.commands.fitToView("shrink")');
+    const fitted = await snapshot();
+    const extent = paintedExtent(fitted);
+    assert.ok(
+        extent.left >= -0.5 && extent.top >= -0.5 && extent.right <= TIGHT.width + 0.5 && extent.bottom <= TIGHT.height + 0.5,
+        `the map comes back inside the box: ${extent.left}..${extent.right} x ${extent.top}..${extent.bottom}`
+    );
+    assert.ok(
+        Math.abs((extent.left + extent.right) / 2 - TIGHT.width / 2) <= 2 &&
+            Math.abs((extent.top + extent.bottom) / 2 - TIGHT.height / 2) <= 2,
+        `and back to the middle: ${((extent.left + extent.right) / 2).toFixed(2)}/${((extent.top + extent.bottom) / 2).toFixed(2)}`
+    );
+    assertPaintMatchesViewport(fitted);
+});
+
+test('ui viewport - fitting twice gives the same viewport, and canPan follows the zoom', async () => {
+    await open(fixture(10, 6), SMALL);
+
+    // From somewhere other than the opening view, so the first fit has work to
+    // do and a fit that only ran once would not be caught by the second.
+    await command('jm.commands.zoomTo(1.7)');
+    await command('jm.commands.fitToView("shrink")');
+    const first = await snapshot();
+    assert.strictEqual(first.viewport.canPan, false, 'nothing overflows at the fitted zoom');
+
+    await command('jm.commands.fitToView("shrink")');
+    const second = await snapshot();
+
+    // Field for field, including the size the answer was computed against: a
+    // first fit that measured a box still narrowed by a scrollbar would answer
+    // differently here, which is the whole reason the box is taken over first.
+    assert.deepStrictEqual(second.viewport, first.viewport, 'the same command gives the same answer');
+
+    // Halfway between the fit and 1x: still below 1, but the content already
+    // overflows, so a drag has to pan. A `scale > 1` test calls this "no room",
+    // and after this item the page has no scrollbar to hand the gesture to.
+    const between = (first.viewport.scale + 1) / 2;
+    await command(`jm.commands.zoomTo(${between}, { x: 0, y: 0 })`);
+    const zoomed = await snapshot();
+    assert.ok(zoomed.viewport.scale < 1, `the factor should still be below 1, got ${zoomed.viewport.scale}`);
+    assert.strictEqual(zoomed.viewport.canPan, true, 'the content overflows at this factor');
+
+    const before_ = origin(zoomed);
+    await command('jm.commands.panBy(-60, -40)');
+    const panned = await snapshot();
+    assert.notDeepStrictEqual(origin(panned), before_, 'and the drag really moves the map');
+
+    // Below the fitted factor the whole map is inside again and there is
+    // nothing left to pan.
+    await command(`jm.commands.zoomTo(${first.viewport.scale * 0.8})`);
+    const out = await snapshot();
+    assert.strictEqual(out.viewport.canPan, false, 'the whole map is inside again');
+    assertPaintMatchesViewport(out);
+});
+
+test('ui viewport - fitToView refuses before a map has been shown', async () => {
+    await browser.setContent('<div id="empty" style="width:200px;height:150px"></div>');
+    await browser.loadBundle();
+
+    // A view with no map has no content to fit. Answering anyway would mean a
+    // scale and an origin derived from a zero-sized box, and those would shift
+    // the first map opened afterwards - so the command is refused rather than
+    // silently guessed, the way `capture` and `centerOn` already are.
+    //
+    // The bundle renames the error class on the way through rollup, so the
+    // comparison is against another error from the same bundle rather than
+    // against `JsMindError` by name.
+    const probe = await browser.evaluate<{
+        threw: boolean;
+        isMindError: boolean;
+        isTypeError: boolean;
+        message: string;
+        transform: string;
+        overflow: string;
+    }>(`(async () => {
+        const host = document.getElementById('empty');
+        const jm = await jsMind.create(host);
+        const reference = (() => {
+            try {
+                jsMind.Serializer.create('no-such-format');
+                return null;
+            } catch (error) {
+                return error;
+            }
+        })();
+        const inner = host.shadowRoot.querySelector('.jsmind-inner');
+        try {
+            jm.commands.fitToView('shrink');
+            return { threw: false, isMindError: false, isTypeError: false, message: '', transform: inner.style.transform, overflow: getComputedStyle(inner).overflow };
+        } catch (error) {
+            return {
+                threw: true,
+                isMindError: reference !== null && error instanceof reference.constructor,
+                isTypeError: error instanceof TypeError,
+                message: error && error.message ? error.message : '',
+                transform: inner.style.transform,
+                overflow: getComputedStyle(inner).overflow,
+            };
+        }
+    })()`, true);
+
+    assert.strictEqual(probe.threw, true, 'a fit with nothing to fit is refused');
+    assert.strictEqual(probe.isMindError, true, 'and refused with the library\'s own error class');
+    assert.strictEqual(probe.isTypeError, false, 'not with a TypeError');
+    assert.match(probe.message, /no mind map/i, `the message should say what is missing, it said "${probe.message}"`);
+    assert.strictEqual(probe.transform, '', 'a refused command writes no transform');
+    assert.strictEqual(probe.overflow, 'auto', 'and does not take the box over either');
+});
+
+test('ui viewport - fitToView refuses a mode it does not know, and leaves the view alone', async () => {
+    // The mode is the whole request, so a caller that got it wrong - a typo in
+    // plain JavaScript, or a value from an older API - has to be told rather
+    // than quietly given the shrinking behaviour and a map that moves for no
+    // reason they can see. Refused before the box is taken over, so a failed
+    // call changes nothing at all.
+    await open(fixture(10, 6), SMALL);
+    const atRest = await snapshot();
+
+    const probe = await browser.evaluate<{
+        threw: boolean;
+        isMindError: boolean;
+        message: string;
+        transform: string;
+        overflow: string;
+    }>(`(() => {
+        const jm = window.__jm;
+        const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
+        // Asked of the bundle rather than by name: rollup renames the error
+        // class on the way through, so an error the library raises and one it
+        // raises here are compared by constructor.
+        const reference = (() => {
+            try {
+                jsMind.Serializer.create('no-such-format');
+                return null;
+            } catch (error) {
+                return error;
+            }
+        })();
+        try {
+            jm.commands.fitToView('grow');
+            return { threw: false, isMindError: false, message: '', transform: inner.style.transform, overflow: getComputedStyle(inner).overflow };
+        } catch (error) {
+            return {
+                threw: true,
+                isMindError: reference !== null && error instanceof reference.constructor,
+                message: error && error.message ? error.message : '',
+                transform: inner.style.transform,
+                overflow: getComputedStyle(inner).overflow,
+            };
+        }
+    })()`);
+
+    assert.strictEqual(probe.threw, true, 'an unknown mode is refused');
+    assert.strictEqual(probe.isMindError, true, 'and refused with the error class the library raises');
+    assert.match(probe.message, /grow/, `the message should quote what was passed, it said "${probe.message}"`);
+    assert.match(probe.message, /shrink.*expand/, `and name the modes that exist, it said "${probe.message}"`);
+    assert.strictEqual(probe.transform, '', 'a refused command writes no transform');
+    assert.strictEqual(probe.overflow, 'auto', 'and does not take the box over either');
+    assert.deepStrictEqual((await snapshot()).viewport, atRest.viewport, 'the view is exactly where it was');
 });

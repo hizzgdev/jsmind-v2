@@ -16,7 +16,7 @@
  */
 
 import type { JmExportImageOptions, JmExportImageResult } from '../view/export.ts';
-import type { JmViewHandle, JmViewport, JmViewportAnchor } from '../view/handle.ts';
+import type { JmFitToViewMode, JmViewHandle, JmViewport, JmViewportAnchor } from '../view/handle.ts';
 
 /**
  * Issues commands that change what is displayed, never what is stored.
@@ -98,6 +98,29 @@ export class JmCommander {
      */
     centerOn(nodeId: string): void {
         this.view.centerOn(nodeId);
+    }
+
+    /**
+     * Fits the map to the viewport, in the directions the caller allows.
+     *
+     * @remarks
+     * With no mode both mismatches are corrected: a map too large for the box
+     * is shrunk until it fits, and one too small is magnified until it fills
+     * the box - the fit a single "show me the whole map" button asks for.
+     * `'shrink'` and `'expand'` each name one direction by taking the map's
+     * natural size as a bound, so a caller that knows which state it is in can
+     * correct that one and leave the other alone.
+     *
+     * Nothing on the open path calls this. Opening a map shows it as laid out;
+     * fitting it is a decision for whoever is showing it, made when they want
+     * it - which is why a page either calls it after `open` or does not.
+     *
+     * @param mode - `'shrink'` for a map too large for the box, `'expand'` for
+     * one too small. Omit it to correct both.
+     * @throws {@link JsMindError} When this view has not been given a map yet.
+     */
+    fitToView(mode?: JmFitToViewMode): void {
+        this.view.fitToView(mode);
     }
 
     // The rest of the viewport commands land here, next to these.

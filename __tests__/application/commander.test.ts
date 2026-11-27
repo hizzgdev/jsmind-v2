@@ -11,7 +11,7 @@ import assert from 'node:assert';
 
 import { JmCommander } from '../../src/application/commander.ts';
 import { JsMindError } from '../../src/common/error.ts';
-import type { JmViewHandle, JmViewport, JmViewportAnchor } from '../../src/view/handle.ts';
+import type { JmFitToViewMode, JmViewHandle, JmViewport, JmViewportAnchor } from '../../src/view/handle.ts';
 import type { JmExportImageOptions, JmExportImageResult } from '../../src/view/export.ts';
 
 /** A zoom request the fake view received. */
@@ -31,11 +31,13 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
     calls: (JmExportImageOptions | undefined)[];
     zooms: ZoomCall[];
     centres: string[];
+    fits: (JmFitToViewMode | undefined)[];
 } {
     const calls: (JmExportImageOptions | undefined)[] = [];
     const zooms: ZoomCall[] = [];
     const centres: string[] = [];
-    const viewport: JmViewport = { x: 4, y: 5, scale: 2, width: 640, height: 480 };
+    const fits: (JmFitToViewMode | undefined)[] = [];
+    const viewport: JmViewport = { x: 4, y: 5, scale: 2, width: 640, height: 480, canPan: true };
     const view: JmViewHandle = {
         async capture(options?: JmExportImageOptions): Promise<JmExportImageResult> {
             calls.push(options);
@@ -60,11 +62,15 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
         centerOn(nodeId: string): void {
             centres.push(nodeId);
         },
+        fitToView(mode?: JmFitToViewMode): void {
+            // Recorded, not interpreted: the mode is the caller's decision.
+            fits.push(mode);
+        },
         getViewport(): JmViewport {
             return viewport;
         },
     };
-    return { view, calls, zooms, centres };
+    return { view, calls, zooms, centres, fits };
 }
 
 test('commander - exportImage passes the options through to the view', async () => {
@@ -108,8 +114,11 @@ test('commander - exportImage surfaces a view failure to the caller', async () =
         zoomTo(): void {
             // Not exercised here.
         },
+        fitToView(): void {
+            // Not exercised here, and the mode does not change that.
+        },
         getViewport(): JmViewport {
-            return { x: 0, y: 0, scale: 1, width: 0, height: 0 };
+            return { x: 0, y: 0, scale: 1, width: 0, height: 0, canPan: false };
         },
     };
     const commander = new JmCommander(view);
@@ -148,7 +157,9 @@ test('commander - getViewport returns what the view reports', () => {
     const { view } = fakeView();
     const commander = new JmCommander(view);
 
-    assert.deepStrictEqual(commander.getViewport(), { x: 4, y: 5, scale: 2, width: 640, height: 480 });
+    // `canPan` is part of the report: a caller deciding `touch-action` before a
+    // gesture starts reads it here instead of measuring the content itself.
+    assert.deepStrictEqual(commander.getViewport(), { x: 4, y: 5, scale: 2, width: 640, height: 480, canPan: true });
 });
 
 test('commander - centerOn forwards the node id to the view', () => {
@@ -161,4 +172,19 @@ test('commander - centerOn forwards the node id to the view', () => {
     // in the middle are the view's, and a commander that resolved either would
     // need the model and the layout as well.
     assert.deepStrictEqual(centres, ['jm-7']);
+});
+
+test('commander - fitToView is forwarded to the view, mode and all', () => {
+    const { view, fits } = fakeView();
+    const commander = new JmCommander(view);
+
+    commander.fitToView('shrink');
+    commander.fitToView('expand');
+    commander.fitToView();
+
+    // The zoom and the origin are the view's, and so is the box whose size
+    // decides both: a commander that computed a fit would need the layout too.
+    // The mode is the one thing it must not invent - and "no mode" is a request
+    // of its own, not a gap for this layer to fill with one direction.
+    assert.deepStrictEqual(fits, ['shrink', 'expand', undefined]);
 });

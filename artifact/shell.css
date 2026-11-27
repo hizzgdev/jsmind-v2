@@ -21,11 +21,10 @@ body {
 }
 
 /*
- * The map's host. It starts at the viewport size, and shell.js grows it to the
- * size of the rendered map: the renderer centers the map inside its own box and
- * clips whatever leaves that box, so a host left at the viewport size crops a
- * large map. Growing the host moves the scrollbar to the page, which is the one
- * scrollbar a reader already knows how to use.
+ * The map's host: the whole window. The map opens at its natural size, and the
+ * viewport inside the shadow root is what scrolls, zooms and pans it - so the
+ * page itself never grows a scrollbar, and what a reader loses off the edge
+ * comes back with a drag, a wheel or a double-click.
  */
 #jsmind {
     width: 100%;
