@@ -54,7 +54,7 @@
 **应用层的两条通道**（判断标准是「这个操作改不改模型」）：
 
 ```
-调用方 → JmCommander → JmViewHandle → JmView      （命令：导出、将来 pan/zoom）
+调用方 → JmCommander → JmViewHandle → JmView      （命令：导出、pan / zoom / centerOn / fitToView）
 模型变更 → JmMindChangeCoordinator → JmView        （反应：节点增删改、将来拖拽）
 ```
 
@@ -139,18 +139,18 @@ CLI 骨架、`context`（唯一允许模糊匹配）、`validate`、`mind` 命�
 
 `jsmind export image <file> <out.png>`。通过无头 Chromium + CDP 协议驱动渲染，走公开的 `jsMind.exportImage()` API。支持 `--width` / `--height` / `--scale` / `--type`（png/jpeg/webp），CI 的 PR 预览图就是同一条路径产出。
 
-#### S7c `feat(cli): node set-style` ⏳
+#### S7c `feat(cli): node set-style` ✅
 
 少了它，agent 想改节点颜色只有一条路：整个 JSON 读出来、改内存、整个写回去——绕过 `write → validate → rollback` 的粒度。有了 `set-style`，改样式和改文字走同一条安全路径。
 
 **前置**：`onNodeUpdated` 必须接通。
 
-#### S8 `feat(build): self-contained HTML output` ❌
+#### S8 `feat(build): self-contained HTML output` ✅
 
 #### S9 `feat(view): export to PNG, JSON and HTML` ⚠️
 
 - **PNG 已完成**：`jsMind.exportImage()` + `jsmind export image`。SVG 序列化 → data URL → canvas → PNG
-- 尚未开始：导出面板 UI、HTML 快照、JSON 入口
+- 尚未开始：导出面板 UI、JSON 入口
 
 ### 第 4 层：交互
 
@@ -160,9 +160,9 @@ CLI 骨架、`context`（唯一允许模糊匹配）、`validate`、`mind` 命�
 
 **前置**：`onNodeUpdated` 和 `onNodeMoved` 目前是空实现。
 
-#### S14 `feat(view): pan, zoom and centring` ❌
+#### S14 `feat(view): pan, zoom and centring` ✅
 
-走 Commander 通道。`JmViewHandle` 已预留 `pan` / `zoom` / `centerOn(nodeId)` / `getViewport()`。
+走 Commander 通道。`JmViewHandle` 的 `pan` / `zoom` / `centerOn(nodeId)` / `fitToView()` / `getViewport()` 都已实现，`JmCommander` 已转发。
 
 ---
 
