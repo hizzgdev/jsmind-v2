@@ -334,6 +334,107 @@ test('ui - the wheel zooms about the pointer on an exported page', async () => {
     });
 });
 
+/**
+ * Parses the translate and scale a viewport transform carries.
+ *
+ * @remarks
+ * The origin is `-translate / scale`, so reading it this way is how a test can
+ * talk about where the view is looking without the page exposing its instance.
+ *
+ * @param transform - Value of the inner box's `transform` property.
+ * @returns The translate in screen pixels and the scale it is paired with.
+ */
+function translateOf(transform: string): { x: number; y: number; scale: number } {
+    const match = /translate\((-?[\d.]+)px, (-?[\d.]+)px\) scale\(([\d.]+)\)/.exec(transform);
+    assert.ok(match, `expected a translate+scale transform, got "${transform}"`);
+    return { x: Number(match[1]), y: Number(match[2]), scale: Number(match[3]) };
+}
+
+/**
+ * Reads the transform the view has written on the inner box.
+ *
+ * @param harness - Browser to read from.
+ * @returns The value of the `transform` property.
+ */
+async function innerTransform(harness: BrowserHarness): Promise<string> {
+    return await harness.evaluate<string>(
+        `(() => {
+            const inner = document.getElementById('jsmind').shadowRoot.querySelector('.jsmind-inner');
+            return inner.style.transform;
+        })()`
+    );
+}
+
+test('ui - a drag pans the map on an exported page', async () => {
+    // The shell owns the gesture (`artifact/shell.js`), so this is the only
+    // place the shipped pointer handling is exercised: a real mouse, on the page
+    // a reader double-clicks. The library-level arithmetic is pinned in
+    // `viewport.test.ts`; here the claim is that pointer travel reaches it.
+    const { document: data } = bigMap();
+
+    await withExportedPage(data, async ({ output }) => {
+        const harness = await BrowserHarness.launch();
+        try {
+            await harness.setViewport(1200, 800);
+            await harness.navigate(pathToFileURL(output).href);
+
+            // Zoomed in, because at 1x the shell has already grown the host to
+            // the map's own size: the whole map is on the page and a pan has
+            // nowhere to go (fit-to-view replaces this in the next item).
+            await harness.wheelAt(600, 400, -400);
+            await harness.settle();
+            const zoomed = await innerTransform(harness);
+            assert.match(zoomed, /scale\(/, 'the wheel should have zoomed the map');
+
+            // A drag to the content's top-left corner first, so the measured
+            // gesture below has room in its direction and cannot be clamped -
+            // clamping is the viewport suite's claim, not this one's.
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                await harness.dragBy({ x: 300, y: 250 }, 400, 300);
+            }
+            const corner = await innerTransform(harness);
+
+            const before_ = await paintedNodes(harness);
+            const scrollBefore = await harness.evaluate<[number, number]>('[window.scrollX, window.scrollY]');
+
+            const travel = { x: -240, y: -160 };
+            await harness.dragBy({ x: 700, y: 550 }, travel.x, travel.y);
+
+            const after_ = await paintedNodes(harness);
+            const moved = await innerTransform(harness);
+
+            assert.strictEqual(after_.length, before_.length, 'the same nodes are still on the page');
+            for (const [index, was] of before_.entries()) {
+                const now = after_[index]!;
+                assert.ok(
+                    Math.abs(now.left - was.left - travel.x) < 0.5 &&
+                        Math.abs(now.top - was.top - travel.y) < 0.5,
+                    `node ${index} moved ${(now.left - was.left).toFixed(2)}/${(now.top - was.top).toFixed(2)}, not ${travel.x}/${travel.y}`
+                );
+            }
+
+            // The same movement in the state the shell wrote: the translate is
+            // `-origin * scale`, so a drag of `travel` changes it by `travel`
+            // itself - the scale cancels.
+            const at = translateOf(corner);
+            const now = translateOf(moved);
+            assert.ok(
+                Math.abs(now.x - at.x - travel.x) < 0.5 && Math.abs(now.y - at.y - travel.y) < 0.5,
+                `the transform should have moved by ${travel.x}/${travel.y}: ${corner} -> ${moved}`
+            );
+
+            // The drag belongs to the map: the page around it does not scroll,
+            // and the press does not select any text on the way.
+            const scrollAfter = await harness.evaluate<[number, number]>('[window.scrollX, window.scrollY]');
+            assert.deepStrictEqual(scrollAfter, scrollBefore, 'dragging the map should not scroll the page');
+            const selected = await harness.evaluate<string>('String(window.getSelection())');
+            assert.strictEqual(selected, '', 'a drag should not select text');
+        } finally {
+            await harness.close();
+        }
+    });
+});
+
 test('ui - a map larger than the window scrolls into view instead of being cropped', async () => {
     const { document: data, nodeCount } = bigMap();
 

@@ -34,9 +34,16 @@ import type { JmExportImageOptions, JmExportImageResult } from './export.ts';
  * @public
  */
 export interface JmViewport {
-    /** Horizontal scroll offset. */
+    /**
+     * Map-space x shown at the viewport's left edge.
+     *
+     * @remarks
+     * A position in the map, not a scroll offset: it is the number
+     * {@link JmViewHandle.panTo} writes, so what a caller reads here is what it
+     * can put back there.
+     */
     x: number;
-    /** Vertical scroll offset. */
+    /** Map-space y shown at the viewport's top edge. See {@link JmViewport.x}. */
     y: number;
     /** Current zoom factor, 1 being unscaled. */
     scale: number;
@@ -100,14 +107,40 @@ export interface JmViewHandle {
      */
     getViewport(): JmViewport;
 
+    /**
+     * Puts a map-space point at the viewport's top-left corner.
+     *
+     * @remarks
+     * `x`/`y` are the same pair {@link JmViewHandle.getViewport} reports, so a
+     * caller can read where the view is looking, keep it, and put it back. The
+     * move is clamped to the content's bounds: the map cannot be sent into an
+     * empty viewport it would then be unable to leave.
+     *
+     * @param x - Map-space x to show at the left edge.
+     * @param y - Map-space y to show at the top edge.
+     */
+    panTo(x: number, y: number): void;
+
+    /**
+     * Moves the viewport by a distance on screen.
+     *
+     * @remarks
+     * The delta is in viewport pixels, not map pixels: a drag reports how far
+     * the pointer travelled, and dividing by the zoom is arithmetic the view
+     * already owns. Positive `dx` moves the map right, which shows map points
+     * further left. Clamped the same way as {@link JmViewHandle.panTo}.
+     *
+     * @param dx - Horizontal travel in viewport pixels.
+     * @param dy - Vertical travel in viewport pixels.
+     */
+    panBy(dx: number, dy: number): void;
+
     // The rest of the viewport surface is not implemented yet. It is declared
     // here as one block rather than added one method at a time because the
     // shape is what matters: the application layer holds a handle whose surface
     // grows by adding methods, not by widening a constructor with another
     // callback per feature.
     //
-    // panTo(x: number, y: number): void;
-    // panBy(dx: number, dy: number): void;
     // centerOn(nodeId: string): void;
     //
     // Interaction will arrive as semantic events, not as coordinate helpers.

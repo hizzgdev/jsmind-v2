@@ -7,7 +7,7 @@ import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
 import { captureShadowContent, type JmExportImageOptions, type JmExportImageResult } from './export.ts';
 import type { JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
-import { viewportCssTransform, zoomViewport, type JmViewportTransform } from './viewport.ts';
+import { viewportCssTransform, panViewport, panViewportTo, zoomViewport, type JmViewportBounds, type JmViewportTransform } from './viewport.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
@@ -63,6 +63,18 @@ export class JmView implements JmViewHandle {
      * transform, and this flag says which one owns the box.
      */
     private viewportActive = false;
+
+    /**
+     * Where the rendered content sits in map space, for clamping a pan.
+     *
+     * @remarks
+     * The renderer centres the map in the canvas, so these corners are not
+     * `(0, 0)` to `viewSize` - they are the map's own bounding box translated by
+     * the centring offset. They are kept rather than recomputed because a pan
+     * has to clamp against the same rectangle the content was laid out in, and
+     * `_updateViewSize` is the only place that knows it.
+     */
+    private readonly contentBounds: JmViewportBounds = { left: 0, top: 0, width: 0, height: 0 };
 
     private constructor(container: HTMLElement, shadowRoot: ShadowRoot, innerContainer: JmElement, nodeView: JmNodeView, edgeView: JmEdgeView, arranger: Arranger, options: ViewOptions) {
         this.container = container;
@@ -291,11 +303,7 @@ export class JmView implements JmViewHandle {
      */
     zoomTo(scale: number, anchor?: JmViewportAnchor): void {
         this._activateViewport();
-        const state = zoomViewport(this.viewport, scale, anchor ?? this._viewportCentre());
-        this.viewport.x = state.x;
-        this.viewport.y = state.y;
-        this.viewport.scale = state.scale;
-        this._applyViewport();
+        this._setViewport(zoomViewport(this.viewport, scale, anchor ?? this._viewportCentre()));
     }
 
     /**
@@ -325,6 +333,46 @@ export class JmView implements JmViewHandle {
             width: size.width,
             height: size.height,
         };
+    }
+
+    /**
+     * Puts a map-space point at the viewport's top-left corner.
+     *
+     * @remarks
+     * The box is taken over first, exactly as a zoom does: while native
+     * scrolling is still in charge, a transform written here would move the map
+     * on top of the scroll offset, and the handover would then fold that offset
+     * into the origin again - two moves for one command.
+     *
+     * @param x - Map-space x to show at the left edge.
+     * @param y - Map-space y to show at the top edge.
+     */
+    panTo(x: number, y: number): void {
+        this._activateViewport();
+        this._setViewport(panViewportTo(this.viewport, new JmPoint(x, y), this.contentBounds, this._viewportSize()));
+    }
+
+    /**
+     * Moves the viewport by a drag, in viewport pixels.
+     *
+     * @param dx - Horizontal travel in viewport pixels.
+     * @param dy - Vertical travel in viewport pixels.
+     */
+    panBy(dx: number, dy: number): void {
+        this._activateViewport();
+        this._setViewport(panViewport(this.viewport, dx, dy, this.contentBounds, this._viewportSize()));
+    }
+
+    /**
+     * Stores a computed viewport state and paints it.
+     *
+     * @param state - State to adopt, already clamped by the arithmetic.
+     */
+    private _setViewport(state: JmViewportTransform): void {
+        this.viewport.x = state.x;
+        this.viewport.y = state.y;
+        this.viewport.scale = state.scale;
+        this._applyViewport();
     }
 
     /**
@@ -409,5 +457,15 @@ export class JmView implements JmViewHandle {
         const centerOffset = mindBounds.center;
         this.viewOffset.x = this.viewSize.width / 2 - centerOffset.x;
         this.viewOffset.y = this.viewSize.height / 2 - centerOffset.y;
+
+        // The same centring `viewOffset` just applied, read back as a rectangle:
+        // the content's middle lands on the canvas's middle, so its corners are
+        // half of each size away from it. A pan clamps against this - after the
+        // transform takes the inner box over, the box is only as big as the
+        // view and nothing else stops the map from being dragged out of it.
+        this.contentBounds.left = this.viewSize.width / 2 - mindViewSize.width / 2;
+        this.contentBounds.top = this.viewSize.height / 2 - mindViewSize.height / 2;
+        this.contentBounds.width = mindViewSize.width;
+        this.contentBounds.height = mindViewSize.height;
     }
 }

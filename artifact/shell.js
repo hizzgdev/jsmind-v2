@@ -127,6 +127,76 @@
     }
 
     /**
+     * Pans with a drag.
+     *
+     * @remarks
+     * One handler for mouse, pen and touch: a pointer event carries all three,
+     * and `setPointerCapture` keeps the moves arriving after the pointer leaves
+     * the map - without it a fast drag stops at the element's edge and the map
+     * lags behind the hand for the rest of the gesture.
+     *
+     * The shell reports travel and nothing else. How far the pointer moved is
+     * all it knows; turning that into a map offset is the library's arithmetic,
+     * because `panBy` divides by the zoom and clamps to the content. Measuring a
+     * size here would fork the layout from the library's own.
+     *
+     * @param {HTMLElement} container - Element to listen on.
+     * @param {object} commands - The library's command surface.
+     */
+    function installPan(container, commands) {
+        // A drag must not turn into a page scroll. For touch this is the only
+        // lever there is - `preventDefault` cannot cancel a pan the browser has
+        // already started - and for a mouse the press is suppressed below.
+        container.style.touchAction = 'none';
+
+        /** Pointer the gesture belongs to, or null when nothing is being dragged. */
+        let draggedPointer = null;
+        /** Last pointer position, in viewport pixels. */
+        let lastX = 0;
+        let lastY = 0;
+
+        container.addEventListener('pointerdown', event => {
+            // Left button only, and one pointer at a time: a second finger on a
+            // map that is already being dragged would fight the first.
+            if (draggedPointer !== null || event.button !== 0) {
+                return;
+            }
+            draggedPointer = event.pointerId;
+            lastX = event.clientX;
+            lastY = event.clientY;
+            container.setPointerCapture(event.pointerId);
+            // Suppresses the default the press would otherwise start: a text
+            // selection, or a native drag of whatever is under the pointer.
+            event.preventDefault();
+        });
+
+        container.addEventListener('pointermove', event => {
+            if (event.pointerId !== draggedPointer) {
+                return;
+            }
+            const dx = event.clientX - lastX;
+            const dy = event.clientY - lastY;
+            if (dx === 0 && dy === 0) {
+                return;
+            }
+            lastX = event.clientX;
+            lastY = event.clientY;
+            commands.panBy(dx, dy);
+        });
+
+        const endDrag = event => {
+            if (event.pointerId === draggedPointer) {
+                draggedPointer = null;
+            }
+        };
+        container.addEventListener('pointerup', endDrag);
+        container.addEventListener('pointercancel', endDrag);
+        // Capture can be lost without an up (the element was removed, the tab
+        // lost focus); the next press has to start a new gesture regardless.
+        container.addEventListener('lostpointercapture', endDrag);
+    }
+
+    /**
      * Renders one document into one container.
      *
      * Independent of where the document came from: this is the entry an online
@@ -145,6 +215,7 @@
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         fitToContent(container);
         installWheel(container, jm.commands);
+        installPan(container, jm.commands);
         return jm;
     }
 
