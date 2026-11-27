@@ -159,6 +159,7 @@ const DOCS_PAGES = [
     'reference/api/options.html',
     'reference/api/serialization.html',
     'reference/api/export.html',
+    'reference/api/viewport.html',
     'reference/api/style.html',
     'reference/node-content.html',
     'reference/node-move.html',

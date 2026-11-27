@@ -270,11 +270,20 @@ Configuration options for the mind map.
 
 Interface for observer pattern.
 
-**Properties**
+### update {#JmObserver.update}
+
+```ts
+update(observedObject: T, event: unknown): void
+```
+
+This method will be called when state changes in observed object.
+
+**Parameters**
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `update` | unknown | This method will be called when state changes in observed object. |
+| `observedObject` | `T` | The object being observed. |
+| `event` | unknown | The event data. |
 
 ## JmObserverManager {#JmObserverManager}
 

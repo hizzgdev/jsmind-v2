@@ -50,11 +50,76 @@ Creates a serializer for the given format.
 
 Base interface for all mind map serializers.
 
-**Properties**
+### deserialize {#JmMindSerializer.deserialize}
+
+```ts
+deserialize(data: unknown): JmMind
+```
+
+Deserializes data to a mind map.
+
+**Returns:** The deserialized mind map.
+
+**Throws**
+
+- `JsMindError` If deserialization fails.
+
+**Parameters**
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `deserialize` | unknown | Deserializes data to a mind map. |
-| `getFormatName` | unknown | Gets the format name this serializer supports. |
-| `serialize` | unknown | Serializes a mind map to the specific format. |
-| `validate` | unknown | Validates if the data can be deserialized by this serializer. |
+| `data` | unknown | The data to deserialize. |
+
+### getFormatName {#JmMindSerializer.getFormatName}
+
+```ts
+getFormatName(): string
+```
+
+Gets the format name this serializer supports.
+
+**Returns:** The format name.
+
+**Throws**
+
+- `JsMindError` If format name is not implemented.
+
+### serialize {#JmMindSerializer.serialize}
+
+```ts
+serialize(mind: JmMind): unknown
+```
+
+Serializes a mind map to the specific format.
+
+**Returns:** The serialized data in the specific format.
+
+**Throws**
+
+- `JsMindError` If serialization fails.
+
+**Parameters**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `mind` | [JmMind](/en/reference/api/mind#JmMind) | The mind map to serialize. |
+
+### validate {#JmMindSerializer.validate}
+
+```ts
+validate(data: unknown): boolean
+```
+
+Validates if the data can be deserialized by this serializer.
+
+**Returns:** True if the data is valid for this format.
+
+**Throws**
+
+- `JsMindError` If validation fails.
+
+**Parameters**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `data` | unknown | The data to validate. |

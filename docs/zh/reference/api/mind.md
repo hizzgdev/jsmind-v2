@@ -265,11 +265,20 @@ removeNode(nodeId: string): void
 
 观察者模式的接口。
 
-**属性**
+### update {#JmObserver.update}
+
+```ts
+update(observedObject: T, event: unknown): void
+```
+
+当被观察对象的状态发生变化时会调用此方法。
+
+**参数**
 
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
-| `update` | unknown | 当被观察对象的状态发生变化时会调用此方法。 |
+| `observedObject` | `T` | 被观察的对象。 |
+| `event` | unknown | 事件数据。 |
 
 ## JmObserverManager {#JmObserverManager}
 

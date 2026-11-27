@@ -82,13 +82,14 @@ const copy = serializer.deserialize(data);
 
 下列页面列出了已发布类型声明中的类、接口和方法。标识符保持英文；类型声明中的说明文字在本页对应的英文版和中文版中成对提供。
 
-- [JsMind](./api/jsmind) — 默认导出：`create`、`open`、`serialize`、`exportImage` 以及静态辅助属性
+- [JsMind](./api/jsmind) — 默认导出：`create`、`open`、`serialize`、`exportImage`、`commands` 以及静态辅助属性
 - [JmMind](./api/mind) — 思维导图模型
 - [节点](./api/node) — 节点、内容和方向
 - [边](./api/edge) — 节点之间的额外关系
 - [选项](./api/options) — `create` 的配置
 - [序列化](./api/serialization) — `jsMind.Serializer`
 - [图片导出](./api/export) — `exportImage` 的选项和结果
+- [视口与显示命令](./api/viewport) — `jm.commands` 和它驱动的 `JmViewHandle`
 - [样式与主题](./api/style) — 视觉覆盖和主题类型
 
 更详细说明磁盘文档的 [数据格式](./data-format) 页面仍在编写中。API 用到的类型会在本参考中说明，但那一页还不是完成态的指南。

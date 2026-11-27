@@ -58,7 +58,7 @@ JmCommander.exportImage() → JmViewHandle.capture()
 
 **改模型的必须走第二条。** 折叠、移动、改文字、改样式——数据是真相，视图是投影。把模型变更塞进 Commander 会产生第二条修改入口，和 AI 走 CLI 的路径分叉。
 
-**不改模型的走第一条。** 平移、缩放、导出——只改变观察方式，不改变任何节点。`JmViewHandle` 是视图向应用层暴露的窄接口（当前只有 `capture()`，未来加 `pan/zoom/centerOn`）。
+**不改模型的走第一条。** 平移、缩放、导出——只改变观察方式，不改变任何节点。`JmViewHandle` 是视图向应用层暴露的窄接口；它提供哪些操作见[视口参考](/zh/reference/api/viewport)——接口还在增加，这里不逐项枚举。
 
 ## 4. 关键决策
 

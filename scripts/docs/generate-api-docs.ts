@@ -62,6 +62,13 @@ const INCLUDE = new Set([
     'JmLineCurve',
     'JmObserver',
     'JmObserverManager',
+    // The display face: the commands reachable as `jm.commands` and the view
+    // handle behind them.
+    'JmCommander',
+    'JmViewHandle',
+    'JmViewport',
+    'JmViewportAnchor',
+    'JmFitToViewMode',
 ]);
 
 const PAGE_SYMBOLS: Record<string, string[]> = {
@@ -78,6 +85,7 @@ const PAGE_SYMBOLS: Record<string, string[]> = {
     ],
     'serialization': ['JmMindSerializerFactory', 'JmMindSerializer'],
     'export': ['JmExportImageOptions', 'JmExportImageResult', 'JmImageType'],
+    'viewport': ['JmCommander', 'JmViewHandle', 'JmViewport', 'JmViewportAnchor', 'JmFitToViewMode'],
     'style': [
         'JmNodeStyle', 'JmLineStyle', 'JmStyle', 'JmThemeNode', 'JmThemeLine',
         'JmThemeExpander', 'JmThemeShadow', 'JmThemeShadowLayer',
@@ -95,6 +103,7 @@ const PAGE_TITLES = {
         options: 'Options',
         serialization: 'Serialization',
         export: 'Image export',
+        viewport: 'Viewport and display commands',
         style: 'Style and theme',
     },
     zh: {
@@ -105,6 +114,7 @@ const PAGE_TITLES = {
         options: '选项',
         serialization: '序列化',
         export: '图片导出',
+        viewport: '视口与显示命令',
         style: '样式与主题',
     },
 } as const;
@@ -118,6 +128,8 @@ const PAGE_INTROS = {
         options: 'Configuration passed to `jsMind.create`. Omitted fields use the library defaults.',
         serialization: 'Read and write a mind map through `jsMind.Serializer.create(format)`. `JsMind.serialize()` is a JSON convenience on an open map.',
         export: 'Types used by `JsMind.exportImage`.',
+        viewport:
+            'The display commands reachable as `jm.commands`, and the view handle they drive. Every command here changes how the map is shown and never the map itself. The zoom factor they accept is clamped to the range 0.1–4.',
         style: 'Visual overrides on a map, a node, or an edge. Unset fields fall back to the theme.',
     },
     zh: {
@@ -128,6 +140,8 @@ const PAGE_INTROS = {
         options: '传给 `jsMind.create` 的配置。省略的字段使用库的默认值。',
         serialization: '通过 `jsMind.Serializer.create(format)` 读写导图。`JsMind.serialize()` 是对已打开导图的 JSON 便捷方法。',
         export: '`JsMind.exportImage` 使用的类型。',
+        viewport:
+            '`jm.commands` 暴露的显示命令，以及这些命令背后的视图接口。这里的命令只改变导图的显示方式，不改变导图本身。它们接受的缩放系数会被夹到 0.1–4 这个范围。',
         style: '导图、节点或边上的视觉覆盖。未设置的字段回退到主题。',
     },
 } as const;
@@ -759,7 +773,13 @@ function renderSymbol(
 
     if (node.kind === KIND_INTERFACE || node.kind === KIND_ALIAS) {
         const children = (node.children ?? []).filter((child) => !skipMember(child));
-        if (children.length > 0) {
+        // An interface member that is callable keeps its signature on the call
+        // signature, not on the member itself, so the properties table would
+        // print it as a type of `unknown` and drop its parameters. Such members
+        // get the same section a class method gets.
+        const properties = children.filter((child) => !isCallable(child));
+        const methods = children.filter((child) => isCallable(child));
+        if (properties.length > 0) {
             const ui = UI[locale];
             lines.push(
                 `**${ui.properties}**`,
@@ -767,7 +787,7 @@ function renderSymbol(
                 `| ${ui.name} | ${ui.type} | ${ui.description} |`,
                 '| --- | --- | --- |'
             );
-            for (const child of children) {
+            for (const child of properties) {
                 const optional = child.flags?.isOptional ? ` (${ui.optional})` : '';
                 const typ = escapeTableCell(renderType(child.type, locale, typePages, true));
                 const childFields = localizedFields(`${node.name}.${child.name}`, child, locale, translations);
@@ -775,6 +795,9 @@ function renderSymbol(
                 lines.push(`| \`${child.name}\`${optional} | ${typ} | ${desc} |`);
             }
             lines.push('');
+        }
+        for (const method of methods) {
+            lines.push(renderMember(node.name, method, locale, translations, typePages), '');
         }
         return lines.join('\n').replace(/\n{3,}/g, '\n\n');
     }
