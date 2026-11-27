@@ -12,6 +12,7 @@
 |---|---|
 | [ci-classification.md](ci-classification.md) | 哪些检查拦合并、哪些只是信息 |
 | [render-test-plan.md](render-test-plan.md) | 渲染层该有哪些断言、断言什么值 |
+| [preview-setup.md](preview-setup.md) | 一次性配置：账号、secret、端点、坑 |
 | 本文 | 除了断言，CI 还要产出什么给人看；人看到的东西怎么变成机器检查 |
 
 ## 2. 四层
