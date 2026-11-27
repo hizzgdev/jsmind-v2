@@ -674,6 +674,10 @@
     "summary": "如果当前有打开的思维导图，则关闭它。",
     "remarks": "调用 `close` 之后，{@link JsMind.mind} 为 `null`，直到再次 {@link JsMind.open} 打开另一张图。"
   },
+  "JsMind.commands": {
+    "summary": "发出只改变显示方式的命令——导出、平移、缩放——不改变导图内容。",
+    "remarks": "从外部可达，好让调用方留住这个引用：壳、工具栏按钮或键盘快捷键直接持有并调用它，不必每次都经由实例。"
+  },
   "JsMind.create": {
     "summary": "创建 jsMind 实例，并将其视图附加到容器上。",
     "returns": "一个 Promise，解析为新实例。此时尚未打开思维导图；请再用 {@link JmMind} 调用 {@link JsMind.open} 来显示一张图。",

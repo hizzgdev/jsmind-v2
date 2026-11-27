@@ -40,6 +40,12 @@ export const JSMIND_VIEW_STYLES = `
         -webkit-user-select: none;
         user-select: none;
         background-color: var(--jm-background);
+        /* The viewport moves the inner box with a transform, and a transform
+           paints outside the box it started in: panned far enough, the map would
+           grow the *page's* scrollable area and hand the reader a scrollbar that
+           scrolls the wrong thing. Clipping here keeps the map inside the view.
+           A view that is never panned has nothing outside this box to clip. */
+        overflow: hidden;
     }
 
     .jsmind-inner {

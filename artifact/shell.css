@@ -21,15 +21,25 @@ body {
 }
 
 /*
- * The map's host. It starts at the viewport size, and shell.js grows it to the
- * size of the rendered map: the renderer centers the map inside its own box and
- * clips whatever leaves that box, so a host left at the viewport size crops a
- * large map. Growing the host moves the scrollbar to the page, which is the one
- * scrollbar a reader already knows how to use.
+ * The map's host: the whole window. The map lives in a viewport of this size
+ * and is moved by the library, so the page never grows past the window and
+ * never shows a scrollbar of its own — a map bigger than the screen is reached
+ * by dragging it, not by scrolling the document.
+ *
+ * `touch-action: none` hands touch gestures to the drag handler: without it the
+ * browser would claim a vertical drag for panning the page and the map would
+ * only move sideways.
  */
 #jsmind {
     width: 100%;
     height: 100%;
+    cursor: grab;
+    touch-action: none;
+}
+
+/* Only while a drag is in progress; the shell adds and removes the class. */
+#jsmind.jsmind-dragging {
+    cursor: grabbing;
 }
 
 /* Shown only when the render throws; the text carries the browser's message. */

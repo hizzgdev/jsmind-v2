@@ -464,6 +464,104 @@ export class BrowserHarness {
     }
 
     /**
+     * Drags with a real left button from one point to another.
+     *
+     * @remarks
+     * Four intermediate moves rather than one jump: a pan handler that reads
+     * `clientX` per event only ever sees the distance between two consecutive
+     * events, so a single move would test the same thing as the release. The
+     * button stays reported as held (`buttons: 1`) so the page sees a drag and
+     * not a hover.
+     *
+     * @param fromX - Start X, in CSS pixels.
+     * @param fromY - Start Y, in CSS pixels.
+     * @param toX - End X, in CSS pixels.
+     * @param toY - End Y, in CSS pixels.
+     */
+    async dragTo(fromX: number, fromY: number, toX: number, toY: number): Promise<void> {
+        await this.send('Input.dispatchMouseEvent', {
+            type: 'mouseMoved',
+            x: fromX,
+            y: fromY,
+            button: 'left',
+        });
+        await this.send('Input.dispatchMouseEvent', {
+            type: 'mousePressed',
+            x: fromX,
+            y: fromY,
+            button: 'left',
+            clickCount: 1,
+        });
+        for (let step = 1; step <= 4; step += 1) {
+            await this.send('Input.dispatchMouseEvent', {
+                type: 'mouseMoved',
+                x: fromX + ((toX - fromX) * step) / 4,
+                y: fromY + ((toY - fromY) * step) / 4,
+                button: 'left',
+                buttons: 1,
+            });
+        }
+        await this.send('Input.dispatchMouseEvent', {
+            type: 'mouseReleased',
+            x: toX,
+            y: toY,
+            button: 'left',
+            clickCount: 1,
+        });
+        await this.settle();
+    }
+
+    /**
+     * Dispatches a real double click at a viewport point.
+     *
+     * @remarks
+     * Two presses with ascending `clickCount`, which is what makes the browser
+     * raise `dblclick`: sending the event by hand means the count is ours to
+     * report, and a pair of plain clicks would only produce two `click`s.
+     *
+     * @param x - CSS pixel X, as `getBoundingClientRect()` reports it.
+     * @param y - CSS pixel Y, as `getBoundingClientRect()` reports it.
+     */
+    async doubleClickAt(x: number, y: number): Promise<void> {
+        for (const clickCount of [1, 2]) {
+            await this.send('Input.dispatchMouseEvent', {
+                type: 'mousePressed',
+                x,
+                y,
+                button: 'left',
+                clickCount,
+            });
+            await this.send('Input.dispatchMouseEvent', {
+                type: 'mouseReleased',
+                x,
+                y,
+                button: 'left',
+                clickCount,
+            });
+        }
+        await this.settle();
+    }
+
+    /**
+     * Dispatches a real wheel event at a point.
+     *
+     * @param x - Pointer X, in CSS pixels.
+     * @param y - Pointer Y, in CSS pixels.
+     * @param deltaY - Reported scroll distance. Negative scrolls up, which is
+     * the direction a wheel zooms in.
+     */
+    async wheelAt(x: number, y: number, deltaY: number): Promise<void> {
+        await this.send('Input.dispatchMouseEvent', {
+            type: 'mouseWheel',
+            x,
+            y,
+            deltaX: 0,
+            deltaY,
+        });
+        await this.settle();
+    }
+
+    /**
      * Shuts the browser down and removes its temporary profile.
      */
     async close(): Promise<void> {

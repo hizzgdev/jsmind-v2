@@ -58,6 +58,18 @@ static Serializer: typeof JmMindSerializerFactory
 
 序列化器工厂。支持的格式是 `jsMind.Serializer.create('json')` 和 `jsMind.Serializer.create('freemind')`。
 
+### commands {#JsMind.commands}
+
+```ts
+get commands(): JmCommander
+```
+
+发出只改变显示方式的命令——导出、平移、缩放——不改变导图内容。
+
+**说明**
+
+从外部可达，好让调用方留住这个引用：壳、工具栏按钮或键盘快捷键直接持有并调用它，不必每次都经由实例。
+
 ### Author {#JsMind.Author}
 
 ```ts

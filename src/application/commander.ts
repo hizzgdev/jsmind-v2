@@ -16,7 +16,7 @@
  */
 
 import type { JmExportImageOptions, JmExportImageResult } from '../view/export.ts';
-import type { JmViewHandle } from '../view/handle.ts';
+import type { JmViewHandle, JmViewport, JmViewportAnchor } from '../view/handle.ts';
 
 /**
  * Issues commands that change what is displayed, never what is stored.
@@ -46,13 +46,64 @@ export class JmCommander {
         return await this.view.capture(options);
     }
 
-    // Future viewport commands land here, next to this one:
-    //
-    // panTo(x: number, y: number): void;
-    // zoomTo(scale: number): void;
-    // centerOn(nodeId: string): void;
-    //
-    // Folding and moving do not, for the reason given in the handle: they change
-    // the mind, and the mind already notifies the view. A command that reached
-    // past the model would be a second way to write the same data.
+    /**
+     * Moves the map so that the given map-space point sits at the viewport's
+     * top-left corner.
+     *
+     * @param x - Map-space x, in CSS pixels.
+     * @param y - Map-space y, in CSS pixels.
+     */
+    panTo(x: number, y: number): void {
+        this.view.panTo(x, y);
+    }
+
+    /**
+     * Moves the map by a distance in screen pixels.
+     *
+     * @param dx - Pixels to move the map right.
+     * @param dy - Pixels to move the map down.
+     */
+    panBy(dx: number, dy: number): void {
+        this.view.panBy(dx, dy);
+    }
+
+    /**
+     * Changes the zoom factor, holding one point still.
+     *
+     * @param scale - Requested factor, clamped by the view.
+     * @param anchor - Point to hold still, in the view's own pixels. Defaults to
+     * the middle of the viewport.
+     */
+    zoomTo(scale: number, anchor?: JmViewportAnchor): void {
+        this.view.zoomTo(scale, anchor);
+    }
+
+    /**
+     * Centres one node in the viewport at the current zoom level.
+     *
+     * @param nodeId - Id of a node in the open mind map.
+     */
+    centerOn(nodeId: string): void {
+        this.view.centerOn(nodeId);
+    }
+
+    /**
+     * Reads the current viewport.
+     *
+     * @returns The origin, the zoom factor and the visible size.
+     */
+    getViewport(): JmViewport {
+        return this.view.getViewport();
+    }
+
+    /**
+     * Zooms out until the whole map is visible and centres it.
+     */
+    fitToView(): void {
+        this.view.fitToView();
+    }
+
+    // Folding and moving do not land here, for the reason given in the handle:
+    // they change the mind, and the mind already notifies the view. A command
+    // that reached past the model would be a second way to write the same data.
 }

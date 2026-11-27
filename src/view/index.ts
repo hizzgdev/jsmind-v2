@@ -6,6 +6,15 @@ import { JmEdgeView } from './edge.ts';
 import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
 import { captureShadowContent, type JmExportImageOptions, type JmExportImageResult } from './export.ts';
+import type { JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
+import {
+    fitViewportScale,
+    panViewport,
+    viewportCssTransform,
+    viewportOriginFor,
+    zoomViewport,
+    type JmViewportTransform,
+} from './viewport.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
 import { DomUtility, JmDomUtility, type JmElement } from '../common/dom.ts';
@@ -17,7 +26,7 @@ import type { Arranger } from '../arranger/index.ts';
  * View of mind map.
  * @public
  */
-export class JmView {
+export class JmView implements JmViewHandle {
     private readonly container: HTMLElement;
 
     private readonly shadowRoot: ShadowRoot;
@@ -45,7 +54,33 @@ export class JmView {
 
     private readonly viewSize: JmSize = new JmSize(1, 1);
 
+    /**
+     * Size of the content itself - the map plus its padding - kept separately
+     * from {@link viewSize}, which grows to the container when the map is
+     * smaller. Fitting and centring need the content's own size.
+     */
+    private readonly contentSize: JmSize = new JmSize(0, 0);
+
     private readonly viewOffset: JmPoint = new JmPoint(0, 0);
+
+    /** How the map sits in the viewport. Identity until a command moves it. */
+    private readonly viewport: JmViewportTransform = { x: 0, y: 0, scale: 1 };
+
+    /**
+     * Whether the viewport has taken the inner box over from native scrolling.
+     *
+     * @remarks
+     * A view that is never asked to pan or zoom keeps the old behaviour: the map
+     * overflows the inner box and the browser's own scrollbars reach it. The
+     * first viewport command replaces that with a transform, and a transform
+     * moves content without changing the scrollable area, so the two cannot both
+     * be in charge. Tracked here rather than read back off the element so the
+     * switch happens once, on the command, and not on every render.
+     */
+    private viewportActive = false;
+
+    /** The map being displayed. Kept for {@link centerOn}, which needs a node. */
+    private mind: JmMind | null = null;
 
     private constructor(container: HTMLElement, shadowRoot: ShadowRoot, innerContainer: JmElement, nodeView: JmNodeView, edgeView: JmEdgeView, arranger: Arranger, options: ViewOptions) {
         this.container = container;
@@ -112,11 +147,22 @@ export class JmView {
     }
 
     async measureNodeSizes(mind: JmMind): Promise<void> {
-        const promises = Object.values(mind._nodes).map((node: JmNode)=>this.measureNodeSize(node));
-        await Promise.all(promises);
+        await this._whileUnscaled(() =>
+            Promise.all(Object.values(mind._nodes).map((node: JmNode)=>this._measureNode(node)))
+        );
     }
 
     async measureNodeSize(node: JmNode): Promise<JmSize> {
+        return await this._whileUnscaled(() => this._measureNode(node));
+    }
+
+    /**
+     * Measures one node and records its size for the layout.
+     *
+     * @param node - Node to measure.
+     * @returns The measured size, in layout pixels.
+     */
+    private async _measureNode(node: JmNode): Promise<JmSize> {
         return this.nodeView.createAndMeasure(node)
             .then((size: JmSize)=>{
                 this.arranger.recordNodeSize(node, size);
@@ -124,7 +170,40 @@ export class JmView {
             });
     }
 
+    /**
+     * Runs a measurement with the viewport transform out of the way.
+     *
+     * @remarks
+     * Measurement reads `getBoundingClientRect()`, and a rect includes every
+     * transform above the element: a node measured at 2x would be recorded as
+     * twice its size, and the layout computed from that would be wrong. So the
+     * transform is cleared for the measurement and put back afterwards.
+     *
+     * No flicker: the wait inside a measurement is a `requestAnimationFrame`
+     * callback, and callbacks run before paint, so the transform is back in place
+     * before the frame that would have shown the unscaled tree.
+     *
+     * Nothing to do for a view that was never panned or zoomed, which is every
+     * caller that does not use the viewport API.
+     *
+     * @param work - Measurement to run.
+     * @returns What the measurement returned.
+     */
+    private async _whileUnscaled<T>(work: () => Promise<T>): Promise<T> {
+        if (!this.viewportActive) {
+            return await work();
+        }
+        const element = this.innerContainer.element;
+        element.style.transform = 'none';
+        try {
+            return await work();
+        } finally {
+            this._applyViewport();
+        }
+    }
+
     async settle(mind: JmMind, _changedNodeIds: string[] = []): Promise<void> {
+        this.mind = mind;
         this._updateViewSize(mind);
         this.nodeView.updateCanvasSize(this.viewSize);
         this.edgeView.updateEdgeViewsSize(this.viewSize);
@@ -222,11 +301,159 @@ export class JmView {
         return await captureShadowContent(this.container, this.shadowRoot, this.viewSize, options);
     }
 
+    /**
+     * Moves the map so that the given map-space point sits at the viewport's
+     * top-left corner.
+     *
+     * @param x - Map-space x, in CSS pixels.
+     * @param y - Map-space y, in CSS pixels.
+     */
+    panTo(x: number, y: number): void {
+        this._setViewport({ x, y, scale: this.viewport.scale });
+    }
+
+    /**
+     * Moves the map by a distance in screen pixels.
+     *
+     * @param dx - Pixels to move the map right.
+     * @param dy - Pixels to move the map down.
+     */
+    panBy(dx: number, dy: number): void {
+        this._setViewport(panViewport(this.viewport, dx, dy));
+    }
+
+    /**
+     * Changes the zoom factor, holding one point still.
+     *
+     * @param scale - Requested factor, clamped to the range the view accepts.
+     * @param anchor - Point to hold still, in the view's own pixels. Defaults to
+     * the middle of the viewport, which is what a control without a pointer
+     * position wants.
+     */
+    zoomTo(scale: number, anchor?: JmViewportAnchor): void {
+        this._setViewport(zoomViewport(this.viewport, scale, anchor ?? this._viewportCentre()));
+    }
+
+    /**
+     * Centres one node in the viewport at the current zoom level.
+     *
+     * @param nodeId - Id of a node in the open mind map.
+     * @throws {@link JsMindError} When no map is open, or the id is not in it.
+     */
+    centerOn(nodeId: string): void {
+        const mind = this.mind;
+        if (!mind) {
+            throw new JsMindError('No mind map is currently open');
+        }
+        const node = mind._nodes[nodeId];
+        if (!node) {
+            throw new JsMindError(`Node '${nodeId}' is not in the open mind map`);
+        }
+        // The node's own box, in map space: the layout point is its top-left
+        // corner, and the recorded size is its extent from there.
+        const layoutPoint = this.arranger.calculateNodePoint(node).offset(this.viewOffset);
+        const size = node._data.layout.size;
+        const focus = new JmPoint(layoutPoint.x + size.width / 2, layoutPoint.y + size.height / 2);
+        const origin = viewportOriginFor(focus, this._viewportCentre(), this.viewport.scale);
+        this._setViewport({ x: origin.x, y: origin.y, scale: this.viewport.scale });
+    }
+
+    /**
+     * Reads the current viewport.
+     *
+     * @returns The origin, the zoom factor and the visible size.
+     */
+    getViewport(): JmViewport {
+        const size = this._viewportSize();
+        return {
+            x: this.viewport.x,
+            y: this.viewport.y,
+            scale: this.viewport.scale,
+            width: size.width,
+            height: size.height,
+        };
+    }
+
+    /**
+     * Zooms out until the whole map is visible and centres it.
+     *
+     * @remarks
+     * The map is laid out centred in the content box (see `_updateViewSize`),
+     * so the content box's middle is the map's middle: focusing on it centres
+     * the map whether the map is larger than the viewport or smaller.
+     */
+    fitToView(): void {
+        const viewportSize = this._viewportSize();
+        const scale = fitViewportScale(this.contentSize, viewportSize);
+        const focus = new JmPoint(this.viewSize.width / 2, this.viewSize.height / 2);
+        const anchor = { x: viewportSize.width / 2, y: viewportSize.height / 2 };
+        const origin = viewportOriginFor(focus, anchor, scale);
+        this._setViewport({ x: origin.x, y: origin.y, scale });
+    }
+
+    /**
+     * Stores a viewport state and pushes it onto the rendered tree.
+     *
+     * @param transform - State to apply.
+     */
+    private _setViewport(transform: JmViewportTransform): void {
+        this.viewport.x = transform.x;
+        this.viewport.y = transform.y;
+        this.viewport.scale = transform.scale;
+        this._applyViewport();
+    }
+
+    /**
+     * Writes the viewport state onto the inner box.
+     *
+     * @remarks
+     * The transform lives on the inner box rather than on a wrapper of its own,
+     * for two reasons. The boxes are already there - the content is positioned
+     * inside it - and `export.ts` resets `transform` on the box it clones, which
+     * is what keeps a capture independent of where the view happens to be
+     * looking.
+     *
+     * The first call also takes the box over from native scrolling, because a
+     * transform does not extend the scrollable area: with both in charge a drag
+     * would move the map and a scrollbar would move it again.
+     */
+    private _applyViewport(): void {
+        const element = this.innerContainer.element;
+        if (!this.viewportActive) {
+            this.viewportActive = true;
+            element.style.overflow = 'hidden';
+        }
+        element.style.transformOrigin = '0 0';
+        element.style.transform = viewportCssTransform(this.viewport);
+    }
+
+    /**
+     * The visible box's size, in CSS pixels.
+     *
+     * @returns Width and height of the inner box, read from layout so the
+     * viewport transform cannot change what it reports.
+     */
+    private _viewportSize(): JmSize {
+        return new JmSize(this.innerContainer.element.clientWidth, this.innerContainer.element.clientHeight);
+    }
+
+    /**
+     * The middle of the visible box, in the view's own pixels.
+     *
+     * @returns The default zoom anchor.
+     */
+    private _viewportCentre(): JmViewportAnchor {
+        const size = this._viewportSize();
+        return { x: size.width / 2, y: size.height / 2 };
+    }
+
     private _updateViewSize(mind: JmMind): void {
         const mindBounds = this.arranger.calculateMindBounds(mind);
         const mindViewSize = mindBounds.size;
         const minWidth = mindViewSize.width + this.options.padding.left + this.options.padding.right;
         const minHeight = mindViewSize.height + this.options.padding.top + this.options.padding.bottom;
+        this.contentSize.width = minWidth;
+        this.contentSize.height = minHeight;
         this.viewSize.width = Math.max(this.innerContainer.clientWidth, minWidth);
         this.viewSize.height = Math.max(this.innerContainer.clientHeight, minHeight);
 

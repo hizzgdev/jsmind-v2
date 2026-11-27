@@ -7,9 +7,11 @@
  * rendered document how many nodes it shows and how big they are. A page that
  * only *looks* right in the source would pass every other check.
  *
- * The second case is the one the design decision is about: a map larger than
- * the window must be reachable by scrolling the page, not cropped to the
- * viewport. It measures the corners after scrolling there.
+ * The second case is the one the design decision is about: a map larger than the
+ * window has to be reachable in the window, not cropped to the viewport and not
+ * delivered by growing the document either. It opens the page and reads the
+ * viewport the page established on its own, then drives real pointer and wheel
+ * events the way a reader would.
  *
  * It drives `dist/cli.js`, so it needs a build and a Chromium binary.
  */
@@ -241,7 +243,47 @@ test('ui - export html writes one page that renders over file:// with no browser
     );
 });
 
-test('ui - a map larger than the window scrolls into view instead of being cropped', async () => {
+/** Where the page's map is, as the browser painted it. */
+interface PaintedMap {
+    /** Every rendered node's box, relative to the window. */
+    nodes: { left: number; top: number; right: number; bottom: number; width: number }[];
+    /** The document's own scroll extent, which must not exceed the window. */
+    page: [number, number, number, number];
+    /** The map's host, which must stay the size of the window. */
+    host: [number, number];
+}
+
+/**
+ * Reads the painted map back from the page.
+ *
+ * @param harness - Live browser.
+ * @returns Boxes in CSS pixels, the outermost first is not implied: callers
+ * take the extremes themselves.
+ */
+async function paintedMap(harness: BrowserHarness): Promise<PaintedMap> {
+    return await harness.evaluate<PaintedMap>(`(() => {
+        const host = document.getElementById('jsmind');
+        const box = host.getBoundingClientRect();
+        const nodes = [...host.shadowRoot.querySelectorAll('.jsmind-node')].map(node => {
+            const rect = node.getBoundingClientRect();
+            return {
+                left: rect.left - box.left,
+                top: rect.top - box.top,
+                right: rect.right - box.left,
+                bottom: rect.bottom - box.top,
+                width: rect.width,
+            };
+        });
+        const page = document.documentElement;
+        return {
+            nodes,
+            page: [page.scrollWidth, window.innerWidth, page.scrollHeight, window.innerHeight],
+            host: [Math.round(box.width), Math.round(box.height)],
+        };
+    })()`);
+}
+
+test('ui - a map larger than the window is fitted to it and moved by gestures', async () => {
     const { document: data, nodeCount } = bigMap();
 
     await withExportedPage(data, async ({ output }) => {
@@ -250,46 +292,73 @@ test('ui - a map larger than the window scrolls into view instead of being cropp
             await harness.setViewport(1200, 800);
             await harness.navigate(pathToFileURL(output).href);
 
-            const before = await harness.evaluate<{
-                nodes: number;
-                scrolls: [boolean, boolean];
-                host: [number, number];
-            }>(`(() => {
-                const host = document.getElementById('jsmind');
-                const nodes = host.shadowRoot.querySelectorAll('.jsmind-node');
-                const page = document.documentElement;
-                return {
-                    nodes: nodes.length,
-                    scrolls: [page.scrollWidth > window.innerWidth, page.scrollHeight > window.innerHeight],
-                    host: [host.clientWidth, host.clientHeight],
-                };
-            })()`);
+            const opened = await paintedMap(harness);
+            assert.strictEqual(opened.nodes.length, nodeCount, 'the whole document is rendered');
+            assert.deepStrictEqual(opened.page, [1200, 1200, 800, 800], 'the page itself does not scroll');
+            assert.deepStrictEqual(opened.host, [1200, 800], 'the host stays the size of the window');
 
-            assert.strictEqual(before.nodes, nodeCount, 'the whole document is rendered');
-            assert.strictEqual(before.scrolls[0], true, 'the page scrolls horizontally');
-            assert.strictEqual(before.scrolls[1], true, 'the page scrolls vertically');
-            assert.ok(before.host[0] > 1200 && before.host[1] > 800, 'the host grew past the viewport');
-
-            // Scroll to the far corner: two nodes that were off-screen must now
-            // be inside the window, which is what "not cropped" means.
-            const after = await harness.evaluate<{ scroll: [number, number]; visible: boolean }>(
-                `(() => {
-                    window.scrollTo(document.documentElement.scrollWidth, document.documentElement.scrollHeight);
-                    return new Promise(resolve => requestAnimationFrame(() => {
-                        const nodes = [...document.getElementById('jsmind').shadowRoot.querySelectorAll('.jsmind-node')];
-                        const right = Math.max(...nodes.map(node => node.getBoundingClientRect().right));
-                        const bottom = Math.max(...nodes.map(node => node.getBoundingClientRect().bottom));
-                        resolve({
-                            scroll: [window.scrollX, window.scrollY],
-                            visible: right <= window.innerWidth + 1 && bottom <= window.innerHeight + 1,
-                        });
-                    }));
-                })()`,
-                true
+            // "Reachable" means the whole map, not a corner of it: every node
+            // has to be inside the window on open.
+            const outside = opened.nodes.filter(
+                node => node.left < -1 || node.top < -1 || node.right > 1201 || node.bottom > 801
             );
+            assert.strictEqual(outside.length, 0, `${outside.length} nodes are outside the window on open`);
 
-            assert.ok(after.scroll[0] > 0 && after.scroll[1] > 0, 'the page actually scrolled');
-            assert.strictEqual(after.visible, true, 'the far corner of the map is reachable');
+            // A map this size fits by shrinking, so the nodes are smaller than
+            // their layout size — that is the fit, measured rather than assumed.
+            const root = opened.nodes[0]!;
+            assert.ok(root.width < 200, `the fitted map should be scaled down, root is ${root.width.toFixed(1)}px wide`);
+
+            // Dragging moves the map by the distance dragged, and only by that.
+            await harness.dragTo(600, 400, 350, 250);
+            const dragged = await paintedMap(harness);
+            for (const [index, node] of dragged.nodes.entries()) {
+                const was = opened.nodes[index]!;
+                assert.ok(
+                    Math.abs(node.left - (was.left - 250)) < 1 && Math.abs(node.top - (was.top - 150)) < 1,
+                    `node ${index} should have moved with the pointer: ` +
+                        `${was.left.toFixed(1)}/${was.top.toFixed(1)} -> ${node.left.toFixed(1)}/${node.top.toFixed(1)}`
+                );
+            }
+            assert.deepStrictEqual(dragged.page, [1200, 1200, 800, 800], 'dragging does not scroll the page');
+
+            // The wheel zooms: one upward notch scales the map up, anchored on
+            // the pointer, so the node under it keeps its place on screen.
+            await harness.wheelAt(500, 400, -400);
+            const zoomed = await paintedMap(harness);
+            const scale = zoomed.nodes[0]!.width / dragged.nodes[0]!.width;
+            assert.ok(scale > 1.5, `one long wheel notch should zoom in well past 1.5x, got ${scale.toFixed(2)}`);
+
+            // At that zoom, a reader can still drag their way to the far corner:
+            // the map is bigger than the window, so no single drag crosses it.
+            const target = (map: PaintedMap) =>
+                map.nodes.reduce((best, node) => (node.right + node.bottom > best.right + best.bottom ? node : best));
+            let reached = false;
+            for (let attempt = 0; attempt < 10 && !reached; attempt += 1) {
+                const corner = target(await paintedMap(harness));
+                reached = corner.right <= 1190 && corner.bottom <= 790 && corner.right > 0 && corner.bottom > 0;
+                if (reached) {
+                    break;
+                }
+                // Drag the distance still needed, capped at what fits inside the
+                // window: a drag longer than the window cannot be dispatched.
+                const dx = Math.max(-400, Math.min(400, -(corner.right - 1150)));
+                const dy = Math.max(-400, Math.min(400, -(corner.bottom - 750)));
+                await harness.dragTo(600, 400, 600 + dx, 400 + dy);
+            }
+            assert.strictEqual(reached, true, 'the far corner of the map is reachable by dragging at 2x');
+
+            // One gesture returns to the fitted view the page opened with.
+            await harness.doubleClickAt(400, 300);
+            const reset = await paintedMap(harness);
+            for (const [index, node] of reset.nodes.entries()) {
+                assert.ok(
+                    Math.abs(node.left - opened.nodes[index]!.left) < 1 &&
+                        Math.abs(node.top - opened.nodes[index]!.top) < 1,
+                    `node ${index} should be back where it opened`
+                );
+            }
+            assert.deepStrictEqual(reset.page, [1200, 1200, 800, 800]);
         } finally {
             await harness.close();
         }
