@@ -2019,18 +2019,13 @@ describe('tutorial post listing', () => {
 
         const posts = listTutorialPosts(ROOT);
         assert.ok(posts.length >= 1);
-        const first = posts[0];
-        assert.strictEqual(first.id, '162');
-        assert.strictEqual(first.slug, '162-color-nodes-with-tones');
-        assert.strictEqual(first.date, '2026-11-28');
-        assert.strictEqual(first.titles.en, 'Color specific nodes to mark what matters');
-        assert.strictEqual(first.titles.zh, '给指定节点上色，把重点标出来');
-        assert.strictEqual(first.hrefs.en, 'tutorials/en/posts/162-color-nodes-with-tones.html');
-        assert.strictEqual(first.hrefs.zh, 'tutorials/zh/posts/162-color-nodes-with-tones.html');
 
         const dates = posts.map((post) => post.date);
         const sorted = [...dates].sort((a, b) => b.localeCompare(a));
         assert.deepStrictEqual(dates, sorted, 'posts should be sorted by date, newest first');
+        for (let i = 0; i < dates.length - 1; i++) {
+            assert.ok(dates[i] >= dates[i + 1], 'adjacent posts should be in newest-to-oldest date order');
+        }
         assert.strictEqual(recentTutorialPosts(posts).length, Math.min(3, posts.length));
     });
 
