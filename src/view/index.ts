@@ -163,6 +163,43 @@ export class JmView implements JmViewHandle {
     }
 
     /**
+     * Repaints one node after its style changed, and records its new size.
+     *
+     * @remarks
+     * The size is recorded because the layout is computed from it, and a style
+     * is allowed to change the box. Measurement happens unscaled for the same
+     * reason every other measurement does: a rect includes the viewport
+     * transform, so measuring at 2x would record a node twice its size.
+     *
+     * @param node - The node whose style changed.
+     * @returns The size the node occupies after the repaint.
+     */
+    async refreshNodeStyle(node: JmNode): Promise<JmSize> {
+        const size = await this._whileUnscaled(() => this.nodeView.refreshNodeStyle(node));
+        this.arranger.recordNodeSize(node, size);
+        return size;
+    }
+
+    /**
+     * Removes everything rendered for a mind map and forgets it.
+     *
+     * @remarks
+     * Called when a map leaves this view - closed, or replaced by another one.
+     * Both halves matter: the elements so nothing of the old map stays painted,
+     * and the per-node cache so the map can be rendered here again. A node that
+     * kept its cached element and size would be measured to its old dimensions
+     * and never appended, which reads as a map that renders nothing.
+     *
+     * @param mind - The map whose rendering should go.
+     */
+    clear(mind: JmMind): void {
+        Object.values(mind._nodes).forEach((node: JmNode)=>{
+            this.nodeView.releaseNode(node);
+            this.edgeView.releaseLine(node);
+        });
+    }
+
+    /**
      * Measures one node and records its size for the layout.
      *
      * @param node - Node to measure.

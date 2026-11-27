@@ -109,10 +109,18 @@ class JsMind {
     /**
      * Opens a mind map.
      *
+     * @remarks
+     * Opening replaces whatever is displayed. A map that is already open is
+     * closed first, which drops its rendered nodes and its observer: without
+     * that, opening a second map on the same view stacks it on top of the
+     * first, and opening the map that is already open keeps rendering the
+     * previous style.
+     *
      * @param mind - The mind map instance to open.
      * @returns A promise that resolves when the mind map has been opened.
      */
     async open(mind: JmMind): Promise<void> {
+        this.close();
         this.mind = mind;
         await this.coordinator.onMindMapOpened(mind);
         mind.observerManager.addObserver(this.coordinator);

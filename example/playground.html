@@ -338,6 +338,7 @@
             align-items: center;
             gap: 12px;
             flex-shrink: 0;
+            flex-wrap: wrap;
         }
 
         .template-label {
@@ -550,6 +551,8 @@
                     <a href="#" class="template-link" data-template="updateNode">Update Node</a>
                     <a href="#" class="template-link" data-template="moveNode">Move Node</a>
                     <a href="#" class="template-link" data-template="findNode">Find Node</a>
+                    <a href="#" class="template-link" data-template="toneAll">Tone: All Nodes</a>
+                    <a href="#" class="template-link" data-template="toneNode">Tone: One Node</a>
                 </div>
                 <div class="code-editor-wrapper">
                     <div id="code-editor" class="code-editor"></div>
@@ -691,6 +694,38 @@ if (mind) {
         });
     } else {
         console.log('Node not found:', nodeId);
+    }
+}`,
+            toneAll: `// Give the whole map one tone
+// 'tone' is the v2 semantic colour: default / primary / success / warning / danger / info / accent
+if (mind) {
+    const tone = 'primary';
+    let count = 0;
+    const applyTone = (node) => {
+        // Reassign the style object, don't mutate it: the model watches the
+        // property, so a whole-object assignment is what repaints the node.
+        node.style = Object.assign({}, node.style, { tone: tone });
+        count++;
+        node.children.forEach(applyTone);
+    };
+    applyTone(mind.root);
+    // No close/open needed, and no waiting: the view paints every node whose
+    // style changed in one pass on the next frame.
+    console.log('Applied tone ' + tone + ' to ' + count + ' nodes');
+}`,
+            toneNode: `// Give one node a tone and leave the rest alone
+// Replace 'node-id-here' with the actual node ID
+const nodeId = 'node-id-here';
+const tone = 'danger';
+if (mind) {
+    const node = mind.findNodeById(nodeId);
+    if (node) {
+        // Reassign the style object, don't mutate it: the model watches the
+        // property, so a whole-object assignment is what repaints the node.
+        node.style = Object.assign({}, node.style, { tone: tone });
+        console.log('Node ' + nodeId + ' is now ' + tone);
+    } else {
+        console.error('Node not found:', nodeId);
     }
 }`
         };

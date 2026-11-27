@@ -1170,6 +1170,30 @@ describe('pages site assembly', () => {
         );
     });
 
+    it('offers the tone templates and wires every template button to one', () => {
+        const html = readFileSync(join(ROOT, 'example/playground.html'), 'utf8');
+
+        // A button whose `data-template` names no key in `CODE_TEMPLATES` fails
+        // only on the published page, and only when someone clicks it:
+        // `loadTemplate` logs "Template not found" and leaves the editor alone.
+        const keys = [...html.matchAll(/data-template="([^"]+)"/g)].map(([, key = '']) => key);
+        assert.ok(keys.length > 0, 'the playground should carry template buttons');
+        for (const key of new Set(keys)) {
+            assert.match(
+                html,
+                new RegExp(`\\b${key}:\\s*` + '`'),
+                `template button ${key} should have a CODE_TEMPLATES entry`
+            );
+        }
+
+        // Per-node tone is the reason the model repaints on a style change, so
+        // the page has to show both halves: the whole map at once, and one node
+        // without touching its siblings.
+        for (const key of ['toneAll', 'toneNode']) {
+            assert.ok(new Set(keys).has(key), `the Code Editor should offer a ${key} template`);
+        }
+    });
+
     it('points the playground at icons that exist beside it, in both layouts', () => {
         const source = join(ROOT, 'example/playground.html');
         const html = readFileSync(source, 'utf8');

@@ -84,6 +84,21 @@ export class JmEdgeView {
     }
 
     /**
+     * Removes a node's line and forgets it.
+     *
+     * @remarks
+     * The element has to go, not just be hidden: opening another map on this
+     * view would otherwise leave the previous map's lines painted under the new
+     * one, and its nodes are gone so nothing would ever erase them.
+     *
+     * @param node - The node whose line to the parent should be removed.
+     */
+    releaseLine(node: JmNode): void {
+        node._data.view.leadingLine?.remove();
+        node._data.view.leadingLine = null;
+    }
+
+    /**
      * Builds the path data for one line.
      *
      * @remarks
