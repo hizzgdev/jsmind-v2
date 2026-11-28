@@ -466,8 +466,13 @@ back. A host where that run creates a card has lost `fail_closed`. While the cop
 prints `⚠ script modified since approval` for an entry that recorded the script's mtime at approval —
 one approved at a first-use prompt or a launch, not one written by hand, which records no mtime and
 therefore no drift line. That warning is the mtime check working, not a second failure, and restoring
-the file does not clear it: refresh the baseline with `hooks revoke '<the command string>'` and
-re-approve.
+the file does not clear it: refresh the baseline with
+`hermes -p <p> hooks revoke '<the command string>'` and re-approve under that same profile. The `-p`
+is not optional — the allowlist is read from `get_hermes_home()`
+(`agent/shell_hooks.py:687-689`), so a `hooks revoke` from an ordinary shell reads the
+root home, reports `No allowlist entry found for command`, and leaves the baseline in place. A
+handwritten entry records no mtime, so the next worker launch under `accept_hooks=True` re-records it
+without a prompt; an entry written at a prompt needs the prompt again.
 
 No restart is involved: the gateway re-syncs hooks from the live config when it opens a session
 (`gateway/session_policy.py` → `sync_from_config`), and a worker reads the config it was launched with.
