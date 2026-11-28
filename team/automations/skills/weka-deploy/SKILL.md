@@ -205,10 +205,12 @@ hooks:
 Absolute paths, and the string is matched **verbatim**: consent is keyed on `(event, command)`, so a different
 path or a dropped flag is a different hook that has never been approved. The interpreter is part of that
 string, and it is spelled out rather than left to the script's shebang: `labels.py` starts with
-`#!/usr/bin/env python3`, and the hook inherits the gateway's `PATH`, where `python3` is the system 3.6.8 that
-dies on `labels.py`'s `from __future__ import annotations` before it reads a card. This is the one string step
-8 writes for the ledger, and the only form of it anywhere in the repo. It is one entry of the block step 8
-writes in full — pasting this snippet as a profile's entire `hooks:` block would drop the fence.
+`#!/usr/bin/env python3`, the hook inherits the gateway unit's `PATH`
+(`systemctl --user show hermes-gateway -p Environment`), and on this host `python3` resolves there to
+`/usr/bin/python3` — 3.6.8, which dies on `labels.py`'s `from __future__ import annotations` before it reads a
+card. This is the one string step 8 writes for the ledger, and the only form of it anywhere in the repo. It is
+one entry of the block step 8 writes in full — pasting this snippet as a profile's entire `hooks:` block would
+drop the fence.
 
 Consent is per profile, in `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
 
