@@ -166,10 +166,10 @@ CI 只保证「流程能跑通、产物能生成」。
 
 ### 任务清单
 
-- [ ] S8 自包含 HTML 产物（JS + 数据内联，断网可开）
-- [ ] S14 查看器平移 / 缩放 / 居中
+- [x] S8 自包含 HTML 产物（JS + 数据内联，断网可开）
+- [x] S14 查看器平移 / 缩放 / 居中
       —— 比屏幕大的图不能平移等于看不全，所以这是 M2 的一部分，不是「高级功能」
-- [ ] S9 的 HTML 部分（PNG 已完成）
+- [x] S9 的 HTML 部分（PNG 与 HTML 已完成）
 - [ ] 产物在主流浏览器里打开验证（不只是 headless Chromium）
 
 ### M2 明确不包含
@@ -200,7 +200,7 @@ CI 只保证「流程能跑通、产物能生成」。
 | M1 | S7c（`node set-style`）、S7a 的 `context` 增强、新增 skill、新增 E2E |
 | M2 | S8（HTML）、S14（查看器）、S9 的 HTML 部分 |
 | M3 | S10（编辑）、S12（MCP）、S13（v1 adapter）、第 9 节（自定义渲染） |
-| **已完成** | S1 schema/style、S2 validation、S5 curved edges、S6 Shadow DOM、S7a CLI、S7b export、S9 PNG |
+| **已完成** | S1 schema/style、S2 validation、S5 curved edges、S6 Shadow DOM、S7a CLI、S7b export、S7c set-style、S8 HTML、S9 PNG 与 HTML、S11 skill、S14 查看器 |
 
 未在 M1–M3 里单独列出的 S 项（S3、S4、S11）要么已并入其他项，
 要么是内部重构，不构成对外的里程碑。
