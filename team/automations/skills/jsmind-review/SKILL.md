@@ -40,9 +40,10 @@ below it is mechanical, and each rule exists because its absence was measured on
   (`POST repos/{owner}/{repo}/pulls/<n>/comments`) instead of the summary; the summary keeps the
   cross-file and contract-level conclusions, and every review still posts one. The payload is
   `{"body": …, "commit_id": "<head sha>", "path": "src/view/index.ts", "line": 409, "side": "RIGHT"}`.
-  `--input` takes a file path and nothing else, so write the payload to a file under `$TMPDIR` with
-  `write_file` first, then `gh api -X POST repos/{owner}/{repo}/pulls/<n>/comments --input <file>`.
-  `line` must fall inside the diff's hunk — an added or changed line — or GitHub answers 422
+  `--input` takes a file path or `-` for stdin, so
+  `gh api -X POST repos/{owner}/{repo}/pulls/<n>/comments --input - <<'JSON' … JSON` posts directly;
+  writing the payload to `$TMPDIR` with `write_file` and passing the path works too. Both are usable
+  unattended — only the `$(cat <<'EOF' … EOF)` form is rejected. `line` must fall inside the diff's hunk — an added or changed line — or GitHub answers 422
   `line must be part of the diff`, and `commit_id` is the head sha that hunk belongs to. The language
   and length rules apply here as well.
 

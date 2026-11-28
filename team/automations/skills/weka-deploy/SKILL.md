@@ -247,16 +247,16 @@ of the three a worker session, so a fence present on two of them is a fence with
 ```yaml
 hooks:
   post_tool_call:
-    - command: ["/home/gg_hermes_go/.hermes/venvs/weka/bin/python", "/home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py", "--reconcile", "--once", "--from-hook"]
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
       timeout: 5
   pre_tool_call:
     - matcher: "^kanban_create$"
-      command: ["/usr/bin/python3", "/home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/deny_card_create.py"]
+      command: "/usr/bin/python3 /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/deny_card_create.py"
       timeout: 5
       fail_closed: true
 ```
 
-Four details in that block carry the meaning:
+Five details in that block carry the meaning:
 
 - **The ledger hook has no `matcher`, on purpose.** `labels.py --from-hook` keeps a counter and, every
   tenth call, reconciles the whole board; a matcher would just make the counter count a subset and let
@@ -268,6 +268,11 @@ Four details in that block carry the meaning:
 - **The matcher is anchored.** `^kanban_create$`, never a `kanban_` prefix — that one also swallows
   `kanban_complete` / `kanban_block` / `kanban_comment`, and a worker that cannot hand off is worse than
   one that can create a card.
+- **`command` is a string, never a YAML list.** `_parse_single_entry` drops a non-`str` `command`
+  with one warning and registers nothing (`agent/shell_hooks.py:413-416`), and a config with no
+  registered hooks makes `hooks doctor` print `No shell hooks configured — nothing to check.` and exit
+  0 (`hermes_cli/hooks.py:274-276`) — so the three greens below would pass with no fence at all. Keep
+  it a single string, byte-identical to the allowlist entry.
 - **`/usr/bin/python3` is 3.6.8 on this host.** The fence script therefore has to stay inside 3.6's
   stdlib, and a check has to use the interpreter the config actually names:
   `/usr/bin/python3 -m py_compile team/automations/weka/deny_card_create.py`. Plain `python3 -m
@@ -301,7 +306,7 @@ it is `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
 ]}
 ```
 
-The `command` string must equal the config's `command` array joined by single spaces, byte for byte:
+The `command` string must equal the config's `command` string, byte for byte:
 that pair is the key the approval is looked up by, so a `~` or a different quoting on one side of the
 two files buys a permanently unapproved hook — silently, since a skipped hook only logs one warning.
 
