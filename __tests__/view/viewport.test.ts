@@ -137,6 +137,33 @@ test('viewport - a zoom writes the middle on an axis whose content fits', () => 
     }
 });
 
+test('viewport - a zoom to the factor already in effect writes the state it found', () => {
+    // A caller takes the inner box over from native scrolling by zooming to the
+    // factor the map opens at: `export html` calls `zoomTo(1)` on the view it
+    // has just opened. Every point is already still at that factor, so the
+    // origin must come back untouched - including an origin the middle rule
+    // would otherwise overwrite, which is what a fitting axis would get.
+    // Without this, taking the box over would move the map at the moment the
+    // page opened.
+    const stranded: JmViewportTransform = { x: 5000, y: -3000, scale: 0.2 };
+    const anchor = { x: 200, y: 150 };
+
+    // Both axes fit at 0.2x: 800x600 of content in a 400x300 box is 2000x1500
+    // map pixels of visible area, so the band is empty on both.
+    const same = zoomViewport(stranded, 0.2, anchor, CONTENT, WINDOW);
+    assert.deepStrictEqual(same, stranded, 'a zoom at the factor in effect is a no-op');
+
+    // And the contrast that keeps the line above from passing for free: one
+    // factor off, the same call settles the fitting axes to the middle.
+    const changed = zoomViewport(stranded, 0.25, anchor, CONTENT, WINDOW);
+    assert.deepStrictEqual(changed, {
+        x: CONTENT.left + (CONTENT.width - WINDOW.width / 0.25) / 2,
+        y: CONTENT.top + (CONTENT.height - WINDOW.height / 0.25) / 2,
+        scale: 0.25,
+    });
+    assert.notDeepStrictEqual(changed, stranded, 'a changed factor does settle the origin');
+});
+
 test('viewport - one axis can fit while the other still holds its anchor', () => {
     // The two rules have to apply per axis, not per zoom: 800x100 in a 400x300
     // box at 2x overflows horizontally and fits vertically, so the same call

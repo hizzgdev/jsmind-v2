@@ -316,6 +316,11 @@ export class JmView implements JmViewHandle {
      * would otherwise divide by the new zoom and push the map off a box it fits,
      * where no pan can bring it back.
      *
+     * A zoom to the factor already in effect changes nothing, origin included.
+     * That is what a caller uses to take the inner box over from native
+     * scrolling without moving the map: the exported page's `zoomTo(1)` is the
+     * shipped example.
+     *
      * @param scale - Requested factor, clamped to the range the view accepts.
      * @param anchor - Point to hold still, in the view's own pixels. Defaults to
      * the middle of the viewport, which is what a control without a pointer

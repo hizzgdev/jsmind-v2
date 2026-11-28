@@ -125,7 +125,8 @@ export interface JmViewHandle {
      * The held point is honoured while the map still overflows the box on that
      * axis. Where the map fits an axis, the origin is the middle instead - so a
      * zoom cannot leave a map off a box it would otherwise fit, the state no
-     * pan can bring back.
+     * pan can bring back. A zoom to the factor already in effect writes the
+     * state it found, origin included.
      *
      * @param scale - Requested factor, clamped to the range the view accepts.
      * @param anchor - Point to hold still, in the view's own pixels. Defaults to

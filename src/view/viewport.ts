@@ -136,6 +136,12 @@ export function viewportOriginFor(focus: JmPoint, anchor: JmViewportAnchor, scal
  * The anchor is what the gesture asked for. What a zoom may overwrite is the
  * state the pan machinery cannot correct, and that is one axis rule:
  *
+ * - **The factor does not change** (`next === transform.scale`): every point is
+ *   already still, so the state it found - origin included - is the state it
+ *   writes. A caller takes the inner box over from native scrolling with a zoom
+ *   to the factor the map opens at, and that must not move the map: the ready
+ *   example is `export html`, whose page calls `zoomTo(1)` on the view it has
+ *   just opened.
  * - **The content overflows the box** (`span > 0`): the anchored origin is
  *   stored as it is. That is what makes a wheel zoom grab the map under the
  *   pointer, and the band belongs to the pan: it says where a drag may stop,
@@ -155,9 +161,11 @@ export function viewportOriginFor(focus: JmPoint, anchor: JmViewportAnchor, scal
  *   afterwards.
  *
  * So the held point is a promise on an axis that still overflows, and the
- * fitting axis is answered with the middle instead: `canPan === false` on an
- * axis therefore means that axis is centred, and "the map fits" and "the map
- * is off the screen" can no longer both be true.
+ * fitting axis is answered with the middle instead: after a zoom that changes
+ * the factor, `canPan === false` on an axis means that axis is centred, so
+ * "the map fits" and "the map is off the screen" can no longer both be true of
+ * a state a zoom wrote. A zoom that writes no new factor writes no new origin
+ * either, which is the state the first rule leaves alone.
  *
  * @param transform - Current viewport state.
  * @param scale - Requested factor, clamped by {@link clampViewportScale}.
@@ -176,6 +184,16 @@ export function zoomViewport(
     viewport: JmSize
 ): JmViewportTransform {
     const next = clampViewportScale(scale);
+    // A zoom to the factor already in effect holds every point where it is, so
+    // the origin it writes is the one it found. Nothing is settled here: there
+    // is no new factor to settle against, and a caller that only wants the box
+    // taken over - `export html` does exactly that when a page opens - must not
+    // see the map move. The stranded state this function closes cannot be built
+    // by this branch either: it takes a change of factor to push an origin past
+    // the content, and every such change is settled below.
+    if (next === transform.scale) {
+        return { x: transform.x, y: transform.y, scale: next };
+    }
     const focus = viewportPointAt(transform, anchor);
     const origin = viewportOriginFor(focus, anchor, next);
     return {
