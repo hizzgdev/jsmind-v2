@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Block `kanban_create` inside a worker session.
+"""Block the `kanban_create` tool in the profiles that run cards.
 
 Hermes lets a worker create cards on purpose — `tools/kanban_tools.py` advertises
 `kanban_create` as the way to spawn follow-up work — and a card the model shapes
@@ -9,6 +9,14 @@ is not shaped the way a script's card is. Card `t_c712830c` was titled
 PR it opened was never reconciled: its three flow labels were typed by hand.
 Cards are the webhook's job, and a fence a model can forget is not a fence, so
 this one lives in the tool layer.
+
+The fence is profile-level, because a profile is what Hermes consents for:
+`_consented` keys on the `(event, command)` pair and never asks whether the
+session is a worker (`agent/shell_hooks.py`). Any session of cody, reed or scout
+therefore refuses `kanban_create` — an interactive `hermes -p cody` too, with
+the same fixed message. Outside the fence are the `hermes kanban create`
+subcommand, which writes to the board without passing through the tool layer,
+and every profile that carries neither this hook nor its allowlist entry.
 
 Wire it as `hooks.pre_tool_call` with `matcher: "^kanban_create$"` and
 `fail_closed: true` in every profile — the desired state and the allowlist entry

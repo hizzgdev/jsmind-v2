@@ -411,9 +411,13 @@ What keeps the fence live inside a Kanban worker is the launch, not that file: t
 the session context with `accept_hooks=True` (`gateway/session_kanban.py:65`), and the worker registers
 the frozen config under that consent (`gateway/session_policy.py:796-809`), which records the approval
 into the allowlist as a side effect (`_prompt_and_record`, `agent/shell_hooks.py:748`). The allowlist is
-what carries that consent to every *other* session — plain CLI and profile processes, where an unlisted
-hook stays skipped and `hooks doctor` calls it red — so the entries still have to exist even though a
-worker would reach the same registration without them.
+what carries that consent to every *other* session, so the entries still have to exist even though a
+worker would reach the same registration without them — and they are what makes the fence **profile
+level, not worker level**. `_consented` keys on the `(event, command)` pair and never asks whether the
+session is a worker (`agent/shell_hooks.py:314-325`), so an interactive `hermes -p cody` — or `-p reed`,
+`-p scout` — refuses `kanban_create` too and returns the same fixed message; no terminal is exempt.
+Outside the fence: the `hermes kanban create` subcommand writes to the board without passing through
+the tool layer, and a profile with neither the hook nor its entry has nothing to fire.
 
 Within a registered session a block with a new line in `~/.hermes/state/weka-labels/deny.log` is this
 script's decision. A block with **no** new line came from somewhere else, and the line is not enough to
