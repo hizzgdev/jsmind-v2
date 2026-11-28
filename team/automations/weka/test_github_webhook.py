@@ -1062,11 +1062,9 @@ class SelfFeedingTests(unittest.TestCase):
 
 
 class StripLabelsTests(unittest.TestCase):
-    """The close-time cleanup only knows the two labels that still exist."""
+    """A close strips every `weka-*` label the object still carries, and only those."""
 
-    def test_weka_reviewed_is_no_longer_a_strip_target(self):
-        # `weka-reviewed` was deleted as a GitHub label when this flow retired it
-        # (`gh label delete`); a DELETE for it would only produce a 404.
+    def make(self):
         weka = weka_webhook.Weka(dict(CONFIG))
         weka._slug = "hizzgdev/jsmind-v2"
         weka._slug_known = True
@@ -1078,12 +1076,59 @@ class StripLabelsTests(unittest.TestCase):
             return 0, ""
 
         weka._run = fake_run  # type: ignore[method-assign]
+        return weka, calls
 
-        weka.strip_labels(PR_NUMBER,
-                          ["weka", "weka-working", "weka-reviewing", "weka-reviewed"])
+    @staticmethod
+    def deleted(calls):
+        """The label names the DELETE requests target, in order."""
+        return [call[-1].rsplit("/", 1)[-1] for call in calls]
 
-        self.assertEqual(len(calls), 2, calls)
-        self.assertFalse(any("weka-reviewed" in " ".join(call) for call in calls), calls)
+    def test_every_flow_label_goes_and_weka_itself_stays(self):
+        weka, calls = self.make()
+
+        weka.strip_labels(PR_NUMBER, [
+            "weka", "weka-queue", "weka-working", "weka-reviewing", "weka-blocked",
+        ])
+
+        self.assertEqual(
+            self.deleted(calls),
+            ["weka-queue", "weka-working", "weka-reviewing", "weka-blocked"],
+            calls,
+        )
+        # `weka` is the entry gate `issues.labeled` / `assigned` reads, so a
+        # reopened issue needs it back; it has no hyphen and is never a target.
+        self.assertNotIn("weka", self.deleted(calls), calls)
+
+    def test_a_flow_label_the_script_does_not_name_is_still_stripped(self):
+        # The flow's label set lives in `labels.py` and grows. `weka-reviewed`
+        # was retired (its GitHub label deleted), so it stands for any name this
+        # script has never heard of: the prefix alone has to decide.
+        weka, calls = self.make()
+
+        weka.strip_labels(PR_NUMBER, ["weka", "weka-reviewed"])
+
+        self.assertEqual(self.deleted(calls), ["weka-reviewed"], calls)
+
+    def test_a_label_that_merely_contains_the_prefix_is_not_a_target(self):
+        weka, calls = self.make()
+
+        weka.strip_labels(PR_NUMBER, ["weka", "my-weka-working"])
+
+        self.assertEqual(calls, [])
+
+    def test_unrelated_labels_are_never_touched(self):
+        weka, calls = self.make()
+
+        weka.strip_labels(PR_NUMBER, ["weka", "bug", "documentation"])
+
+        self.assertEqual(calls, [])
+
+    def test_a_close_carrying_only_weka_sends_no_request(self):
+        weka, calls = self.make()
+
+        weka.strip_labels(PR_NUMBER, ["weka"])
+
+        self.assertEqual(calls, [])
 
 
 class CommentShapeTests(unittest.TestCase):

@@ -217,8 +217,8 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   child's log (`~/.hermes/state/weka-labels/log`).
 - **`weka` stays outside the reconciler.** It is a participation marker nobody mutates, and the sweep
   must never add or remove it. `weka-reviewed` is gone entirely: the GitHub label is deleted,
-  `strip_labels()` no longer lists it, `pass-review.sh` neither adds nor removes it, and the rework gate
-  reads the board instead.
+  `strip_labels()` matches the `weka-` prefix instead of keeping a list of names, `pass-review.sh`
+  neither adds nor removes it, and the rework gate reads the board instead.
 - **`done` strips and never adds.** A card in `done`/`archived` has no phase, so the sweep only removes
   leftover process labels, and sends no write at all when none are left. What it strips is the object the
   card's body names: a rework card's PR, or an issue card's issue. A finished **issue** card also
