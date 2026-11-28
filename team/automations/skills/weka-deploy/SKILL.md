@@ -466,13 +466,17 @@ back. A host where that run creates a card has lost `fail_closed`. While the cop
 prints `⚠ script modified since approval` for an entry that recorded the script's mtime at approval —
 one approved at a first-use prompt or a launch, not one written by hand, which records no mtime and
 therefore no drift line. That warning is the mtime check working, not a second failure, and restoring
-the file does not clear it: refresh the baseline with
-`hermes -p <p> hooks revoke '<the command string>'` and re-approve under that same profile. The `-p`
+the file does not clear it: the baseline has to be re-recorded. Revoke the entry with
+`hermes -p <p> hooks revoke '<the command string>'`, then let that same profile approve it again —
+the next worker launch with `accept_hooks=True`, or the first-use prompt. The `-p`
 is not optional — the allowlist is read from `get_hermes_home()`
 (`agent/shell_hooks.py:687-689`), so a `hooks revoke` from an ordinary shell reads the
-root home, reports `No allowlist entry found for command`, and leaves the baseline in place. A
-handwritten entry records no mtime, so the next worker launch under `accept_hooks=True` re-records it
-without a prompt; an entry written at a prompt needs the prompt again.
+root home, reports `No allowlist entry found for command`, and leaves the baseline in place. An
+existing entry is never re-recorded on its own, whoever wrote it: `_consented` returns as soon as the
+`(event, command)` pair is allowlisted (`:314-325`), and `_record_approval` is reachable only from
+`_prompt_and_record` (`:748`, `:771`). A handwritten entry therefore never grows an mtime, doctor
+answers only its three questions for it and never prints a drift line, and it reaches an mtime
+baseline by the same revoke-then-approve route.
 
 No restart is involved: the gateway re-syncs hooks from the live config when it opens a session
 (`gateway/session_policy.py` → `sync_from_config`), and a worker reads the config it was launched with.
