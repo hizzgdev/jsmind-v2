@@ -273,12 +273,26 @@ Four details in that block carry the meaning:
   `/usr/bin/python3 -m py_compile team/automations/weka/deny_card_create.py`. Plain `python3 -m
   py_compile` resolves to a newer interpreter on this box and passes a file the hook cannot import.
 
-Then consent, because `hooks_auto_accept` is `false` here. An unapproved hook is skipped (the ledger
-hook) or fails closed (the fence) — and the two are distinguishable only because the fence writes the
-deny log: **a block with no new line in `~/.hermes/state/weka-labels/deny.log` means the fail-closed
-path answered, not the script.** The allowlist is per Hermes home, which for a profile process is the
-profile directory (`get_hermes_home()`; `hermes -p <p>` sets it to `~/.hermes/profiles/<p>`), so it is
-`~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
+Then consent, because `hooks_auto_accept` is `false` here. A hook that is neither allowlisted nor
+launched with `accept_hooks` is **skipped, not failed closed**: `register_from_config` logs
+`not allowlisted … — skipped` and never wires it (`agent/shell_hooks.py:173`), and `fail_closed` only
+covers a hook that did register and then errored, timed out, or printed something that is not a JSON
+object (`:577-609`). A missing allowlist entry is therefore not a weaker fence — in a session with no
+launch consent it is no fence at all.
+
+What keeps the fence live inside a Kanban worker is the launch, not that file: the dispatcher builds
+the session context with `accept_hooks=True` (`gateway/session_kanban.py:65`), and the worker registers
+the frozen config under that consent (`gateway/session_policy.py:796-809`), which records the approval
+into the allowlist as a side effect (`_prompt_and_record`, `agent/shell_hooks.py:748`). The allowlist is
+what carries that consent to every *other* session — plain CLI and profile processes, where an unlisted
+hook stays skipped and `hooks doctor` calls it red — so the entries still have to exist even though a
+worker would reach the same registration without them.
+
+Within a registered session the two failure modes stay distinguishable, because only the script writes
+the deny log: **a block with no new line in `~/.hermes/state/weka-labels/deny.log` came from the
+fail-closed path, not from the script.** The allowlist is per Hermes home, which for a profile process
+is the profile directory (`get_hermes_home()`; `hermes -p <p>` sets it to `~/.hermes/profiles/<p>`), so
+it is `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
 
 ```json
 {"approvals": [
@@ -326,9 +340,14 @@ still outside this procedure (`config.yaml` → `kanban:`).
   gateway boot, and the gateway refuses to restart itself from inside its own process.
 - The smoke test prints something other than the expected line: report it. Restarting again to "see if it
   clears" destroys the evidence.
-- A profile's `hooks doctor` is not fully green. Report which hook and which of the five answer lines is
-  red (exec, allowlist, mtime drift, JSON, timing); do not "fix" it by running a hook test interactively,
-  because the point of the allowlist entry written in step 8 is that nobody has to be at a prompt.
+- A profile's `hooks doctor` is not fully green. Report which hook and which answer line is red;
+  `_doctor_one` (`hermes_cli/hooks.py:286`) prints at most four — script executable, allowlist status,
+  mtime drift, and the JSON smoke line. Drift appears only when the entry recorded
+  `script_mtime_at_approval`, which a handwritten entry does not, and the smoke line is where
+  `(exit=N, Xs)` lives, so timing is not an answer line of its own: a healthy hook shows three lines for
+  a handwritten entry and four for one recorded at a prompt or a launch. Do not "fix" it by running a
+  hook test interactively, because the point of the allowlist entry written in step 8 is that nobody has
+  to be at a prompt.
 
 ## Do not
 

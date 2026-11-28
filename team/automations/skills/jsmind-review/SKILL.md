@@ -244,9 +244,9 @@ addition, so a body that counts it as new is off by one against its own parenthe
   signal.
 - **A hook-doc command with a missing required argument.** `hermes hooks revoke` takes the command string as a
   positional and exits 2 (`the following arguments are required: command`) when a doc writes it bare;
-  `hermes --accept-hooks` is a root-level flag, not a `hooks` subcommand flag. The five answer lines doctor
-  prints are `hermes_cli/hooks.py:286-345`, the JSON smoke test is skipped entirely while the pair is not
-  allowlisted (`:316-319`), the allowlist is `{"approvals":[{event,command}]}` at
+  `hermes --accept-hooks` is a root-level flag, not a `hooks` subcommand flag. Doctor prints at most four
+  answer lines (`hermes_cli/hooks.py:286-345`), the JSON smoke test is skipped entirely while the pair is
+  not allowlisted (`:316-319`), the allowlist is `{"approvals":[{event,command}]}` at
   `get_hermes_home()/shell-hooks-allowlist.json` (so per profile), the synthetic payload does carry `profile`
   (`agent/shell_hooks.py:100` → a doctor run really reconciles), and a hand-written allowlist entry approves
   the pair but records no mtime, so doctor can never report drift on it.
