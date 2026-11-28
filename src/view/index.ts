@@ -400,6 +400,18 @@ export class JmView implements JmViewHandle {
     /**
      * Changes the zoom factor, holding one point still.
      *
+     * @remarks
+     * The anchored point is held while the content still overflows this axis -
+     * that is the wheel gesture's promise. On an axis the content fits there is
+     * no band for a pan to move in, so the map is centred instead: the anchor
+     * would otherwise divide by the new zoom and push the map off a box it fits,
+     * where no pan can bring it back.
+     *
+     * A zoom to the factor already in effect changes nothing, origin included.
+     * That is what a caller uses to take the inner box over from native
+     * scrolling without moving the map: the exported page's `zoomTo(1)` is the
+     * shipped example.
+     *
      * @param scale - Requested factor, clamped to the range the view accepts.
      * @param anchor - Point to hold still, in the view's own pixels. Defaults to
      * the middle of the viewport, which is what a control without a pointer
@@ -407,7 +419,15 @@ export class JmView implements JmViewHandle {
      */
     zoomTo(scale: number, anchor?: JmViewportAnchor): void {
         this._activateViewport();
-        this._setViewport(zoomViewport(this.viewport, scale, anchor ?? this._viewportCentre()));
+        this._setViewport(
+            zoomViewport(
+                this.viewport,
+                scale,
+                anchor ?? this._viewportCentre(),
+                this.contentBounds,
+                this._viewportSize()
+            )
+        );
     }
 
     /**
@@ -529,15 +549,14 @@ export class JmView implements JmViewHandle {
      * natural size.
      *
      * The origin is written rather than handed to {@link JmView.panTo}, and
-     * that is the answer the whole design turns on. At exactly-fitting zoom the
-     * pan's band is empty - `span == 0` on the binding axis, `span < 0` on the
-     * loose one - so `panTo` keeps the origin it had, and `centerOn` (which is
-     * built on it) does not move either. A fit composed from `zoomTo` and
-     * `centerOn` would therefore leave a map in whatever corner it was dragged
-     * to, and no drag could bring it back, because the band stays empty. So
-     * this composes the same arithmetic with the clamp left out: there is
-     * nothing to clamp into, and the only origin that shows the content the way
-     * the mode asks is the one that shows its middle.
+     * that is what keeps the command total. At exactly-fitting zoom the pan's
+     * band is empty - `span == 0` on the binding axis, `span < 0` on the loose
+     * one - so `panTo` keeps the origin it had, and `centerOn` (which is built
+     * on it) would not move either: there is no map point a pan may bring to
+     * the middle. Going through them would therefore be a no-op on exactly the
+     * axis the fit has to correct. Writing the origin here asks no clamp and
+     * reads no previous state, and the only origin that shows the content the
+     * way the mode asks is the one that shows its middle.
      *
      * The box is taken over before anything is measured. On a page whose map
      * overflows, the inner box is showing a scrollbar at that moment and its
