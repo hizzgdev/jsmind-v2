@@ -157,6 +157,11 @@ class FakeWeka(weka_webhook.Weka):
         self.kanban_calls = []
         self.board_calls = []                 # (args, board) for every kanban call
         self.object_comments = []             # (number, body) visible on GitHub
+        self.reconciled = []                  # card ids handed to labels.py
+
+    def reconcile_card(self, card_id):
+        # The real one spawns a subprocess; here the card id is the side effect.
+        self.reconciled.append(card_id)
 
     def kanban(self, *args, board=None):
         self.kanban_calls.append(args)
@@ -687,6 +692,60 @@ class GroomAfterPRCloseTests(unittest.TestCase):
 
         self.assertEqual(weka.creates(), [])
         self.assertEqual(weka.cleaned, [])
+
+
+class CreatedCardReconcileTests(unittest.TestCase):
+    """A new card is labelled at once, because nothing else can see it.
+
+    `kanban create` is a CLI call, so no `post_tool_call` hook fires for it, and
+    the card waits in `ready` with no session until the dispatcher claims it —
+    which is exactly the window `weka-queue` is for.
+    """
+
+    class LateCardWeka(FakeWeka):
+        """`open_card_for` answers None until the create has landed."""
+
+        def open_card_for(self, number, board=None):
+            if not self.creates():
+                return None
+            return super().open_card_for(number, board)
+
+    def test_a_created_card_is_reconciled_by_its_own_card_id(self):
+        weka = self.LateCardWeka(cards=[("t_9f2c", "ready")])
+
+        weka.trigger()
+
+        self.assertEqual(len(weka.creates()), 1, weka.kanban_calls)
+        self.assertEqual(weka.reconciled, ["t_9f2c"],
+                         "the reconcile is addressed at the card, never the PR number")
+
+    def test_a_create_that_finds_no_open_card_does_not_fall_back_to_a_full_sweep(self):
+        # An idempotency hit on a card that is already finished looks exactly
+        # like this. A full sweep would turn every duplicate delivery into a
+        # ~15-request reconciliation of the whole board.
+        weka = FakeWeka(cards=[])
+
+        weka.trigger()
+
+        self.assertEqual(len(weka.creates()), 1, weka.kanban_calls)
+        self.assertEqual(weka.reconciled, [])
+
+    def test_a_failed_create_reconciles_nothing(self):
+        weka = FakeWeka(cards=[("t_9f2c", "ready")], kanban_ok=False)
+
+        weka.trigger()
+
+        self.assertEqual(weka.reconciled, [], "there is no new card to label")
+        self.assertTrue(weka.object_comments, "the failure is still reported")
+
+    def test_a_groom_card_is_not_part_of_the_label_contract(self):
+        weka = ClosedPRWeka(config=GROOM)
+
+        weka.handle_pr(closed_pr_payload())
+
+        self.assertEqual(len(weka.creates()), 1, weka.kanban_calls)
+        self.assertEqual(weka.create_boards(), [GROOM["groom_board"]])
+        self.assertEqual(weka.reconciled, [], "the groom board has its own labels")
 
 
 class PRCommentRegressionTests(unittest.TestCase):

@@ -20,6 +20,11 @@ Events handled:
   queue a groom (scout) card
 - issues (closed)                                         -> strip leftover labels
 
+When a card is created, one detached `labels.py --reconcile --once --card <id>`
+runs for it: the four flow labels are derived from the board, so this script no
+longer adds or removes them by hand. It is spawned, not awaited — a slow handler
+loses deliveries. See `labels.py` for the phase table.
+
 Closing is the fallback that ends a label's life on the object. Both close
 payloads carry the object's current `labels`, so the cleanup reads that list and
 deletes only what is still there — no extra requests, and none of the 404s a
@@ -958,6 +963,30 @@ class Weka:
                 "非零退出），请求没有记录进去。webhook journal 里有具体错误。",
             )
 
+    def reconcile_card(self, card_id: str) -> None:
+        """Fire one flow-label reconcile for a card, detached, and return at once.
+
+        `kanban create` is a CLI call, so no `post_tool_call` hook sees it, and a
+        new card waits in `ready` with no session attached until the dispatcher
+        picks it up — that window is exactly what `weka-queue` is for. This must
+        never block the delivery thread: the bridge is a single-threaded
+        `HTTPServer` and GitHub does not redeliver, so a slow handler loses
+        events. The child inherits stdout/stderr, which under the systemd unit is
+        the journal — the same place every other flow trace is read.
+        """
+        script = os.path.join(HERE, "labels.py")
+        if not os.path.exists(script):
+            return
+        try:
+            subprocess.Popen(
+                [sys.executable, script, "--reconcile", "--once", "--card", card_id],
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+                close_fds=True,
+            )
+        except OSError as exc:
+            print(f"[WARN] label reconcile not started for {card_id}: {exc}", file=sys.stderr)
+
     def _create_card(self, number: int | None, title: str, body: str, idem_key: str, *,
                      board: str | None, assignee: str, create_args: tuple[str, ...],
                      failure_text: str) -> None:
@@ -972,6 +1001,10 @@ class Weka:
         of this repository: the three differ per recipient, and a default would
         silently send one kind to the other's board. `board=None` is this flow's
         own board, where every PR and issue rework card lives.
+
+        A card created on this flow's board is handed straight to `labels.py`:
+        the create is a CLI call that no tool hook sees, and the card sits in
+        `ready` without a session until the dispatcher claims it.
         """
         created = self.kanban(
             "create", title,
@@ -983,6 +1016,19 @@ class Weka:
         )
         if not created:
             self.comment_on_object(number, failure_text)
+            return
+        if board is not None:
+            # A groom card lives on another board and is not part of this flow's
+            # label contract, so it gets no reconcile.
+            return
+        found = self.open_card_for(number, board=board)
+        if found is None:
+            # Idempotency hit on a card that is already finished, or a create
+            # that raced past this lookup: log it and stop. A full sweep here
+            # would turn every duplicate delivery into ~15 GitHub requests.
+            print(f"[WARN] no open card for #{number}: label reconcile skipped", file=sys.stderr)
+            return
+        self.reconcile_card(found[0])
 
     def _explain_refusal(self, pr: dict, labels: list[str], reason: str) -> None:
         """Post `reason` on the PR — but only where a human can act on it.

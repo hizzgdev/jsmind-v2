@@ -22,7 +22,9 @@ rules that matter when touching any part of it:
   of creating a second card.
 - `weka-reviewed` on the PR is the ONLY flow-control label. Human review/comment
   triggers a rework card only while it is present, and cody strips it on pickup.
-  `weka-working` / `weka-reviewing` are for humans only.
+  The four process labels (`weka-queue` / `weka-working` / `weka-reviewing` /
+  `weka-blocked`) are for humans only, and **`labels.py` is their one writer** —
+  no worker adds or removes them (see 「标签，以及实际跑着的那个进程」 below).
 - There is no "waiting for a human" card state: reed ends with `kanban_complete`
   (approved) or `kanban_request_changes`. No block, no triage, no
   `assign <task> none`. PR merge/close is cleaned up by the webhook (worktree by
@@ -152,6 +154,8 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   worker runs, or a sweep that labels a running card's object when it carries no flow label), then rewrite the
   SOUL as numbered commands with the reasoning after them. Long executable recipes belong in `scripts/` where
   they can be tested — a label-cleanup bash block was a third of one SOUL — and the SOUL only names the command.
+  The label sweep was the remedy that stuck: `labels.py` now derives the phase from the board, and the SOULs
+  carry no labelling command at all.
 - **'The event never fired' is a hypothesis; a running card looks like nothing from GitHub's side.**
   Check the bridge journal first (`[OK] … kanban … create #<n>` versus a `[GATE] … skipping` line that names
   the condition it refused), then the board (`hermes kanban --board jsmind-v2 list` shows `● running` with
@@ -160,38 +164,62 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   step in SOUL, so its absence proves nothing about whether the worker started. Quote the timestamps back
   instead of diagnosing the premise as given.
 
-- `weka-working` goes on the issue (or PR) when a worker picks a card up, and comes off when the card
-  completes. **The close event is the fallback**, not the main path: `handle_issue` strips on
-  `action == "closed"`, `handle_pr` strips on a PR close, and both touch only the flow labels present in
-  the payload. When a human merges a PR before the review hop finishes, that fallback is the only thing
-  that removes the label. So a flow label still hanging on a closed object means the fallback did not
-  run — which is nearly always a stale process, not a code bug.
-- **A flow label lives on the object the card is keyed to, so its absence from a PR proves nothing.**
-  An issue card carries `weka-working` on the *issue*; a PR card (`#<n>: Rework — …`) carries it on the
-  *PR*. A PR opened by an issue card is therefore legitimately blank while it is being written, and goes
-  blank again during a rework once the reviewer drops `weka-reviewing` — a real gap for a human watching
-  the PR, not a worker that skipped a step. Before reporting "cody did not re-add it", read
-  `gh api repos/<o>/<r>/issues/<n>/timeline` for the label events *and* the card's `started_at` in
-  `~/.hermes/kanban/boards/<board>/kanban.db`: every rework PR in history shows `unlabeled
-  weka-reviewing` → `labeled weka-working` seconds after the rework run starts, so the label was never
-  the thing missing — the *object* was wrong. Labelling the PR as well is therefore a
-  **two-point edit, not one**: at pickup for a card whose PR already exists, and again
-  immediately after `gh pr create` for an issue card — that PR does not exist yet when
-  the worker starts, so a rule written only into the pickup step still leaves an
-  issue-card PR blank for its whole first round.
-- **One label, one state — and name the state a human asks about.** The readable set is `weka-working`
-  (a worker is editing) + `weka-reviewing` (handed off, under review) + `weka-reviewed` (approved,
-  waiting on the human). Nothing names "sent back for changes": the reviewer drops `weka-reviewing` and
-  the PR goes quiet until the next handoff, so "not started yet" and "being reworked" look identical.
-  The remedy the owner chose is **not** a fourth label: the PR carries the existing `weka-working`,
-  widened to mean "this PR is ours — being edited, or sent back and not picked up yet", and "not ready
-  for review" rides on GitHub's native draft state (`gh pr create --draft`, `gh pr ready --undo` when a
-  rework starts, `gh pr ready` at handoff, the reviewer flipping it back as crash recovery). Two
-  consequences to state up front: draft and the label must never disagree (draft + `weka-reviewing` is a
-  bug, and so is a ready PR with no flow label at all), and the queued-versus-typing distinction is gone
-  by design — the card's `ready`/`running` answers that, not GitHub. Widening a label to cover the PR as
-  well is a **two-point edit**: at pickup for a card whose PR already exists, and again immediately after
-  `gh pr create`, because an issue card's PR does not exist when the worker starts.
+- **The four process labels have one writer, and it is `labels.py`.** `weka-queue` / `weka-working` /
+  `weka-reviewing` / `weka-blocked` are added and removed by
+  `team/automations/weka/labels.py`, which reads the board and writes only the difference. The phase is
+  a pure function of `(status, assignee)`; the two event sources are the `post_tool_call` hook (every
+  10th call reconciles the whole board, the rest only the card that tool call touched) and the webhook's
+  create path (right after `kanban create`, that one card — `kanban create` is a CLI call no tool hook
+  sees, and the new card sits in `ready` with no session until the dispatcher claims it, which is the
+  window `weka-queue` is for). No timer. "The whole board" means every unfinished card plus the ten most
+  recently finished ones (`FULL_SWEEP_DONE_LIMIT`), ordered by `created_at`; an older `done` card was
+  stripped when it went `done`, so a sweep does not have to re-read the ~100 the board keeps. The SOULs
+  no longer contain a single labelling command, so "the model forgot" cannot become a wrong label on
+  GitHub any more. The one exception is `scripts/weka/pass-review.sh`: at approval it still strips
+  `weka-reviewing`/`weka-working` before adding `weka-reviewed` and flipping to ready. That is the same
+  transition rather than a second owner — its ordering rule cannot be handed to an asynchronous sweep
+  that may land seconds later — and a sweep that starts afterwards finds nothing left to write. A sweep
+  already in flight when the card flips can still land after it and write `weka-reviewing` back onto a
+  now-ready PR; the window is seconds, the next sweep (the `kanban_complete` hook) erases it, and
+  `weka-reviewed` is untouched, so the label heals itself rather than being guaranteed correct.
+- **The hook fires inside a worker, so the sweep is handed a fence-free env.** Hermes mints
+  `HERMES_DELEGATED_CHILD_CONTEXT` into every subprocess of a worker, and under that fence
+  `hermes kanban list` exits 1: `list` runs `recompute_ready()`, which is a write. `labels.py` drops the
+  marker (with the rest of the worker identity) for its detached child only — the sweep reads the board
+  and writes to GitHub, it is not a delegate child. A log full of `[ERROR] … exited 1` naming
+  `delegate_task child contexts cannot mutate` means the grant is missing; it does not mean the board
+  was empty. `hooks doctor` cannot catch this: its synthetic payload never reaches the board.
+- **`weka-reviewed` and `weka` stay outside the reconciler.** `pass-review.sh` adds `weka-reviewed`, the
+  webhook strips it on close, and `weka` is a participation marker nobody mutates. A sweep must never add
+  or remove either one: the rework gate reads `weka-reviewed`, so a script that touched it could
+  manufacture rework cards.
+- **`done` strips and never adds.** A card in `done`/`archived` has no phase, so the sweep only removes
+  leftover process labels, and sends no write at all when none are left. What it strips is the object the
+  card's body names: a rework card's PR, or an issue card's issue. A finished **issue** card does not
+  touch the PR its `branch_name` opened — the PR lookup happens only while the card still has a phase,
+  because a finished issue card would otherwise cost a `gh pr list` plus a read on every sweep. That PR
+  is cleared by `pass-review.sh` at approval and by the webhook's close-time `strip_labels()`. After
+  `done`, an issue keeping only `weka` is the accepted result.
+- **A closed object is never touched.** Its labels belong to the webhook's close-time fallback
+  (`strip_labels()`), not to the sweep: re-adding a label to a merged PR would announce work on something
+  nobody can act on.
+- **A flow label lives on the object the card is keyed to, so its absence from a PR proves nothing.** An
+  issue card's phase goes on the issue *and* on the PR its `branch_name` opened — the lookup runs only
+  while the card still has a phase: a first-pass `ready` card has no branch yet, and a finished card only
+  strips the object its body names. A rework card's phase goes on the PR. Read the card's status before
+  reporting "the label is missing" — the object may simply be the other one.
+- **`weka-queue` is ambiguous on a PR, and that ambiguity is accepted.** `review` is a queue, not a
+  review in progress: after `request_review` the card waits on the board until reed claims it, and only
+  `running` + reed makes the PR `weka-reviewing`. So `weka-queue` on a PR covers "waiting for cody to
+  start", "sent back, waiting for cody", and "waiting for reed". That last pair is what the old label set
+  could not name at all (the "sent back for changes" gap), and `weka-blocked` does the same for a card
+  sitting in `blocked`. The card's `status` still answers the finer question — GitHub never did.
+  The human-facing meaning of the labels is unchanged: `weka-working` = a worker is editing,
+  `weka-reviewing` = handed off and under review, `weka-reviewed` = approved and waiting on the human.
+- **"The card crashed" has a cheaper first check now.** A process label whose card says otherwise means
+  either the sweep never ran or the card died mid-transition. Read
+  `~/.hermes/state/weka-labels/log` for that reconcile first, then `hermes -p <p> hooks doctor` for
+  whether the hook is registered at all, and only then GitHub.
 - **"My comment did nothing" is a gate, not a lost delivery.** The ladder is short and ordered: actor
   must be the human login (bot comments and bot reviews are ignored by design), the PR must still carry
   `weka-reviewed`, and the PR must not already have an open card (which absorbs the request as a
