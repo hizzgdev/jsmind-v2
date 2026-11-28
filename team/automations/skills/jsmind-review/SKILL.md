@@ -201,7 +201,8 @@ addition, so a body that counts it as new is off by one against its own parenthe
   Reading the rendered output is the acceptance claim; the file existing is not.
 - **Anything a deploy step touches.** Merging is not deploying. A script run by a systemd unit, or a file
   copied into an agent profile, changes nothing live until it is refreshed: check the process start time
-  against the file's mtime, and compare profile copies by hash. The procedure is
+  against the file's mtime, and compare profile copies by hash — positioned so no earlier step has already
+  rewritten them (below, *a hash check a preceding step made tautological*). The procedure is
   `team/automations/skills/weka-deploy/SKILL.md`. The same gap hides behind a config *read*:
   `hermes config get <key>` prints the value from the config file — it never asks the running process, and
   it resolves the caller's profile home (`HERMES_HOME=~/.hermes/profiles/<p>` prints `null` for keys that
@@ -214,6 +215,16 @@ addition, so a body that counts it as new is off by one against its own parenthe
   boot log line as the cap resolved at boot, not as the live rate: the dispatcher clamps spawns under memory
   pressure (`_memory_pressure_level`, elevated → one per tick, critical → none), so calling that line "the
   number it is enforcing now" overstates it.
+- **A hash check a preceding step made tautological.** Before accepting "verify X equals master", read
+  where it sits in the procedure. When an earlier step pulls or switches the clone, copies X, or refreshes
+  the target a symlink resolves into, the later `md5sum` against `git show master:…` is an identity: it
+  prints two equal hashes whether the run started from master or from last week's copy. Any promise that
+  the check "catches a run that started from the old version" is must-fix once the order is read, because
+  the run that skipped what master had already replaced — a hooks block never written, a copy nobody
+  refreshed — reaches that line green and leaves no trace. What the comparison does catch is X resolving
+  into a clone the pull never touched, or a working tree altered after it; it cannot say which version the
+  session loaded, which was fixed before the first step ran. Ask for evidence keyed to that starting point
+  instead: the recorded `$OLD`..`HEAD` range, or a hash taken before the rewrite step.
 - **A diff taken against a stale local `master`.** `git diff master...HEAD` uses the *local* ref; when master has moved past the branch point (or the branch was rebased onto newer master), the three-dot diff silently adds commits the PR never contained — a file count that disagrees with `gh pr diff --name-only` is the tell. Compare `git merge-base origin/master HEAD` against the PR's base before trusting any local `--stat`, and review `gh pr diff` / the PR file list as the truth.
 - **An "outside the window" node census that counts folded children.** Folded branches leave their nodes laid out at the
   map origin with `visibility: hidden`, so `getBoundingClientRect()` reports them off-window once a fit or pan moves the
