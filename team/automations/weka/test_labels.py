@@ -631,6 +631,45 @@ class EventCursorTests(unittest.TestCase):
         self.assertNotIn("issues/303", calls)
         self.assertEqual(board.cursor(), 3, "the cursor advances to the last event read")
 
+    def test_the_retry_paths_are_consumed_too(self):
+        # A circuit-break sets the card `blocked` and appends only `gave_up`
+        # (`timed_out` / `crashed` / `rate_limited` behind it); it never fires
+        # `kanban_task_blocked`, and a blocked card makes no tool calls, so this
+        # batch is the only chance to write `weka-blocked`. An allowlist of
+        # `kanban_task_*`-shaped kinds dropped all four and left the card
+        # labelled `weka-working` forever.
+        board = self.make(
+            [card(301, "blocked", assignee="cody", created_at=1)],
+            {"301": {"state": "open", "labels": ["weka", "weka-working"]}},
+            events=[(1, "t_301", "timed_out"), (2, "t_301", "crashed"),
+                    (3, "t_301", "rate_limited"), (4, "t_301", "gave_up")],
+        )
+        board.set_cursor(0)
+
+        result = board.run("--reconcile", "--once", "--events")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("events: 4 status event(s) since 0, 1 card(s) to read", result.stdout)
+        self.assertEqual(board.labels_of(301), ["weka", "weka-blocked"])
+        self.assertEqual(board.cursor(), 4)
+
+    def test_a_dispatcher_requeue_is_consumed(self):
+        # The same class of miss, from the other direction: `dependency_wait`
+        # parks a card in `todo` and `reconciled` / `stale` requeue a `running`
+        # one that lost its worker. Neither fires a lifecycle hook.
+        board = self.make(
+            [card(305, "todo", assignee="cody", created_at=1)],
+            {"305": {"state": "open", "labels": ["weka", "weka-working"]}},
+            events=[(1, "t_305", "dependency_wait"), (2, "t_305", "reconciled")],
+        )
+        board.set_cursor(0)
+
+        result = board.run("--reconcile", "--once", "--events")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("events: 2 status event(s) since 0, 1 card(s) to read", result.stdout)
+        self.assertEqual(board.labels_of(305), ["weka", "weka-queue"])
+
     def test_the_first_run_initialises_the_cursor_and_replays_nothing(self):
         # Acceptance: with no cursor file the first run sets the cursor to
         # `max(id)` and touches nothing. Starting at 0 would replay every event

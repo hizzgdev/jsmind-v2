@@ -95,21 +95,42 @@ FALLBACK_EVENT_WINDOW = 10
 # next wake continues from where this one stopped.
 EVENT_BATCH_LIMIT = 200
 
-# The event kinds that change a card's status. Everything else in `task_events`
-# — heartbeat alone is more than half the table — is skipped in SQL so it never
-# reaches Python. `promoted` (todo -> ready) and `archived` are here because
-# they move a card between two phases even though both labels can coincide.
-STATE_EVENT_KINDS = (
-    "created",
-    "promoted",
-    "claimed",
-    "review_requested",
-    "changes_requested",
-    "completed",
-    "blocked",
-    "unblocked",
-    "scheduled",
-    "archived",
+# The event kinds that never move a card's phase, so the batch query skips them
+# before they reach Python (`heartbeat` alone is more than half the table).
+#
+# A denylist, not an allowlist. An unknown kind costs one card read and one
+# idempotent compare; a *missing* kind costs a card that keeps another card's
+# label until something else happens. The retry paths are why: a circuit-break
+# sets `blocked` and appends only `gave_up` (behind `timed_out` / `crashed` /
+# `rate_limited`), never firing `kanban_task_blocked`, and a blocked card makes
+# no tool calls — so no hook and no fallback wake ever arrives to correct
+# `weka-working`. Same shape for `stale` / `reconciled` / `reclaimed`
+# (requeued by the dispatcher), `dependency_wait` (parked in `todo`),
+# `promoted_manual` and `assigned` (which changes the assignee `phase()` reads).
+# Enumerating the state-changing kinds means re-auditing Hermes on every
+# upgrade; enumerating the chatter means an upgrade can only add reads.
+NON_STATE_EVENT_KINDS = (
+    "heartbeat",             # phase stays put
+    "commented",             # card text, not status
+    "attached",
+    "attachment_removed",
+    "edited",
+    "reprioritized",
+    "linked",
+    "unlinked",
+    "pr_acceptance",
+    "spawned",               # run bookkeeping; the status event came earlier
+    "worker_registered",
+    "worker_bound",
+    "worker_result",
+    "owner_admitted",
+    "terminal_worker_reaped",
+    "claim_rejected",
+    "reclaim_deferred",
+    "respawn_guarded",
+    "skipped_nonspawnable",
+    "archive_worker_termination",
+    "tip_scratch_workspace",
 )
 
 # `review` is a queue, not a review in progress: the card waits there until reed
@@ -298,20 +319,20 @@ class Board:
         return int(rows[0][0])
 
     def events_since(self, cursor: int, limit: int = EVENT_BATCH_LIMIT) -> list[dict]:
-        marks = ", ".join("?" for _ in STATE_EVENT_KINDS)
+        marks = ", ".join("?" for _ in NON_STATE_EVENT_KINDS)
         rows = self._fetch(
             f"SELECT id, task_id, kind FROM task_events "
-            f"WHERE id > ? AND kind IN ({marks}) ORDER BY id LIMIT ?",
-            (cursor, *STATE_EVENT_KINDS, limit),
+            f"WHERE id > ? AND kind NOT IN ({marks}) ORDER BY id LIMIT ?",
+            (cursor, *NON_STATE_EVENT_KINDS, limit),
         )
         return [dict(row) for row in rows]
 
     def recent_event_task_ids(self, limit: int = FALLBACK_EVENT_WINDOW) -> list[str]:
-        marks = ", ".join("?" for _ in STATE_EVENT_KINDS)
+        marks = ", ".join("?" for _ in NON_STATE_EVENT_KINDS)
         rows = self._fetch(
             f"SELECT task_id, MAX(id) AS last FROM task_events "
-            f"WHERE kind IN ({marks}) GROUP BY task_id ORDER BY last DESC LIMIT ?",
-            (*STATE_EVENT_KINDS, limit),
+            f"WHERE kind NOT IN ({marks}) GROUP BY task_id ORDER BY last DESC LIMIT ?",
+            (*NON_STATE_EVENT_KINDS, limit),
         )
         return [str(row["task_id"]) for row in rows]
 

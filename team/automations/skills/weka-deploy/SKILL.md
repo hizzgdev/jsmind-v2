@@ -34,7 +34,7 @@ is answered by a hash: **does the live file equal master's file, yes or no.**
 | `team/automations/skills/<name>/SKILL.md` | `~/.hermes/profiles/<p>/skills/<name>/SKILL.md` | overwrite from master, verify hash |
 | `team/automations/skills/weka-deploy/SKILL.md` | `~/.hermes/skills/devops/weka-deploy/SKILL.md` — a symlink into this clone, in the default home rather than a profile | symlink: step 2 already moved it to master, so nothing is copied — verify the live hash against `git show master:…` |
 | `team/automations/weka/github-webhook.py`, `github-webhook.service` | the clone the systemd user unit points at | restart the unit, verify it started now |
-| `hooks:` in `~/.hermes/profiles/<p>/config.yaml` + `<p>/shell-hooks-allowlist.json` | not in this repo | write the four hooks of step 8 verbatim, then `hooks doctor` three times |
+| `hooks:` in `~/.hermes/profiles/<p>/config.yaml` + `<p>/shell-hooks-allowlist.json`, and in `~/.hermes/config.yaml` + `~/.hermes/shell-hooks-allowlist.json` | not in this repo | write the two blocks of step 8 verbatim (worker profiles: `post_tool_call` + `completed` + `blocked` + fence; default profile: `kanban_task_claimed`), then `hooks doctor` four times |
 | `~/.hermes/config.yaml` → `kanban:` | not in this repo | out of scope — a human edits it, gateway restart |
 | `README.md`, other `*.md` | nothing to install | — |
 
@@ -227,21 +227,32 @@ journal line; "restarted and it is active" is not a smoke test.
 
 The flow labels (`weka-queue` / `weka-working` / `weka-reviewing` / `weka-blocked`) have no writer inside a
 worker any more — `labels.py` derives them from the board's `task_events` table, and what makes it run is the
-`post_tool_call` hook plus the three `kanban_task_*` lifecycle events in that worker's profile. This check is
+`post_tool_call` hook plus the `kanban_task_*` lifecycle events. Those entries are split across two places:
+`post_tool_call` and the two worker-side events belong to each worker profile, because the worker fires them,
+while `kanban_task_claimed` is fired by the gateway's dispatcher and can only be registered in the default
+profile. Step 8 is the exact split. This check is
 **not** gated on the step-2 diff: the block lives outside the repo, so no diff can announce that it is missing.
 
-In each of `~/.hermes/profiles/{cody,reed,scout}/config.yaml` — four entries, one command string:
+In each of `~/.hermes/profiles/{cody,reed,scout}/config.yaml` — three entries, one command string; the
+`kanban_task_claimed` entry lives in the default profile instead (step 8), because the dispatcher that fires
+it runs there:
 
 ```yaml
 hooks:
   post_tool_call:
     - matcher: "^kanban_.*"
       command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
-  kanban_task_claimed:
-    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
   kanban_task_completed:
     - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
   kanban_task_blocked:
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+```
+
+And in `~/.hermes/config.yaml` (default profile) — the claim event, and nothing else:
+
+```yaml
+hooks:
+  kanban_task_claimed:
     - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
 ```
 
@@ -265,18 +276,18 @@ of that string, and it is spelled out rather than left to the script's shebang: 
 `#!/usr/bin/env python3`, the hook inherits the gateway unit's `PATH`
 (`systemctl --user show hermes-gateway -p Environment`), and on this host `python3` resolves there to
 `/usr/bin/python3` — 3.6.8, which dies on `labels.py`'s `from __future__ import annotations` before it
-reads a card. The command string is identical in all four entries; only `event` (and the one matcher)
-differs. It is one entry of the block step 8 writes in full — pasting this snippet as a profile's entire
-`hooks:` block would drop the fence.
+reads a card. The command string is identical in all entries; only `event` (and the one matcher) differs, along with the
+file it is written in. It is one entry of the block step 8 writes in full — pasting this snippet as a
+profile's entire `hooks:` block would drop the fence.
 
-Consent is per profile, in `~/.hermes/profiles/<p>/shell-hooks-allowlist.json` — one entry per event,
-each with that same command string:
+Consent is per Hermes home, so the split repeats in the allowlists: three pairs in
+`~/.hermes/profiles/<p>/shell-hooks-allowlist.json`, and `kanban_task_claimed` alone in
+`~/.hermes/shell-hooks-allowlist.json`. Each entry carries that same command string:
 
 ```json
 {
   "approvals": [
     {"event": "post_tool_call", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
-    {"event": "kanban_task_claimed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
     {"event": "kanban_task_completed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
     {"event": "kanban_task_blocked", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"}
   ]
@@ -288,10 +299,11 @@ The command must equal the one in `config.yaml` character for character. Approvi
 is what lets doctor report drift; an entry written by hand approves the pair but cannot be checked for drift.
 
 ```bash
+hermes hooks doctor
 for p in cody reed scout; do hermes -p $p hooks doctor; done
 ```
 
-Three runs, three times `All shell hooks look healthy.` A profile that answers "No shell hooks configured —
+Four runs, four times `All shell hooks look healthy.` A profile that answers "No shell hooks configured —
 nothing to check." is a **failure**, not a pass: that profile leaves its cards' objects on whatever label they
 already carry, and the only writes left are the webhook's two (card created, object closed).
 
@@ -413,20 +425,53 @@ Do not edit `config.yaml` here and do not restart the gateway — the desired-st
 scope, and the gateway refuses to restart itself from inside its own process. A red deploy on a document that
 was changed but not yet brought live is the intended outcome, not a defect in this step.
 
-### 8. Profile hooks: one ledger, three events, one fence
+### 8. Profile hooks: two registration sites, three events, one fence
 
-Two kinds of `hooks:` entries are desired state too, and they live in a file none of the steps above touch:
-each profile's own `config.yaml`. Put the whole block in **cody, reed and scout** — the dispatcher hands any
-of the three a worker session, so a fence present on two of them is a fence with a door.
+Hooks are registered **per process, from the profile that process runs as**: the gateway registers its
+own profile's `hooks:` at boot (`gateway/run_startup.py` → `get_process_hermes_home()`, which is the
+default profile on this box), while a worker registers the profile the dispatcher launched it with
+(`hermes -p cody …`). `has_hook()` (`hermes_cli/lifecycle.py:49`) asks the process-wide registry, so a
+hook in a file the process did not load is simply absent.
+
+That split decides where each entry goes, because the three lifecycle events are not fired from the
+same place:
+
+```
+kanban_task_claimed     the gateway's dispatcher, in the tick that claims the card
+kanban_task_completed   the worker that completed it
+kanban_task_blocked     the worker that blocked it
+```
+
+`kanban_task_claimed` is therefore only reachable from the default profile — and it is the one that
+writes `weka-working` at claim time. Put the whole block in cody / reed / scout only and that event is
+never delivered: `weka-working` waits for the worker's first `kanban_*` tool call, and a card that never
+makes one is never labelled.
+
+Default profile `~/.hermes/config.yaml` — the three lifecycle events, and **no** `post_tool_call` (that
+profile is the interactive one; every tool call there would become a reconcile):
+
+```yaml
+hooks:
+  kanban_task_claimed:
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
+  kanban_task_completed:
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
+  kanban_task_blocked:
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
+```
+
+cody / reed / scout (`~/.hermes/profiles/<p>/config.yaml`) — the ledger, the two worker-side events,
+and the fence. `completed` / `blocked` appear in both files on purpose: the process that fires them is
+the worker, and the default profile's copy is never reached.
 
 ```yaml
 hooks:
   post_tool_call:
     - matcher: "^kanban_.*"
       command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
-      timeout: 5
-  kanban_task_claimed:
-    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
       timeout: 5
   kanban_task_completed:
     - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
@@ -441,7 +486,7 @@ hooks:
       fail_closed: true
 ```
 
-Six details in that block carry the meaning:
+Eight details in those blocks carry the meaning:
 
 - **The ledger matcher is `^kanban_.*`, and the `.*` is load-bearing.** `ShellHookSpec.matches_tool` calls
   `compiled_matcher.fullmatch(tool_name)` (`agent/shell_hooks.py:132`), so a pattern that is only a prefix
@@ -449,10 +494,21 @@ Six details in that block carry the meaning:
   matches exactly one tool name. The prefix form on the ledger is deliberate: the tool list moves with the
   Hermes version, "a kanban tool was called" does not.
 - **Three lifecycle events plus one tool matcher, because two transitions have no event.** `claimed`,
-  `completed` and `blocked` fire after the database commit with the card id in `extra.task_id`.
+  `completed` and `blocked` fire after the database commit with the card id in `extra.task_id` — each
+  from the process listed above, which is why they are split across two files.
   `kanban_request_review` (running → review) and `kanban_request_changes` (review → ready) only write the
   board and append an event, so `post_tool_call` covers them; its payload's `extra.task_id` is a per-turn
   uuid, and the sweep leans on the event cursor instead of trusting it.
+- **`extra.board` / `profile` / `profile_name` describe the emitting process, not the card.** A probe
+  card on the `jsmind-v2` board claimed by the gateway's dispatcher delivered
+  `board: "default"`, `profile_name: "default"`, `assignee: "cody"`. So the board must come from
+  `team/automations/weka/config.json` (`kanban_board`), never from the payload; only `extra.task_id`
+  (the card) and `extra.assignee` (the card's real assignee) can be trusted.
+- **A config edit is not live until the gateway re-syncs it.** Shell hooks are registered at startup and
+  re-registered on a periodic mtime-signature reconcile (`gateway/run_profile_reconcile.py:134`) — the
+  probe above took effect about six minutes after the file was written, and a claim in between was
+  missed entirely. Wait one cycle or restart the gateway, then run the probe below; do not call the
+  deploy green on `hooks doctor` alone.
 - **`fail_closed: true` only applies to `pre_tool_call`** (`agent/shell_hooks.py`'s
   `_BLOCKING_EVENTS`), which is why the fence is the event that gets it. Drop the key and a
   `deny_card_create.py` that crashes (exit 1, no directive) or times out fails *open*:
@@ -461,7 +517,7 @@ Six details in that block carry the meaning:
 - **`command` is a string, never a YAML list.** `_parse_single_entry` drops a non-`str` `command`
   with one warning and registers nothing (`agent/shell_hooks.py:413-416`), and a config with no
   registered hooks makes `hooks doctor` print `No shell hooks configured — nothing to check.` and exit
-  0 (`hermes_cli/hooks.py:274-276`) — so the three greens below would pass with no fence at all. Keep
+  0 (`hermes_cli/hooks.py:274-276`) — so the four greens below would pass with no fence at all. Keep
   it a single string, byte-identical to the allowlist entry.
 - **Each command names its interpreter, and the two differ on purpose.** The fence names
   `/usr/bin/python3`, which is 3.6.8 here, so `deny_card_create.py` has to stay inside 3.6's stdlib and
@@ -505,12 +561,24 @@ tell where — read the message the tool returns. `fail_closed` names the hook:
 script exits 2 with python's own `can't open file '…'` on stderr, and any `exit 2` on a blocking event
 blocks by itself, `fail_closed` or not (`:587-592`). The allowlist is per Hermes home, which for a
 profile process is the profile directory (`get_hermes_home()`; `hermes -p <p>` sets it to
-`~/.hermes/profiles/<p>`), so it is `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
+`~/.hermes/profiles/<p>`), so each of the two registration sites has its own file and needs the pairs
+it actually registers.
+
+`~/.hermes/shell-hooks-allowlist.json` (default profile — note there is no `post_tool_call` here):
+
+```json
+{"approvals": [
+  {"event": "kanban_task_claimed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
+  {"event": "kanban_task_completed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
+  {"event": "kanban_task_blocked", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"}
+]}
+```
+
+`~/.hermes/profiles/<p>/shell-hooks-allowlist.json` for `p` in cody / reed / scout:
 
 ```json
 {"approvals": [
   {"event": "post_tool_call", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
-  {"event": "kanban_task_claimed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
   {"event": "kanban_task_completed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
   {"event": "kanban_task_blocked", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
   {"event": "pre_tool_call", "command": "/usr/bin/python3 /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/deny_card_create.py"}
@@ -521,11 +589,33 @@ The `command` string must equal the config's `command` string, byte for byte:
 that pair is the key the approval is looked up by, so a `~` or a different quoting on one side of the
 two files buys a permanently unapproved hook — silently, since a skipped hook only logs one warning.
 
+### 8a. Probe: does `kanban_task_claimed` actually reach a hook?
+
+`hooks doctor` cannot answer this one — it fires a synthetic payload inside the process that runs it.
+The claim hook is fired by the gateway's dispatcher, so the probe has to go through a real claim, and it
+must be run *before* the deployment is declared done (the only thing that proves the cross-process bridge
+still holds after an upgrade):
+
+1. Register the three lifecycle events in the default profile **only**, pointing at a throwaway script
+   that appends its stdin to `~/probe-hook.log` (not at `labels.py` — a probe must not write labels).
+2. Put a card on the board assigned to any worker profile and let the dispatcher claim it, or simply
+   wait for the next real claim.
+3. `cat ~/probe-hook.log` — a line with `"hook_event_name": "kanban_task_claimed"` and
+   `extra.task_id` equal to that card proves delivery. The note above about `extra.board` comes from
+   exactly this payload.
+4. Remove the probe hook and its allowlist entry.
+
+If nothing arrives after a full re-sync cycle, the bridge is gone: fall back to `post_tool_call` + the
+event cursor only (drop the three lifecycle events, keep the ledger), and say so in
+`team/automations/weka/README.md` — the cost is that `weka-working` appears at the worker's first
+`kanban_*` tool call instead of at claim time.
+
 ```bash
+hermes hooks doctor
 for p in cody reed scout; do hermes -p "$p" hooks doctor; done
 ```
 
-Three greens, or the step is not done — but read what a green line proves. `doctor` fires each hook
+Four greens (default + three workers), or the step is not done — but read what a green line proves. `doctor` fires each hook
 against a synthetic payload, so it answers three questions only: the command is executable, the pair is
 allowlisted, and the script can be spawned. It does **not** prove the script parses: `_doctor_one`
 prints `✓ ran clean with empty stdout (exit=N, …)` for *any* exit code as long as stdout is empty
@@ -571,7 +661,8 @@ here that can drop a delivery.
 skill and the webhook were reset to master, with the hash pairs — for the default-home skill the live file
 against `git show master:` — and the restart's start time;
 the smoke evidence or why it did not apply; the two concurrency ceilings as step 7 found them (the file's
-numbers and the value the gateway booted with); the three `hooks doctor` verdicts and, for the fence, whether
+numbers and the value the gateway booted with); the four `hooks doctor` verdicts (default plus cody / reed /
+scout) and whether the claim probe delivered a card id, and for the fence, whether
 a worker call was actually refused; and anything still outside this procedure (`config.yaml` → `kanban:`).
 
 ## Stop and ask instead of guessing

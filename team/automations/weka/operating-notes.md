@@ -186,9 +186,20 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   `weka-reviewing` back onto an already-approved PR. `--full` is the manual check: every unfinished card
   plus the ten most recently finished ones (`FULL_SWEEP_DONE_LIMIT`), ordered by `created_at`. The SOULs
   no longer contain a single labelling command, so "the model forgot" cannot become a wrong label on
-  GitHub any more. The one exception is `scripts/weka/pass-review.sh`: it strips
-  `weka-reviewing`/`weka-working` and then flips the PR to ready — the same transition rather than a
-  second owner, because its ordering rule cannot be handed to a sweep that may land seconds later.
+  GitHub any more — and neither can `scripts/weka/pass-review.sh`, which now does exactly one thing:
+  `gh pr ready`, after a read-only gate (PR is a draft and carries `weka-reviewing`). It touches no
+  label. Its old label cleanup was the second writer that produced the #297 pair: it removed
+  `weka-reviewing`, the next sweep read the still-`running` card and wrote it back. The accepted cost is
+  that the label outlives the flip by one model turn — a fixed lag, not a race.
+- **The event filter is a denylist of kinds that never move a phase.** `heartbeat` is more than half of
+  `task_events`; `spawned` / `worker_bound` / `worker_result` / `owner_admitted` / `commented` / `edited`
+  and the rest of the per-run chatter are skipped in SQL. Everything else is read, including kinds nobody
+  enumerated: the retry path sets a card `blocked` and appends only `gave_up` (behind `timed_out` /
+  `crashed` / `rate_limited`) without firing `kanban_task_blocked`, and a blocked card calls no tools, so
+  an allowlist that missed those left `weka-working` on a dead card forever. `stale` / `reconciled` /
+  `reclaimed` (requeued by the dispatcher), `dependency_wait` (parked in `todo`) and `assigned` (it
+  changes the assignee `phase()` reads) are the same class. An unknown kind costs one card read and one
+  idempotent compare; a missing kind costs a permanently wrong label.
 - **The board is read, not written: SQLite `mode=ro`, and no fence grant.** Hermes mints
   `HERMES_DELEGATED_CHILD_CONTEXT` into every subprocess of a worker, and under that fence
   `hermes kanban list` exits 1 because `list` runs `recompute_ready()`, a write. `labels.py` no longer
