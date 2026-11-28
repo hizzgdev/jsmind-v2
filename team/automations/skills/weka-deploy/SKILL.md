@@ -34,7 +34,7 @@ is answered by a hash: **does the live file equal master's file, yes or no.**
 | `team/automations/skills/<name>/SKILL.md` | `~/.hermes/profiles/<p>/skills/<name>/SKILL.md` | overwrite from master, verify hash |
 | `team/automations/skills/weka-deploy/SKILL.md` | `~/.hermes/skills/devops/weka-deploy/SKILL.md` — a symlink into this clone, in the default home rather than a profile | symlink: step 2 already moved it to master, so nothing is copied — verify the live hash against `git show master:…` |
 | `team/automations/weka/github-webhook.py`, `github-webhook.service` | the clone the systemd user unit points at | restart the unit, verify it started now |
-| `hooks:` in `~/.hermes/profiles/<p>/config.yaml` + `<p>/shell-hooks-allowlist.json`, and in `~/.hermes/config.yaml` + `~/.hermes/shell-hooks-allowlist.json` | not in this repo | write the two blocks of step 8 verbatim (worker profiles: `post_tool_call` + the three lifecycle events + fence; default profile: the three lifecycle events), then `hooks doctor` four times |
+| `hooks:` in `~/.hermes/profiles/<p>/config.yaml` + `<p>/shell-hooks-allowlist.json`, and in `~/.hermes/config.yaml` + `~/.hermes/shell-hooks-allowlist.json` | not in this repo | write the two blocks of step 8 verbatim (worker profiles: `post_tool_call` + `kanban_task_completed` + `kanban_task_blocked` + the `pre_tool_call` fence; default profile: the three lifecycle events), then `hooks doctor` four times |
 | `~/.hermes/config.yaml` → `kanban:` | not in this repo | out of scope — a human edits it, gateway restart |
 | `README.md`, other `*.md` | nothing to install | — |
 
@@ -293,9 +293,10 @@ reads a card. The command string is identical in all entries; only `event` (and 
 file it is written in. It is one entry of the block step 8 writes in full — pasting this snippet as a
 profile's entire `hooks:` block would drop the fence.
 
-Consent is per Hermes home, so the split repeats in the allowlists: three pairs in each worker profile's
+Consent is per Hermes home, so the split repeats in the allowlists: four pairs in each worker profile's
 `~/.hermes/profiles/<p>/shell-hooks-allowlist.json` (`post_tool_call` / `kanban_task_completed` /
-`kanban_task_blocked`), and three pairs in `~/.hermes/shell-hooks-allowlist.json`
+`kanban_task_blocked`, plus the `pre_tool_call` fence — the same profile registers it), and three pairs in
+`~/.hermes/shell-hooks-allowlist.json`
 (`kanban_task_claimed` / `kanban_task_completed` / `kanban_task_blocked`, no `post_tool_call`). Each entry
 carries that same command string; the worker-profile file:
 
@@ -304,7 +305,8 @@ carries that same command string; the worker-profile file:
   "approvals": [
     {"event": "post_tool_call", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
     {"event": "kanban_task_completed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
-    {"event": "kanban_task_blocked", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"}
+    {"event": "kanban_task_blocked", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
+    {"event": "pre_tool_call", "command": "/usr/bin/python3 /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/deny_card_create.py"}
   ]
 }
 ```
@@ -386,7 +388,9 @@ Diff lines are not the only output. Skip and progress lines print too, and they 
 | ``<id>: title does not start with `#<number>:`; skipping`` | a side card that merely quotes an object URL — a follow-up card pointing at the PR it follows — is deliberately not keyed to that object |
 | `<id>: body does not start with a GitHub object URL; skipping` | the card names no object, so there is nothing to label |
 | `<id>: status=<status> assignee=<who> is not in the phase table; skipping` | that pairing maps to no flow label in `phase()` |
-| `profile <p>: N running cards; falling back to a full sweep` | a hook payload names no card; N=1 resolves to that card, anything else sweeps |
+| `event cursor: none; initialised at <id> (history is not replayed)` | first run on this board: the cursor starts at `max(id)`, so the thousands of events already in the table are never replayed |
+| `events: N status event(s) since <id>, M card(s) to read` | one event batch was consumed; N rows touched M distinct cards |
+| `fallback sweep: N card(s) (running cards are never re-read)` | every tenth wake re-reads the non-running cards, which is what repairs a label whose event was consumed but not written |
 
 One of those skip lines deserves its own reading. `phase()` recognizes the reviewer as `config.get("reviewer")`,
 and nothing validates the key — `load_config()` only checks that the file exists, so a missing key degrades
