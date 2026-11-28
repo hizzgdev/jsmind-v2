@@ -377,8 +377,10 @@ Five details in that block carry the meaning:
   the sweep fall further behind. It re-execs itself detached and returns immediately, so the cost per
   tool call is a fork, not a reconcile.
 - **`fail_closed: true` only applies to `pre_tool_call`** (`agent/shell_hooks.py`'s
-  `_BLOCKING_EVENTS`), which is why the fence is the event that gets it. Drop the key and a deleted or
-  crashing `deny_card_create.py` fails *open*: `kanban_create` succeeds, and nothing says the fence moved.
+  `_BLOCKING_EVENTS`), which is why the fence is the event that gets it. Drop the key and a
+  `deny_card_create.py` that crashes (exit 1, no directive) or times out fails *open*:
+  `kanban_create` succeeds, and nothing says the fence moved. A script the interpreter cannot open is
+  not that case — python exits 2, and 2 blocks on its own (`:587-592`).
 - **The matcher is anchored.** `^kanban_create$`, never a `kanban_` prefix — that one also swallows
   `kanban_complete` / `kanban_block` / `kanban_comment`, and a worker that cannot hand off is worse than
   one that can create a card.
@@ -456,10 +458,12 @@ the hook's. Use a copy of the script written in 3.10 syntax at the same path ins
 `/usr/bin/python3` 3.6.8 it raises SyntaxError before printing anything, so it exits 1 with empty stdout,
 and only a `fail_closed` hook turns that into a block (`:600-602`). Expect the call refused with
 `failed closed: hook exited 1 with no directive`, no new card, no new log line; then put the real script
-back. A host where that run creates a card has lost `fail_closed`. While the copy is in place `hooks
-doctor` prints `⚠ script modified since approval` — the mtime check working, not a second failure — and
-restoring the file does not clear it, so refresh the baseline with `hooks revoke '<the command string>'`
-and re-approve.
+back. A host where that run creates a card has lost `fail_closed`. While the copy is in place, doctor
+prints `⚠ script modified since approval` for an entry that recorded the script's mtime at approval —
+one approved at a first-use prompt or a launch, not one written by hand, which records no mtime and
+therefore no drift line. That warning is the mtime check working, not a second failure, and restoring
+the file does not clear it: refresh the baseline with `hooks revoke '<the command string>'` and
+re-approve.
 
 No restart is involved: the gateway re-syncs hooks from the live config when it opens a session
 (`gateway/session_policy.py` → `sync_from_config`), and a worker reads the config it was launched with.

@@ -13,9 +13,10 @@ this one lives in the tool layer.
 Wire it as `hooks.pre_tool_call` with `matcher: "^kanban_create$"` and
 `fail_closed: true` in every profile — the desired state and the allowlist entry
 are in `team/automations/skills/weka-deploy/SKILL.md`. Unattended sessions run
-with `-q` and `approvals.single_query_mode: deny`, so nobody is there to answer a
-consent prompt; an unapproved or broken hook then fails closed and blocks, which
-is exactly the answer wanted here.
+with `-q`, so nobody is there to answer a consent prompt: the pair has to be
+allowlisted ahead of time (a worker gets it from the dispatcher's
+`accept_hooks=True`), and once the hook is registered `fail_closed` is what
+turns a broken script into a block instead of a silent pass.
 
 Three properties this file has to keep:
 
@@ -30,10 +31,13 @@ Three properties this file has to keep:
   profile configs name, is 3.6.8 on this host: this file stays inside the stdlib
   calls that exist there.
 
-The log line is the evidence that the hook was reached at all. A block with no
-line means the fail-closed path answered (hook missing, unreadable, or timed
-out), not this script — which is the distinction to look for when the fence
-"works" for the wrong reason.
+The log line is the evidence that this script decided. A block with no line came
+from somewhere else, and the message the tool returns says where:
+`failed closed: …` is the `fail_closed` path — the hook could not be spawned,
+timed out, or exited non-zero with no directive — while `can't open file '…'`
+is the interpreter failing to read this file and exiting 2, which blocks on its
+own with no `fail_closed` involved. That is the distinction to look for when the
+fence "works" for the wrong reason.
 """
 import json
 import os
