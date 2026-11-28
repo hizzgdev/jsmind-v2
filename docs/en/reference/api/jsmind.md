@@ -139,6 +139,21 @@ open(mind: JmMind): Promise<void>
 
 Opens a mind map.
 
+**Remarks**
+
+Opening replaces whatever is displayed. A map that is already open is
+closed first, which drops its rendered nodes and its observer: without
+that, opening a second map on the same view stacks it on top of the
+first, and opening the map that is already open keeps rendering the
+previous style.
+
+Opened is also when the instance's viewport mode is applied: an instance
+created without options owns the box from here on - `overflow` is already
+the viewport's, and the map starts at the identity rather than at the
+corner the previous one was left at. An instance created with
+`{ view: { viewportMode: 'native' } }` keeps native scrolling, and its
+[JsMind.commands](/en/reference/api/jsmind#JsMind.commands) refuse to move the map.
+
 **Returns:** A promise that resolves when the mind map has been opened.
 
 **Parameters**
@@ -164,7 +179,7 @@ Serializes the current mind map to JSON.
 ### create {#JsMind.create}
 
 ```ts
-static create(container: string | HTMLElement, options?: JsMindOptions): Promise<JsMind>
+static create(container: string | HTMLElement, options?: JsMindOptionsInput): Promise<JsMind>
 ```
 
 Creates a jsMind instance and attaches its view to a container.
@@ -177,4 +192,4 @@ call [JsMind.open](/en/reference/api/jsmind#JsMind.open) with a [JmMind](/en/ref
 | Name | Type | Description |
 | --- | --- | --- |
 | `container` | string \| `HTMLElement` | The container element, or the id of an element in the document. |
-| `options` (optional) | [JsMindOptions](/en/reference/api/options#JsMindOptions) | Configuration for the instance. Omitted fields use the library defaults. |
+| `options` (optional) | [JsMindOptionsInput](/en/reference/api/options#JsMindOptionsInput) | Configuration for the instance. Every group and every field in it may be omitted, and omitted ones use the library defaults - which include taking the container's box over with the transform viewport. `{ view: { viewportMode: 'native' } }` keeps native scrolling instead, and is what a host without its own gestures wants for a map larger than its box. |

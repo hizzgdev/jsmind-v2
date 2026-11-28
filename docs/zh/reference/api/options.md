@@ -26,6 +26,26 @@ JsMind 的选项。
 | `mind` | [MindOptions](/zh/reference/api/mind#MindOptions) |  |
 | `view` | [ViewOptions](/zh/reference/api/options#ViewOptions) |  |
 
+## JsMindOptionsInput {#JsMindOptionsInput}
+
+*接口*
+
+创建实例时接受的选项。
+
+**说明**
+
+每个分组都是可选的，分组里的每个字段也是可选的：调用方可以只传 `{ view: { viewportMode: 'native' } }`，padding 与 expander 沿用默认值——运行时的合并本来就是这样。`Partial<JsMindOptions>` 表达不了这一点：它只把分组变成可选，分组一旦出现就必须完整。
+
+[JsMindOptions](/zh/reference/api/options#JsMindOptions) 是解析后的形状，每个字段都在。
+
+**属性**
+
+| 名称 | 类型 | 说明 |
+| --- | --- | --- |
+| `layout` (可选) | `Partial`<[LayoutOptions](/zh/reference/api/options#LayoutOptions)> | 布局的选项；省略的字段使用默认值。 |
+| `mind` (可选) | `Partial`<[MindOptions](/zh/reference/api/mind#MindOptions)> | 思维导图的选项；省略的字段使用默认值。 |
+| `view` (可选) | `Partial`<[ViewOptions](/zh/reference/api/options#ViewOptions)> | 视图的选项；省略的字段使用默认值。 |
+
 ## ViewOptions {#ViewOptions}
 
 *接口*
@@ -36,6 +56,7 @@ JsMind 的选项。
 | --- | --- | --- |
 | `expander` | [ViewExpanderOptions](/zh/reference/api/options#ViewExpanderOptions) |  |
 | `padding` | [ViewPadding](/zh/reference/api/options#ViewPadding) |  |
+| `viewportMode` | [JmViewportMode](/zh/reference/api/viewport#JmViewportMode) | 容器内部那个盒子由哪种机制移动导图。`'viewport'`（默认）把容器的内部盒子交给 transform 视口：`overflow` 变成 `visible`，缩放和平移写入 `transform`。此后命令掌管导图的每一次移动，浏览器不再滚动它——所以接管了盒子的宿主，也是要自己驱动手势的那一方。产物页的壳这么做；库本身不听浏览器的输入事件。 默认带来的代价必须一起认：只做 `create()` 和 `open()`、又遇到比盒子大的导图的宿主，会拿到一块浏览器不能滚、库也移不动的画布。用 `getViewport()` 读 `mode` 自检、接上自己的手势，或者显式要 `'native'`。 `'native'` 保留原生滚动：比盒子大的导图溢出盒子，由浏览器自己的滚动条够到其余部分。此时那五条视口命令不可用，会抛错。 模式在这里定一次，之后永不改变：以后再切，会在读者手下移动画面。也不能「退回来」——接管把滚动偏移折进了原点、替换了 `overflow`，回退得把这两样都还原。 |
 
 ## ViewPadding {#ViewPadding}
 

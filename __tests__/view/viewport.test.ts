@@ -138,13 +138,13 @@ test('viewport - a zoom writes the middle on an axis whose content fits', () => 
 });
 
 test('viewport - a zoom to the factor already in effect writes the state it found', () => {
-    // A caller takes the inner box over from native scrolling by zooming to the
-    // factor the map opens at: `export html` calls `zoomTo(1)` on the view it
-    // has just opened. Every point is already still at that factor, so the
-    // origin must come back untouched - including an origin the middle rule
-    // would otherwise overwrite, which is what a fitting axis would get.
-    // Without this, taking the box over would move the map at the moment the
-    // page opened.
+    // A zoom to the factor in effect must be a no-op: every point is already
+    // still at that factor, so the origin must come back untouched - including
+    // an origin the middle rule would otherwise overwrite, which is what a
+    // fitting axis would get. A host that calls `zoomTo(getViewport().scale)`
+    // relies on this. The library itself no longer takes the box over with a
+    // zoom - the construction mode does that - so the branch is here for that
+    // caller, not for the takeover.
     const stranded: JmViewportTransform = { x: 5000, y: -3000, scale: 0.2 };
     const anchor = { x: 200, y: 150 };
 

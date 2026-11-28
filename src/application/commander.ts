@@ -52,6 +52,10 @@ export class JmCommander {
      * @param scale - Requested factor, clamped by the view.
      * @param anchor - Point to hold still, in the view's own pixels. Defaults to
      * the middle of the viewport.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`. Native scrolling is in charge then, and this
+     * command would have to switch modes to do anything - which is the one
+     * thing a running instance does not do.
      */
     zoomTo(scale: number, anchor?: JmViewportAnchor): void {
         this.view.zoomTo(scale, anchor);
@@ -60,7 +64,7 @@ export class JmCommander {
     /**
      * Reads the current viewport.
      *
-     * @returns The origin, the zoom factor and the visible size.
+     * @returns The origin, the zoom factor, the visible size and the mode.
      */
     getViewport(): JmViewport {
         return this.view.getViewport();
@@ -71,6 +75,8 @@ export class JmCommander {
      *
      * @param x - Map-space x to show at the left edge.
      * @param y - Map-space y to show at the top edge.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`. See {@link JmCommander.zoomTo}.
      */
     panTo(x: number, y: number): void {
         this.view.panTo(x, y);
@@ -81,6 +87,8 @@ export class JmCommander {
      *
      * @param dx - Horizontal travel in viewport pixels.
      * @param dy - Vertical travel in viewport pixels.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`. See {@link JmCommander.zoomTo}.
      */
     panBy(dx: number, dy: number): void {
         this.view.panBy(dx, dy);
@@ -91,6 +99,9 @@ export class JmCommander {
      * viewport, leaving the zoom alone.
      *
      * @param nodeId - Id of a node in the open mind map.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`, before the id is looked at. See
+     * {@link JmCommander.zoomTo}.
      * @throws {@link JsMindError} When this view has not been given a map yet,
      * or the id is not one of that map's nodes. Closing the map does not empty
      * the view: centring afterwards still acts on the last map shown, instead
@@ -117,6 +128,12 @@ export class JmCommander {
      *
      * @param mode - `'shrink'` for a map too large for the box, `'expand'` for
      * one too small. Omit it to correct both.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`, before `mode` or the map is looked at. See
+     * {@link JmCommander.zoomTo}.
+     * @throws {@link JsMindError} When `mode` is given as neither of the two
+     * values, so a typo in a JavaScript caller fails loudly instead of quietly
+     * shrinking.
      * @throws {@link JsMindError} When this view has not been given a map yet.
      */
     fitToView(mode?: JmFitToViewMode): void {

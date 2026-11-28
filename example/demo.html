@@ -65,11 +65,15 @@
                 try {
                     console.log('Creating jsMind instance');
                     // Create jsMind instance
+                    // Native scrolling, paired with the expander below: this page
+                    // has no gesture code, so a map larger than the 500px box has
+                    // to stay reachable through the browser's own scrollbars.
                     _jm = await jsMind.create('jsmind_container', {
                         view: {
                             expander: {
                                 style: 'char',
-                            }
+                            },
+                            viewportMode: 'native'
                         }
                     });
                     console.log('JsMind instance created');

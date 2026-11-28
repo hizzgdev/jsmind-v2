@@ -110,6 +110,8 @@ PR 关闭那一支靠同样的两个键开，但门关着时**只在 journal 打
 
 **标题用英文**：issue 标题、PR 标题、commit message 一律英文 `<type>(<scope>): <subject>`，类型按 `team/development/commit-types.md` 那张表选。正文和评论可以中文，审查评论的语言则跟随 PR body（见 `SOUL.reed.md`「写审查意见：语言、结构、位置」）。新建 issue 时不按正文语言决定标题语言——正文是中文，标题依然英文；这张 issue 自己的标题曾经是中文，被 owner 打回才改的。`AGENTS.md` 只写了 PR 标题与 commit message，issue 这一条由 weka 流程自己收口。
 
+**PR body 的写法**由 `SOUL.cody.md` 的「写 PR body」一节定义：第一行 `Closes #N`，正文三节（做了什么 / 怎么验证的 / 需要人来做）、总长 ≤ 30 行，测试只写命令与结果、不写条数或文件数。本文件不再重复那套规则，改的时候只改 SOUL。
+
 ## 每次关闭后排下一轮：groom 卡
 
 `pull_request.closed` 做完 cleanup 之后，webhook 还会在 **groom 板**（显示名「需求梳理」）上排一张 **scout 卡**。scout 是独立 profile，只干一件事：把「下一步该做什么」写成一个 owner 能直接拍板的 issue。

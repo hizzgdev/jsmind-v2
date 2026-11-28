@@ -42,6 +42,7 @@ centerOn(nodeId: string): void
 
 **异常**
 
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`，在检查 ID 之前就抛出。见 [JmCommander.zoomTo](/zh/reference/api/viewport#JmCommander.zoomTo)。
 - `JsMindError` 如果视图还没有拿到导图，或者该 ID 不属于这张导图的任何节点。关闭导图不会清空视图：之后再居中，仍然作用在最后显示的那张导图上，不会抛错。
 
 **参数**
@@ -82,6 +83,8 @@ fitToView(mode?: JmFitToViewMode): void
 
 **异常**
 
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`，在检查 `mode` 和导图之前就抛出。见 [JmCommander.zoomTo](/zh/reference/api/viewport#JmCommander.zoomTo)。
+- `JsMindError` 如果 `mode` 给的不是这两个值之一——这样 JavaScript 调用方打错字时会直接报错，而不是悄悄缩小。
 - `JsMindError` 如果视图还没有拿到导图。
 
 **参数**
@@ -98,7 +101,7 @@ getViewport(): JmViewport
 
 读取当前视口。
 
-**返回值:** 原点、缩放系数和可见尺寸。
+**返回值:** 原点、缩放系数、可见尺寸和模式。
 
 ### panBy {#JmCommander.panBy}
 
@@ -107,6 +110,10 @@ panBy(dx: number, dy: number): void
 ```
 
 按屏幕上的距离移动视口。
+
+**异常**
+
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`。见 [JmCommander.zoomTo](/zh/reference/api/viewport#JmCommander.zoomTo)。
 
 **参数**
 
@@ -123,6 +130,10 @@ panTo(x: number, y: number): void
 
 把一个导图坐标系中的点放到视口左上角。
 
+**异常**
+
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`。见 [JmCommander.zoomTo](/zh/reference/api/viewport#JmCommander.zoomTo)。
+
 **参数**
 
 | 名称 | 类型 | 说明 |
@@ -137,6 +148,10 @@ zoomTo(scale: number, anchor?: JmViewportAnchor): void
 ```
 
 改变缩放系数，让一个点保持不动。
+
+**异常**
+
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`。这时由原生滚动掌管，这条命令要做事就得换轨——而运行中的实例不会换轨。
 
 **参数**
 
@@ -185,6 +200,7 @@ centerOn(nodeId: string): void
 
 **异常**
 
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`，在检查 ID 之前就抛出。见 [JmViewHandle.zoomTo](/zh/reference/api/viewport#JmViewHandle.zoomTo)。
 - `JsMindError` 如果视图还没有拿到导图，或者该 ID 不属于这张导图的任何节点。
 
 关闭导图不等于没有导图：没有任何东西告诉视图导图被关闭了，它会保留最后一次显示的那张图，此时居中作用在那张图上，不会抛错。
@@ -220,6 +236,7 @@ fitToView(mode?: JmFitToViewMode): void
 
 **异常**
 
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`，在检查 `mode` 和导图之前就抛出。见 [JmViewHandle.zoomTo](/zh/reference/api/viewport#JmViewHandle.zoomTo)。
 - `JsMindError` 如果 `mode` 给的不是这两个值之一——这样 JavaScript 调用方打错字时会直接报错，而不是悄悄缩小。
 - `JsMindError` 如果视图还没有拿到导图——没有可适配的内容。已关闭的导图在这里算作已打开：视图会保留最后一次显示的那张，与 [JmViewHandle.centerOn](/zh/reference/api/viewport#JmViewHandle.centerOn) 相同。
 
@@ -237,7 +254,7 @@ getViewport(): JmViewport
 
 读取当前视口。
 
-**返回值:** 原点、缩放系数和可见尺寸。
+**返回值:** 原点、缩放系数、可见尺寸和模式。
 
 ### panBy {#JmViewHandle.panBy}
 
@@ -250,6 +267,10 @@ panBy(dx: number, dy: number): void
 **说明**
 
 增量是视口像素，不是导图像素：拖动报告的是指针走了多远，而除以缩放是视图本来就负责的算术。正的 `dx` 把导图向右移，也就显示出更靠左的导图点。夹取方式与 [JmViewHandle.panTo](/zh/reference/api/viewport#JmViewHandle.panTo) 相同，包括导图放得下时同样不动。
+
+**异常**
+
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`。见 [JmViewHandle.zoomTo](/zh/reference/api/viewport#JmViewHandle.zoomTo)。
 
 **参数**
 
@@ -272,6 +293,10 @@ panTo(x: number, y: number): void
 
 夹取需要一段可以夹进去的区间，而这段区间只在导图比视口大时才存在。当前缩放下一整张导图都放得下时，区间是空的，这次调用不会改变原点：是不动，而不是移到最近的边缘，也不是居中。没有任何平移会把原点写到这段区间之外，这同样适用于建立在它之上的 `centerOn`：只有导图溢出视口时，才能把某个节点带到正中；导图放得下时，没有什么需要带进视野。
 
+**异常**
+
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`。见 [JmViewHandle.zoomTo](/zh/reference/api/viewport#JmViewHandle.zoomTo)。
+
 **参数**
 
 | 名称 | 类型 | 说明 |
@@ -291,6 +316,12 @@ zoomTo(scale: number, anchor?: JmViewportAnchor): void
 
 锚点由调用方给出：缩放总要固定住某个东西，而固定哪一个决定了手势的手感——滚轮围绕指针缩放，没有指针位置的空间围绕盒子中心缩放。把锚点传进来，两种做法就不会被意外混用，屏幕点到导图点的换算也仍然留在视图内部。
 
+那个被固定的点只在导图仍然溢出这一轴时才被遵守——这是滚轮手势的承诺。在内容放得下的轴上，平移没有可用的区间，于是改为居中：否则锚点会除以新的系数，把一张本可放下的导图推出盒子，落到任何平移都拉不回来的状态。缩放到已经生效的系数时什么都不改变，原点也一样：每个点本来就不动，没有新的系数需要落点。
+
+**异常**
+
+- `JsMindError` 如果实例创建时给了 `{ view: { viewportMode: 'native' } }`。这时由原生滚动掌管，这条命令要做事就得换轨——而运行中的实例不会换轨。
+
 **参数**
 
 | 名称 | 类型 | 说明 |
@@ -308,12 +339,29 @@ zoomTo(scale: number, anchor?: JmViewportAnchor): void
 
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
-| `canPan` | boolean | 在当前缩放下，平移是否会让导图移动。只要内容在至少一个轴上溢出可见盒子就为 true——这正是 [JmViewHandle.panTo](/zh/reference/api/viewport#JmViewHandle.panTo) 被允许改变原点的条件。手势开始之前就要决定的调用方需要它：浏览器在第一个 touchmove 之前就把 `touch-action` 定下来了，所以一张放得下的导图应该把这个手势交还给页面，而不是吞掉一次注定无效的拖动。在这里询问，也省得调用方自己去测量内容——那会让布局和视图自己的布局分叉。 |
+| `canPan` | boolean | 在当前缩放下，库能不能移动这张导图。在 `'viewport'` 模式下，只要内容在至少一个轴上溢出可见盒子就为 true——这正是 [JmViewHandle.panTo](/zh/reference/api/viewport#JmViewHandle.panTo) 被允许改变原点的条件。手势开始之前就要决定的调用方需要它：浏览器在第一个 touchmove 之前就把 `touch-action` 定下来了，所以一张放得下的导图应该把这个手势交还给页面，而不是吞掉一次注定无效的拖动。在这里询问，也省得调用方自己去测量内容——那会让布局和视图自己的布局分叉。 在 `'native'` 模式下它恒为 false：浏览器在滚这张导图，而本来负责回答这个问题的夹取在那个模式下没有区间可用。它回答的是「库能不能移动导图」，不是「画面能不能移动」——那个模式下移动画面的是浏览器。 |
 | `height` | number | 可见高度，单位是 CSS 像素。 |
+| `mode` | [JmViewportMode](/zh/reference/api/viewport#JmViewportMode) | 谁掌管这个盒子。见 [JmViewportMode](/zh/reference/api/viewport#JmViewportMode)。上报这个字段，是为了让宿主或测试能断言当前模式，而不是去读 `overflow` 这种实现细节。在 `'native'` 模式下 `x`、`y`、`scale` 都是恒等值：那里没有任何命令能移动原点，浏览器自己的滚动偏移也刻意不作为原点上报。 |
 | `scale` | number | 当前的缩放倍数，1 表示不缩放。 |
 | `width` | number | 可见宽度，单位是 CSS 像素。 |
-| `x` | number | 在视口左边缘显示的导图空间 x 坐标。这是导图中的一个位置，不是滚动偏移：它就是 [JmViewHandle.panTo](/zh/reference/api/viewport#JmViewHandle.panTo) 写入的那个数，所以调用方在这里读到什么，就能把什么放回去。 |
+| `x` | number | 在视口左边缘显示的导图空间 x 坐标。这是导图中的一个位置，不是滚动偏移：它就是 [JmViewHandle.panTo](/zh/reference/api/viewport#JmViewHandle.panTo) 写入的那个数，所以调用方在这里读到什么，就能把什么放回去。在 `'native'` 模式下它恒为 0——那里没有任何东西写入它，浏览器自己的滚动偏移也不作为原点上报。见 [JmViewport.mode](/zh/reference/api/viewport#JmViewport)。 |
 | `y` | number | 在视口上边缘显示的导图空间 y 坐标。参见 [JmViewport.x](/zh/reference/api/viewport#JmViewport)。 |
+
+## JmViewportMode {#JmViewportMode}
+
+*类型*
+
+谁掌管容器内部的那个盒子。
+
+**说明**
+
+有两种机制会移动导图，而同一个盒子上只能有一个说了算：浏览器在盒子里滚动它（`'native'`），或者库写入一个 `transform`（`'viewport'`）。`transform` 移动内容却不扩展可滚动区域，所以两者不可能同时存在。
+
+`'viewport'` 是默认：v2 默认用 transform 移动导图，除非调用方另有要求。`'native'` 必须显式点名——库不接管浏览器的输入事件，只调 `create()` 和 `open()`、又展示比盒子大的导图的宿主，会拿到一块浏览器不能滚、库也移不动的画布；这种宿主得自己接手势，或者传 `'native'` 留着滚动条。
+
+模式是构造选项，之后永不改变。接管会把手上的滚动偏移折进视口原点并替换 `overflow`，所以退回去会移动画面、也会丢掉手势的位置；而在读者手下往前切，是同一个跳动换了个方向。
+
+在 `'native'` 模式下库完全不移动导图：[JmViewHandle](/zh/reference/api/viewport#JmViewHandle) 上的五条命令会抛错，而不是悄悄什么都不做；`getViewport()` 报恒等值。
 
 ## JmViewportAnchor {#JmViewportAnchor}
 

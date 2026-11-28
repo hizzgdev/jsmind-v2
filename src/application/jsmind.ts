@@ -1,7 +1,7 @@
 
 import { JmMind } from '../model/mind.ts';
 import { JsMindError } from '../common/error.ts';
-import { mergeJsMindOptions, type JsMindOptions } from '../common/option.ts';
+import { mergeJsMindOptions, type JsMindOptionsInput, type JsMindOptions } from '../common/option.ts';
 import { JmView } from '../view/index.ts';
 import { MindmapArranger } from '../arranger/mindmap.ts';
 import { JmMindChangeCoordinator } from './mind-change-coordinator.ts';
@@ -58,6 +58,16 @@ class JsMind {
     /** The state coordinator instance for managing the state of the mind map. */
     private readonly coordinator: JmMindChangeCoordinator;
 
+    /**
+     * The view the map is rendered in.
+     *
+     * @remarks
+     * Held for the one thing that is not a command: applying the instance's
+     * viewport mode to the box when a map is opened. The commands reach the
+     * view through {@link JsMind.commands}, which is what a caller holds.
+     */
+    private readonly view: JmView;
+
     /** Issues display-affecting commands. */
     private readonly commander: JmCommander;
 
@@ -81,10 +91,12 @@ class JsMind {
      */
     private constructor(
         options: JsMindOptions,
+        view: JmView,
         mindChangeCoordinator: JmMindChangeCoordinator,
         commander: JmCommander
     ) {
         this.options = options;
+        this.view = view;
         this.coordinator = mindChangeCoordinator;
         this.commander = commander;
     }
@@ -93,17 +105,22 @@ class JsMind {
      * Creates a jsMind instance and attaches its view to a container.
      *
      * @param container - The container element, or the id of an element in the document.
-     * @param options - Configuration for the instance. Omitted fields use the library defaults.
+     * @param options - Configuration for the instance. Every group and every field in it
+     *                  may be omitted, and omitted ones use the library defaults - which
+     *                  include taking the container's box over with the transform
+     *                  viewport. `{ view: { viewportMode: 'native' } }` keeps native
+     *                  scrolling instead, and is what a host without its own gestures
+     *                  wants for a map larger than its box.
      * @returns A promise that resolves to the new instance. No mind map is open yet;
      *          call {@link JsMind.open} with a {@link JmMind} to display one.
      */
-    static async create(container: string | HTMLElement, options?: JsMindOptions): Promise<JsMind> {
+    static async create(container: string | HTMLElement, options?: JsMindOptionsInput): Promise<JsMind> {
         const mergedOptions = mergeJsMindOptions(options);
         const arranger = new MindmapArranger(mergedOptions.layout);
         const view = await JmView.create(container, arranger, mergedOptions.view);
         const mindChangeCoordinator = new JmMindChangeCoordinator(arranger, view);
         const commander = new JmCommander(view);
-        return new JsMind(mergedOptions, mindChangeCoordinator, commander);
+        return new JsMind(mergedOptions, view, mindChangeCoordinator, commander);
     }
 
     /**
@@ -116,6 +133,13 @@ class JsMind {
      * first, and opening the map that is already open keeps rendering the
      * previous style.
      *
+     * Opened is also when the instance's viewport mode is applied: an instance
+     * created without options owns the box from here on - `overflow` is already
+     * the viewport's, and the map starts at the identity rather than at the
+     * corner the previous one was left at. An instance created with
+     * `{ view: { viewportMode: 'native' } }` keeps native scrolling, and its
+     * {@link JsMind.commands} refuse to move the map.
+     *
      * @param mind - The mind map instance to open.
      * @returns A promise that resolves when the mind map has been opened.
      */
@@ -123,6 +147,7 @@ class JsMind {
         this.close();
         this.mind = mind;
         await this.coordinator.onMindMapOpened(mind);
+        this.view.takeOverViewport();
         mind.observerManager.addObserver(this.coordinator);
     }
 
