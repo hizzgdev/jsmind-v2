@@ -244,13 +244,14 @@ cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理
 
 - **游标初始化成 `max(id)`，不是 0。** 这块板有几千条历史事件，从 0 重放是 `gh` 限流事故，不是修复。
 - **游标按板分开**：groom 板是另一个数据库、另一套 id 空间。
-- **先写标签、后推进游标**：中途崩了就是重放一次，对账是幂等的。
+- **写失败不算消费，也不许把游标钉死。** `gh` 拒绝一次写入（`403` 限流、`5xx`、标签被人手删）时，这批事件不能算已消费：游标停在原地，这几张卡进一个按板分开的重试列表（`~/.hermes/state/weka-labels/pending-<board>`），**每次唤醒都读它**——即使这次没有任何新事件，也会重试。重试上限 `PENDING_RETRY_LIMIT`（3 次）：到顶就放弃并打一行 `[WARN] … no longer retried`，卡片留在列表里但不再被读，游标随下一批放行。反过来的两个极端都不行：无条件推进 → 写失败的那批永久丢失（旧实现靠每轮重读自愈，现在只消费一次），永不推进 → 一个打不通的对象让后面所有事件一起停摆。
+- **先写标签、后推进游标**：中途崩了就是重放一次，对账是幂等的；重试列表也先于游标落盘，否则崩溃后这批事件再没人读、卡片带着旧标签等人。
 - **SQL 里过滤 kind**：给的是**不改状态的 kind 黑名单**（`heartbeat` 一项就占事件表的一大半，`spawned` / `worker_result` / `commented` / `edited` / `respawn_guarded` 等都在里面）。为什么是黑名单不是白名单：不认识的 kind 多读一张卡、代价是一次幂等比较；漏掉一种 kind 就是一张卡永远带着上一张卡的标签。重试熔断那条路就是活例子——卡被置 `blocked` 时只 append `gave_up`（前面还有 `timed_out` / `crashed` / `rate_limited`），不发 `kanban_task_blocked`，而 blocked 的卡不产生工具调用，白名单漏了它 `weka-blocked` 就永远写不上。`stale` / `reconciled` / `reclaimed`（dispatcher 重新排队）、`dependency_wait`（停回 `todo`）、`assigned`（改了 `phase()` 读的 assignee）同理。
-- **每第 10 次唤醒补一次兜底扫**：所有**非 running** 的活卡 + 最近 10 张有状态事件的卡。它救的是「事件消费了但标签没写成功」。running 的卡故意不扫——它的标签在 `claimed` 那一刻就写好了，而重读一张还在 `running` 的 reed 卡，正是「PR 已批准又被写回 `weka-reviewing`」的成因。
+- **每第 10 次唤醒补一次兜底扫**：所有**非 running** 的活卡 + 最近 10 张有状态事件的卡。写失败的第一张网是 `pending-<board>` 重试列表（每轮都读），兜底是第二张：它按「最近改动过状态」重新找一遍，覆盖重试列表丢掉的卡（重试到上限被放弃的、以及事件被消费前就写失败的）。running 的卡故意不扫——它的标签在 `claimed` 那一刻就写好了，而重读一张还在 `running` 的 reed 卡，正是「PR 已批准又被写回 `weka-reviewing`」的成因。
 
 两个转换没有生命周期事件（`kanban_request_review` 的 running → review 和 `kanban_request_changes` 的 review → ready 只写库），所以 `post_tool_call` 用 `^kanban_.*` 这个 matcher 补一刀（`matches_tool` 走的是 `fullmatch`，只写 `^kanban_` 一个都匹配不上）；另外三条 `kanban_task_claimed` / `kanban_task_completed` / `kanban_task_blocked` 直接在 payload 里带卡号（`extra.task_id`）。`--from-hook` 把 payload 点名的卡和游标新事件拼成一批，交给一个 detached 子进程处理，自己立刻退出——工具调用不会被钩子的 `timeout` 拖住（`hooks.<event>[].timeout`，默认 60s、上限 300）。
 
-`labels.py` 有四个入口：`--from-hook`（钩子，读 stdin、spawn 后立刻退出）、`--events`（钩子的子进程：游标批处理；带 `--fallback` 时追加兜底扫）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡；`--dry-run` 只打印差异、不发任何写请求，也不推进游标。共用 `~/.hermes/state/weka-labels/` 的是**四个钩子进程**——三个 worker profile 各一份，加上默认 profile 里那条 `kanban_task_claimed`（它由 gateway 的 dispatcher 发，只在默认 profile 注册）：`events-<board>` 是每块板的事件游标，`counter` 是唤醒计数（每第 10 次带兜底），`lock` + `dirty` 保证同一时刻只跑一轮，`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
+`labels.py` 有四个入口：`--from-hook`（钩子，读 stdin、spawn 后立刻退出）、`--events`（钩子的子进程：游标批处理；带 `--fallback` 时追加兜底扫）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡；`--dry-run` 只打印差异、不发任何写请求，也不推进游标。共用 `~/.hermes/state/weka-labels/` 的是**四个钩子进程**——三个 worker profile 各一份，加上默认 profile 里那条 `kanban_task_claimed`（它由 gateway 的 dispatcher 发，只在默认 profile 注册）：`events-<board>` 是每块板的事件游标，`pending-<board>` 是每块板的写失败重试列表（卡号 → 已重试次数），`counter` 是唤醒计数（每第 10 次带兜底），`lock` + `dirty` 保证同一时刻只跑一轮，`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
 
 看板数据直读 SQLite（只读连接 `mode=ro` + `busy_timeout`），不再 shell 调 `hermes kanban list`：事件游标没有 CLI 对应物，而 `list` 内部会跑一次 `recompute_ready()` 写板——那正是 worker 里被围栏挡住的那一步。只读不走围栏，所以也不再需要剥掉 worker 身份。
 

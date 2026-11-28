@@ -390,7 +390,10 @@ Diff lines are not the only output. Skip and progress lines print too, and they 
 | `<id>: status=<status> assignee=<who> is not in the phase table; skipping` | that pairing maps to no flow label in `phase()` |
 | `event cursor: none; initialised at <id> (history is not replayed)` | first run on this board: the cursor starts at `max(id)`, so the thousands of events already in the table are never replayed |
 | `events: N status event(s) since <id>, M card(s) to read` | one event batch was consumed; N rows touched M distinct cards |
-| `fallback sweep: N card(s) (running cards are never re-read)` | every tenth wake re-reads the non-running cards, which is what repairs a label whose event was consumed but not written |
+| `retry list: N card(s) whose label write failed on an earlier wake` | the per-board retry list named cards a `gh` write refused last time; they are reconciled even if no new event arrived |
+| `cursor held at <id>: N card(s) still owe a label write` | at least one card in this batch was refused, so the batch is not consumed work — it is re-read next wake |
+| `[WARN] <id>: 3 label write(s) failed in a row; no longer retried (its labels may stay stale)` | the retry cap (`PENDING_RETRY_LIMIT`) was reached: the card is dropped so one unreachable object cannot stall the cursor forever |
+| `fallback sweep: N card(s) (running cards are never re-read)` | every tenth wake re-reads the non-running cards — the second net behind the retry list |
 
 One of those skip lines deserves its own reading. `phase()` recognizes the reviewer as `config.get("reviewer")`,
 and nothing validates the key — `load_config()` only checks that the file exists, so a missing key degrades
@@ -565,10 +568,13 @@ Eight details in those blocks carry the meaning:
   interpreter is not a red doctor line: the smoke test prints `(exit=1)` with empty stdout and stays
   green, so read the exit code.
 - **The ledger's state lives in `~/.hermes/state/weka-labels/`.** `events-<board>` is the per-board event
-  cursor (initialised at `max(id)`, so a fresh file never replays history), `counter` is the wake counter
-  (every tenth wake adds the fallback sweep), `lock`/`dirty` serialise concurrent hooks (`dirty` records the
-  scope a wake that lost the lock owed: `full`, `events`, or `card:<id>` — the shape is what keeps an event
-  batch from being looked up as a card), and `log` holds
+  cursor (initialised at `max(id)`, so a fresh file never replays history), `pending-<board>` is the
+  per-board retry list (card id → attempts) for cards whose label write GitHub refused: the cursor does
+  not move past them and every wake re-reads them, up to three tries before the card is dropped with a
+  `no longer retried` warning, so one unreachable object cannot stall every later event. `counter` is the
+  wake counter (every tenth wake adds the fallback sweep), `lock`/`dirty` serialise concurrent hooks
+  (`dirty` records the scope a wake that lost the lock owed: `full`, `events`, or `card:<id>` — the shape
+  is what keeps an event batch from being looked up as a card), and `log` holds
   everything the detached child prints. None of it is per profile on purpose: three profiles watching one
   board need one cursor, not three.
 

@@ -95,6 +95,14 @@ FALLBACK_EVENT_WINDOW = 10
 # next wake continues from where this one stopped.
 EVENT_BATCH_LIMIT = 200
 
+# How many wakes a card whose label write failed is retried before the ledger
+# gives up on it. A rejected write (`403` rate limit, a `5xx`, a label someone
+# deleted by hand) must not consume the event batch for good — the cursor stays
+# put while a card is still waiting — and it must not pin the cursor forever
+# either, because then every later event stops arriving. So: retry on every
+# wake, then drop the card and let the cursor move on with one warning.
+PENDING_RETRY_LIMIT = 3
+
 # The event kinds that never move a card's phase, so the batch query skips them
 # before they reach Python (`heartbeat` alone is more than half the table).
 #
@@ -196,11 +204,17 @@ class Ref:
 class Report:
     cards: int = 0
     changes: list[str] = field(default_factory=list)
+    # Card ids whose label write GitHub refused. The event cursor must not move
+    # past them: the batch is the only time those writes are attempted.
+    failed: list[str] = field(default_factory=list)
 
     def line(self) -> str:
-        if not self.changes:
-            return f"no change ({self.cards} cards)"
-        return "\n".join(self.changes)
+        body = "\n".join(self.changes)
+        if not self.failed:
+            return body or f"no change ({self.cards} cards)"
+        left = ", ".join(self.failed[:3]) + (", …" if len(self.failed) > 3 else "")
+        return (f"{body or 'no change'} ({self.cards} cards)\n"
+                f"[WARN] {len(self.failed)} card(s) whose labels could not be written: {left}")
 
 
 def _stamp(card: dict, key: str) -> float:
@@ -382,6 +396,68 @@ def write_cursor(config: dict, value: int) -> None:
     tmp = path.parent / f"{path.name}.tmp"
     tmp.write_text(f"{value}\n", encoding="utf-8")
     os.replace(tmp, path)
+
+
+def pending_path(config: dict) -> Path:
+    """Cards whose labels could not be written, per board, with a retry count."""
+    return _path(f"pending-{_board_key(config)}")
+
+
+def read_pending(config: dict) -> dict[str, int]:
+    path = pending_path(config)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except ValueError:
+        say(f"[WARN] {path.name} is not JSON; dropping the retry list")
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    pending: dict[str, int] = {}
+    for card_id, attempts in raw.items():
+        try:
+            pending[str(card_id)] = int(attempts)
+        except (TypeError, ValueError):
+            continue
+    return pending
+
+
+def write_pending(config: dict, pending: dict[str, int]) -> None:
+    path = pending_path(config)
+    if not pending:
+        path.unlink(missing_ok=True)
+        return
+    tmp = path.parent / f"{path.name}.tmp"
+    tmp.write_text(json.dumps(pending, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def note_failures(pending: dict[str, int], report: Report,
+                  reconciled: set[str]) -> dict[str, int]:
+    """Carry this pass's rejected cards into the retry list, drop the healed ones.
+
+    A card that failed is retried on every wake (`_events_once` reads this list)
+    until it succeeds or `PENDING_RETRY_LIMIT` is reached. Giving up is sticky:
+    the entry stays at the limit and the card is no longer read, so a permanent
+    failure costs a bounded number of `gh` calls instead of pinning the cursor
+    forever — otherwise one unreachable issue would stop every later event.
+    """
+    for card_id in reconciled - set(report.failed):
+        pending.pop(card_id, None)
+    for card_id in report.failed:
+        attempts = min(pending.get(card_id, 0) + 1, PENDING_RETRY_LIMIT)
+        if attempts >= PENDING_RETRY_LIMIT and pending.get(card_id) != PENDING_RETRY_LIMIT:
+            say(f"[WARN] {card_id}: {attempts} label write(s) failed in a row; "
+                "no longer retried (its labels may stay stale)")
+        pending[card_id] = attempts
+    return pending
+
+
+def pending_retry_ids(pending: dict[str, int]) -> list[str]:
+    """The cards still worth retrying: a card at the limit has been given up on."""
+    return [card_id for card_id, attempts in pending.items()
+            if attempts < PENDING_RETRY_LIMIT]
 
 
 def _lock(path: Path, *, blocking: bool) -> int | None:
@@ -636,32 +712,46 @@ class Reconciler:
                 claimed[ref] = str(card.get("id"))
 
         for ref, label in desired.items():
-            self._apply(ref, label, claimed[ref], report)
+            if not self._apply(ref, label, claimed[ref], report):
+                card_id = claimed[ref]
+                if card_id not in report.failed:
+                    report.failed.append(card_id)
         return report
 
-    def _apply(self, ref: Ref, label: str | None, card_id: str, report: Report) -> None:
+    def _apply(self, ref: Ref, label: str | None, card_id: str, report: Report) -> bool:
+        """Write one object's labels; False means GitHub refused at least one.
+
+        The caller needs the answer: an event batch is consumed once, so a
+        batch whose writes were rejected must not be recorded as done.
+        """
         state = self.gh.object_state(ref)
         if state is None:
-            return
+            # An unreadable object leaves the labels exactly as unknown as a
+            # rejected write does, so it counts the same way.
+            return False
         # A closed object keeps whatever it has: the close-time cleanup is the
         # webhook's job, and re-adding a label to a merged PR would be a lie.
         if str(state.get("state") or "").lower() != "open":
-            return
+            return True
         names = {item.get("name") for item in state.get("labels") or [] if isinstance(item, dict)}
         present = {name for name in names if isinstance(name, str)}
         flow = present & set(FLOW_LABELS)
         want = {label} if label else set()
         add, remove = sorted(want - flow), sorted(flow - want)
         if not add and not remove:
-            return
+            return True
         parts = [f"-{name}" for name in remove] + [f"+{name}" for name in add]
         report.changes.append(f"{card_id} #{ref.number} {ref.kind}: {' '.join(parts)}")
         if self.dry_run:
-            return
+            return True
+        ok = True
         for name in remove:
-            self.gh.remove_label(ref, name)
+            if not self.gh.remove_label(ref, name):
+                ok = False
         for name in add:
-            self.gh.add_label(ref, name)
+            if not self.gh.add_label(ref, name):
+                ok = False
+        return ok
 
 
 # ---- event cursor ----------------------------------------------------------
@@ -702,8 +792,12 @@ def _events_once(config: dict, named: str | None, fallback: bool, dry_run: bool)
     else:
         batch = board.events_since(cursor)
 
+    pending = read_pending(config)
+    retry = pending_retry_ids(pending)
+    if retry:
+        say(f"retry list: {len(retry)} card(s) whose label write failed on an earlier wake")
     wanted = list(dict.fromkeys([str(event["task_id"]) for event in batch]
-                                + ([named] if named else [])))
+                                + ([named] if named else []) + retry))
     known = [by_id[task_id] for task_id in wanted if task_id in by_id]
     unknown = [task_id for task_id in wanted if task_id not in by_id]
     if unknown:
@@ -717,14 +811,31 @@ def _events_once(config: dict, named: str | None, fallback: bool, dry_run: bool)
     say(report.line())
 
     # Labels first, cursor second: a crash in between replays this batch, and
-    # the reconcile is idempotent.
+    # the reconcile is idempotent. A rejected write is not consumed work either,
+    # so the retry list is written *before* the cursor moves: if the cursor went
+    # first, this batch would never be read again and the cards it named would
+    # keep their stale labels until the tenth-wake sweep happened to reach them.
+    if not dry_run:
+        pending = note_failures(pending, report, {str(card.get("id")) for card in known})
+        write_pending(config, pending)
+
+    batch_ids = {str(event["task_id"]) for event in batch}
+    held = [card_id for card_id in report.failed
+            if card_id in batch_ids and pending.get(card_id, 0) < PENDING_RETRY_LIMIT]
     if batch and not dry_run:
-        write_cursor(config, int(batch[-1]["id"]))
+        if held:
+            say(f"cursor held at {cursor}: {len(held)} card(s) still owe a label write")
+        else:
+            write_cursor(config, int(batch[-1]["id"]))
 
     if fallback:
         extra = fallback_cards(cards, board.recent_event_task_ids())
         say(f"fallback sweep: {len(extra)} card(s) (running cards are never re-read)")
-        say(reconciler.reconcile(extra).line())
+        swept = reconciler.reconcile(extra)
+        say(swept.line())
+        if not dry_run:
+            write_pending(config, note_failures(read_pending(config), swept,
+                                                {str(card.get("id")) for card in extra}))
     return 0
 
 

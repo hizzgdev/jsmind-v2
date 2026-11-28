@@ -135,12 +135,16 @@ if args[:1] == ["api"]:
     elif path.endswith("/labels"):
         number = path.split("/")[-2]
         label = rest[rest.index("-f") + 1].split("=", 1)[1]
+        if label == os.environ.get("WEKA_TEST_GH_FAIL_LABEL"):
+            fail("HTTP 403: Resource not accessible by integration")
         if label not in state["objects"][number]["labels"]:
             state["objects"][number]["labels"].append(label)
         save()
         print("[]")
     else:
         number, label = path.split("/")[-3], path.rsplit("/", 1)[-1]
+        if label == os.environ.get("WEKA_TEST_GH_FAIL_LABEL"):
+            fail("HTTP 403: Resource not accessible by integration")
         if label not in state["objects"][number]["labels"]:
             fail("HTTP 404: Label does not exist")
         state["objects"][number]["labels"].remove(label)
@@ -223,10 +227,12 @@ class Fixture:
     def close(self):
         self._tmp.cleanup()
 
-    def run(self, *argv, delay=None, stdin=None):
+    def run(self, *argv, delay=None, stdin=None, fail_label=None):
         env = dict(self.env)
         if delay is not None:
             env["WEKA_TEST_GH_DELAY"] = str(delay)
+        if fail_label is not None:
+            env["WEKA_TEST_GH_FAIL_LABEL"] = fail_label
         return subprocess.run(
             [sys.executable, SCRIPT, "--config", str(self.root / "config.json"), *argv],
             env=env, input=stdin, capture_output=True, text=True, timeout=60,
@@ -263,6 +269,15 @@ class Fixture:
             return int(self.cursor_file().read_text(encoding="utf-8").strip())
         except FileNotFoundError:
             return None
+
+    def pending_file(self):
+        return self.state_dir / f"pending-{self.board}"
+
+    def pending(self):
+        try:
+            return json.loads(self.pending_file().read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
 
     def log(self):
         path = self.state_dir / "log"
@@ -754,6 +769,64 @@ class EventCursorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("events: 1 status event(s) since 4, 1 card(s) to read", result.stdout)
         self.assertEqual(board.cursor(), 6)
+
+    def test_a_rejected_label_write_holds_the_cursor_and_is_retried(self):
+        # The batch is consumed once. A `403` / `5xx` on the write would
+        # otherwise record work that never happened: the cursor moved, the card
+        # kept its old label, and only the tenth-wake sweep might ever return.
+        board = self.make(
+            [card(301, "review", assignee="reed", created_at=1)],
+            {"301": {"state": "open", "labels": ["weka"]}},
+            events=[(1, "t_301", "review_requested")],
+        )
+        board.set_cursor(0)
+
+        result = board.run("--reconcile", "--once", "--events", fail_label="weka-queue")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("whose labels could not be written: t_301", result.stdout)
+        self.assertIn("cursor held at 0", result.stdout)
+        self.assertEqual(board.cursor(), 0, "a refused write is not consumed work")
+        self.assertEqual(board.pending(), {"t_301": 1})
+        self.assertEqual(board.labels_of(301), ["weka"])
+
+        # The retry list is read on every wake, so the repair does not depend on
+        # another event arriving for that card: the cursor is past the batch and
+        # only the list names it.
+        board.set_cursor(1)
+        result = board.run("--reconcile", "--once", "--events")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("retry list: 1 card(s)", result.stdout)
+        self.assertEqual(board.labels_of(301), ["weka", "weka-queue"])
+        self.assertEqual(board.pending(), {}, "a healed card leaves the retry list")
+
+    def test_a_permanently_rejected_card_stops_holding_the_cursor(self):
+        # Giving up is what keeps one unreachable object from pinning the cursor
+        # and stopping every later event. The card stays on the list at the cap
+        # so it is not read again, and the batch is allowed through.
+        board = self.make(
+            [card(301, "review", assignee="reed", created_at=1)],
+            {"301": {"state": "open", "labels": ["weka"]}},
+            events=[(1, "t_301", "review_requested")],
+        )
+        board.set_cursor(0)
+
+        for _ in range(labels.PENDING_RETRY_LIMIT - 1):
+            result = board.run("--reconcile", "--once", "--events", fail_label="weka-queue")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(board.cursor(), 0)
+
+        result = board.run("--reconcile", "--once", "--events", fail_label="weka-queue")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("no longer retried", result.stdout)
+        self.assertEqual(board.cursor(), 1)
+        self.assertEqual(board.pending(), {"t_301": labels.PENDING_RETRY_LIMIT})
+
+        board.reset_calls()
+        board.run("--reconcile", "--once", "--events")
+        self.assertEqual(board.writes(), [], "a given-up card is not retried again")
 
 
 class DirtyMarkerTests(unittest.TestCase):

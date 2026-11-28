@@ -178,10 +178,16 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   cursor, dedupes their card ids, adds the card the payload names (`extra.task_id` on the three
   `kanban_task_*` events, `tool_input.task_id` when the model passed one), reconciles those, and only
   then advances the cursor — labels first, cursor second, so a crash replays a batch the reconcile is
-  idempotent for. A cold cursor is initialised at `max(id)`, never 0: this board has thousands of
+  idempotent for. A write GitHub refuses (`403` rate limit, `5xx`, a label deleted by hand) is not consumed
+  work either: the cursor stays put and the card goes on a per-board retry list
+  (`~/.hermes/state/weka-labels/pending-<board>`), which every wake reads even with no new events, until it
+  heals or reaches `PENDING_RETRY_LIMIT` (3) and is dropped with a `no longer retried` warning. Both extremes
+  are wrong: advancing unconditionally loses that batch for good (the old code re-read running cards every
+  turn, so it healed by accident), never advancing lets one unreachable object stall every later event.
+  A cold cursor is initialised at `max(id)`, never 0: this board has thousands of
   historical events and replaying them is a rate-limit incident, not a repair. Every tenth wake also
   runs a fallback sweep — every non-running live card plus the ten cards with the newest status events —
-  which repairs a batch whose labels were never written. Running cards are deliberately excluded: their
+  the second net behind the retry list. Running cards are deliberately excluded: their
   labels are written when `claimed` fires, and re-reading a running reed card is what wrote
   `weka-reviewing` back onto an already-approved PR. `--full` is the manual check: every unfinished card
   plus the ten most recently finished ones (`FULL_SWEEP_DONE_LIMIT`), ordered by `created_at`. The SOULs
