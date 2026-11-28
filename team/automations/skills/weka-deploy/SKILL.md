@@ -34,7 +34,7 @@ is answered by a hash: **does the live file equal master's file, yes or no.**
 | `team/automations/skills/<name>/SKILL.md` | `~/.hermes/profiles/<p>/skills/<name>/SKILL.md` | overwrite from master, verify hash |
 | `team/automations/skills/weka-deploy/SKILL.md` | `~/.hermes/skills/devops/weka-deploy/SKILL.md` — a symlink into this clone, in the default home rather than a profile | symlink: step 2 already moved it to master, so nothing is copied — verify the live hash against `git show master:…` |
 | `team/automations/weka/github-webhook.py`, `github-webhook.service` | the clone the systemd user unit points at | restart the unit, verify it started now |
-| `hooks:` in `~/.hermes/profiles/<p>/config.yaml` + `<p>/shell-hooks-allowlist.json`, and in `~/.hermes/config.yaml` + `~/.hermes/shell-hooks-allowlist.json` | not in this repo | write the two blocks of step 8 verbatim (worker profiles: `post_tool_call` + `completed` + `blocked` + fence; default profile: `kanban_task_claimed`), then `hooks doctor` four times |
+| `hooks:` in `~/.hermes/profiles/<p>/config.yaml` + `<p>/shell-hooks-allowlist.json`, and in `~/.hermes/config.yaml` + `~/.hermes/shell-hooks-allowlist.json` | not in this repo | write the two blocks of step 8 verbatim (worker profiles: `post_tool_call` + the three lifecycle events + fence; default profile: the three lifecycle events), then `hooks doctor` four times |
 | `~/.hermes/config.yaml` → `kanban:` | not in this repo | out of scope — a human edits it, gateway restart |
 | `README.md`, other `*.md` | nothing to install | — |
 
@@ -227,33 +227,46 @@ journal line; "restarted and it is active" is not a smoke test.
 
 The flow labels (`weka-queue` / `weka-working` / `weka-reviewing` / `weka-blocked`) have no writer inside a
 worker any more — `labels.py` derives them from the board's `task_events` table, and what makes it run is the
-`post_tool_call` hook plus the `kanban_task_*` lifecycle events. Those entries are split across two places:
-`post_tool_call` and the two worker-side events belong to each worker profile, because the worker fires them,
-while `kanban_task_claimed` is fired by the gateway's dispatcher and can only be registered in the default
-profile. Step 8 is the exact split. This check is
+`post_tool_call` hook plus the `kanban_task_*` lifecycle events. Those entries are split across two homes:
+each worker profile carries `post_tool_call` and the two events the worker fires, while the default profile
+carries all three lifecycle events, because `kanban_task_claimed` is fired by the gateway's dispatcher — a
+process that registers only the default home's hooks. Step 8 is the exact split. This check is
 **not** gated on the step-2 diff: the block lives outside the repo, so no diff can announce that it is missing.
 
-In each of `~/.hermes/profiles/{cody,reed,scout}/config.yaml` — three entries, one command string; the
-`kanban_task_claimed` entry lives in the default profile instead (step 8), because the dispatcher that fires
-it runs there:
+In each of `~/.hermes/profiles/{cody,reed,scout}/config.yaml` — the ledger and the two worker-side events,
+one command string throughout. Step 8 writes the block in full, the `pre_tool_call` fence included; the
+entries are:
 
 ```yaml
 hooks:
   post_tool_call:
     - matcher: "^kanban_.*"
       command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
   kanban_task_completed:
     - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
   kanban_task_blocked:
     - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
 ```
 
-And in `~/.hermes/config.yaml` (default profile) — the claim event, and nothing else:
+And in `~/.hermes/config.yaml` (default profile) — the three lifecycle events, because `kanban_task_claimed`
+is fired by the dispatcher that runs there, and **no** `post_tool_call` (that profile is the interactive one;
+every tool call there would become a reconcile). `completed` / `blocked` appear in both files on purpose: the
+process that fires them is the worker, so the default profile's copy is never the one that delivers them.
 
 ```yaml
 hooks:
   kanban_task_claimed:
     - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
+  kanban_task_completed:
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
+  kanban_task_blocked:
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
 ```
 
 The matcher is `^kanban_.*`, not `^kanban_`: `ShellHookSpec.matches_tool` uses
@@ -280,14 +293,28 @@ reads a card. The command string is identical in all entries; only `event` (and 
 file it is written in. It is one entry of the block step 8 writes in full — pasting this snippet as a
 profile's entire `hooks:` block would drop the fence.
 
-Consent is per Hermes home, so the split repeats in the allowlists: three pairs in
-`~/.hermes/profiles/<p>/shell-hooks-allowlist.json`, and `kanban_task_claimed` alone in
-`~/.hermes/shell-hooks-allowlist.json`. Each entry carries that same command string:
+Consent is per Hermes home, so the split repeats in the allowlists: three pairs in each worker profile's
+`~/.hermes/profiles/<p>/shell-hooks-allowlist.json` (`post_tool_call` / `kanban_task_completed` /
+`kanban_task_blocked`), and three pairs in `~/.hermes/shell-hooks-allowlist.json`
+(`kanban_task_claimed` / `kanban_task_completed` / `kanban_task_blocked`, no `post_tool_call`). Each entry
+carries that same command string; the worker-profile file:
 
 ```json
 {
   "approvals": [
     {"event": "post_tool_call", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
+    {"event": "kanban_task_completed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
+    {"event": "kanban_task_blocked", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"}
+  ]
+}
+```
+
+`~/.hermes/shell-hooks-allowlist.json` (default profile — no `post_tool_call`):
+
+```json
+{
+  "approvals": [
+    {"event": "kanban_task_claimed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
     {"event": "kanban_task_completed", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
     {"event": "kanban_task_blocked", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"}
   ]

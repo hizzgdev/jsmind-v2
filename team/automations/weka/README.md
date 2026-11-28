@@ -238,7 +238,7 @@ cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理
 
 **没有第五个标签。** 曾经有一个 `weka-reviewed` 表示「AI 审完了、球在你这儿」，同时当返工闸门用。它有两个写入者（`pass-review.sh` 加、cody 返工起手摘、对账器还要小心别覆盖它），今晚那次审查就是「加回去了却没人擦」的那一半出了问题：PR #297 停在 ready + `weka-reviewing` + `weka-reviewed`，因为卡变 `done` 之后对账不再看它的 PR。现在「审完了」是看板上的事实——这张 PR 最新的一张卡是 `done`——由 webhook 直接查库判断；标签只表达「谁在动它」。
 
-**删除是部署之后的一次性动作。** 代码合并、webhook 重启、三个 profile 的钩子都绿了之后，才 `gh label delete weka-reviewed --yes`（它会把所有 PR 上的这个标签一并去掉，不用逐个清）。顺序反过来的话，新闸门还没上线、旧闸门要的标签已经没了，这段时间里的返工请求会全部被拒。
+**删除是部署之后的一次性动作。** 代码合并、webhook 重启、四个钩子进程（三个 worker profile + 默认 profile 的 `kanban_task_claimed`）都绿了之后，才 `gh label delete weka-reviewed --yes`（它会把所有 PR 上的这个标签一并去掉，不用逐个清）。顺序反过来的话，新闸门还没上线、旧闸门要的标签已经没了，这段时间里的返工请求会全部被拒。
 
 **对账读事件游标，不按 profile 猜卡。** 每次唤醒读 `~/.hermes/state/weka-labels/events-<board>` 里的 cursor，查 `task_events` 里 id 大于它、且 kind 不在「不改状态」的黑名单里的行（过滤口径见下一条），去重 task_id，逐张对账，最后才推进 cursor。几个钉死的点：
 
@@ -250,7 +250,7 @@ cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理
 
 两个转换没有生命周期事件（`kanban_request_review` 的 running → review 和 `kanban_request_changes` 的 review → ready 只写库），所以 `post_tool_call` 用 `^kanban_.*` 这个 matcher 补一刀（`matches_tool` 走的是 `fullmatch`，只写 `^kanban_` 一个都匹配不上）；另外三条 `kanban_task_claimed` / `kanban_task_completed` / `kanban_task_blocked` 直接在 payload 里带卡号（`extra.task_id`）。`--from-hook` 把 payload 点名的卡和游标新事件拼成一批，交给一个 detached 子进程处理，自己立刻退出——工具调用不会被钩子的 `timeout` 拖住（`hooks.<event>[].timeout`，默认 60s、上限 300）。
 
-`labels.py` 有四个入口：`--from-hook`（钩子，读 stdin、spawn 后立刻退出）、`--events`（钩子的子进程：游标批处理；带 `--fallback` 时追加兜底扫）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡；`--dry-run` 只打印差异、不发任何写请求，也不推进游标。三个 profile 共用 `~/.hermes/state/weka-labels/`：`events-<board>` 是每块板的事件游标，`counter` 是唤醒计数（每第 10 次带兜底），`lock` + `dirty` 保证同一时刻只跑一轮，`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
+`labels.py` 有四个入口：`--from-hook`（钩子，读 stdin、spawn 后立刻退出）、`--events`（钩子的子进程：游标批处理；带 `--fallback` 时追加兜底扫）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡；`--dry-run` 只打印差异、不发任何写请求，也不推进游标。共用 `~/.hermes/state/weka-labels/` 的是**四个钩子进程**——三个 worker profile 各一份，加上默认 profile 里那条 `kanban_task_claimed`（它由 gateway 的 dispatcher 发，只在默认 profile 注册）：`events-<board>` 是每块板的事件游标，`counter` 是唤醒计数（每第 10 次带兜底），`lock` + `dirty` 保证同一时刻只跑一轮，`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
 
 看板数据直读 SQLite（只读连接 `mode=ro` + `busy_timeout`），不再 shell 调 `hermes kanban list`：事件游标没有 CLI 对应物，而 `list` 内部会跑一次 `recompute_ready()` 写板——那正是 worker 里被围栏挡住的那一步。只读不走围栏，所以也不再需要剥掉 worker 身份。
 
