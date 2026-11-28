@@ -9,13 +9,13 @@ Events handled:
 
 - issues (opened / labeled / assigned)                    -> create an issue card
 - pull_request_review (submitted by the human, not an
-  approval, on a PR already marked weka-reviewed)         -> create a rework card
+  approval, on a PR whose latest card is done)            -> create a rework card
 - issue_comment (created by the human on such a PR)       -> create a rework card
 - issue_comment (created by the human on a weka issue)    -> hand it to the
   groom (scout) conversation, to the implementation card, or explain on the
   issue why neither happened
 - pull_request_review_comment (created by the human, same
-  gate as a review)                                        -> create rework card
+  gate as a review)                                       -> create rework card
 - pull_request (closed)                                   -> clean up worktree, strip labels,
   queue a groom (scout) card
 - issues (closed)                                         -> strip leftover labels
@@ -37,9 +37,10 @@ Design contract (see README.md for the full version):
   authoritative.
 - The card key is the number of the object that created it, in the title:
   `#85: <title>` for issue cards, `#86: Rework — <title>` for PR cards.
-- `weka-reviewed` is the only label with flow-control meaning: a human event on
-  a PR creates a card only while that label is present, and only when no card is
-  already open for the same number.
+- `weka-*` flow labels have no writer here: `labels.py` derives them from the
+  board. The rework gate is the board too — a human event on a PR creates a card
+  only when the newest card for that number is `done` (the AI has delivered), and
+  only when no card is already open for the same number.
 - A human event is never refused silently. Every path out of
   `_create_rework_card()` and `_deliver_issue_comment()` leaves something
   visible on GitHub: a card, a comment on the object's open card, or a comment
@@ -48,7 +49,8 @@ Design contract (see README.md for the full version):
   `max_in_progress_per_profile`): a card waits in `ready` until a slot frees up.
   The webhook does not refuse work because another card happens to be running.
 - There is no "waiting for a human" card state. The human gate lives on GitHub
-  (review request + weka-reviewed), which is why a finished card simply ends.
+  (a ready PR that is no longer under review), which is why a finished card
+  simply ends.
 
 Configuration is read from `config.json` next to this script. A committed
 `config.example.json` documents every field; keep `config.json` out of git (it
@@ -76,11 +78,10 @@ DEFAULT_CONFIG = os.path.join(HERE, "config.json")
 # The script lives in <repo>/team/automations/weka/, so the repo is three up.
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 
-# Flow-fixed label names. `weka-reviewed` gates card creation; the other two are
-# for humans reading the PR/issue, never for branching logic.
+# Flow-fixed label names, for the close-time cleanup only. `labels.py` owns the
+# writing; this script only strips what a close payload still shows.
 LABEL_WORKING = "weka-working"
 LABEL_REVIEWING = "weka-reviewing"
-LABEL_REVIEWED = "weka-reviewed"
 
 # Card statuses that mean "an agent is (or should be) working on it now".
 OPEN_STATUSES = ("todo", "ready", "running", "review", "blocked", "scheduled", "triage")
@@ -216,6 +217,29 @@ class Weka:
             )
         except Exception as exc:
             print(f"[WARN] card lookup failed for #{number}: {exc}", file=sys.stderr)
+            return None
+        return (rows[0][0], rows[0][1]) if rows else None
+
+    def latest_card_for(self, number: int | None, board: str | None = None) -> tuple[str, str] | None:
+        """`(task_id, status)` of the newest card keyed on this number, any state.
+
+        The rework gate reads this instead of a label. Board order is the truth:
+        the newest card for a number is the one that most recently represented
+        it, so its status says whether the AI has delivered (`done`), is still
+        working (`running`/`review`/`ready`, which `open_card_for` has already
+        absorbed), or gave up on it (`archived`).
+        """
+        if number is None:
+            return None
+        try:
+            rows = self._query(
+                "SELECT id, status FROM tasks WHERE title LIKE ? "
+                "ORDER BY created_at DESC LIMIT 1",
+                (f"#{number}:%",),
+                board=board,
+            )
+        except Exception as exc:
+            print(f"[WARN] latest card lookup failed for #{number}: {exc}", file=sys.stderr)
             return None
         return (rows[0][0], rows[0][1]) if rows else None
 
@@ -395,14 +419,14 @@ class Weka:
         `labels` is the object's label list from the close payload, so only the
         flow labels that are actually present get a request. A label that is
         already gone needs none, which is the normal case on most closes: an
-        issue carries `weka-working` alone, a PR at merge time usually carries
-        `weka` and `weka-reviewed` alone.
+        issue carries `weka-working` alone, and a PR at merge time usually
+        carries `weka` alone.
         """
         if number is None:
             print("[WARN] close payload carries no number: leaving flow labels in place", file=sys.stderr)
             return
         targets = [
-            label for label in (LABEL_WORKING, LABEL_REVIEWING, LABEL_REVIEWED) if label in labels
+            label for label in (LABEL_WORKING, LABEL_REVIEWING) if label in labels
         ]
         if not targets:
             print(f"[INFO] #{number} closed without flow labels: nothing to strip", file=sys.stderr)
@@ -759,8 +783,10 @@ class Weka:
         Reached only when no card is open for the number (`_deliver_issue_comment`
         has already tried to annotate one), so this is the PR rework path's
         create half, retargeted at an issue: same `#<number>: Rework — …` title,
-        same worktree create args, same failure trace. A plain issue carries no
-        `weka-reviewed` label, so the gate is the assignee instead.
+        same worktree create args, same failure trace. A comment on a plain
+        issue is delivered on the assignee's say-so, so there is no board gate
+        here: `_deliver_issue_comment` has already looked for an open card and
+        resolved who the issue points at.
         """
         self._create_card(
             number,
@@ -870,26 +896,40 @@ class Weka:
         number = pr.get("number")
         labels = [lbl.get("name", "") for lbl in (pr.get("labels") or [])]
 
-        # Checked before the label gate on purpose: cody strips weka-reviewed as
-        # its first move on a rework card, so gating on the label first would
-        # drop everything the human says while that rework is still running.
+        # Checked before the gate on purpose: while a card still owns this
+        # number, the human's words belong on that card whatever its state.
         existing = self.open_card_for(number)
         if existing:
             self._append_to_card(existing, number=number, event=event, actor=actor, text=text)
             return
 
-        if LABEL_REVIEWED not in labels:
+        # A merged or abandoned PR has no code left to rework. `handle_pr` has
+        # already completed the card it owned, so the board gate alone would read
+        # `done` and open a card against a dead branch.
+        if (pr.get("state") or "open") != "open":
+            print(f"[GATE] PR #{number} is closed: human event ignored", file=sys.stderr)
+            return
+
+        # The gate is the board, not a label. `weka-reviewed` used to mean "the
+        # AI handed this to the human" and gated card creation, but it had two
+        # writers and no invariant: a label sweep could add it back after
+        # `pass-review.sh` removed it, and only cody remembered to strip it on a
+        # rework. The board records the same fact without anyone maintaining it:
+        # the newest card for this number is `done` exactly when the AI delivered
+        # it and nobody has picked the PR up again.
+        latest = self.latest_card_for(number)
+        if latest is None or latest[1] != "done":
             print(
-                f"[GATE] PR #{number} has no {LABEL_REVIEWED} label "
-                f"({', '.join(labels) or 'no labels'}): human event ignored",
+                f"[GATE] PR #{number}: latest card is {latest[1] if latest else 'missing'} "
+                f"(labels: {', '.join(labels) or 'none'}): human event ignored",
                 file=sys.stderr,
             )
             self._explain_refusal(
                 pr,
                 labels,
-                "这条评论没有触发返工：这个 PR 上现在没有 `weka-reviewed` 标签，"
-                "weka 只把该标签存在时的留言当作返工请求（AI 审查通过、等终审的阶段）。"
-                "标签出现之后再留一次言即可。",
+                "这条评论没有触发返工：看板上这张 PR 没有卡，或者它最新的一张卡不是 "
+                "`done`（可能是已归档）。weka 只在 AI 已经把 PR 交回来之后接人的返工请求；"
+                "让这张 PR 先走完 cody → reed 的流程，再留一次言即可。",
             )
             return
 

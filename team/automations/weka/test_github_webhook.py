@@ -5,12 +5,12 @@ Standard library only, like the script under test. Run from the repository root:
 
     python3 -m unittest discover -s team/automations/weka -p 'test_*.py'
 
-The invariant these tests pin down: a human comment on a PR that carries
-`weka-reviewed` must end in a new card, a comment on the PR's open card, or a
-comment on the PR explaining why neither happened; a human comment on a `weka`
-issue must end in a card for whoever is assigned, or a comment on the issue
-saying why not. "Nothing happened" is the bug, so every assertion here is about
-a side effect, never about a log line.
+The invariant these tests pin down: a human comment on a PR whose newest card is
+`done` (the AI has delivered it) must end in a new card, a comment on the PR's
+open card, or a comment on the PR explaining why neither happened; a human
+comment on a `weka` issue must end in a card for whoever is assigned, or a
+comment on the issue saying why not. "Nothing happened" is the bug, so every
+assertion here is about a side effect, never about a log line.
 """
 import importlib.util
 import os
@@ -45,7 +45,7 @@ CONFIG = {
 GROOM = {"groom_board": "groom-board", "groom_assignee": "scout"}
 
 
-def pr_payload(labels=("weka", "weka-reviewed"), state="open", number=PR_NUMBER, action="created"):
+def pr_payload(labels=("weka",), state="open", number=PR_NUMBER, action="created"):
     """The slice of a GitHub payload `_create_rework_card()` reads."""
     return {
         "action": action,
@@ -137,7 +137,7 @@ def issue_comment_payload(body="这一段需求再确认一下", *, assignees=("
     }
 
 
-def closed_pr_payload(merged=True, labels=("weka", "weka-reviewed"), number=PR_NUMBER):
+def closed_pr_payload(merged=True, labels=("weka",), number=PR_NUMBER):
     """A `pull_request.closed` payload: the slice `handle_pr` reads."""
     payload = pr_payload(labels=labels, state="closed", number=number, action="closed")
     payload["pull_request"]["merged"] = merged
@@ -148,11 +148,15 @@ def closed_pr_payload(merged=True, labels=("weka", "weka-reviewed"), number=PR_N
 class FakeWeka(weka_webhook.Weka):
     """A Weka that records its side effects instead of performing them."""
 
-    def __init__(self, cards=(), busy=(), kanban_ok=True, groom_cards=(), config=None):
+    def __init__(self, cards=(), busy=(), kanban_ok=True, groom_cards=(), config=None,
+                 latest=None):
         super().__init__({**CONFIG, **(config or {})})
         self.cards = list(cards)              # values open_card_for() should return
         self.groom_cards = list(groom_cards)  # the same, on the groom board
         self.busy = list(busy)                # values busy_cards() should return
+        # The rework gate. Default is the state a human comment normally arrives
+        # in: the newest card for the number is `done`, i.e. the AI delivered.
+        self.latest = list(latest) if latest is not None else [("t_delivered", "done")]
         self.kanban_ok = kanban_ok
         self.kanban_calls = []
         self.board_calls = []                 # (args, board) for every kanban call
@@ -172,6 +176,10 @@ class FakeWeka(weka_webhook.Weka):
         # Any board argument is the groom board here; None is the flow's own.
         pool = self.groom_cards if board else self.cards
         return pool[0] if pool else None
+
+    def latest_card_for(self, number, board=None):
+        # The rework gate: `(card_id, status)` of the newest card for the number.
+        return self.latest[0] if self.latest else None
 
     def open_groom_card(self):
         # One stream on the groom board: the first entry stands for it.
@@ -259,12 +267,13 @@ class RefusalsAreVisibleTests(unittest.TestCase):
         self.assertIn("返工卡失败", weka.object_comments[0][1])
         self.assertEqual(weka.object_comments[0][0], PR_NUMBER)
 
-    def test_a_pr_without_weka_reviewed_says_why_on_the_pr(self):
-        weka = FakeWeka()
-        payload = pr_payload(labels=("weka", "weka-reviewing"))
+    def test_a_pr_whose_latest_card_is_archived_says_why_on_the_pr(self):
+        # The gate is the newest card's status: archived means the flow gave up
+        # on this number, so a human comment is not a rework request.
+        weka = FakeWeka(latest=[("t_old", "archived")])
 
         weka._create_rework_card(
-            payload,
+            pr_payload(labels=("weka", "weka-reviewing")),
             event="issue_comment.created",
             actor="hizzgdev",
             text="please also handle the edge case",
@@ -274,10 +283,34 @@ class RefusalsAreVisibleTests(unittest.TestCase):
 
         self.assertEqual(weka.creates(), [])
         self.assertTrue(weka.object_comments, "the kept gate must explain itself on the PR")
-        self.assertIn("weka-reviewed", weka.object_comments[0][1])
+        self.assertIn("不是 `done`", weka.object_comments[0][1])
+
+    def test_a_pr_with_no_card_at_all_is_ignored_on_the_pr(self):
+        # No card for the number: this PR never entered the flow. It still gets
+        # an explanation because it carries `weka`, so a human is not left
+        # wondering.
+        weka = FakeWeka(latest=[])
+
+        weka._create_rework_card(
+            pr_payload(), event="issue_comment.created", actor="hizzgdev",
+            text="anything?", ref_url="", idem_key="k",
+        )
+
+        self.assertEqual(weka.creates(), [])
+        self.assertEqual(len(weka.object_comments), 1)
+        self.assertIn("没有卡", weka.object_comments[0][1])
+
+    def test_a_done_card_is_what_opens_the_gate(self):
+        weka = FakeWeka(latest=[("t_delivered", "done")])
+
+        weka.trigger()
+
+        self.assertEqual(len(weka.creates()), 1, weka.kanban_calls)
+        self.assertEqual(weka.object_comments, [], "a created card needs no excuse")
 
     def test_an_unrelated_pr_is_not_replied_to(self):
-        weka = FakeWeka()
+        # No card and no `weka` label: not this flow's thread.
+        weka = FakeWeka(latest=[])
         payload = pr_payload(labels=("bug",), number=77)
 
         weka._create_rework_card(
@@ -289,6 +322,8 @@ class RefusalsAreVisibleTests(unittest.TestCase):
         self.assertEqual(weka.object_comments, [], "weka must not comment on PRs it never owned")
 
     def test_a_closed_pr_is_not_replied_to(self):
+        # `handle_pr` completes the card at close, so the board gate would read
+        # `done`; the state check is what keeps a merged PR from getting a card.
         weka = FakeWeka()
         payload = pr_payload(labels=("weka",), state="closed")
 
@@ -297,6 +332,7 @@ class RefusalsAreVisibleTests(unittest.TestCase):
             text="thanks for the fix", ref_url="", idem_key="k",
         )
 
+        self.assertEqual(weka.creates(), [])
         self.assertEqual(weka.object_comments, [], "a merged PR has nothing left to rework")
 
 
@@ -314,10 +350,10 @@ class AnOpenCardAbsorbsTheCommentTests(unittest.TestCase):
         self.assertEqual(weka.comment_boards(), [None],
                          "a PR card lives on this flow's board, so no --board override")
 
-    def test_a_card_still_absorbs_the_comment_after_the_label_was_stripped(self):
-        """cody strips weka-reviewed on pickup, so the label cannot gate this."""
+    def test_a_card_still_absorbs_the_comment_whatever_the_labels(self):
+        """The card lookup comes first, so labels cannot hide a live card."""
         weka = FakeWeka(cards=[("t_rework", "running")])
-        payload = pr_payload(labels=("weka",))
+        payload = pr_payload(labels=())
 
         weka._create_rework_card(
             payload, event="issue_comment.created", actor="hizzgdev",
@@ -425,7 +461,7 @@ class IssueCommentRoutingTests(unittest.TestCase):
         self.assertIn("这一段需求再确认一下", comments[0][2])
 
     def test_a_card_still_absorbs_the_comment_after_the_label_was_stripped(self):
-        """The card lookup is before the label gate, like the PR path's."""
+        """The card lookup is before the assignee fork, so labels cannot hide it."""
         weka = FakeWeka(cards=[("t_issue", "running")], config=GROOM)
 
         weka.handle_issue_comment(issue_comment_payload(labels=("bug",)))
@@ -623,7 +659,7 @@ class GroomAfterPRCloseTests(unittest.TestCase):
         weka.handle_pr(closed_pr_payload())
 
         self.assertEqual(weka.cleaned, [("fix/arranger-cousin-spacing", True)])
-        self.assertEqual(weka.stripped, [(PR_NUMBER, ("weka", "weka-reviewed"))])
+        self.assertEqual(weka.stripped, [(PR_NUMBER, ("weka",))])
         self.assertEqual(
             weka.close_events, ["cleanup", "strip", "create"],
             "cleanup must land before the card create: the branches and labels are "
@@ -828,6 +864,31 @@ class SelfFeedingTests(unittest.TestCase):
         weka.handle_pr_review_comment(payload)
 
         self.assertEqual(weka.kanban_calls, [])
+
+
+class StripLabelsTests(unittest.TestCase):
+    """The close-time cleanup only knows the two labels that still exist."""
+
+    def test_weka_reviewed_is_no_longer_a_strip_target(self):
+        # `weka-reviewed` was deleted as a GitHub label when this flow retired it
+        # (`gh label delete`); a DELETE for it would only produce a 404.
+        weka = weka_webhook.Weka(dict(CONFIG))
+        weka._slug = "hizzgdev/jsmind-v2"
+        weka._slug_known = True
+        weka.gh = "/usr/bin/gh"
+        calls = []
+
+        def fake_run(cmd):
+            calls.append(cmd)
+            return 0, ""
+
+        weka._run = fake_run  # type: ignore[method-assign]
+
+        weka.strip_labels(PR_NUMBER,
+                          ["weka", "weka-working", "weka-reviewing", "weka-reviewed"])
+
+        self.assertEqual(len(calls), 2, calls)
+        self.assertFalse(any("weka-reviewed" in " ".join(call) for call in calls), calls)
 
 
 class CommentShapeTests(unittest.TestCase):

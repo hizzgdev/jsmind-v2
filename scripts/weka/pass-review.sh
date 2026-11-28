@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
-# Flip a PR from "an AI is reviewing this" to "reviewed, the human's turn".
+# Flip a PR from "an AI is reviewing this" to "the human's turn".
 #
 # One ordering rule decides everything: strip the flow labels the review owned,
-# add `weka-reviewed`, and only then turn the draft into ready. A cleanup that
-# fails half-way has to leave the PR in draft, because draft plus
-# `weka-working` reads as "the AI is still on it", while ready plus
-# `weka-working` tells a human to review work nobody cleaned up after.
+# and only then turn the draft into ready. A cleanup that fails half-way has to
+# leave the PR in draft, because draft plus `weka-working` reads as "the AI is
+# still on it", while ready plus `weka-working` tells a human to review work
+# nobody cleaned up after.
 #
 # The caller is a model, so the argument is not trusted to be the PR the review
 # was about. Before anything is mutated the PR has to look like it is in the
-# handoff state: draft, and carrying the handoff label. `weka-reviewed` counts as
-# well because a previous run that cleaned up and then failed to flip leaves
-# exactly that, and a re-run has to be able to finish the job. An unrelated PR
-# carries neither and is refused untouched.
+# handoff state: draft, and carrying `weka-reviewing`. A PR that is a draft with
+# `weka` and no flow label at all also passes, because that is exactly what a
+# previous run that cleaned up and then failed to flip leaves behind — a re-run
+# has to be able to finish the job without someone re-adding a label by hand.
+# An unrelated PR carries neither shape and is refused untouched.
+#
+# There is no `weka-reviewed` any more: "the review is over" is a card state
+# (`done`), not a label. GitHub is left with the participation marker only.
 #
 # The label deletion is guarded by the same read: `DELETE` on an absent label
 # answers 404 and exits 1, so "already removed" must not be called a failure.
@@ -51,20 +55,32 @@ has_label() {
     printf '%s\n' "$labels" | grep -qx "$1"
 }
 
+has_flow_label() {
+    local name
+    for name in weka-queue weka-working weka-reviewing weka-blocked; do
+        has_label "$name" && return 0
+    done
+    return 1
+}
+
 [ "$is_draft" = "true" ] \
     || die "refusing: #$pr is not a draft, so it is not in the handoff state"
 
-has_label weka-reviewing || has_label weka-reviewed \
-    || die "refusing: #$pr carries neither weka-reviewing nor weka-reviewed, so it is not in the weka review flow"
+if has_label weka-reviewing; then
+    :
+elif has_label weka && ! has_flow_label; then
+    # A previous run stripped the labels and then failed to flip. Nothing left to
+    # clean, so the re-run only has to do the flip.
+    echo "pass-review: #$pr was already cleaned up; finishing the flip" >&2
+else
+    die "refusing: #$pr is not in the weka review handoff state (no weka-reviewing)"
+fi
 
 status=0
 
 if has_label weka-reviewing; then
     gh api -X DELETE "repos/$repo/issues/$pr/labels/weka-reviewing" || status=1
 fi
-
-# Adding is idempotent: GitHub answers 200 when the label is already there.
-gh api -X POST "repos/$repo/issues/$pr/labels" -f labels[]=weka-reviewed || status=1
 
 # Cody adds this when it opens the PR and again when a rework starts, so it is
 # normally present. An older PR, or one whose worker died before adding it, is a

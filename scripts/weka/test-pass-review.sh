@@ -4,10 +4,13 @@
 # The rule the script exists for is an ordering rule, so the assertions are about
 # order: `pr ready` must be the last call, and it must not happen at all when a
 # label operation failed. The other half is the state gate: a PR that is not a
-# draft, or carries none of the flow labels, must be refused without a single
+# draft, or is not in the review handoff state, must be refused without a single
 # mutation - the caller is a model, and the number it passes may be one it read
 # somewhere. A stub that only records argv is enough - no network, no repository -
 # because the script's whole job is the sequence it emits.
+#
+# `weka-reviewed` is gone from the flow: the script must never post it, and a
+# draft PR that still carries it is not enough on its own.
 #
 # usage: bash scripts/weka/test-pass-review.sh
 
@@ -66,7 +69,8 @@ grep -q "pr ready 42" "$GH_LOG" || { echo "FAIL happy-path: no flip"; failed=1; 
 # ready-plus-working state the ordering exists to prevent.
 [ "$(tail -1 "$GH_LOG")" = "pr ready 42" ] || { echo "FAIL happy-path: flip is not last: $(tail -1 "$GH_LOG")"; failed=1; }
 grep -q -- "-X DELETE repos/owner/repo/issues/42/labels/weka-reviewing" "$GH_LOG" || { echo "FAIL happy-path: reviewing not cleared"; failed=1; }
-grep -qF -- "-X POST repos/owner/repo/issues/42/labels -f labels[]=weka-reviewed" "$GH_LOG" || { echo "FAIL happy-path: reviewed not added"; failed=1; }
+grep -q -- "-X DELETE repos/owner/repo/issues/42/labels/weka-working" "$GH_LOG" || { echo "FAIL happy-path: working not cleared"; failed=1; }
+grep -qF -- "weka-reviewed" "$GH_LOG" && { echo "FAIL happy-path: posted the retired weka-reviewed"; failed=1; }
 
 export GH_FAIL="labels/weka-working"
 run_case cleanup-fails 1
@@ -78,22 +82,22 @@ run_case read-fails 1
 grep -qE -- "-X (DELETE|POST)|^pr ready" "$GH_LOG" && { echo "FAIL read-fails: mutated without reading the state"; failed=1; }
 unset GH_FAIL
 
-# The gate. An unrelated PR is draft-or-not and carries no flow label; either way
-# it must be refused before anything is written.
+# The gate. An unrelated PR is draft-or-not and is not in the handoff state;
+# either way it must be refused before anything is written.
 export GH_META='false weka,weka-reviewing'
 run_case not-a-draft 1
 mutated && { echo "FAIL not-a-draft: mutated a ready PR"; failed=1; }
 
 export GH_META='true weka,weka-working'
-run_case no-flow-label 1
-mutated && { echo "FAIL no-flow-label: mutated an unrelated PR"; failed=1; }
+run_case not-in-handoff 1
+mutated && { echo "FAIL not-in-handoff: mutated a PR that is not under review"; failed=1; }
 
-# A run that cleaned up and then failed to flip leaves weka-reviewed and no
-# weka-reviewing. The re-run has to be able to finish, so that state passes the
-# gate and deletes nothing.
-export GH_META='true weka,weka-working,weka-reviewed'
+# A run that cleaned up and then failed to flip leaves `weka` with no flow
+# label. There is nothing left to delete, so the re-run only has to flip and
+# must not invent a DELETE for a label that is not there (404).
+export GH_META='true weka'
 run_case rerun-after-failed-flip 0
-grep -q -- "-X DELETE repos/owner/repo/issues/42/labels/weka-reviewing" "$GH_LOG" && { echo "FAIL rerun: deleted an absent label"; failed=1; }
+grep -q -- "-X DELETE" "$GH_LOG" && { echo "FAIL rerun: deleted an absent label"; failed=1; }
 grep -q "pr ready 42" "$GH_LOG" || { echo "FAIL rerun: no flip"; failed=1; }
 
 run_case non-numeric-argument 2 "https://github.com/owner/repo/pull/42"

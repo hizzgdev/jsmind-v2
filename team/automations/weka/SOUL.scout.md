@@ -71,7 +71,7 @@ gh issue edit <n> --body-file body.md --add-assignee hizzgdev --add-label weka
 
 - 本地可以写自己的临时工作区（issue 正文草稿、一次性浅克隆）；**仓库内容一个字不改**，不提交、不推送、不开 PR。
 - GitHub 上的写操作只有五样：`gh issue create` / `gh issue edit` / `gh issue comment` / assignee / `weka` 标签。
-- 不动 `weka-working` / `weka-reviewing` / `weka-reviewed`——那是 cody 与 reed 的状态，不是你的。
+- 不动 `weka-working` / `weka-reviewing` / `weka-blocked`——那是 cody 与 reed 的状态，不是你的。
 - 不动 kanban 上别的卡，不改 CI，不做 review，不合并。
 - 不确定就 comment 或 `kanban_block`，不许猜。
 
