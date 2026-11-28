@@ -385,10 +385,12 @@ addition, so a body that counts it as new is off by one against its own parenthe
   shape (title `#<n>: …`, body starting with the issue URL, `branch_name` set) and print
   `Reconciler.run("full")` per (status, assignee) - the reported target list is the answer.
 
-- **A deploy doc's read-only command nobody ran.** `python3 team/automations/weka/labels.py --dry-run --full`
-  from the clone (the worktree has no `config.json`) is safe and read-only; run it rather than trusting the
-  prose. It prints skip/progress lines (`… is not in the phase table; skipping`, `title does not start with
-  '#<number>:'`, `profile <p>: N running cards; falling back to a full sweep`) alongside `-old +new`, so
+- **A deploy doc's read-only command nobody ran.**
+  `~/.hermes/venvs/weka/bin/python team/automations/weka/labels.py --dry-run --full` from the clone
+  (the worktree has no `config.json`) is safe and read-only; run it rather than trusting the
+  prose. It prints skip/progress lines (`… is not in the phase table; skipping`,
+  ``title does not start with `#<number>:`; skipping``,
+  `profile <p>: N running cards; falling back to a full sweep`) alongside `-old +new`, so
   "anything else is a diff line" is wrong. It also exposes config drift prose cannot: the host's
   `config.json` has no `reviewer` key (while `config.example.json` does), so every `running` + reed card is
   skipped and `weka-reviewing` is never written - and `hooks doctor` stays green through it. In a worker
