@@ -238,7 +238,7 @@ not allowlisted, which is the one ordering that matters here:
 | `✓ script exists and is executable` | the path resolves and the file can be spawned — a typo'd path shows up here and nowhere else |
 | `✓ allowlisted (approved <ts>)` | the `(event, command)` pair has consent; without this line the hook is registered but never runs |
 | `✓ script unchanged since approval` | the script's mtime still matches the one recorded at approval, so nobody edited it since |
-| `⚠ script modified since approval` | `labels.py` was edited after it was approved — the command string still matches, so the hook still fires; read the diff, and if the edit is master's own version, `hermes -p <p> hooks revoke` + re-approve to refresh the baseline |
+| `⚠ script modified since approval` | `labels.py` was edited after it was approved — the command string still matches, so the hook still fires; read the diff, and if the edit is master's own version, refresh the baseline: `hermes -p <p> hooks revoke '<the command string from config.yaml>'` then re-approve. That string is `revoke`'s one positional argument — the bare `hermes -p <p> hooks revoke` exits 2 |
 | `✓ ran clean with empty stdout (exit=0, <t>s) — hook is observer-only` | the synthetic payload ran and the hook exited 0 with nothing on stdout, which is what `labels.py` promises: it detaches and returns at once, so a tool call is never held up |
 
 Driving doctor is itself a reconcile — the synthetic payload names the firing profile — so a green run may have
@@ -252,8 +252,13 @@ without any session opening.
 
 ```bash
 cd ~/repos/jsmind-v2
-python3 team/automations/weka/labels.py --dry-run --full
+~/.hermes/venvs/weka/bin/python team/automations/weka/labels.py --dry-run --full
 ```
+
+Use that interpreter, not the bare `python3` this section's older commands use: on this host `python3` is the
+system 3.6.8, which dies on `labels.py`'s `from __future__ import annotations` with a `SyntaxError` before any
+card is read (`README.md` →「主机侧准备」 says the same about the system Python). The weka venv is the same
+interpreter the unittest above runs on.
 
 From the clone that holds the real, gitignored `team/automations/weka/config.json` — a worktree does not, and
 answers `config not found`. Run it at a plain host shell: inside a worker, `hermes kanban list` exits 1 under
@@ -281,7 +286,7 @@ a host copy written before that line existed is a plain miss, and until the key 
 config gives the phase table a reviewer. Read the current value before trusting the sweep:
 
 ```bash
-python3 -c 'import json; print(json.load(open("team/automations/weka/config.json")).get("reviewer"))'
+~/.hermes/venvs/weka/bin/python -c 'import json; print(json.load(open("team/automations/weka/config.json")).get("reviewer"))'
 ```
 
 `reed` is correct; `None` means adding the key, which is a host edit to a gitignored deploy file (like
