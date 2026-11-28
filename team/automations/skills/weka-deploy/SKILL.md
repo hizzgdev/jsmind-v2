@@ -575,8 +575,8 @@ Eight details in those blocks carry the meaning:
   wake counter (every tenth wake adds the fallback sweep), `lock`/`dirty` serialise concurrent hooks
   (`dirty` records the scope a wake that lost the lock owed: `full`, `events`, or `card:<id>` — the shape
   is what keeps an event batch from being looked up as a card), and `log` holds
-  everything the detached child prints. None of it is per profile on purpose: three profiles watching one
-  board need one cursor, not three.
+  everything the detached child prints. None of it is per profile on purpose: four hook processes
+  watching one board need one cursor, not four.
 
 Then consent, because `hooks_auto_accept` is `false` here. A hook that is neither allowlisted nor
 launched with `accept_hooks` is **skipped, not failed closed**: `register_from_config` logs

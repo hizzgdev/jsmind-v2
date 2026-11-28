@@ -66,8 +66,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(HERE, "config.json")
 SCRIPT = os.path.abspath(__file__)
 
-# Shared by all three profiles on purpose: each profile has its own HERMES_HOME,
-# so a state dir under `profiles/<p>/` would be three independent cursors.
+# Shared by every profile that runs this script on purpose — the default profile
+# fires the lifecycle events, the three worker profiles the tool-call wakes. Each
+# has its own HERMES_HOME, so a state dir under `profiles/<p>/` would be four
+# independent cursors.
 STATE_DIR = Path(os.path.expanduser("~/.hermes/state/weka-labels"))
 
 LABEL_QUEUE = "weka-queue"
