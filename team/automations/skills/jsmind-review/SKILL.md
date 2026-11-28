@@ -217,15 +217,17 @@ addition, so a body that counts it as new is off by one against its own parenthe
   pressure (`_memory_pressure_level`, elevated → one per tick, critical → none), so calling that line "the
   number it is enforcing now" overstates it.
 - **A hash check a preceding step made tautological.** Before accepting "verify X equals master", read
-  where it sits in the procedure. When an earlier step pulls or switches the clone, copies X, or refreshes
-  the target a symlink resolves into, the later `md5sum` against `git show master:…` is an identity: it
-  prints two equal hashes whether the run started from master or from last week's copy. Any promise that
-  the check "catches a run that started from the old version" is must-fix once the order is read, because
-  the run that skipped what master had already replaced — a hooks block never written, an artifact the old
-  procedure never touched — reaches that line green and leaves no trace. What the comparison does catch is X
-  resolving into a clone the pull never touched, or a working tree altered after it; it cannot say which
-  version the session loaded, which was fixed before the first step ran. Ask for evidence keyed to that
-  starting point instead: the recorded `$OLD`..`HEAD` range, or a hash taken before the rewrite step.
+  where it sits in the procedure. When an earlier step has rewritten X — it pulled or switched the clone
+  that X lives in or that a symlink out of X resolves into, or copied X — the later `md5sum` against
+  `git show master:…` is an identity: it prints two equal hashes whether the run started from master or
+  from last week's copy. Any promise that the check "catches a run that started from the old version" is
+  must-fix once the order is read, because the run that skipped what master had already replaced — a
+  hooks block never written, an artifact the old procedure never touched — reaches that line green and
+  leaves no trace. What the comparison does catch is X resolving into a clone the pull never touched, a
+  copy no earlier step rewrote whose bytes differ from master, or a working tree altered after the
+  rewrite; it cannot say which version the session loaded, which was fixed before the first step ran.
+  Ask for evidence keyed to that starting point instead: the recorded `$OLD`..`HEAD` range, or a hash
+  taken before the rewrite step.
 - **A diff taken against a stale local `master`.** `git diff master...HEAD` uses the *local* ref; when master has moved past the branch point (or the branch was rebased onto newer master), the three-dot diff silently adds commits the PR never contained — a file count that disagrees with `gh pr diff --name-only` is the tell. Compare `git merge-base origin/master HEAD` against the PR's base before trusting any local `--stat`, and review `gh pr diff` / the PR file list as the truth.
 - **An "outside the window" node census that counts folded children.** Folded branches leave their nodes laid out at the
   map origin with `visibility: hidden`, so `getBoundingClientRect()` reports them off-window once a fit or pan moves the
