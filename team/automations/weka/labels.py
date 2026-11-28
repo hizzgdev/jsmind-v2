@@ -157,9 +157,12 @@ def yields_to_reviewed(label: str | None, present: set[str]) -> str | None:
     this", and `weka-reviewed` means the review is over.
 
     Returning None also removes a pair that already exists (an approval from
-    before this rule, or a sweep that was in flight when the label landed), so
-    the ready + `weka-reviewing` + `weka-reviewed` combination heals on the next
-    sweep instead of waiting for the close-time cleanup.
+    before this rule, or a sweep that was in flight when the label landed).
+    That repair only reaches an object this sweep reads, though: while the card
+    is still `running` the PR is read and the stale label goes on the next
+    sweep, but a `done` issue card never looks its PR up, so a leftover written
+    before that point stays until a manual DELETE or the merge-time
+    `strip_labels()`.
 
     Only `weka-reviewing` is suppressed: `weka-working` next to
     `weka-reviewed` is the rework pickup (cody is editing again, the webhook
@@ -449,7 +452,7 @@ class Reconciler:
             return
         if wanted != label:
             say(f"{card_id} #{ref.number} {ref.kind}: {LABEL_REVIEWED} is on it, "
-                f"so {label} is not applied")
+                f"so {label} yields to {LABEL_REVIEWED}")
         parts = [f"-{name}" for name in remove] + [f"+{name}" for name in add]
         report.changes.append(f"{card_id} #{ref.number} {ref.kind}: {' '.join(parts)}")
         if self.dry_run:

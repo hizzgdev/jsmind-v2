@@ -187,9 +187,11 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   card finishes with `kanban_complete`, itself a tool call, after the reviewer request), so the phase
   alone would write `weka-reviewing` back onto a now-ready PR. The reconciler therefore treats
   `weka-reviewed` as the end of the review: it never applies `weka-reviewing` to an object that carries
-  it, and strips one that is already there — so the ready + `weka-reviewing` + `weka-reviewed`
-  combination heals on the next sweep instead of waiting for the close-time `strip_labels()`.
-  `weka-reviewed` itself is still never written here.
+  it, and strips one that is already there. That repair only reaches an object the sweep reads: while
+  the card is still `running` the PR is read and a stale `weka-reviewing` goes on the next sweep, but
+  once the card is `done` an issue card never looks its PR up, so a leftover written before that point
+  stays until a manual `DELETE` or the merge-time `strip_labels()`. `weka-reviewed` itself is still
+  never written here.
 - **The hook fires inside a worker, so the sweep is handed a fence-free env.** Hermes mints
   `HERMES_DELEGATED_CHILD_CONTEXT` into every subprocess of a worker, and under that fence
   `hermes kanban list` exits 1: `list` runs `recompute_ready()`, which is a write. `labels.py` drops the

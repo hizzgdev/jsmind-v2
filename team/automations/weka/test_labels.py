@@ -482,7 +482,8 @@ class ReconcileTests(unittest.TestCase):
         result = board.run("--reconcile", "--once", "--full")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("t_298 #299 pr: -weka-reviewing", result.stdout)
-        self.assertIn("weka-reviewed is on it", result.stdout)
+        self.assertIn("t_298 #299 pr: weka-reviewed is on it, so weka-reviewing yields to weka-reviewed",
+                      result.stdout)
         self.assertEqual(board.labels_of(299), ["weka", "weka-reviewed"])
 
     def test_a_full_sweep_does_not_read_finished_cards_outside_the_window(self):
