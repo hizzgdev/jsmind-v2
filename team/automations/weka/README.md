@@ -236,7 +236,7 @@ cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理
 | `weka-blocked` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `blocked`） | 给人看：卡停住等人处理，不是崩了 |
 | `weka-reviewed` | 永远是 PR | `scripts/weka/pass-review.sh` | **唯一控制流程的标签**：只有它存在时，你在 PR 上的动作才会触发返工卡。它和 PR 转 ready 是同一刻发生的（ready 的唯一入口） |
 
-`labels.py` 有四个入口：`--from-hook` 走钩子那条路（读 stdin 上的 payload，定好 scope 就 spawn 一个脱离进程、自己立刻退出，所以工具调用不会被钩子的 `timeout` 拖住——那个超时是 `hooks.<event>[].timeout`，默认 60s、上限 300；`labels.py` 的 docstring 里还留着旧的 5 秒，等那个文件下次被改动时一并修）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡、`--dry-run` 只打印差异、不发任何写请求。三个 profile 共用一个状态目录 `~/.hermes/state/weka-labels/`：`counter` 是触发计数（每第 10 次换成一次全量扫），`lock` + `dirty` 保证同一时刻只跑一轮（撞上了就把 scope 记进 `dirty`，等这一轮收尾再补一次），`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
+`labels.py` 有四个入口：`--from-hook` 走钩子那条路（读 stdin 上的 payload，定好 scope 就 spawn 一个脱离进程、自己立刻退出，所以工具调用不会被钩子的 `timeout` 拖住——那个超时是 `hooks.<event>[].timeout`，默认 60s、上限 300）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡、`--dry-run` 只打印差异、不发任何写请求。三个 profile 共用一个状态目录 `~/.hermes/state/weka-labels/`：`counter` 是触发计数（每第 10 次换成一次全量扫），`lock` + `dirty` 保证同一时刻只跑一轮（撞上了就把 scope 记进 `dirty`，等这一轮收尾再补一次），`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
 
 钩子本身要在三个 worker profile 的 `config.yaml` 里注册，那一段是部署的一部分，写法与核对见 `team/automations/skills/weka-deploy/SKILL.md`。没注册的表现很干净、也很误导人：标签只在 GitHub 事件到达时才动，也就是 webhook 建卡那一下；卡跑起来之后的 `weka-queue → weka-working → weka-queue → weka-reviewing` 一次都不会自己发生，而 `~/.hermes/state/weka-labels/` 里什么都不会多出来。
 
@@ -534,7 +534,7 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
 建一个打 `weka` 标签、指派给 `zzgbot` 的 Issue，观察这条链：
 
 1. 卡片 `#<issue>: <标题>` 被创建并跑起来；
-2. issue 上先出现 `weka-queue`，卡跑起来后变成 `weka-working`；开 PR 后 PR 是以 draft 开出、带 `weka-working`；交接后卡转 review 排队，PR **仍是 draft**、标签回到 `weka-queue`，reed 领到后又变成 `weka-reviewing`；
+2. issue 上先出现 `weka-queue`，卡跑起来后变成 `weka-working`；开 PR 后 PR 是以 draft 开出、带 `weka-working`；交接后卡转 review 排队，PR **仍是 draft**、标签回到 `weka-queue`，reed 领到后又变成 `weka-reviewing`（主机 `config.json` 缺 `"reviewer": "reed"` 时这一步不会发生——`phase()` 认不出 reed，sweep 只打一行 `… is not in the phase table; skipping`；见 `team/automations/skills/weka-deploy/SKILL.md` 的只读冒烟一节）；
 3. Reed 审完（`weka-reviewed`），PR 才在这一刻变成 ready，`weka-working` / `weka-reviewing` 都已摘掉，你被加为 reviewer；
 4. 你在 PR 上提一条 `changes_requested` 的 review → 出现卡片 `#<pr>: Rework 1 — ...`，`weka-reviewed` 被摘掉，PR 标签回到 `weka-queue`；
 5. 你合并 PR → worktree 和本地分支被删掉，PR 上标签清空，不再有卡片；PR body 里带 `Closes #N` 时 issue 会自动关闭，issue 上残留的过程标签被擦掉——`labels.py` 在卡变 `done` 时擦一次，webhook 在 close 时还有一份兜底（手动关闭 issue 同理）。

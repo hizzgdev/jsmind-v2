@@ -30,8 +30,9 @@ A full sweep is not the whole board: it is every unfinished card plus the last
 `FULL_SWEEP_DONE_LIMIT` finished ones (see `sweep_window`).
 
 A hook that is slow is a hook that gets killed: `agent/shell_hooks.py` drains
-stdout/stderr to EOF with `timeout: 5`, then kills the hook's whole process
-group. So hook mode decides the scope, re-executes itself *detached* (own
+stdout/stderr to EOF for up to the hook's own `timeout` (`hooks.<event>[].timeout`,
+default 60s, cap 300 — `agent/shell_hooks.py:37-38`), then kills the hook's whole
+process group. So hook mode decides the scope, re-executes itself *detached* (own
 session, no inherited pipes, output to the log) and exits immediately. Its
 stdout stays empty, which is also what `hermes hooks doctor` requires.
 
