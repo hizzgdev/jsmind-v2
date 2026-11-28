@@ -193,7 +193,10 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   marker (with the rest of the worker identity) for its detached child only — the sweep reads the board
   and writes to GitHub, it is not a delegate child. A log full of `[ERROR] … exited 1` naming
   `delegate_task child contexts cannot mutate` means the grant is missing; it does not mean the board
-  was empty. `hooks doctor` cannot catch this: its synthetic payload never reaches the board.
+  was empty. `hooks doctor` cannot catch this: it reads only the hook's own stdout and exit code, while
+  the fence error is logged by the detached child. The synthetic payload has no card id but does carry
+  the firing profile, so a doctor run also reconciles that profile's card (or a full sweep) — it is not
+  a no-op.
 - **`weka-reviewed` and `weka` stay outside the reconciler.** `pass-review.sh` adds `weka-reviewed`, the
   webhook strips it on close, and `weka` is a participation marker nobody mutates. A sweep must never add
   or remove either one: the rework gate reads `weka-reviewed`, so a script that touched it could
