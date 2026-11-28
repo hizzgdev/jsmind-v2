@@ -78,10 +78,6 @@ DEFAULT_CONFIG = os.path.join(HERE, "config.json")
 # The script lives in <repo>/team/automations/weka/, so the repo is three up.
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 
-# Flow-fixed label names, for the close-time cleanup only. `labels.py` owns the
-# writing; this script only strips what a close payload still shows.
-LABEL_WORKING = "weka-working"
-LABEL_REVIEWING = "weka-reviewing"
 
 # Card statuses that mean "an agent is (or should be) working on it now".
 OPEN_STATUSES = ("todo", "ready", "running", "review", "blocked", "scheduled", "triage")
@@ -452,20 +448,25 @@ class Weka:
         return "removed"
 
     def strip_labels(self, number: int | None, labels: list[str]) -> None:
-        """Best-effort removal of the flow labels still carrying `number`.
+        """Best-effort removal of every flow label still carrying `number`.
 
         `labels` is the object's label list from the close payload, so only the
         flow labels that are actually present get a request. A label that is
         already gone needs none, which is the normal case on most closes: an
-        issue carries `weka-working` alone, and a PR at merge time usually
+        issue usually carries one `weka-*` label, and a PR at merge time often
         carries `weka` alone.
+
+        Targets are matched by the `<target_label>-` prefix, not against a list
+        of the flow's own label names: that set lives in `labels.py` and grows,
+        and an enumeration here silently stopped covering the labels it did not
+        know (`weka-queue`, `weka-blocked`). `weka` itself is not a target — it
+        has no hyphen, and it is the entry gate a reopened issue still needs.
         """
         if number is None:
             print("[WARN] close payload carries no number: leaving flow labels in place", file=sys.stderr)
             return
-        targets = [
-            label for label in (LABEL_WORKING, LABEL_REVIEWING) if label in labels
-        ]
+        prefix = f"{self.label}-"
+        targets = [name for name in labels if name.startswith(prefix)]
         if not targets:
             print(f"[INFO] #{number} closed without flow labels: nothing to strip", file=sys.stderr)
             return
