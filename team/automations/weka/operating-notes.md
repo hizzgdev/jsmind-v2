@@ -278,7 +278,8 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   mid-request drops that GitHub delivery and GitHub does not redeliver on its own. Do not "improve" this
   later without making the service finish in-flight work first.
 - **Deployment has a written procedure in the repo: `team/automations/skills/weka-deploy/SKILL.md`**
-  (installed locally as the `weka-deploy` skill, a symlink into the repo). Follow it rather than
+  (installed locally as the `weka-deploy` skill under `~/.hermes/skills/devops/`, a copy the procedure
+  itself overwrites and hash-checks like every other one). Follow it rather than
   improvising the order. It is a **reset**, not a merge: `origin/master` is the whole desired state, so
   every run overwrites the profile SOUL and the profile skills and restarts the unit — no "did anything
   change?" gate, and no diffing a live copy to see which side is ahead. Behind that is the owner's rule:
