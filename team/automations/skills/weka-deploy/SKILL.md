@@ -263,6 +263,30 @@ the delegate fence and the sweep can only log `[ERROR] … delegate_task child c
 else is one line per card whose labels would move, as `-old +new`. `--dry-run` sends no write request at all —
 it is the only way to see what the sweep thinks without writing to GitHub.
 
+Diff lines are not the only output. Skip and progress lines print too, and they are information, not failures:
+
+| line | why it prints |
+|---|---|
+| `<id>: title does not start with '#<number>:'` | a side card that merely quotes an object URL — a follow-up card pointing at the PR it follows — is deliberately not keyed to that object |
+| `<id>: body does not start with a GitHub object URL` | the card names no object, so there is nothing to label |
+| `<id>: status=<status> assignee=<who> is not in the phase table; skipping` | that pairing maps to no flow label in `phase()` |
+| `profile <p>: N running cards; falling back to a full sweep` | a hook payload names no card; N=1 resolves to that card, anything else sweeps |
+
+One of those skip lines deserves its own reading. `phase()` recognizes the reviewer as `config.get("reviewer")`,
+and nothing validates the key — `load_config()` only checks that the file exists, so a missing key degrades
+silently instead of failing: a **`running` card assigned to reed printing `is not in the phase table; skipping`
+means the gitignored `config.json` on this host has no `"reviewer": "reed"`**. `config.example.json` carries it,
+a host copy written before that line existed is a plain miss, and until the key is added no card ever reaches
+`weka-reviewing` — while `hooks doctor` stays green, because doctor proves the hook is registered, not that the
+config gives the phase table a reviewer. Read the current value before trusting the sweep:
+
+```bash
+python3 -c 'import json; print(json.load(open("team/automations/weka/config.json")).get("reviewer"))'
+```
+
+`reed` is correct; `None` means adding the key, which is a host edit to a gitignored deploy file (like
+`~/.hermes/config.yaml` → `kanban:`), not a change to this repo.
+
 ### 7. Concurrency ceilings: 3 and 1
 
 `max_in_progress` must be 3 and `max_in_progress_per_profile` must be 1 — that is one card for each of the

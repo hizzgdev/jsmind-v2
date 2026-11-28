@@ -226,13 +226,13 @@ cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理
 
 | 标签 | 打在哪 | 谁打 | 用途 |
 | --- | --- | --- | --- |
-| `weka-queue` | 卡对应的对象（issue 卡打 issue，PR 卡打 PR） | `labels.py`（卡在 `ready` / `todo` / `scheduled` / `triage` / `review`） | 给人看：在排队——等 cody 开工、被退回等 cody、或者等 reed 领取。`review` 算排队，不是「正在审」 |
-| `weka-working` | issue 卡同时打 issue 和它开出来的 PR | `labels.py`（卡 `running` 且 assignee 是 cody） | 给人看：AI 正在干 |
-| `weka-reviewing` | 永远是 PR | `labels.py`（卡 `running` 且 assignee 是 reed） | 给人看：AI 正在审 |
-| `weka-blocked` | 卡对应的对象 | `labels.py`（卡 `blocked`） | 给人看：卡停住等人处理，不是崩了 |
+| `weka-queue` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡在 `ready` / `todo` / `scheduled` / `triage` / `review`） | 给人看：在排队——等 cody 开工、被退回等 cody、或者等 reed 领取。`review` 算排队，不是「正在审」 |
+| `weka-working` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `running` 且 assignee 是 cody） | 给人看：AI 正在干 |
+| `weka-reviewing` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `running` 且 assignee 是 reed） | 给人看：AI 正在审 |
+| `weka-blocked` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `blocked`） | 给人看：卡停住等人处理，不是崩了 |
 | `weka-reviewed` | 永远是 PR | `scripts/weka/pass-review.sh` | **唯一控制流程的标签**：只有它存在时，你在 PR 上的动作才会触发返工卡。它和 PR 转 ready 是同一刻发生的（ready 的唯一入口） |
 
-`labels.py` 有四个入口：`--from-hook` 走钩子那条路（读 stdin 上的 payload，定好 scope 就 spawn 一个脱离进程、自己立刻退出，所以工具那 5 秒超时杀不到它）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡、`--dry-run` 只打印差异、不发任何写请求。三个 profile 共用一个状态目录 `~/.hermes/state/weka-labels/`：`counter` 是触发计数（每第 10 次换成一次全量扫），`lock` + `dirty` 保证同一时刻只跑一轮（撞上了就把 scope 记进 `dirty`，等这一轮收尾再补一次），`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
+`labels.py` 有四个入口：`--from-hook` 走钩子那条路（读 stdin 上的 payload，定好 scope 就 spawn 一个脱离进程、自己立刻退出，所以工具调用不会被钩子的 `timeout` 拖住——那个超时是 `hooks.<event>[].timeout`，默认 60s、上限 300；`labels.py` 的 docstring 里还留着旧的 5 秒，等那个文件下次被改动时一并修）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡、`--dry-run` 只打印差异、不发任何写请求。三个 profile 共用一个状态目录 `~/.hermes/state/weka-labels/`：`counter` 是触发计数（每第 10 次换成一次全量扫），`lock` + `dirty` 保证同一时刻只跑一轮（撞上了就把 scope 记进 `dirty`，等这一轮收尾再补一次），`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
 
 钩子本身要在三个 worker profile 的 `config.yaml` 里注册，那一段是部署的一部分，写法与核对见 `team/automations/skills/weka-deploy/SKILL.md`。没注册的表现很干净、也很误导人：标签只在 GitHub 事件到达时才动，也就是 webhook 建卡那一下；卡跑起来之后的 `weka-queue → weka-working → weka-queue → weka-reviewing` 一次都不会自己发生，而 `~/.hermes/state/weka-labels/` 里什么都不会多出来。
 
@@ -278,6 +278,8 @@ cody 若死在 draft，PR 就停在 draft + `weka-working`：合不了，但不�
 `weka` 标签只表示归属，不在这份清理名单里——对象关掉之后留着它没有意义，但它也是人筛"哪些是 weka 管的"的依据，脚本不动它。
 
 兜底只覆盖**部署之后**的 close 事件：在这份代码上线前就关掉的对象不会再收到 `close`，它们身上残留的标签不会自己消失。`labels.py` 也不碰已经 closed 的对象——给一个已合并的 PR 补标签等于宣告一件没人能推进的事——所以这类一次性残留只能手工清：用 `gh issue list --state closed --label weka-working` 找出来，对每个编号 `gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working`。
+
+`weka-queue` 与 `weka-blocked` 连这条兜底都不在名单里（`strip_labels()` 只清 `weka-working` / `weka-reviewing` / `weka-reviewed`）：对象在 `review` 里被关掉、或者被 block 之后关掉，就会一直挂着它们，除了这里没有别的回收路径。查法一样，换 `--label`：`gh issue list --state closed --label weka-queue`、`gh pr list --state merged --label weka-blocked`，再对每个编号 DELETE 同名的那一个。
 
 ## 安全边界
 
