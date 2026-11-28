@@ -32,17 +32,29 @@ is answered by a hash: **does the live file equal master's file, yes or no.**
 |---|---|---|
 | `team/automations/weka/SOUL.cody.md`, `SOUL.reed.md`, `SOUL.scout.md` | `~/.hermes/profiles/<p>/SOUL.md` | overwrite from master, verify hash |
 | `team/automations/skills/<name>/SKILL.md` | `~/.hermes/profiles/<p>/skills/<name>/SKILL.md` | overwrite from master, verify hash |
+| `team/automations/skills/weka-deploy/SKILL.md` | `~/.hermes/skills/devops/weka-deploy/SKILL.md` — a symlink into this clone, in the default home rather than a profile | symlink: step 2 already moved it to master, so nothing is copied — verify the live hash against `git show master:…` |
 | `team/automations/weka/github-webhook.py`, `github-webhook.service` | the clone the systemd user unit points at | restart the unit, verify it started now |
 | `hooks:` in `~/.hermes/profiles/<p>/config.yaml` + `<p>/shell-hooks-allowlist.json` | not in this repo | write the two hooks of step 8 verbatim, then `hooks doctor` three times |
 | `~/.hermes/config.yaml` → `kanban:` | not in this repo | out of scope — a human edits it, gateway restart |
-| `README.md`, other `*.md`, this file | nothing to install | — |
+| `README.md`, other `*.md` | nothing to install | — |
 
-Rows one to four have a live counterpart and are reset every run, whether or not they changed. The hooks
-row is the one that is **written, not copied** — no file in this repo holds it, so a profile missing the
-block is a failed deploy rather than a skipped step. The `README.md` row has none: a document nobody loads
-at runtime needs no deployment. `~/.hermes/config.yaml` → `kanban:` stays out of scope and stays a human's
-edit: it is the host's config, not a profile's. The hooks row is per-profile, which is exactly why it is in
-scope while that one is not.
+Five rows have a live counterpart and are reset on every run, whether or not it changed: SOUL, the profile
+skills, the default-home skill, the webhook, and the `hooks:` block. The hooks row is the one that is
+**written, not copied** — no file in this repo holds it, so a profile missing the block is a failed deploy
+rather than a skipped step.
+
+The default-home skill is the only live location that is a **symlink** into this clone rather than a copy,
+so step 2 already reset it and step 4 only verifies it: overwriting is impossible (`cp` there exits 1 with
+`are the same file`), and comparing it with the working-tree file compares one inode with itself. Compare
+the live file with `git show master:team/automations/skills/weka-deploy/SKILL.md` instead. Without the row
+nothing checks that the link still resolves into this clone: point it at a stale checkout elsewhere and every
+other step stays green while the procedure the session is running is not master's. What that comparison
+cannot prove is spelled out at the end of step 4 — step 2 has already moved the clone it points into.
+
+The `README.md` row is the only one with nothing to install: a document nobody loads at runtime needs no
+deployment. `~/.hermes/config.yaml` → `kanban:` stays out of scope and stays a human's edit: it is the
+host's config rather than a file this repo owns byte for byte, and editing it is not a copy. The hooks row
+is per-profile, which is exactly why it is in scope while that one is not.
 
 Live edits do not survive, and that is intentional. Hermes's skill curator patches installed skills in
 place, so a profile file can accumulate content the repo never saw. That content is treated as a draft
@@ -100,7 +112,7 @@ md5sum team/automations/weka/SOUL.scout.md ~/.hermes/profiles/scout/SOUL.md
 Equal hashes or it is not deployed — "the copy ran" is not evidence. No restart: `SOUL.md` is read when a
 worker session starts, which is also why a stale copy fails silently.
 
-### 4. Skills installed into profiles: overwrite from master
+### 4. Skills: overwrite from master
 
 ```bash
 ls -l ~/.hermes/profiles/*/skills/ | grep -E 'jsmind-review|weka-deploy'
@@ -108,10 +120,34 @@ cp team/automations/skills/<name>/SKILL.md ~/.hermes/profiles/<p>/skills/<name>/
 md5sum team/automations/skills/<name>/SKILL.md ~/.hermes/profiles/<p>/skills/<name>/SKILL.md
 ```
 
-Overwrite unconditionally, then verify the hashes. A skill symlinked into the repo needs neither step.
+Overwrite unconditionally, then verify the hashes. A skill symlinked into the repo needs no overwrite, but it
+still needs the hash check, spelled out at the end of this step.
 
 Do not stop to compare the two files and decide which is newer, and do not copy the live version back into
 the repo as part of a deploy. Both are ways of letting the host vote on what master should be.
+
+One copy of a skill lives outside every profile: the file the deploy session itself reads from
+`~/.hermes/skills/devops/weka-deploy/SKILL.md` in the default home. A skill symlinked into the repo needs no
+overwrite — step 2 already moved the link's target to master, so only the hash is left:
+
+```bash
+ls -l ~/.hermes/skills/devops/
+readlink -f ~/.hermes/skills/devops/weka-deploy/SKILL.md
+md5sum ~/.hermes/skills/devops/weka-deploy/SKILL.md
+git show master:team/automations/skills/weka-deploy/SKILL.md | md5sum
+```
+
+Never `cp` into that path while it is a symlink: both names resolve to one inode, so it exits 1 with
+`are the same file` and writes nothing. Do not verify it against the working-tree file either — same inode,
+so the two hashes are equal by construction and prove nothing. The comparison that means something is the
+live file against `git show master:`. Changing this file mid-run also changes nothing for the run in
+progress: those instructions were loaded before step 1, and the new bytes take effect on the next deploy.
+That bounds what the check can prove, and it is less than it looks. Step 2 pulls this clone and the link
+resolves into it, so by the time these hashes print the live file equals master **by construction**: a run
+that started from an older copy of this document, and then followed steps master had already replaced, still
+prints two equal hashes, and nothing about that run looks wrong. What the comparison catches is a link
+resolving into a clone step 2 never updated, or a working tree altered after step 2. It cannot tell you which
+version this session loaded — that is fixed when the session starts, before step 1.
 
 ### 5. Restart the webhook
 
@@ -485,11 +521,12 @@ here that can drop a delivery.
 
 ### 9. Report
 
-`$OLD` and the new `HEAD`; what the step-2 range listed; that SOUL, profile skills and the webhook were reset
-to master, with the hash pairs and the restart's start time; the smoke evidence or why it did not apply; the
-two concurrency ceilings as step 7 found them (the file's numbers and the value the gateway booted with); the
-three `hooks doctor` verdicts and, for the fence, whether a worker call was actually refused; and anything
-still outside this procedure (`config.yaml` → `kanban:`).
+`$OLD` and the new `HEAD`; what the step-2 range listed; that SOUL, the profile skills, the default-home
+skill and the webhook were reset to master, with the hash pairs — for the default-home skill the live file
+against `git show master:` — and the restart's start time;
+the smoke evidence or why it did not apply; the two concurrency ceilings as step 7 found them (the file's
+numbers and the value the gateway booted with); the three `hooks doctor` verdicts and, for the fence, whether
+a worker call was actually refused; and anything still outside this procedure (`config.yaml` → `kanban:`).
 
 ## Stop and ask instead of guessing
 
