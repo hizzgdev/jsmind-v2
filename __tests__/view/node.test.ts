@@ -196,6 +196,208 @@ describe('JmNodeView', () => {
         });
     });
 
+    describe('refreshNodeStyle', () => {
+        // Repainting has to reuse the element that is already on screen: a
+        // caller that changed a colour keeps its position, its content and any
+        // listener it attached. These cases pin the paint itself, because a
+        // cached element that is never recoloured is exactly the reported bug.
+
+        const stubRect = (width: number, height: number): DOMRect => ({
+            width,
+            height,
+            x: 0,
+            y: 0,
+            top: 0,
+            left: 0,
+            bottom: height,
+            right: width,
+            toJSON: () => ({}),
+        }) as DOMRect;
+
+        it('repaints an existing element with the new tone and re-measures it', async () => {
+            const originalMeasureElement = DomUtility.measureElement;
+            let width = 100;
+            DomUtility.measureElement = async (): Promise<DOMRect> => stubRect(width++, 40);
+            try {
+                nodeView.setTheme(resolveJmStyle());
+                const mind = new JmMind();
+                const node = mind.addNode(JmNodeContent.createText('Repaint'), {
+                    parentId: mind.root.id,
+                    side: JmNodeSide.SideA,
+                });
+                node.style = { tone: JmTone.Primary };
+
+                const first = await nodeView.createAndMeasure(node);
+                const element = node._data.view.element!;
+                assert.strictEqual(
+                    element.element.style.getPropertyValue('--jm-node-fill'),
+                    JSMIND_THEME_DEFAULT.tones![JmTone.Primary]!.fillColor
+                );
+
+                node.style = { tone: JmTone.Danger };
+                const second = await nodeView.refreshNodeStyle(node);
+                assert.ok(second, 'the repaint should report the size it measured');
+
+                assert.strictEqual(node._data.view.element, element, 'the painted element should be reused');
+                assert.strictEqual(
+                    element.element.style.getPropertyValue('--jm-node-fill'),
+                    JSMIND_THEME_DEFAULT.tones![JmTone.Danger]!.fillColor,
+                    'the element should wear the tone the node states now'
+                );
+                assert.strictEqual(second.width, first.width + 1, 'the repainted node should be measured again');
+                assert.strictEqual(element.cachedRect.width, second.width, 'the cache should hold the new size');
+            } finally {
+                DomUtility.measureElement = originalMeasureElement;
+            }
+        });
+
+        it('leaves the repainted node on the canvas', async () => {
+            // No stubbed measurement here on purpose: the real one takes the
+            // element out of the document to read its box and leaves it out, so
+            // this is the case that catches a repaint which measures the node and
+            // then paints nothing.
+            nodeView.setTheme(resolveJmStyle());
+            const mind = new JmMind();
+            const node = mind.addNode(JmNodeContent.createText('Stays put'), {
+                parentId: mind.root.id,
+                side: JmNodeSide.SideA,
+            });
+            await nodeView.createAndMeasure(node);
+            const element = node._data.view.element!;
+            const container = innerContainer.element.querySelector('.jsmind-nodes');
+            assert.ok(container?.contains(element.element), 'the node should start on the canvas');
+
+            node.style = { tone: JmTone.Danger };
+            await nodeView.refreshNodeStyle(node);
+
+            assert.ok(container?.contains(element.element), 'the repainted node must stay on the canvas');
+        });
+
+        it('drops the overrides a new style no longer states', async () => {
+            const originalMeasureElement = DomUtility.measureElement;
+            DomUtility.measureElement = async (): Promise<DOMRect> => stubRect(80, 30);
+            try {
+                nodeView.setTheme(resolveJmStyle());
+                const mind = new JmMind();
+                const node = mind.addNode(JmNodeContent.createText('Sheds fields'), {
+                    parentId: mind.root.id,
+                    side: JmNodeSide.SideA,
+                });
+                node.style = { background: '#123456', fontSize: 20, fontWeight: 'bold', borderWidth: 4 };
+                await nodeView.createAndMeasure(node);
+
+                const element = node._data.view.element!;
+                assert.strictEqual(element.element.style.getPropertyValue('--jm-node-fill'), '#123456');
+                assert.strictEqual(element.element.style.fontSize, '20px');
+                assert.strictEqual(element.element.style.borderWidth, '4px');
+
+                // The case a set-only painter gets wrong is every field the new
+                // style does not state: applying a style only writes what it
+                // carries, so a font size, a weight or a border from the old
+                // style would keep painting on top of the tone.
+                node.style = { tone: JmTone.Danger };
+                await nodeView.refreshNodeStyle(node);
+
+                assert.strictEqual(
+                    element.element.style.getPropertyValue('--jm-node-fill'),
+                    JSMIND_THEME_DEFAULT.tones![JmTone.Danger]!.fillColor,
+                    'the tone should replace the background the node no longer states'
+                );
+                assert.strictEqual(element.element.style.fontSize, '', 'font size should fall back to the stylesheet');
+                assert.strictEqual(element.element.style.fontWeight, '');
+                assert.strictEqual(element.element.style.borderWidth, '');
+            } finally {
+                DomUtility.measureElement = originalMeasureElement;
+            }
+        });
+
+        it('repaints a node that was never painted by creating it', async () => {
+            nodeView.setTheme(resolveJmStyle());
+            const mind = new JmMind();
+            const node = mind.addNode(JmNodeContent.createText('Fresh'), {
+                parentId: mind.root.id,
+                side: JmNodeSide.SideA,
+            });
+            node.style = { tone: JmTone.Success };
+
+            const size = await nodeView.refreshNodeStyle(node);
+
+            assert.ok(node._data.view.element, 'a node without an element should get one');
+            assert.ok(size);
+            assert.strictEqual(
+                node._data.view.element!.element.style.getPropertyValue('--jm-node-fill'),
+                JSMIND_THEME_DEFAULT.tones![JmTone.Success]!.fillColor
+            );
+        });
+
+        it('drops the element it measured when the node was released meanwhile', async () => {
+            // A measurement waits a frame, and a map closed inside that frame
+            // releases the element. Painting the measured element back would put
+            // a node of the closed map on the canvas; reporting a size would hand
+            // the layout a box for an element that is no longer there.
+            nodeView.setTheme(resolveJmStyle());
+            const mind = new JmMind();
+            const node = mind.addNode(JmNodeContent.createText('Released mid-flight'), {
+                parentId: mind.root.id,
+                side: JmNodeSide.SideA,
+            });
+            await nodeView.createAndMeasure(node);
+            const element = node._data.view.element!;
+            const container = innerContainer.element.querySelector('.jsmind-nodes');
+            assert.ok(container?.contains(element.element), 'the node should start on the canvas');
+
+            const originalMeasureElement = DomUtility.measureElement;
+            let settleMeasurement: () => void = () => {};
+            const held = new Promise<void>((resolve) => {
+                settleMeasurement = resolve;
+            });
+            DomUtility.measureElement = async (): Promise<DOMRect> => {
+                await held;
+                return stubRect(90, 30);
+            };
+            try {
+                node.style = { tone: JmTone.Danger };
+                const repaint = nodeView.refreshNodeStyle(node);
+                // What `close()` does to this node while the repaint waits.
+                nodeView.releaseNode(node);
+                settleMeasurement();
+
+                const size = await repaint;
+
+                assert.strictEqual(size, null, 'a repaint whose node is gone should report no size');
+                assert.ok(!container?.contains(element.element), 'a released element must not be painted back');
+                assert.strictEqual(node._data.view.element, null, 'the repaint must not restore the cache either');
+            } finally {
+                DomUtility.measureElement = originalMeasureElement;
+            }
+        });
+    });
+
+    describe('releaseNode', () => {
+        it('detaches the element and clears the cache so the node can be painted again', async () => {
+            const mind = new JmMind();
+            const node = mind.addNode(JmNodeContent.createText('Released'), {
+                parentId: mind.root.id,
+                side: JmNodeSide.SideA,
+            });
+            await nodeView.createAndMeasure(node);
+            const element = node._data.view.element!;
+            const expander = node._data.view.expander!;
+            const container = innerContainer.element.querySelector('.jsmind-nodes');
+
+            nodeView.releaseNode(node);
+
+            assert.strictEqual(node._data.view.element, null);
+            assert.strictEqual(node._data.view.expander, null);
+            assert.ok(!container?.contains(element.element), 'the node element should be off the canvas');
+            assert.ok(!container?.contains(expander.element), 'the expander should be off the canvas');
+
+            await nodeView.createAndMeasure(node);
+            assert.notStrictEqual(node._data.view.element, element, 'the next paint should build a new element');
+            assert.ok(container?.contains(node._data.view.element!.element));
+        });
+    });
+
     describe('tone resolution', () => {
         // The document's defaultTone is the tone an untoned node wears. These
         // cases pin the paint, not the theme: a resolved theme that carried the

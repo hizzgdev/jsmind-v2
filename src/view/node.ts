@@ -93,11 +93,80 @@ export class JmNodeView {
         return sizePromise;
     }
 
+    /**
+     * Repaints an already rendered node with the style it carries now, and
+     * re-measures it.
+     *
+     * @remarks
+     * The element is reused rather than rebuilt. It already holds the node's
+     * content, its position and anything a caller attached to it, and a style
+     * change touches none of those.
+     *
+     * Measuring is not optional: a style can change the box (font size, border
+     * width), and the layout is computed from the measured size - keeping the
+     * cached one would paint a wider node at the old width, overlapping its
+     * neighbours.
+     *
+     * A node that has no element yet is created and measured like any new node,
+     * so a caller that changes the style of a node the map is not painting does
+     * not have to know the difference.
+     *
+     * The measurement waits a frame, and that frame is long enough for the map
+     * to be closed or replaced underneath it. When that happens this node's
+     * cached element is no longer the one on screen - `releaseNode` forgot it,
+     * or a new open painted another one - so the measured element is dropped
+     * rather than put back, and `null` says nothing was painted.
+     *
+     * @param node - Node to repaint.
+     * @returns The size the node occupies after the repaint, or `null` if the
+     *          node stopped being rendered before the measurement landed.
+     */
+    async refreshNodeStyle(node: JmNode): Promise<JmSize | null> {
+        const element = node._data.view.element;
+        if (!element) {
+            return await this.createAndMeasure(node);
+        }
+        this._applyTone(element, node);
+        const rect = await JmDomUtility.measureElement(element, this.container);
+        if (node._data.view.element !== element) {
+            // The map left this element behind while we waited for the frame.
+            // Putting it back would draw a node of a map that is no longer on
+            // screen next to - or over - the one that is.
+            return null;
+        }
+        element.cachedRect = rect;
+        // Measurement takes the element out of the document to read its box and
+        // leaves it out - `createAndMeasure` puts it back for the same reason.
+        // Skipping this measures the node and then paints nothing: the element
+        // is left detached and no later pass re-attaches it.
+        this.container.appendChild(element.element);
+        return new JmSize(rect.width, rect.height);
+    }
+
     removeNode(node: JmNode): void {
         const element = node._data.view.element;
         if (element) {
             element.element.remove();
         }
+    }
+
+    /**
+     * Removes a node's rendered elements and forgets them.
+     *
+     * @remarks
+     * Differing from {@link removeNode} on the part that matters for a rebuild:
+     * the cache is dropped as well. `createAndMeasure` trusts an element it
+     * finds, so a node whose element was removed but whose cache was kept would
+     * never be painted again - the next open would measure it to its old size
+     * and place an element that is no longer in the document.
+     *
+     * @param node - Node whose rendering should go.
+     */
+    releaseNode(node: JmNode): void {
+        node._data.view.element?.element.remove();
+        node._data.view.expander?.element.remove();
+        node._data.view.element = null;
+        node._data.view.expander = null;
     }
 
     updateCanvasSize(viewSize: JmSize) {
@@ -204,6 +273,13 @@ export class JmNodeView {
         const style = node.style;
         const tone = resolveNodeTone(style, this.theme);
 
+        // This runs against an element that may already be on screen, so every
+        // field it can write is cleared first. Without that, a node whose style
+        // dropped a field would keep wearing the value it had: going back from
+        // an explicit `background` to the tone's fill left the old colour in
+        // place, because applying a tone only overwrites what it sets.
+        this._clearStyleOverrides(element);
+
         // The field is a string on disk, so the tone that lands here is typed
         // `string`; validation restricts it to a known name, which is what the
         // narrower index type wants.
@@ -239,6 +315,29 @@ export class JmNodeView {
         if (style.fontWeight !== undefined) {
             element.style.fontWeight = style.fontWeight;
         }
+    }
+
+    /**
+     * Removes every style override this view can write onto a node element.
+     *
+     * @remarks
+     * Two mechanisms, so two removals. The colours are custom properties and go
+     * back to inheriting the tone the host carries; the rest are ordinary inline
+     * declarations that go back to the stylesheet's rules. Both have to happen
+     * before the new style is applied, never after.
+     *
+     * @param element - The element to strip.
+     *
+     * @private
+     */
+    private _clearStyleOverrides(element: JmElement): void {
+        element.style.removeProperty('--jm-node-fill');
+        element.style.removeProperty('--jm-node-text');
+        element.style.removeProperty('--jm-node-border-color');
+        element.style.borderWidth = '';
+        element.style.borderStyle = '';
+        element.style.fontSize = '';
+        element.style.fontWeight = '';
     }
 }
 
