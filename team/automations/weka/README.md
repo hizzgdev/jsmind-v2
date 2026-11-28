@@ -505,7 +505,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
 
 先把六个 label 建好（`gh` 不会自动创建，加一个不存在的 label 会直接报错）：
 
-> **这六个标签在当前仓库里已经存在**，下面这串命令只对从零重建的仓库有意义：`gh label create` 不覆盖同名标签，只会报已存在——今天照着本节跑，六条一条也改不动，看起来却像「建好了」。要核对线上现状用 `gh label list | grep weka`，不要拿下面这张表当现状。
+> **这六个标签在当前仓库里已经存在**，下面这串命令只对从零重建的仓库有意义：`gh label create` 不覆盖同名标签，只会报已存在——今天照着本节跑，六条一条也改不动，看起来却像「建好了」。要核对线上现状用 `gh label list | grep weka`。
 
 ```bash
 gh label create weka           --description "Weka webhook+kanban flow: issues with this label become kanban tasks"
