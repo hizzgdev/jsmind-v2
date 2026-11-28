@@ -26,8 +26,11 @@ rules that matter when touching any part of it:
   `weka-blocked`) are for humans only, and **`labels.py` is their one writer** —
   no worker adds or removes them (see 「标签，以及实际跑着的那个进程」 below).
 - There is no "waiting for a human" card state: reed ends with `kanban_complete`
-  (approved) or `kanban_request_changes`. No block, no triage, no
-  `assign <task> none`. PR merge/close is cleaned up by the webhook (worktree by
+  (approved) or `kanban_request_changes`. No triage, no `assign <task> none`. The one
+  exception is a conclusion that depends on an owner decision — reed (or cody) posts a PR
+  comment headed `## 需要 owner 决定：…`, then blocks with that comment's URL as the first
+  line of the reason, and the owner's reply on the PR is what releases it (see
+  `SOUL.reed.md` / `SOUL.cody.md`). PR merge/close is cleaned up by the webhook (worktree by
   `head.ref`, local branch, labels) with no cleanup card.
 
 The older bullets below still describe the infrastructure (venv, nginx, HMAC,

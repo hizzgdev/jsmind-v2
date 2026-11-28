@@ -57,7 +57,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 
 - 人类只跟 GitHub 打交道，bot 之间只跟看板打交道；webhook 是两者之间的桥，不跑任何 LLM。
 - **卡只是触发器，GitHub 才是事实来源。** 卡上只有对象 URL 和触发快照，细节由 cody/reed 自己去 GitHub 查。
-- 看板上没有"等人审核"这个状态。人审的门在 GitHub 上：reviewer 请求 + `weka-reviewed` 标签。所以 cody / reed 的卡从不 block，也不会有 triage，`triage/specify` 那一整套不涉及；**scout 的卡会 block**（`SOUL.scout.md` 让它在 URL 解析不出、证据不足、需求自相矛盾时停下来等人），`block` 只属于 groom 那条线。
+- 看板上没有"等人审核"这个状态。人审的门在 GitHub 上：reviewer 请求 + `weka-reviewed` 标签。cody / reed 的卡没有 triage，`triage/specify` 那一整套不涉及；**reed 的卡会 block**：结论取决于 owner 的一个决定时，它先在 PR 上发一条以「## 需要 owner 决定：」开头的评论，再 block 卡（reason 第一行是那条评论的 URL），owner 在 PR 上回复即可继续——卡停在 blocked 只为等这一句回话。cody 同理（需求自相矛盾、要 owner 拍板时）。**scout 的卡也会 block**（`SOUL.scout.md` 让它在 URL 解析不出、证据不足、需求自相矛盾时停下来等人）。除此之外没有人因为「等审核」而 block。
 
 ## 卡片与编号
 
@@ -109,6 +109,10 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 groom 那一支是**可关的**：`groom_board` / `groom_assignee` 留空时整支跳过，并在 issue 上留一句"未配置"的说明。所以这份代码可以先上线，等 scout 流程自己把两个键填上再启用。它建卡时不带 `--workspace worktree --project`：groom 谈的是"这个 issue 应该变成什么"，不是写代码，给它挂一个仓库 checkout 没有用（board 若自己绑了 project，那是 board 的默认行为）。
 
 PR 关闭那一支靠同样的两个键开，但门关着时**只在 journal 打一行 `[GATE]`，不在 PR 上留言**：关闭是自动事件、不是人的请求，在每条合并的 PR 上贴一句"未配置"只会是噪音。
+
+**标题用英文**：issue 标题、PR 标题、commit message 一律英文 `<type>(<scope>): <subject>`，类型按 `team/development/commit-types.md` 那张表选。正文和评论可以中文，审查评论的语言则跟随 PR body（见 `SOUL.reed.md`「写审查意见：语言、结构、位置」）。新建 issue 时不按正文语言决定标题语言——正文是中文，标题依然英文；这张 issue 自己的标题曾经是中文，被 owner 打回才改的。`AGENTS.md` 只写了 PR 标题与 commit message，issue 这一条由 weka 流程自己收口。
+
+**PR body 的写法**由 `SOUL.cody.md` 的「写 PR body」一节定义：第一行 `Closes #N`，正文三节（做了什么 / 怎么验证的 / 需要人来做）、总长 ≤ 30 行，测试只写命令与结果、不写条数或文件数。本文件不再重复那套规则，改的时候只改 SOUL。
 
 ## 每次关闭后排下一轮：groom 卡
 

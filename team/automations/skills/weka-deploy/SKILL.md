@@ -33,7 +33,7 @@ is answered by a hash: **does the live file equal master's file, yes or no.**
 | `team/automations/weka/SOUL.cody.md`, `SOUL.reed.md`, `SOUL.scout.md` | `~/.hermes/profiles/<p>/SOUL.md` | overwrite from master, verify hash |
 | `team/automations/skills/<name>/SKILL.md` | `~/.hermes/profiles/<p>/skills/<name>/SKILL.md` | overwrite from master, verify hash |
 | `team/automations/weka/github-webhook.py`, `github-webhook.service` | the clone the systemd user unit points at | restart the unit, verify it started now |
-| the `hooks:` block in each worker profile that runs `team/automations/weka/labels.py` on `post_tool_call` | `~/.hermes/profiles/<p>/config.yaml` (cody, reed, scout) | write the block (step 6), approve it, then `hermes -p <p> hooks doctor` green on all three |
+| `hooks:` in `~/.hermes/profiles/<p>/config.yaml` + `<p>/shell-hooks-allowlist.json` | not in this repo | write the two hooks of step 8 verbatim, then `hooks doctor` three times |
 | `~/.hermes/config.yaml` → `kanban:` | not in this repo | out of scope — a human edits it, gateway restart |
 | `README.md`, other `*.md`, this file | nothing to install | — |
 
@@ -199,11 +199,18 @@ In each of `~/.hermes/profiles/{cody,reed,scout}/config.yaml`:
 ```yaml
 hooks:
   post_tool_call:
-    - command: /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
 ```
 
-Absolute path, and the string is matched **verbatim**: consent is keyed on `(event, command)`, so a different
-path or a dropped flag is a different hook that has never been approved.
+Absolute paths, and the string is matched **verbatim**: consent is keyed on `(event, command)`, so a different
+path or a dropped flag is a different hook that has never been approved. The interpreter is part of that
+string, and it is spelled out rather than left to the script's shebang: `labels.py` starts with
+`#!/usr/bin/env python3`, the hook inherits the gateway unit's `PATH`
+(`systemctl --user show hermes-gateway -p Environment`), and on this host `python3` resolves there to
+`/usr/bin/python3` — 3.6.8, which dies on `labels.py`'s `from __future__ import annotations` before it reads a
+card. This is the one string step 8 writes for the ledger, and the only form of it anywhere in the repo. It is
+one entry of the block step 8 writes in full — pasting this snippet as a profile's entire `hooks:` block would
+drop the fence.
 
 Consent is per profile, in `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
 
@@ -212,7 +219,7 @@ Consent is per profile, in `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
   "approvals": [
     {
       "event": "post_tool_call",
-      "command": "/home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
     }
   ]
 }
@@ -345,12 +352,144 @@ Do not edit `config.yaml` here and do not restart the gateway — the desired-st
 scope, and the gateway refuses to restart itself from inside its own process. A red deploy on a document that
 was changed but not yet brought live is the intended outcome, not a defect in this step.
 
-### 8. Report
+### 8. Profile hooks: one ledger, one fence
+
+Two `hooks:` entries are desired state too, and they live in a file none of the steps above touch:
+each profile's own `config.yaml`. Put both blocks in **cody, reed and scout** — the dispatcher hands any
+of the three a worker session, so a fence present on two of them is a fence with a door.
+
+```yaml
+hooks:
+  post_tool_call:
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+      timeout: 5
+  pre_tool_call:
+    - matcher: "^kanban_create$"
+      command: "/usr/bin/python3 /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/deny_card_create.py"
+      timeout: 5
+      fail_closed: true
+```
+
+Five details in that block carry the meaning:
+
+- **The ledger hook has no `matcher`, on purpose.** `labels.py --from-hook` keeps a counter and, every
+  tenth call, reconciles the whole board; a matcher would just make the counter count a subset and let
+  the sweep fall further behind. It re-execs itself detached and returns immediately, so the cost per
+  tool call is a fork, not a reconcile.
+- **`fail_closed: true` only applies to `pre_tool_call`** (`agent/shell_hooks.py`'s
+  `_BLOCKING_EVENTS`), which is why the fence is the event that gets it. Drop the key and a
+  `deny_card_create.py` that crashes (exit 1, no directive) or times out fails *open*:
+  `kanban_create` succeeds, and nothing says the fence moved. A script the interpreter cannot open is
+  not that case — python exits 2, and 2 blocks on its own (`:587-592`).
+- **The matcher is anchored.** `^kanban_create$`, never a `kanban_` prefix — that one also swallows
+  `kanban_complete` / `kanban_block` / `kanban_comment`, and a worker that cannot hand off is worse than
+  one that can create a card.
+- **`command` is a string, never a YAML list.** `_parse_single_entry` drops a non-`str` `command`
+  with one warning and registers nothing (`agent/shell_hooks.py:413-416`), and a config with no
+  registered hooks makes `hooks doctor` print `No shell hooks configured — nothing to check.` and exit
+  0 (`hermes_cli/hooks.py:274-276`) — so the three greens below would pass with no fence at all. Keep
+  it a single string, byte-identical to the allowlist entry.
+- **Each command names its interpreter, and the two differ on purpose.** The fence names
+  `/usr/bin/python3`, which is 3.6.8 here, so `deny_card_create.py` has to stay inside 3.6's stdlib and
+  has to be checked with that interpreter:
+  `/usr/bin/python3 -m py_compile team/automations/weka/deny_card_create.py`. Plain `python3 -m
+  py_compile` resolves to a newer interpreter on this box and passes a file the hook cannot import. The
+  ledger names `~/.hermes/venvs/weka/bin/python`, because `labels.py` imports
+  `from __future__ import annotations` and the bare-script form would resolve its
+  `#!/usr/bin/env python3` shebang against a `PATH` whose `python3` is the same 3.6.8. A wrong
+  interpreter is not a red doctor line: the smoke test prints `(exit=1)` with empty stdout and stays
+  green, so read the exit code.
+
+Then consent, because `hooks_auto_accept` is `false` here. A hook that is neither allowlisted nor
+launched with `accept_hooks` is **skipped, not failed closed**: `register_from_config` logs
+`not allowlisted … — skipped` and never wires it (`agent/shell_hooks.py:173`), and `fail_closed` only
+covers a hook that did register and then errored, timed out, or printed something that is not a JSON
+object (`:577-609`). A missing allowlist entry is therefore not a weaker fence — in a session with no
+launch consent it is no fence at all.
+
+What keeps the fence live inside a Kanban worker is the launch, not that file: the dispatcher builds
+the session context with `accept_hooks=True` (`gateway/session_kanban.py:65`), and the worker registers
+the frozen config under that consent (`gateway/session_policy.py:796-809`), which records the approval
+into the allowlist as a side effect (`_prompt_and_record`, `agent/shell_hooks.py:748`). The allowlist is
+what carries that consent to every *other* session, so the entries still have to exist even though a
+worker would reach the same registration without them — and they are what makes the fence **profile
+level, not worker level**. `_consented` keys on the `(event, command)` pair and never asks whether the
+session is a worker (`agent/shell_hooks.py:314-325`), so an interactive `hermes -p cody` — or `-p reed`,
+`-p scout` — refuses `kanban_create` too and returns the same fixed message; no terminal is exempt.
+Outside the fence: the `hermes kanban create` subcommand writes to the board without passing through
+the tool layer, and a profile with neither the hook nor its entry has nothing to fire.
+
+Within a registered session a block with a new line in `~/.hermes/state/weka-labels/deny.log` is this
+script's decision. A block with **no** new line came from somewhere else, and the line is not enough to
+tell where — read the message the tool returns. `fail_closed` names the hook:
+`hook <command> failed closed: …` (`agent/shell_hooks.py:550-551`). An interpreter that cannot read the
+script exits 2 with python's own `can't open file '…'` on stderr, and any `exit 2` on a blocking event
+blocks by itself, `fail_closed` or not (`:587-592`). The allowlist is per Hermes home, which for a
+profile process is the profile directory (`get_hermes_home()`; `hermes -p <p>` sets it to
+`~/.hermes/profiles/<p>`), so it is `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
+
+```json
+{"approvals": [
+  {"event": "post_tool_call", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
+  {"event": "pre_tool_call", "command": "/usr/bin/python3 /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/deny_card_create.py"}
+]}
+```
+
+The `command` string must equal the config's `command` string, byte for byte:
+that pair is the key the approval is looked up by, so a `~` or a different quoting on one side of the
+two files buys a permanently unapproved hook — silently, since a skipped hook only logs one warning.
+
+```bash
+for p in cody reed scout; do hermes -p "$p" hooks doctor; done
+```
+
+Three greens, or the step is not done — but read what a green line proves. `doctor` fires each hook
+against a synthetic payload, so it answers three questions only: the command is executable, the pair is
+allowlisted, and the script can be spawned. It does **not** prove the script parses: `_doctor_one`
+prints `✓ ran clean with empty stdout (exit=N, …)` for *any* exit code as long as stdout is empty
+(`hermes_cli/hooks.py:333-335`), so a `deny_card_create.py` written in 3.10 syntax — SyntaxError under
+`/usr/bin/python3` 3.6.8, empty stdout, `exit=1` — still shows a green `pre_tool_call` line. Read the
+`(exit=N)` value on every line; parsing is proven by the `-m py_compile` above, run with the same
+interpreter, not by doctor.
+What doctor also cannot prove is the fence firing inside a worker — the tool layer has to be exercised:
+`kanban_create` in a worker session returns the fixed message, `SELECT count(*) FROM tasks` on the board
+does not move, and the deny log gains a line.
+
+Proving `fail_closed` needs a non-zero exit that is not 2: `chmod 000` does not do it. The
+interpreter cannot read the script, exits 2, and 2 is the block code on its own (`:587-592`), so that
+probe stays blocked with `fail_closed` deleted — and the message is python's `can't open file '…'`, not
+the hook's. Use a copy of the script written in 3.10 syntax at the same path instead: under
+`/usr/bin/python3` 3.6.8 it raises SyntaxError before printing anything, so it exits 1 with empty stdout,
+and only a `fail_closed` hook turns that into a block (`:600-602`). Expect the call refused with
+`failed closed: hook exited 1 with no directive`, no new card, no new log line; then put the real script
+back. A host where that run creates a card has lost `fail_closed`. While the copy is in place, doctor
+prints `⚠ script modified since approval` for an entry that recorded the script's mtime at approval —
+one approved at a first-use prompt or a launch, not one written by hand, which records no mtime and
+therefore no drift line. That warning is the mtime check working, not a second failure, and restoring
+the file does not clear it: the baseline has to be re-recorded. Revoke the entry with
+`hermes -p <p> hooks revoke '<the command string>'`, then let that same profile approve it again —
+the next worker launch with `accept_hooks=True`, or the first-use prompt. The `-p`
+is not optional — the allowlist is read from `get_hermes_home()`
+(`agent/shell_hooks.py:687-689`), so a `hooks revoke` from an ordinary shell reads the
+root home, reports `No allowlist entry found for command`, and leaves the baseline in place. An
+existing entry is never re-recorded on its own, whoever wrote it: `_consented` returns as soon as the
+`(event, command)` pair is allowlisted (`:314-325`), and `_record_approval` is reachable only from
+`_prompt_and_record` (`:748`, `:771`). A handwritten entry therefore never grows an mtime, doctor
+answers only its three questions for it and never prints a drift line, and it reaches an mtime
+baseline by the same revoke-then-approve route.
+
+No restart is involved: the gateway re-syncs hooks from the live config when it opens a session
+(`gateway/session_policy.py` → `sync_from_config`), and a worker reads the config it was launched with.
+Adding a hook is therefore not a reason to bounce the webhook unit — and bouncing it is the one action
+here that can drop a delivery.
+
+### 9. Report
 
 `$OLD` and the new `HEAD`; what the step-2 range listed; that SOUL, profile skills and the webhook were reset
 to master, with the hash pairs and the restart's start time; the smoke evidence or why it did not apply; the
-two concurrency ceilings as step 7 found them (the file's numbers and the value the gateway booted with); and
-anything still outside this procedure (`config.yaml` → `kanban:`).
+two concurrency ceilings as step 7 found them (the file's numbers and the value the gateway booted with); the
+three `hooks doctor` verdicts and, for the fence, whether a worker call was actually refused; and anything
+still outside this procedure (`config.yaml` → `kanban:`).
 
 ## Stop and ask instead of guessing
 
@@ -362,6 +501,14 @@ anything still outside this procedure (`config.yaml` → `kanban:`).
   gateway boot, and the gateway refuses to restart itself from inside its own process.
 - The smoke test prints something other than the expected line: report it. Restarting again to "see if it
   clears" destroys the evidence.
+- A profile's `hooks doctor` is not fully green. Report which hook and which answer line is red;
+  `_doctor_one` (`hermes_cli/hooks.py:286`) prints at most four — script executable, allowlist status,
+  mtime drift, and the JSON smoke line. Drift appears only when the entry recorded
+  `script_mtime_at_approval`, which a handwritten entry does not, and the smoke line is where
+  `(exit=N, Xs)` lives, so timing is not an answer line of its own: a healthy hook shows three lines for
+  a handwritten entry and four for one recorded at a prompt or a launch. Do not "fix" it by running a
+  hook test interactively, because the point of the allowlist entry written in step 8 is that nobody has
+  to be at a prompt.
 
 ## Do not
 
