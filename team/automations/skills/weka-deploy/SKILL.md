@@ -37,10 +37,12 @@ is answered by a hash: **does the live file equal master's file, yes or no.**
 | `~/.hermes/config.yaml` → `kanban:` | not in this repo | out of scope — a human edits it, gateway restart |
 | `README.md`, other `*.md`, this file | nothing to install | — |
 
-Rows one to three have a live counterpart and are reset every run, whether or not they changed. The
-`README.md` row has none: a document nobody loads at runtime needs no deployment. The `hooks:` row is
-the one that is neither: the file is host-side, so master cannot overwrite it, yet the content is
-desired state all the same — it is written from step 8 and verified there, every run.
+Rows one to four have a live counterpart and are reset every run, whether or not they changed. The hooks
+row is the one that is **written, not copied** — no file in this repo holds it, so a profile missing the
+block is a failed deploy rather than a skipped step. The `README.md` row has none: a document nobody loads
+at runtime needs no deployment. `~/.hermes/config.yaml` → `kanban:` stays out of scope and stays a human's
+edit: it is the host's config, not a profile's. The hooks row is per-profile, which is exactly why it is in
+scope while that one is not.
 
 Live edits do not survive, and that is intentional. Hermes's skill curator patches installed skills in
 place, so a profile file can accumulate content the repo never saw. That content is treated as a draft
@@ -185,6 +187,116 @@ is gated on the step-2 diff — run it when that list contained `github-webhook.
 `github-webhook.service`, otherwise write "no executable change, smoke test not applicable". Quote the
 journal line; "restarted and it is active" is not a smoke test.
 
+#### The label hook: registered is not the same as configured
+
+The flow labels (`weka-queue` / `weka-working` / `weka-reviewing` / `weka-blocked`) have no writer inside a
+worker any more — `labels.py` derives them from the board, and the only thing that makes it run while a card is
+in progress is a `post_tool_call` hook in that worker's profile. This check is **not** gated on the step-2
+diff: the block lives outside the repo, so no diff can announce that it is missing.
+
+In each of `~/.hermes/profiles/{cody,reed,scout}/config.yaml`:
+
+```yaml
+hooks:
+  post_tool_call:
+    - command: "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+```
+
+Absolute paths, and the string is matched **verbatim**: consent is keyed on `(event, command)`, so a different
+path or a dropped flag is a different hook that has never been approved. The interpreter is part of that
+string, and it is spelled out rather than left to the script's shebang: `labels.py` starts with
+`#!/usr/bin/env python3`, and the hook inherits the gateway's `PATH`, where `python3` is the system 3.6.8 that
+dies on `labels.py`'s `from __future__ import annotations` before it reads a card. This is the one string step
+8 writes for the ledger, and the only form of it anywhere in the repo. It is one entry of the block step 8
+writes in full — pasting this snippet as a profile's entire `hooks:` block would drop the fence.
+
+Consent is per profile, in `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
+
+```json
+{
+  "approvals": [
+    {
+      "event": "post_tool_call",
+      "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+    }
+  ]
+}
+```
+
+The command must equal the one in `config.yaml` character for character. Approving through the first-use prompt
+(a foreground `hermes -p <p> chat`) or `--accept-hooks` also records `approved_at` and the script's mtime, which
+is what lets doctor report drift; an entry written by hand approves the pair but cannot be checked for drift.
+
+```bash
+for p in cody reed scout; do hermes -p $p hooks doctor; done
+```
+
+Three runs, three times `All shell hooks look healthy.` A profile that answers "No shell hooks configured —
+nothing to check." is a **failure**, not a pass: that profile leaves its cards' objects on whatever label they
+already carry, and the only writes left are the webhook's two (card created, object closed).
+
+The lines doctor prints, per hook, in this order — and doctor skips the smoke test entirely while the pair is
+not allowlisted, which is the one ordering that matters here:
+
+| line | meaning |
+|---|---|
+| `✓ script exists and is executable` | the path resolves and the file can be spawned — a typo'd path shows up here and nowhere else |
+| `✓ allowlisted (approved <ts>)` | the `(event, command)` pair has consent; without this line the hook is registered but never runs |
+| `✓ script unchanged since approval` | the script's mtime still matches the one recorded at approval, so nobody edited it since |
+| `⚠ script modified since approval` | `labels.py` was edited after it was approved — the command string still matches, so the hook still fires; read the diff, and if the edit is master's own version, refresh the baseline: `hermes -p <p> hooks revoke '<the command string from config.yaml>'` then re-approve. That string is `revoke`'s one positional argument — the bare `hermes -p <p> hooks revoke` exits 2 |
+| `✓ ran clean with empty stdout (exit=0, <t>s) — hook is observer-only` | the synthetic payload ran and the hook exited 0 with nothing on stdout, which is what `labels.py` promises: it detaches and returns at once, so a tool call is never held up |
+
+Driving doctor is itself a reconcile — the synthetic payload names the firing profile — so a green run may have
+written labels on GitHub. That is the steady state, not a side effect to avoid.
+
+No gateway restart is needed. A worker is a new process that reads its profile's `config.yaml` when the card is
+claimed, and a gateway picks up a change to a profile's `hooks:` block or allowlist within about 30 seconds
+without any session opening.
+
+#### Read-only check of the sweep itself
+
+```bash
+cd ~/repos/jsmind-v2
+~/.hermes/venvs/weka/bin/python team/automations/weka/labels.py --dry-run --full
+```
+
+Use that interpreter, not the bare `python3` this section's older commands use: on this host `python3` is the
+system 3.6.8, which dies on `labels.py`'s `from __future__ import annotations` with a `SyntaxError` before any
+card is read (`README.md` →「主机侧准备」 says the same about the system Python). The weka venv is the same
+interpreter the unittest above runs on.
+
+From the clone that holds the real, gitignored `team/automations/weka/config.json` — a worktree does not, and
+answers `config not found`. Run it at a plain host shell: inside a worker, `hermes kanban list` exits 1 under
+the delegate fence and the sweep can only log `[ERROR] … delegate_task child contexts cannot mutate`.
+
+`no change (n cards)` is the expected line on a quiet host, `n` being the cards the sweep window covers. Anything
+else is one line per card whose labels would move, as `-old +new`. `--dry-run` sends no write request at all —
+it is the only way to see what the sweep thinks without writing to GitHub.
+
+Diff lines are not the only output. Skip and progress lines print too, and they are information, not failures:
+
+| line | why it prints |
+|---|---|
+| `<id>: title does not start with '#<number>:'` | a side card that merely quotes an object URL — a follow-up card pointing at the PR it follows — is deliberately not keyed to that object |
+| `<id>: body does not start with a GitHub object URL` | the card names no object, so there is nothing to label |
+| `<id>: status=<status> assignee=<who> is not in the phase table; skipping` | that pairing maps to no flow label in `phase()` |
+| `profile <p>: N running cards; falling back to a full sweep` | a hook payload names no card; N=1 resolves to that card, anything else sweeps |
+
+One of those skip lines deserves its own reading. `phase()` recognizes the reviewer as `config.get("reviewer")`,
+and nothing validates the key — `load_config()` only checks that the file exists, so a missing key degrades
+silently instead of failing: a **`running` card assigned to reed printing `is not in the phase table; skipping`
+means the gitignored `config.json` on this host has no `"reviewer": "reed"`**. `config.example.json` carries it,
+a host copy written before that line existed is a plain miss, and until the key is added no card ever reaches
+`weka-reviewing` — while `hooks doctor` stays green, because doctor proves the hook is registered, not that the
+config gives the phase table a reviewer. Read the current value before trusting the sweep:
+
+```bash
+~/.hermes/venvs/weka/bin/python -c 'import json; print(json.load(open("team/automations/weka/config.json")).get("reviewer"))'
+```
+
+`reed` is correct; `None` means adding the key, which is a host edit to a gitignored deploy file (like
+`~/.hermes/config.yaml` → `kanban:`), not a change to this repo.
+
 ### 7. Concurrency ceilings: 3 and 1
 
 `max_in_progress` must be 3 and `max_in_progress_per_profile` must be 1 — that is one card for each of the
@@ -273,10 +385,16 @@ Five details in that block carry the meaning:
   registered hooks makes `hooks doctor` print `No shell hooks configured — nothing to check.` and exit
   0 (`hermes_cli/hooks.py:274-276`) — so the three greens below would pass with no fence at all. Keep
   it a single string, byte-identical to the allowlist entry.
-- **`/usr/bin/python3` is 3.6.8 on this host.** The fence script therefore has to stay inside 3.6's
-  stdlib, and a check has to use the interpreter the config actually names:
+- **Each command names its interpreter, and the two differ on purpose.** The fence names
+  `/usr/bin/python3`, which is 3.6.8 here, so `deny_card_create.py` has to stay inside 3.6's stdlib and
+  has to be checked with that interpreter:
   `/usr/bin/python3 -m py_compile team/automations/weka/deny_card_create.py`. Plain `python3 -m
-  py_compile` resolves to a newer interpreter on this box and passes a file the hook cannot import.
+  py_compile` resolves to a newer interpreter on this box and passes a file the hook cannot import. The
+  ledger names `~/.hermes/venvs/weka/bin/python`, because `labels.py` imports
+  `from __future__ import annotations` and the bare-script form would resolve its
+  `#!/usr/bin/env python3` shebang against a `PATH` whose `python3` is the same 3.6.8. A wrong
+  interpreter is not a red doctor line: the smoke test prints `(exit=1)` with empty stdout and stays
+  green, so read the exit code.
 
 Then consent, because `hooks_auto_accept` is `false` here. A hook that is neither allowlisted nor
 launched with `accept_hooks` is **skipped, not failed closed**: `register_from_config` logs
@@ -293,11 +411,14 @@ what carries that consent to every *other* session — plain CLI and profile pro
 hook stays skipped and `hooks doctor` calls it red — so the entries still have to exist even though a
 worker would reach the same registration without them.
 
-Within a registered session the two failure modes stay distinguishable, because only the script writes
-the deny log: **a block with no new line in `~/.hermes/state/weka-labels/deny.log` came from the
-fail-closed path, not from the script.** The allowlist is per Hermes home, which for a profile process
-is the profile directory (`get_hermes_home()`; `hermes -p <p>` sets it to `~/.hermes/profiles/<p>`), so
-it is `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
+Within a registered session a block with a new line in `~/.hermes/state/weka-labels/deny.log` is this
+script's decision. A block with **no** new line came from somewhere else, and the line is not enough to
+tell where — read the message the tool returns. `fail_closed` names the hook:
+`hook <command> failed closed: …` (`agent/shell_hooks.py:550-551`). An interpreter that cannot read the
+script exits 2 with python's own `can't open file '…'` on stderr, and any `exit 2` on a blocking event
+blocks by itself, `fail_closed` or not (`:587-592`). The allowlist is per Hermes home, which for a
+profile process is the profile directory (`get_hermes_home()`; `hermes -p <p>` sets it to
+`~/.hermes/profiles/<p>`), so it is `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
 
 ```json
 {"approvals": [
@@ -324,9 +445,19 @@ prints `✓ ran clean with empty stdout (exit=N, …)` for *any* exit code as lo
 interpreter, not by doctor.
 What doctor also cannot prove is the fence firing inside a worker — the tool layer has to be exercised:
 `kanban_create` in a worker session returns the fixed message, `SELECT count(*) FROM tasks` on the board
-does not move, and the deny log gains a line. Then `chmod 000` the script and repeat: still blocked, no
-card, and **no** new log line; put the mode back. A host where that second run creates a card has lost
-`fail_closed`.
+does not move, and the deny log gains a line.
+
+Proving `fail_closed` needs a non-zero exit that is not 2: `chmod 000` does not do it. The
+interpreter cannot read the script, exits 2, and 2 is the block code on its own (`:587-592`), so that
+probe stays blocked with `fail_closed` deleted — and the message is python's `can't open file '…'`, not
+the hook's. Use a copy of the script written in 3.10 syntax at the same path instead: under
+`/usr/bin/python3` 3.6.8 it raises SyntaxError before printing anything, so it exits 1 with empty stdout,
+and only a `fail_closed` hook turns that into a block (`:600-602`). Expect the call refused with
+`failed closed: hook exited 1 with no directive`, no new card, no new log line; then put the real script
+back. A host where that run creates a card has lost `fail_closed`. While the copy is in place `hooks
+doctor` prints `⚠ script modified since approval` — the mtime check working, not a second failure — and
+restoring the file does not clear it, so refresh the baseline with `hooks revoke '<the command string>'`
+and re-approve.
 
 No restart is involved: the gateway re-syncs hooks from the live config when it opens a session
 (`gateway/session_policy.py` → `sync_from_config`), and a worker reads the config it was launched with.

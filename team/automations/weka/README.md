@@ -19,7 +19,8 @@ weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签�
 
 | 文件 | 作用 |
 | --- | --- |
-| `github-webhook.py` | webhook 接收器：GitHub 事件 → `hermes kanban` 调用，零 LLM 中转 |
+| `github-webhook.py` | webhook 接收器：GitHub 事件 → `hermes kanban` 调用，零 LLM 中转；建卡之后顺带触发一次标签对账 |
+| `labels.py` | 过程标签对账：读看板、只写差异，由钩子与 webhook 事件驱动 |
 | `config.example.json` | 配置模板；真实 `config.json` 已 gitignore，不入仓 |
 | `github-webhook.service` | systemd user unit 模板 |
 | `nginx.conf` | nginx 反代 server 块（监听 <webhook-port>，放到 `/etc/nginx/conf.d/`） |
@@ -33,16 +34,17 @@ weka 是 jsMind-V2 的一套自动化开发流程：GitHub 上带 `weka` 标签�
 GitHub Issue（weka 标签 + 指派 zzgbot）
   → webhook: kanban create "#85: <标题>" --assignee cody
   → dispatcher 拉起 cody（60s tick）
-  → Cody: 打 weka-working → 开发 → 自测 → 开 draft PR + 补 weka-working → 打 weka-reviewing（保持 draft）→ request_review(reed)
-  → dispatcher 拉起 reed
+  → labels.py（post_tool_call 钩子）：按卡的 (status, assignee) 算出该挂的过程标签，只写差异
+  → Cody: 开发 → 自测 → 开 draft PR → request_review(reed)（PR 保持 draft）
+  → 卡转 review 排队 → labels.py: weka-queue；dispatcher 拉起 reed、卡变 running 后变成 weka-reviewing
   → Reed: 按 sdlc-review 流程审 draft PR（不动它的 draft 状态）→ 意见写在 PR 上
-       ├─ 有必须改 → request_changes（卡回 cody，PR 一直是 draft，cody 补上 weka-working，可无限轮，不计任何计数）
-       └─ 通过 → 摘 weka-reviewing 与 PR 上的 weka-working、加 weka-reviewed、转成 ready、加 reviewer hizzgdev、complete
+       ├─ 有必须改 → request_changes（卡回 cody → weka-queue，PR 一直是 draft，可无限轮，不计任何计数）
+       └─ 通过 → scripts/weka/pass-review.sh：摘 weka-reviewing / weka-working → 加 weka-reviewed → 转成 ready → 加 reviewer hizzgdev → complete
   → 你在 GitHub 上终审
        ├─ 合并 → webhook 删 worktree + 本地分支 + 摘 PR 上的标签，并在 groom 板建一张 scout 卡
        └─ 要求修改 → webhook 见 weka-reviewed → 建 "#86: Rework N — ..." 卡给 cody
   → issue 关闭（含合并时被 `Closes #N` 自动关闭）
-       → webhook 按事件里的标签兜底清掉 issue 上残留的 weka-working
+       → labels.py 按看板擦掉残留；webhook 另有一份 close 时的兜底
   → groom 卡（scout，groom 板）：读 milestones / roadmap / open issues
        → 写（或补全）一个 issue → assign 给 hizzgdev
        → 你在 issue 上评论 → webhook 建新的 scout 卡 → 下一轮
@@ -100,7 +102,7 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 
 为什么 PR 方向要限定作者：bot 自己也会在 PR 上写评论（reed 的审查意见），限定为仓库所有者才能保证"只有人的动作触发返工卡"，不会被自己的输出喂回去。
 
-**issue 评论为什么先看 open 卡、再看指派**：一条评论首先要到正在干活的那张卡上，这正是这个流程存在的意义，所以 open 卡（`ready` / `running` / `review`）先吸收，不看标签也不看指派。两张板都查，实现板优先：同一个编号在两张板上各有一张 open 卡时（见「卡片与编号」），评论先到实现卡。这条检查排在标签门和「issue 已关闭」门之前，所以 cody 开工后摘掉标签、或者 issue 因为 `Closes #N` 而被关闭时，正在跑的那张卡仍然收得到人的话。没有 open 卡时才需要决定"谁来接"，而 assignees 是唯一能回答这个问题的字段：`hizzgdev` 在 = 活还没交出去，该进 groom 对话；`zzgbot` 在 = 活已经在实现上，按返工路径建一张 cody 卡。两个都不在，weka 不知道该找谁，就在 issue 上说一句，不猜。
+**issue 评论为什么先看 open 卡、再看指派**：一条评论首先要到正在干活的那张卡上，这正是这个流程存在的意义，所以 open 卡（`ready` / `running` / `review`）先吸收，不看标签也不看指派。两张板都查，实现板优先：同一个编号在两张板上各有一张 open 卡时（见「卡片与编号」），评论先到实现卡。这条检查排在标签门和「issue 已关闭」门之前，所以流程标签随卡变（`weka-queue` → `weka-working` → …）、或者 issue 因为 `Closes #N` 而被关闭时，正在跑的那张卡仍然收得到人的话。没有 open 卡时才需要决定"谁来接"，而 assignees 是唯一能回答这个问题的字段：`hizzgdev` 在 = 活还没交出去，该进 groom 对话；`zzgbot` 在 = 活已经在实现上，按返工路径建一张 cody 卡。两个都不在，weka 不知道该找谁，就在 issue 上说一句，不猜。
 
 两个 assignee 同时在场且没有 open 卡时按 `hizzgdev` 走（groom）；实际不会出现"活交给 bot 了却没有卡"的状态，所以这条优先级只在人工摆弄指派时看得见。
 
@@ -224,11 +226,19 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 
 cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理由和边界在这一节。改规则时改这里，SOUL 里只留动作。
 
+**过程标签不是 SOUL 的动作。** `weka-queue` / `weka-working` / `weka-reviewing` / `weka-blocked` 这四个标签由 `labels.py` 按卡的 `(status, assignee)` 算出来，读一遍对象上的现状、只写差异；触发源只有两个——worker 每次工具调用的 `post_tool_call` 钩子，以及 webhook 建卡时那一跳。没有定时器，两只 SOUL 里也已经没有任何一条打标签的命令：模型忘了打、或者打错一个，都不再能让 GitHub 上的标签和看板对不上。`weka` 和 `weka-reviewed` 不归它管，见下面那张表。
+
 | 标签 | 打在哪 | 谁打 | 用途 |
 | --- | --- | --- | --- |
-| `weka-working` | issue 卡打 issue；每张 PR 在 cody 手上时都有（开 PR 时补、返工起点补） | cody 开工时 / 开 PR 后 | 给人看：AI 正在干。PR 上的那份由 reed 通过时摘掉，issue 上的那份由 webhook 在 close 时兜底清掉 |
-| `weka-reviewing` | 永远是 PR | cody 交接前 | 给人看：AI 正在审 |
-| `weka-reviewed` | 永远是 PR | reed 通过时 | **唯一控制流程的标签**：只有它存在时，你在 PR 上的动作才会触发返工卡。它和 PR 转 ready 是同一刻发生的（ready 的唯一入口） |
+| `weka-queue` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡在 `ready` / `todo` / `scheduled` / `triage` / `review`） | 给人看：在排队——等 cody 开工、被退回等 cody、或者等 reed 领取。`review` 算排队，不是「正在审」 |
+| `weka-working` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `running` 且 assignee 是 cody） | 给人看：AI 正在干 |
+| `weka-reviewing` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `running` 且 assignee 是 reed） | 给人看：AI 正在审 |
+| `weka-blocked` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `blocked`） | 给人看：卡停住等人处理，不是崩了 |
+| `weka-reviewed` | 永远是 PR | `scripts/weka/pass-review.sh` | **唯一控制流程的标签**：只有它存在时，你在 PR 上的动作才会触发返工卡。它和 PR 转 ready 是同一刻发生的（ready 的唯一入口） |
+
+`labels.py` 有四个入口：`--from-hook` 走钩子那条路（读 stdin 上的 payload，定好 scope 就 spawn 一个脱离进程、自己立刻退出，所以工具调用不会被钩子的 `timeout` 拖住——那个超时是 `hooks.<event>[].timeout`，默认 60s、上限 300；`labels.py` 的 docstring 里还留着旧的 5 秒，等那个文件下次被改动时一并修）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡、`--dry-run` 只打印差异、不发任何写请求。三个 profile 共用一个状态目录 `~/.hermes/state/weka-labels/`：`counter` 是触发计数（每第 10 次换成一次全量扫），`lock` + `dirty` 保证同一时刻只跑一轮（撞上了就把 scope 记进 `dirty`，等这一轮收尾再补一次），`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
+
+钩子本身要在三个 worker profile 的 `config.yaml` 里注册，那一段是部署的一部分，写法与核对见 `team/automations/skills/weka-deploy/SKILL.md`。没注册的表现很干净、也很误导人：标签只在 GitHub 事件到达时才动，也就是 webhook 建卡那一下；卡跑起来之后的 `weka-queue → weka-working → weka-queue → weka-reviewing` 一次都不会自己发生，而 `~/.hermes/state/weka-labels/` 里什么都不会多出来。
 
 规则只有一条：**人在 PR 上的动作（提交 review 或留言），只在 PR 带 `weka-reviewed` 时才建新卡**。cody 拿到返工卡的第一件事就是摘掉它，所以不会重复触发；摘掉之后人再留言，走的是"追加到该 PR 的 open 卡"那条路，不看标签。
 
@@ -238,13 +248,13 @@ cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理
 
 cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起点 `gh pr ready --undo` 转回去。**交接时不翻 ready**——draft 一直保持到 reed 通过、加上 `weka-reviewed` 的那一刻，由 reed 跑 `scripts/weka/pass-review.sh`（它的最后一步才是 `gh pr ready`；reed 跑的是 `origin/master` 上的那份副本，不跑被审查分支里的代码，见 `SOUL.reed.md`）。draft 是 GitHub 原生状态，不能合并、页面上有徽章，不需要新标签。
 
-命令顺序也是固定的：cody 返工起手先 `--undo` 回 draft，再摘 `weka-reviewed`、补 `weka-working`；reed 通过时由 `scripts/weka/pass-review.sh` 先摘标签、清掉 `weka-working`，`gh pr ready` 是最后一条，清理没做全就不翻（脚本带 `scripts/weka/test-pass-review.sh`，CI 会跑）。这样任何一步崩掉都停在 draft——不会停在「ready 但 AI 的结论不在」，也不会停在「ready 却还挂着 `weka-working`」。
+命令顺序也是固定的：cody 返工起手先 `--undo` 回 draft，再摘 `weka-reviewed`（`weka-working` / `weka-queue` 由 `labels.py` 改，不用手打）；reed 通过时由 `scripts/weka/pass-review.sh` 先摘标签、清掉 `weka-working`，`gh pr ready` 是最后一条，清理没做全就不翻（脚本带 `scripts/weka/test-pass-review.sh`，CI 会跑）。这样任何一步崩掉都停在 draft——不会停在「ready 但 AI 的结论不在」，也不会停在「ready 却还挂着 `weka-working`」。
 
-标签操作不是原子的，所以判定按**稳态**看：返工起手退 draft 之后、摘 `weka-reviewed` 之前会短暂出现 draft + `weka-reviewed`，摘完到补回 `weka-working` 之间会短暂一个流程标签都没有。这两处是过渡，不是新加的合法状态——真停在那儿说明 worker 死在两步之间，卡还在板上。
+标签操作不是原子的，所以判定按**稳态**看：返工起手退 draft 之后、摘 `weka-reviewed` 之前会短暂出现 draft + `weka-reviewed`，摘完到 `labels.py` 那次对账之间会短暂一个流程标签都没有。这两处是过渡，不是新加的合法状态——真停在那儿说明 worker 死在两步之间，卡还在板上。
 
 为什么把翻转放在 `weka-reviewed` 而不是交接：draft 表达的是「还没到人该看的时候」。reed 审的时候 AI 的结论还没出来，这时把 PR 摆成 ready，人会被叫去终审一份还没过 AI 预检的东西。ready 的唯一入口就是 `weka-reviewed`，两者必须同时出现。
 
-验收按这两条核：**PR 是 draft 时至少挂着一个「有人在场」的流程标签**（cody 手上是 `weka-working`，reed 手上是 `weka-working` + `weka-reviewing`，且不能有 `weka-reviewed`）；**PR 是 ready 时 `weka-reviewed` 必须在，且 `weka-working` / `weka-reviewing` 都不能在**，不能只剩 `weka`。draft + `weka-reviewing` 是正常状态——reed 审的时候 PR 还没到人手上。
+验收按这两条核：**PR 是 draft 时挂着一个过程标签**（排队是 `weka-queue`，cody 手上是 `weka-working`，reed 手上是 `weka-reviewing`，且不能有 `weka-reviewed`）；**PR 是 ready 时 `weka-reviewed` 必须在，且 `weka-working` / `weka-reviewing` 都不能在**，不能只剩 `weka`。draft + `weka-reviewing` 是正常状态——reed 审的时候 PR 还没到人手上。
 
 cody 若死在 draft，PR 就停在 draft + `weka-working`：合不了，但不需要谁来把它「救」成 ready——那等于替 cody 宣布审查通过。`weka-working` 挂着而板上没有卡在跑，就是「卡崩了」的可视信号（见上一节），人看到了可以直接处理。
 
@@ -271,7 +281,9 @@ cody 若死在 draft，PR 就停在 draft + `weka-working`：合不了，但不�
 
 `weka` 标签只表示归属，不在这份清理名单里——对象关掉之后留着它没有意义，但它也是人筛"哪些是 weka 管的"的依据，脚本不动它。
 
-兜底只覆盖**部署之后**的 close 事件：在这份代码上线前就关掉的对象不会再收到 `close`，它们身上残留的标签不会自己消失。这类一次性残留要手工清一遍——用 `gh issue list --state closed --label weka-working` 找出来，对每个编号 `gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working`。
+兜底只覆盖**部署之后**的 close 事件：在这份代码上线前就关掉的对象不会再收到 `close`，它们身上残留的标签不会自己消失。`labels.py` 也不碰已经 closed 的对象——给一个已合并的 PR 补标签等于宣告一件没人能推进的事——所以这类一次性残留只能手工清：用 `gh issue list --state closed --label weka-working` 找出来，对每个编号 `gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working`。
+
+`weka-queue` 与 `weka-blocked` 连这条兜底都不在名单里（`strip_labels()` 只清 `weka-working` / `weka-reviewing` / `weka-reviewed`）：对象在 `review` 里被关掉、或者被 block 之后关掉，就会一直挂着它们，除了这里没有别的回收路径。查法一样，换 `--label`：`gh issue list --state closed --label weka-queue`、`gh pr list --state merged --label weka-blocked`，再对每个编号 DELETE 同名的那一个。
 
 ## 安全边界
 
@@ -489,14 +501,18 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
 
 ### 5. GitHub 侧
 
-先把四个 label 建好（`gh` 不会自动创建，加一个不存在的 label 会直接报错）：
+先把六个 label 建好（`gh` 不会自动创建，加一个不存在的 label 会直接报错）：
 
 ```bash
 gh label create weka           --color 0B7A3B --description "Weka flow: issue/card is owned by the automation"
+gh label create weka-queue     --color 0E8A16 --description "weka: queued, waiting for a worker to claim the card"
 gh label create weka-working   --color FBCA04 --description "weka: an AI worker is doing the work"
 gh label create weka-reviewing --color FBCA04 --description "weka: an AI reviewer is reviewing the PR"
+gh label create weka-blocked   --color B60205 --description "weka: the card is blocked, waiting for a human"
 gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review passed; awaiting the human"
 ```
+
+名字必须逐字一致（`weka-queue`，不是 `weka-queued` 之类）：`labels.py` 按字符串比对，建错的表现是对账每次都认为这个标签缺失、每次都想去补，而 `gh` 加一个不存在的 label 每次都回 422——GitHub 上看起来只是标签不动。建完 `gh label list | grep weka` 对一遍，六个一并列出来才算建齐。
 
 `weka` 在 issue 上是开工信号（必须配指派才生效），在 PR 上只是"这个 PR 归 weka 管"的归属标记、不参与任何判断；`weka-reviewed` 才是唯一控制流程的标签（见上文「标签与人工审核门」）。
 
@@ -518,10 +534,10 @@ gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review pas
 建一个打 `weka` 标签、指派给 `zzgbot` 的 Issue，观察这条链：
 
 1. 卡片 `#<issue>: <标题>` 被创建并跑起来；
-2. issue 上出现 `weka-working`；开 PR 后 PR 是以 draft 开出、带 `weka-working`；交接后 PR **仍是 draft**，出现 `weka-reviewing`；
+2. issue 上先出现 `weka-queue`，卡跑起来后变成 `weka-working`；开 PR 后 PR 是以 draft 开出、带 `weka-working`；交接后卡转 review 排队，PR **仍是 draft**、标签回到 `weka-queue`，reed 领到后又变成 `weka-reviewing`；
 3. Reed 审完（`weka-reviewed`），PR 才在这一刻变成 ready，`weka-working` / `weka-reviewing` 都已摘掉，你被加为 reviewer；
-4. 你在 PR 上提一条 `changes_requested` 的 review → 出现卡片 `#<pr>: Rework 1 — ...`，`weka-reviewed` 被摘掉；
-5. 你合并 PR → worktree 和本地分支被删掉，PR 上标签清空，不再有卡片；PR body 里带 `Closes #N` 时 issue 会自动关闭，issue 上的 `weka-working` 同时被清掉（手动关闭 issue 同理）。
+4. 你在 PR 上提一条 `changes_requested` 的 review → 出现卡片 `#<pr>: Rework 1 — ...`，`weka-reviewed` 被摘掉，PR 标签回到 `weka-queue`；
+5. 你合并 PR → worktree 和本地分支被删掉，PR 上标签清空，不再有卡片；PR body 里带 `Closes #N` 时 issue 会自动关闭，issue 上残留的过程标签被擦掉——`labels.py` 在卡变 `done` 时擦一次，webhook 在 close 时还有一份兜底（手动关闭 issue 同理）。
 
    删除由 `pull_request.closed` 事件触发，因此它只覆盖这条投递真的到达过的合并。投递丢了、或者当时删不掉（判据把构建产物误当成未提交的改动），worktree 就会留下。清理是独立工具，不塞进 webhook——那个脚本只负责把事件变成卡片：
 
