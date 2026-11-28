@@ -503,14 +503,18 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
 
 先把六个 label 建好（`gh` 不会自动创建，加一个不存在的 label 会直接报错）：
 
+> **这六个标签在当前仓库里已经存在**，下面这串命令只对从零重建的仓库有意义：`gh label create` 不覆盖同名标签，只会报已存在——今天照着本节跑，六条一条也改不动，看起来却像「建好了」。要核对线上现状用 `gh label list | grep weka`，不要拿下面这张表当现状。
+
 ```bash
-gh label create weka           --color 0B7A3B --description "Weka flow: issue/card is owned by the automation"
-gh label create weka-queue     --color 0E8A16 --description "weka: queued, waiting for a worker to claim the card"
-gh label create weka-working   --color FBCA04 --description "weka: an AI worker is doing the work"
-gh label create weka-reviewing --color FBCA04 --description "weka: an AI reviewer is reviewing the PR"
-gh label create weka-blocked   --color B60205 --description "weka: the card is blocked, waiting for a human"
-gh label create weka-reviewed  --color 0E8A16 --description "weka: AI review passed; awaiting the human"
+gh label create weka           --description "Weka webhook+kanban flow: issues with this label become kanban tasks"
+gh label create weka-queue     --description "weka: nobody is working on it — queued for the implementer, or waiting for the reviewer to claim it"
+gh label create weka-working   --description "weka: the implementer is working on it"
+gh label create weka-reviewing --description "weka: the reviewer is reviewing it"
+gh label create weka-blocked   --description "weka: stopped, waiting on a human decision"
+gh label create weka-reviewed  --description "weka: AI review passed, waiting for the human"
 ```
+
+描述沿用仓库现值；不给 `--color`，从零重建时颜色由 GitHub 分配，颜色不参与任何判断。
 
 名字必须逐字一致（`weka-queue`，不是 `weka-queued` 之类）：`labels.py` 按字符串比对，建错的表现是对账每次都认为这个标签缺失、每次都想去补，而 `gh` 加一个不存在的 label 每次都回 422——GitHub 上看起来只是标签不动。建完 `gh label list | grep weka` 对一遍，六个一并列出来才算建齐。
 
