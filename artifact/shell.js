@@ -245,6 +245,11 @@
      * @returns {Promise<object>} The jsMind instance showing the map.
      */
     async function render(container, data) {
+        // The instance owns the box from its construction: taking it over is the
+        // default mode, and the instance applies it when the map is opened. That
+        // is what keeps a map larger than the window from opening with a
+        // scrollbar on each axis that the first gesture would then remove, and
+        // it is the only way the gestures below have a map to move.
         const jm = await jsMind.create(container);
         const mind = jsMind.Serializer.create('json').deserialize(data);
         await jm.open(mind);
@@ -254,18 +259,6 @@
         // whoever is showing the map, not for the page that renders one. The
         // double-click below is this page's answer to "show me all of it", and
         // it is only made when the reader asks.
-        //
-        // The box is taken over first, and still nothing is fitted: a map too
-        // large for the window would otherwise open with a native scrollbar on
-        // each axis, and the first gesture would then remove them - the box
-        // growing by their width at the moment the reader did something. Taken
-        // over while the scroll offset is still zero, the map does not move: the
-        // strip the scrollbars were occupying is simply revealed.
-        //
-        // A zoom to the factor the map opens at: that takes the box over, and
-        // holding the same point still at the same scale leaves the viewport
-        // exactly where it was.
-        jm.commands.zoomTo(1);
         // The touch rule still has to be decided up front, from the state the
         // map opens in: the box does not scroll any more, so without it the
         // browser keeps a finger drag for itself and the map never sees it.

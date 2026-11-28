@@ -138,10 +138,10 @@ export function viewportOriginFor(focus: JmPoint, anchor: JmViewportAnchor, scal
  *
  * - **The factor does not change** (`next === transform.scale`): every point is
  *   already still, so the state it found - origin included - is the state it
- *   writes. A caller takes the inner box over from native scrolling with a zoom
- *   to the factor the map opens at, and that must not move the map: the ready
- *   example is `export html`, whose page calls `zoomTo(1)` on the view it has
- *   just opened.
+ *   writes. A host that asks for the factor in effect must not see the map
+ *   move. Taking the box over is no longer one of those callers: the
+ *   construction mode owns that now (`takeOverViewport()` on the view), so this
+ *   branch is here for the caller, not for the takeover.
  * - **The content overflows the box** (`span > 0`): the anchored origin is
  *   stored as it is. That is what makes a wheel zoom grab the map under the
  *   pointer, and the band belongs to the pan: it says where a drag may stop,
@@ -186,11 +186,13 @@ export function zoomViewport(
     const next = clampViewportScale(scale);
     // A zoom to the factor already in effect holds every point where it is, so
     // the origin it writes is the one it found. Nothing is settled here: there
-    // is no new factor to settle against, and a caller that only wants the box
-    // taken over - `export html` does exactly that when a page opens - must not
-    // see the map move. The stranded state this function closes cannot be built
-    // by this branch either: it takes a change of factor to push an origin past
-    // the content, and every such change is settled below.
+    // is no new factor to settle against, and a caller that asks for the factor
+    // in effect must not see the map move. Taking the box over no longer runs
+    // through here - the construction mode does it - but a host's own
+    // `zoomTo(getViewport().scale)` still has to be a no-op. The stranded state
+    // this function closes cannot be built by this branch either: it takes a
+    // change of factor to push an origin past the content, and every such
+    // change is settled below.
     if (next === transform.scale) {
         return { x: transform.x, y: transform.y, scale: next };
     }

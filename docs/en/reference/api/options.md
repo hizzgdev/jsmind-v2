@@ -26,6 +26,30 @@ Options for JsMind.
 | `mind` | [MindOptions](/en/reference/api/mind#MindOptions) |  |
 | `view` | [ViewOptions](/en/reference/api/options#ViewOptions) |  |
 
+## JsMindOptionsInput {#JsMindOptionsInput}
+
+*Interface*
+
+The options accepted when an instance is created.
+
+**Remarks**
+
+Every group is optional, and so is every field inside a group: a caller can
+pass `{ view: { viewportMode: 'native' } }` and keep the default padding
+and expander, which is what the merge already does at runtime.
+`Partial<JsMindOptions>` cannot express that - it only makes the groups
+optional, so a group that is present would have to be complete.
+
+[JsMindOptions](/en/reference/api/options#JsMindOptions) is the resolved shape, with every field present.
+
+**Properties**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `layout` (optional) | `Partial`<[LayoutOptions](/en/reference/api/options#LayoutOptions)> | Layout options; omitted fields use the defaults. |
+| `mind` (optional) | `Partial`<[MindOptions](/en/reference/api/mind#MindOptions)> | Mind map options; omitted fields use the defaults. |
+| `view` (optional) | `Partial`<[ViewOptions](/en/reference/api/options#ViewOptions)> | View options; omitted fields use the defaults. |
+
 ## ViewOptions {#ViewOptions}
 
 *Interface*
@@ -36,6 +60,7 @@ Options for JsMind.
 | --- | --- | --- |
 | `expander` | [ViewExpanderOptions](/en/reference/api/options#ViewExpanderOptions) |  |
 | `padding` | [ViewPadding](/en/reference/api/options#ViewPadding) |  |
+| `viewportMode` | [JmViewportMode](/en/reference/api/viewport#JmViewportMode) | Which mechanism moves the map inside the container. `'viewport'`, the default, hands the container's inner box to the transform viewport: `overflow` becomes `visible` and zoom and pan write a `transform`. The commands then own every movement of the map, and the browser no longer scrolls it - so a host that takes the box over is the one that has to drive the gestures. The exported page's shell does that; the library itself does not listen to the browser's input events. That is the warning that comes with the default: a host that only calls `create()` and `open()` and shows a map larger than its box gets a canvas the browser cannot scroll and the library cannot move. Call `getViewport()` to check `mode`, wire the gestures, or ask for `'native'`. `'native'` keeps native scrolling: a map larger than the box overflows it and the browser's own scrollbars reach the rest. The five viewport commands are not available in that mode and throw. The mode is decided here, once, and never changes: switching later would move the map under the reader's hand. It cannot be relaxed either - taking the box over folds the scroll offset into the origin and replaces `overflow`, so going back would have to restore both. |
 
 ## ViewPadding {#ViewPadding}
 

@@ -27,6 +27,9 @@
  */
 
 import type { JmExportImageOptions, JmExportImageResult } from './export.ts';
+import type { JmViewportMode } from '../common/option.ts';
+
+export type { JmViewportMode };
 
 /**
  * Which mismatch between the map and its box a fit corrects.
@@ -54,7 +57,9 @@ export interface JmViewport {
      * @remarks
      * A position in the map, not a scroll offset: it is the number
      * {@link JmViewHandle.panTo} writes, so what a caller reads here is what it
-     * can put back there.
+     * can put back there. In `'native'` mode it is always 0 - nothing writes it
+     * there, and the browser's scroll offset is not reported as an origin. See
+     * {@link JmViewport.mode}.
      */
     x: number;
     /** Map-space y shown at the viewport's top edge. See {@link JmViewport.x}. */
@@ -66,19 +71,34 @@ export interface JmViewport {
     /** Visible height in CSS pixels. */
     height: number;
     /**
-     * Whether a pan would move the map at this zoom.
+     * Whether the library can move the map at this zoom.
      *
      * @remarks
-     * True while the content overflows the visible box on at least one axis -
-     * exactly when {@link JmViewHandle.panTo} is allowed to change the origin.
-     * A caller deciding *before* a gesture starts needs this, because the
-     * browser settles `touch-action` before the first touchmove: a map that
-     * fits should hand the gesture to the page rather than swallow a drag that
-     * can only be a no-op. Asking here is also what keeps that caller from
-     * measuring the content itself, which would fork the layout from the
-     * view's own.
+     * In `'viewport'` mode, `true` while the content overflows the visible box
+     * on at least one axis - exactly when {@link JmViewHandle.panTo} is allowed
+     * to change the origin. A caller deciding *before* a gesture starts needs
+     * this, because the browser settles `touch-action` before the first
+     * touchmove: a map that fits should hand the gesture to the page rather
+     * than swallow a drag that can only be a no-op. Asking here is also what
+     * keeps that caller from measuring the content itself, which would fork the
+     * layout from the view's own.
+     *
+     * In `'native'` mode it is always `false`: the browser is scrolling the
+     * map, and the clamp that would otherwise answer this has no band to work
+     * in. The question it answers is "can the library move the map", not "can
+     * the picture move" - in that mode the browser moves it.
      */
     canPan: boolean;
+    /**
+     * Which mechanism owns the box. See {@link JmViewportMode}.
+     *
+     * @remarks
+     * Reported so a host or a test can assert the mode instead of reading
+     * `overflow`, which is an implementation detail. In `'native'` mode `x`,
+     * `y` and `scale` are the identity: no command can move the origin there,
+     * and the browser's scroll offset is deliberately not reported as one.
+     */
+    mode: JmViewportMode;
 }
 
 /**
@@ -131,13 +151,17 @@ export interface JmViewHandle {
      * @param scale - Requested factor, clamped to the range the view accepts.
      * @param anchor - Point to hold still, in the view's own pixels. Defaults to
      * the middle of the viewport.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`. Native scrolling is in charge then, and this
+     * command would have to switch modes to do anything - which is the one
+     * thing a running instance does not do.
      */
     zoomTo(scale: number, anchor?: JmViewportAnchor): void;
 
     /**
      * Reads the current viewport.
      *
-     * @returns The origin, the zoom factor and the visible size.
+     * @returns The origin, the zoom factor, the visible size and the mode.
      */
     getViewport(): JmViewport;
 
@@ -161,6 +185,8 @@ export interface JmViewHandle {
      *
      * @param x - Map-space x to show at the left edge.
      * @param y - Map-space y to show at the top edge.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`. See {@link JmViewHandle.zoomTo}.
      */
     panTo(x: number, y: number): void;
 
@@ -176,6 +202,8 @@ export interface JmViewHandle {
      *
      * @param dx - Horizontal travel in viewport pixels.
      * @param dy - Vertical travel in viewport pixels.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`. See {@link JmViewHandle.zoomTo}.
      */
     panBy(dx: number, dy: number): void;
 
@@ -198,6 +226,9 @@ export interface JmViewHandle {
      * a change to the mind, which a display command does not make.
      *
      * @param nodeId - Id of a node in the open mind map.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`, before the id is looked at. See
+     * {@link JmViewHandle.zoomTo}.
      * @throws {@link JsMindError} When this view has not been given a map yet,
      * or when the id is not one of that map's nodes.
      *
@@ -244,6 +275,9 @@ export interface JmViewHandle {
      * clamp to move it would leave the map wherever the last gesture left it.
      *
      * @param mode - Which mismatch to correct. Omit it to correct both.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`, before `mode` is looked at. See
+     * {@link JmViewHandle.zoomTo}.
      * @throws {@link JsMindError} When `mode` is given as neither of the two
      * values, so a typo in a JavaScript caller fails loudly instead of quietly
      * shrinking.

@@ -35,6 +35,7 @@ const INCLUDE = new Set([
     'JmEdgeType',
     'EdgeCreationOptions',
     'JsMindOptions',
+    'JsMindOptionsInput',
     'ViewOptions',
     'ViewPadding',
     'ViewExpanderOptions',
@@ -67,6 +68,7 @@ const INCLUDE = new Set([
     'JmCommander',
     'JmViewHandle',
     'JmViewport',
+    'JmViewportMode',
     'JmViewportAnchor',
     'JmFitToViewMode',
 ]);
@@ -80,12 +82,12 @@ const PAGE_SYMBOLS: Record<string, string[]> = {
     ],
     'edge': ['JmEdge', 'JmEdgeType', 'EdgeCreationOptions'],
     'options': [
-        'JsMindOptions', 'ViewOptions', 'ViewPadding',
+        'JsMindOptions', 'JsMindOptionsInput', 'ViewOptions', 'ViewPadding',
         'ViewExpanderOptions', 'ViewExpanderStyle', 'LayoutOptions',
     ],
     'serialization': ['JmMindSerializerFactory', 'JmMindSerializer'],
     'export': ['JmExportImageOptions', 'JmExportImageResult', 'JmImageType'],
-    'viewport': ['JmCommander', 'JmViewHandle', 'JmViewport', 'JmViewportAnchor', 'JmFitToViewMode'],
+    'viewport': ['JmCommander', 'JmViewHandle', 'JmViewport', 'JmViewportMode', 'JmViewportAnchor', 'JmFitToViewMode'],
     'style': [
         'JmNodeStyle', 'JmLineStyle', 'JmStyle', 'JmThemeNode', 'JmThemeLine',
         'JmThemeExpander', 'JmThemeShadow', 'JmThemeShadowLayer',

@@ -598,7 +598,9 @@
 
             // Initialization code (read-only)
             const INIT_CODE = `// Create jsMind instance
-const jm = await jsMind.create('jsmind_container');
+// Native scrolling: this page has no gesture code, so a map larger than the
+// container has to be reachable with the browser's own scrollbars.
+const jm = await jsMind.create('jsmind_container', { view: { viewportMode: 'native' } });
 
 // Create mind map
 const mind = new jsMind.Mind();

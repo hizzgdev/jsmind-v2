@@ -132,6 +132,12 @@ open(mind: JmMind): Promise<void>
 
 打开一张思维导图。
 
+**说明**
+
+打开会替换当前显示的内容：已经打开的导图会先被关闭，它渲染出来的节点与 observer 一并丢弃。没有这一步，在同一视图里打开第二张图会和第一张叠在一起，重复打开同一张图也会继续沿用之前的样式渲染。
+
+打开也会应用这个实例的视口模式：不带选项创建的实例从此掌管这个盒子——`overflow` 已经是视口的，导图从恒等原点开始，而不是停上一张图被留下的角落。用 `{ view: { viewportMode: 'native' } }` 创建的实例继续用原生滚动，它的 [JsMind.commands](/zh/reference/api/jsmind#JsMind.commands) 会拒绝移动导图。
+
 **返回值:** 当思维导图打开完成后，该 Promise 完成（无返回值）。
 
 **参数**
@@ -157,7 +163,7 @@ serialize(): string
 ### create {#JsMind.create}
 
 ```ts
-static create(container: string | HTMLElement, options?: JsMindOptions): Promise<JsMind>
+static create(container: string | HTMLElement, options?: JsMindOptionsInput): Promise<JsMind>
 ```
 
 创建 jsMind 实例，并将其视图附加到容器上。
@@ -169,4 +175,4 @@ static create(container: string | HTMLElement, options?: JsMindOptions): Promise
 | 名称 | 类型 | 说明 |
 | --- | --- | --- |
 | `container` | string \| `HTMLElement` | 容器元素，或文档中某个元素的 id。 |
-| `options` (可选) | [JsMindOptions](/zh/reference/api/options#JsMindOptions) | 该实例的配置。省略的字段使用库的默认值。 |
+| `options` (可选) | [JsMindOptionsInput](/zh/reference/api/options#JsMindOptionsInput) | 该实例的配置。每个分组、分组里的每个字段都可以省略，省略的使用库的默认值——默认包含用 transform 视口接管容器的内部盒子。没有自己手势、又可能遇到大图的宿主，改传 `{ view: { viewportMode: 'native' } }` 保留原生滚动。 |
