@@ -175,4 +175,4 @@ tags:
 
 本文放在 `team/development/`，由 PM 维护。发布教程栏目、调整节奏或分工时，更新本文，而不是另起一份平行计划。
 
-对外教程上线后，`team/README.md` 应补一句：对外教程在 `tutorials/`，本文只保留对内计划。`team/README.md` 由 Coordinator 维护，到时再改。
+对外教程在 `tutorials/`，分工写在 `team/README.md`；本文只保留对内计划。

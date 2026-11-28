@@ -18,7 +18,8 @@ export interface TutorialListItem {
 
 /**
  * Drops posts that are missing a title or a date, then sorts by date,
- * newest first, and by title when two dates match.
+ * newest first, and by path when two dates match — the same tie-break
+ * `scripts/tutorial-posts.ts` uses, so the column and the front page agree.
  *
  * @param raw - Records from `createContentLoader`.
  * @returns The list the index page renders.
@@ -38,7 +39,7 @@ export function toTutorialList(raw: ContentData[]): TutorialListItem[] {
     }
     return items.sort((a, b) => {
         const dates = b.date.localeCompare(a.date);
-        return dates !== 0 ? dates : a.title.localeCompare(b.title);
+        return dates !== 0 ? dates : a.url.localeCompare(b.url);
     });
 }
 
