@@ -324,9 +324,13 @@ with a warm cursor it processes whatever status events are pending, so a green r
 on GitHub. That is the steady state, not a side effect to avoid. Do not delete the cursor file to "clean
 up": initialising it again is safe, but the point of the file is that it survives restarts.
 
-No gateway restart is needed. A worker is a new process that reads its profile's `config.yaml` when the card is
-claimed, and a gateway picks up a change to a profile's `hooks:` block or allowlist within about 30 seconds
-without any session opening.
+Do not assume a config edit is live immediately. A worker is a new process and reads its profile's
+`config.yaml` when the card is claimed, but a gateway registers shell hooks at startup and only re-registers
+them on a periodic mtime-signature reconcile (`gateway/run_profile_reconcile.py:134`) — one round of that watcher
+is about 30 seconds, yet the end-to-end delay a probe actually measured was about six minutes: the probe hook
+below was written, and a claim inside that window delivered nothing at all. Wait one full cycle (or restart the
+gateway, which re-registers at once), then run step 8a's probe before calling the deployment green. `hooks
+doctor` alone cannot see this gap: it fires inside the process that runs it.
 
 #### Read-only check of the sweep itself
 
@@ -531,7 +535,9 @@ Eight details in those blocks carry the meaning:
   green, so read the exit code.
 - **The ledger's state lives in `~/.hermes/state/weka-labels/`.** `events-<board>` is the per-board event
   cursor (initialised at `max(id)`, so a fresh file never replays history), `counter` is the wake counter
-  (every tenth wake adds the fallback sweep), `lock`/`dirty` serialise concurrent hooks, and `log` holds
+  (every tenth wake adds the fallback sweep), `lock`/`dirty` serialise concurrent hooks (`dirty` records the
+  scope a wake that lost the lock owed: `full`, `events`, or `card:<id>` — the shape is what keeps an event
+  batch from being looked up as a card), and `log` holds
   everything the detached child prints. None of it is per profile on purpose: three profiles watching one
   board need one cursor, not three.
 
@@ -650,10 +656,10 @@ existing entry is never re-recorded on its own, whoever wrote it: `_consented` r
 answers only its three questions for it and never prints a drift line, and it reaches an mtime
 baseline by the same revoke-then-approve route.
 
-No restart is involved: the gateway re-syncs hooks from the live config when it opens a session
-(`gateway/session_policy.py` → `sync_from_config`), and a worker reads the config it was launched with.
-Adding a hook is therefore not a reason to bounce the webhook unit — and bouncing it is the one action
-here that can drop a delivery.
+No restart of the **webhook unit** is involved: the gateway re-syncs hooks from the live config when it opens a
+session (`gateway/session_policy.py` → `sync_from_config`), and a worker reads the config it was launched with.
+Adding a hook is therefore not a reason to bounce `github-webhook.service` — its own config did not change, and
+bouncing it is the one action here that can drop a delivery.
 
 ### 9. Report
 
