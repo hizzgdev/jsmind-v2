@@ -37,7 +37,7 @@ function fakeView(result: Partial<JmExportImageResult> = {}): {
     const zooms: ZoomCall[] = [];
     const centres: string[] = [];
     const fits: (JmFitToViewMode | undefined)[] = [];
-    const viewport: JmViewport = { x: 4, y: 5, scale: 2, width: 640, height: 480, canPan: true };
+    const viewport: JmViewport = { x: 4, y: 5, scale: 2, width: 640, height: 480, canPan: true, mode: 'viewport' };
     const view: JmViewHandle = {
         async capture(options?: JmExportImageOptions): Promise<JmExportImageResult> {
             calls.push(options);
@@ -118,7 +118,7 @@ test('commander - exportImage surfaces a view failure to the caller', async () =
             // Not exercised here, and the mode does not change that.
         },
         getViewport(): JmViewport {
-            return { x: 0, y: 0, scale: 1, width: 0, height: 0, canPan: false };
+            return { x: 0, y: 0, scale: 1, width: 0, height: 0, canPan: false, mode: 'native' };
         },
     };
     const commander = new JmCommander(view);
@@ -157,9 +157,13 @@ test('commander - getViewport returns what the view reports', () => {
     const { view } = fakeView();
     const commander = new JmCommander(view);
 
-    // `canPan` is part of the report: a caller deciding `touch-action` before a
-    // gesture starts reads it here instead of measuring the content itself.
-    assert.deepStrictEqual(commander.getViewport(), { x: 4, y: 5, scale: 2, width: 640, height: 480, canPan: true });
+    // `canPan` and `mode` are part of the report: a caller deciding
+    // `touch-action` before a gesture starts reads them here instead of
+    // measuring the content, or reading `overflow`, itself.
+    assert.deepStrictEqual(
+        commander.getViewport(),
+        { x: 4, y: 5, scale: 2, width: 640, height: 480, canPan: true, mode: 'viewport' }
+    );
 });
 
 test('commander - centerOn forwards the node id to the view', () => {

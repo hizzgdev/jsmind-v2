@@ -6,7 +6,7 @@ import { JmEdgeView } from './edge.ts';
 import { attachViewShadowRoot, applyThemeToHost } from './shadow.ts';
 import { resolveJmStyle, JmTone, JmLinePattern, JmLineCurve, JSMIND_THEME_DEFAULT } from '../model/data/style.ts';
 import { captureShadowContent, type JmExportImageOptions, type JmExportImageResult } from './export.ts';
-import type { JmFitToViewMode, JmViewHandle, JmViewport, JmViewportAnchor } from './handle.ts';
+import type { JmFitToViewMode, JmViewHandle, JmViewport, JmViewportAnchor, JmViewportMode } from './handle.ts';
 import { viewportCssTransform, panViewport, panViewportTo, viewportOriginFor, zoomViewport, fitViewport, viewportCanPan, type JmViewportBounds, type JmViewportTransform } from './viewport.ts';
 import type { JmTheme } from '../model/data/style.ts';
 import type { JmResolvedLineStyle } from './edge.ts';
@@ -53,16 +53,17 @@ export class JmView implements JmViewHandle {
     private readonly viewport: JmViewportTransform = { x: 0, y: 0, scale: 1 };
 
     /**
-     * Whether the viewport has taken the inner box over from native scrolling.
+     * Which mechanism owns the inner box, fixed when the instance is built.
      *
      * @remarks
-     * A view that is never asked to zoom keeps the old behaviour: the map
-     * overflows the inner box and the browser's own scrollbars reach it. A
-     * transform moves content without extending the scrollable area, so the two
-     * cannot both be in charge - the first zoom replaces the scrollbars with the
-     * transform, and this flag says which one owns the box.
+     * A transform moves content without extending the scrollable area, so the
+     * transform and native scrolling cannot both be in charge. The choice is a
+     * construction option rather than a state this class flips, because
+     * flipping it moves the map: the first gesture of a session used to arrive
+     * with fifteen pixels of scrollbar taken away. {@link takeOverViewport}
+     * applies the mode to the box; nothing ever changes it.
      */
-    private viewportActive = false;
+    private readonly viewportMode: JmViewportMode;
 
     /**
      * Where the rendered content sits in map space, for clamping a pan.
@@ -96,8 +97,18 @@ export class JmView implements JmViewHandle {
         this.edgeView = edgeView;
         this.arranger = arranger;
         this.options = options;
+        this.viewportMode = options.viewportMode;
     }
 
+    /**
+     * Creates a view over `container`.
+     *
+     * @param container - The container element, or the id of one in the document.
+     * @param arranger - The layout the view renders.
+     * @param options - Padding, expander and viewport options. The viewport mode
+     * is read from here and fixed for the life of the view.
+     * @returns The view.
+     */
     static async create(container: string | HTMLElement, arranger: Arranger, options: ViewOptions): Promise<JmView> {
         const jmContainer = await this._initContainer(container);
         // Rendered content lives in a shadow root: the map's structural rules
@@ -280,14 +291,15 @@ export class JmView implements JmViewHandle {
      * callback, and callbacks run before paint, so the transform is back in
      * place before the frame that would have shown the unscaled tree.
      *
-     * Nothing to do for a view that was never zoomed, which is every caller that
-     * does not touch the viewport API.
+     * Nothing to do for a native instance, which never writes a transform: a
+     * view that has not taken the box over has nothing to put back, and
+     * clearing a transform it never wrote would be a write of its own.
      *
      * @param work - Measurement to run.
      * @returns What the measurement returned.
      */
     private async _whileUnscaled<T>(work: () => Promise<T>): Promise<T> {
-        if (!this.viewportActive) {
+        if (this.viewportMode === 'native') {
             return await work();
         }
         this.innerContainer.element.style.transform = 'none';
@@ -407,18 +419,18 @@ export class JmView implements JmViewHandle {
      * would otherwise divide by the new zoom and push the map off a box it fits,
      * where no pan can bring it back.
      *
-     * A zoom to the factor already in effect changes nothing, origin included.
-     * That is what a caller uses to take the inner box over from native
-     * scrolling without moving the map: the exported page's `zoomTo(1)` is the
-     * shipped example.
+     * A zoom to the factor already in effect changes nothing, origin included:
+     * every point is already still, so there is no new factor to settle against.
      *
      * @param scale - Requested factor, clamped to the range the view accepts.
      * @param anchor - Point to hold still, in the view's own pixels. Defaults to
      * the middle of the viewport, which is what a control without a pointer
      * position wants.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`, before anything is measured.
      */
     zoomTo(scale: number, anchor?: JmViewportAnchor): void {
-        this._activateViewport();
+        this._requireViewport('zoomTo');
         this._setViewport(
             zoomViewport(
                 this.viewport,
@@ -434,29 +446,30 @@ export class JmView implements JmViewHandle {
      * Reads the current viewport.
      *
      * @remarks
-     * `x`/`y` name the map-space point at the viewport's top-left corner, and
-     * that has to mean the same thing before and after the first zoom: while
-     * native scrolling is in charge the displacement is the scroll offset, and a
-     * reader who scrolled the map and then read the viewport would otherwise be
-     * told the map is still at its origin.
+     * `x`/`y` are the origin the pan commands write, and `mode` says which
+     * mechanism owns the box. Read-only, so it is allowed in both modes: a
+     * host that has to decide `touch-action` before a gesture asks here, and
+     * the answer for a native instance is `canPan: false` - the browser is
+     * doing the scrolling, the library is not.
      *
-     * The scroll term is divided by the zoom for the same reason it is added
-     * when the box is taken over: scrolling happens in the element's own
-     * untransformed space, and the transform then scales it along with the
-     * content.
+     * The browser's scroll offset is deliberately not folded into `x`/`y`: in
+     * native mode that displacement belongs to the browser, and reporting it as
+     * a viewport origin would make the same number mean two things depending on
+     * whose scroll it is. A native instance therefore reports the identity.
      *
-     * @returns The origin, the zoom factor and the visible size.
+     * @returns The origin, the zoom factor, the visible size and the mode.
      */
     getViewport(): JmViewport {
         const size = this._viewportSize();
-        const element = this.innerContainer.element;
         return {
-            x: this.viewport.x + element.scrollLeft / this.viewport.scale,
-            y: this.viewport.y + element.scrollTop / this.viewport.scale,
+            x: this.viewport.x,
+            y: this.viewport.y,
             scale: this.viewport.scale,
             width: size.width,
             height: size.height,
-            canPan: viewportCanPan(this.contentBounds, size, this.viewport.scale),
+            canPan: this.viewportMode === 'viewport'
+                && viewportCanPan(this.contentBounds, size, this.viewport.scale),
+            mode: this.viewportMode,
         };
     }
 
@@ -464,16 +477,15 @@ export class JmView implements JmViewHandle {
      * Puts a map-space point at the viewport's top-left corner.
      *
      * @remarks
-     * The box is taken over first, exactly as a zoom does: while native
-     * scrolling is still in charge, a transform written here would move the map
-     * on top of the scroll offset, and the handover would then fold that offset
-     * into the origin again - two moves for one command.
+     * The box is already the viewport's: {@link takeOverViewport} ran when the
+     * map was opened, which is why the origin is written against the same box
+     * the size is read from.
      *
      * @param x - Map-space x to show at the left edge.
      * @param y - Map-space y to show at the top edge.
      */
     panTo(x: number, y: number): void {
-        this._activateViewport();
+        this._requireViewport('panTo');
         this._setViewport(panViewportTo(this.viewport, new JmPoint(x, y), this.contentBounds, this._viewportSize()));
     }
 
@@ -484,7 +496,7 @@ export class JmView implements JmViewHandle {
      * @param dy - Vertical travel in viewport pixels.
      */
     panBy(dx: number, dy: number): void {
-        this._activateViewport();
+        this._requireViewport('panBy');
         this._setViewport(panViewport(this.viewport, dx, dy, this.contentBounds, this._viewportSize()));
     }
 
@@ -500,10 +512,10 @@ export class JmView implements JmViewHandle {
      * the map misses the middle by however far the content's own centre has
      * been shifted, which is hundreds of pixels on a wide map.
      *
-     * The box is taken over before the middle is measured, not after: the
-     * handover removes the scrollbars, they are part of the box's width, and a
-     * centre read with them still there would come out half a scrollbar away
-     * from the one the origin is measured against.
+     * The box is the viewport's already: the handover ran when the map was
+     * opened, so the middle this reads and the origin it writes are measured
+     * against the same box. Doing it here instead would move the map twice for
+     * one command.
      *
      * The origin then goes through {@link JmView.panTo}, so it is clamped to the
      * content exactly as a pan is: an edge node stops short of the middle rather
@@ -513,6 +525,7 @@ export class JmView implements JmViewHandle {
      * @param nodeId - Id of a node in the open mind map.
      */
     centerOn(nodeId: string): void {
+        this._requireViewport('centerOn');
         const mind = this.mind;
         if (!mind) {
             throw new JsMindError('No mind map is currently open');
@@ -526,7 +539,6 @@ export class JmView implements JmViewHandle {
         if (!node) {
             throw new JsMindError(`Node '${nodeId}' is not in the open mind map`);
         }
-        this._activateViewport();
         const corner = this.arranger.calculateNodePoint(node).offset(this.viewOffset);
         const size = node._data.layout.size;
         const focus = new JmPoint(corner.x + size.width / 2, corner.y + size.height / 2);
@@ -549,24 +561,24 @@ export class JmView implements JmViewHandle {
      * natural size.
      *
      * The origin is written rather than handed to {@link JmView.panTo}, and
-     * that is what keeps the command total. At exactly-fitting zoom the pan's
-     * band is empty - `span == 0` on the binding axis, `span < 0` on the loose
-     * one - so `panTo` keeps the origin it had, and `centerOn` (which is built
-     * on it) would not move either: there is no map point a pan may bring to
-     * the middle. Going through them would therefore be a no-op on exactly the
-     * axis the fit has to correct. Writing the origin here asks no clamp and
-     * reads no previous state, and the only origin that shows the content the
-     * way the mode asks is the one that shows its middle.
+     * that is the answer the whole design turns on. At exactly-fitting zoom the
+     * pan's band is empty - `span == 0` on the binding axis, `span < 0` on the
+     * loose one - so `panTo` keeps the origin it had, and `centerOn` (which is
+     * built on it) does not move either. A fit composed from `zoomTo` and
+     * `centerOn` would therefore leave a map in whatever corner it was dragged
+     * to, and no drag could bring it back, because the band stays empty. So
+     * this composes the same arithmetic with the clamp left out: there is
+     * nothing to clamp into, and the only origin that shows the content the way
+     * the mode asks is the one that shows its middle.
      *
-     * The box is taken over before anything is measured. On a page whose map
-     * overflows, the inner box is showing a scrollbar at that moment and its
-     * client size is that much narrower; reading it first would make the first
-     * fit slightly smaller than the second fit of the same map - two answers to
-     * one command, visible as a small jump the first time the reader fits it
-     * again.
+     * The box is the viewport's already - the handover ran when the map was
+     * opened - so there is no scrollbar in the size read here and the first fit
+     * of a map answers what the second one answers.
      *
      * @param mode - `'shrink'` for a map too large for the box, `'expand'` for
      * one too small. Omit it to correct both directions.
+     * @throws {@link JsMindError} When the instance was created with
+     * `{ view: { viewportMode: 'native' } }`, before the mode or the map is looked at.
      * @throws {@link JsMindError} When `mode` is given as neither of those two,
      * before the box is touched, so a refused call leaves the view exactly as
      * it was.
@@ -576,14 +588,38 @@ export class JmView implements JmViewHandle {
      * map is not the same thing - the view keeps the last map it was shown.
      */
     fitToView(mode?: JmFitToViewMode): void {
+        this._requireViewport('fitToView');
         if (mode !== undefined && mode !== 'shrink' && mode !== 'expand') {
             throw new JsMindError(`Unknown fit mode '${String(mode)}'; expected 'shrink', 'expand' or no mode`);
         }
         if (this.mind === null) {
             throw new JsMindError('No mind map is currently open');
         }
-        this._activateViewport();
         this._setViewport(fitViewport(this.contentBounds, this._viewportSize(), mode));
+    }
+
+    /**
+     * Refuses a viewport command on an instance that never took the box over.
+     *
+     * @remarks
+     * The mode is a construction option, so there is nothing to switch here and
+     * nothing to fall back to. Throwing is what keeps the failure at the call
+     * site: a command that quietly did nothing would surface much later, as a
+     * map that does not move, and only the person clicking would notice.
+     *
+     * The message names the option because the caller has to rebuild the
+     * instance with it - no argument to this command can fix the mode.
+     *
+     * @param action - Name of the command that was called.
+     * @private
+     */
+    private _requireViewport(action: string): void {
+        if (this.viewportMode === 'native') {
+            throw new JsMindError(
+                `${action} needs the transform viewport, but this JsMind uses native scrolling; ` +
+                'construct it with { view: { viewportMode: \'viewport\' } }'
+            );
+        }
     }
 
     /**
@@ -599,29 +635,47 @@ export class JmView implements JmViewHandle {
     }
 
     /**
-     * Takes the inner box over from native scrolling, once.
+     * Applies the instance's viewport mode to the inner box, and puts the map
+     * back at the identity.
      *
      * @remarks
-     * `transform` moves content without extending the scrollable area, so with
-     * both in charge a zoom would move the map and a scrollbar would move it
-     * again. Done before any size is read, because the scrollbars it removes
-     * were occupying the box the size is read from.
+     * Called by `JsMind.open` on every open, and on no other occasion. The mode
+     * is fixed at construction, so the box has to be the viewport's before the
+     * reader can move anything - waiting for the first command is what made the
+     * box grow by a scrollbar's width at the moment of the first gesture. Doing
+     * it on every open is also what keeps a second map from inheriting the
+     * corner and the zoom the first one was left at.
      *
-     * Whatever the reader had already scrolled to becomes part of the state
-     * before the scrollbars go: a scroll offset and a viewport origin describe
-     * the same displacement, so folding one into the other is what keeps the
-     * picture from jumping at the moment the transform takes over.
+     * Idempotent: the origin is reset, and the only thing that could differ
+     * between two calls is the scroll offset, which the first call removes.
+     *
+     * Nothing here measures the box. The handover reads `scrollLeft`/`scrollTop`
+     * and writes `overflow` and `transform`; the size read by pan, zoom, fit and
+     * `getViewport()` comes later, from a box that is already the viewport's.
+     *
+     * A native instance does nothing at all: the browser keeps the box, and its
+     * transform is never written.
      */
-    private _activateViewport(): void {
-        if (this.viewportActive) {
+    takeOverViewport(): void {
+        if (this.viewportMode === 'native') {
             return;
         }
         const element = this.innerContainer.element;
+        // Every map starts at the identity. A reopened map is laid out from the
+        // model, so an origin and a zoom inherited from the previous one would
+        // show this map from wherever the reader happened to leave that one.
+        this.viewport.x = 0;
+        this.viewport.y = 0;
+        this.viewport.scale = 1;
+        // Whatever the box had already scrolled to is the same displacement an
+        // origin describes, so folding one into the other is what keeps the
+        // picture from jumping at the moment the transform takes over. It is
+        // zero from the second open on, because a taken-over box does not
+        // scroll; the fold is here for the first one.
         this.viewport.x += element.scrollLeft / this.viewport.scale;
         this.viewport.y += element.scrollTop / this.viewport.scale;
         element.scrollLeft = 0;
         element.scrollTop = 0;
-        this.viewportActive = true;
         // `visible`, not `hidden`: native scrolling has to go, but clipping must
         // not move to this box. An `overflow` that clips does so in the element's
         // own coordinate space, and this box is only as big as the view - so
@@ -631,6 +685,7 @@ export class JmView implements JmViewHandle {
         // ends native scrolling just as `hidden` does. Clipping stays on `:host`,
         // which is the same size as the view and already has it.
         element.style.overflow = 'visible';
+        this._applyViewport();
     }
 
     /**

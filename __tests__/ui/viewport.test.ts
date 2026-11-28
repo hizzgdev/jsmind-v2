@@ -10,12 +10,15 @@
  *
  * What is asserted, and why that is the whole contract:
  *
- * 1. A view nobody zooms keeps native scrolling, unchanged.
+ * 1. An instance created without options owns the box (the default is the
+ *    viewport), and an instance created with `viewportMode: 'native'` keeps
+ *    native scrolling - where every one of the five viewport commands is
+ *    refused instead of quietly doing nothing.
  * 2. The reported scale and the painted map agree: map point `p` is painted at
  *    `scale * (p - x)`, for every node.
- * 3. A zoom holds the map point under its anchor still while the content still
- *    overflows that axis, and centres a map that fits - so a zoom can never
- *    leave a fitting map somewhere no pan can move it from.
+ * 3. A zoom holds the map point under its anchor still, and centres a map that
+ *    fits - so a zoom can never leave a fitting map somewhere no pan can move
+ *    it from.
  * 4. The factor stops at the range's ends instead of running past them.
  * 5. `capture()` does not care what the zoom is.
  * 6. A node added while zoomed is laid out at its layout size.
@@ -24,7 +27,7 @@
  * 9. A pan stops at the content instead of leaving an empty viewport, and a map
  *    that already fits cannot be dragged at all.
  * 10. `centerOn` puts a node's centre in the middle of the box, at the zoom it
- *    was called at, and a native scroll the reader had already made does not
+ *    was called at, and wherever the view was left before the call does not
  *    change where it lands.
  * 11. `centerOn` inherits the pan's clamp: a node at the content's edge stops
  *    short of the middle rather than pulling empty canvas into view, and while
@@ -32,8 +35,9 @@
  * 12. `centerOn` refuses ids that are not nodes of the map, including the ones
  *    that only exist on `Object.prototype`.
  * 13. `fitToView` shows the whole map centred, from any state the view is in,
- *    and fitting twice gives the same viewport; `canPan` reports whether a pan
- *    would move the map, at any factor.
+ *    and fitting twice gives the same viewport; `canPan` reports whether the
+ *    library can move the map - always `false` on a native instance, whatever
+ *    the factor.
  * 14. The two fit modes each correct one mismatch and leave the other alone:
  *    `'shrink'` never magnifies a map that fits, `'expand'` never shrinks one
  *    that overflows, and a mode the view does not know is refused without
@@ -41,6 +45,12 @@
  * 15. A fit with no mode corrects both mismatches, and on a map that needs one
  *    direction it answers exactly what that direction answers - one fitting
  *    factor with neither bound on the natural size.
+ * 16. A viewport instance owns the box from the moment a map is opened: no
+ *    command has to arrive first, so nothing grows by a scrollbar's width at
+ *    the reader's first gesture.
+ * 17. The mode belongs to the instance. Opening a second map keeps it and
+ *    starts the new map at the identity, rather than at the corner the first
+ *    one was left at.
  *
  * What is not here: the shell's gestures (double-click, `touch-action`) and the
  * exported page itself, which are measured in `export-html.test.ts`.
@@ -88,6 +98,16 @@ const SMALL = { width: 420, height: 300 };
  * {@link SMALL} instead, where they do not depend on the range's width.
  */
 const TIGHT = { width: 150, height: 120 };
+
+/**
+ * A box with room around the whole fixture.
+ *
+ * @remarks
+ * Used by the case that grows the box around a map which was panned while it
+ * overflowed: the map has to fit this box on both axes for the pan band to be
+ * gone, so it is deliberately larger than {@link HOST} rather than smaller.
+ */
+const ROOMY = { width: 1400, height: 900 };
 
 let browser: BrowserHarness;
 
@@ -160,7 +180,15 @@ interface RenderedNode {
 
 /** Everything one measurement needs from the page. */
 interface Snapshot {
-    viewport: { x: number; y: number; scale: number; width: number; height: number; canPan: boolean };
+    viewport: {
+        x: number;
+        y: number;
+        scale: number;
+        width: number;
+        height: number;
+        canPan: boolean;
+        mode: 'native' | 'viewport';
+    };
     nodes: RenderedNode[];
     inner: { transform: string; overflow: string };
 }
@@ -170,8 +198,15 @@ interface Snapshot {
  *
  * @param document_ - Document to render.
  * @param host - Size of the container, in CSS pixels. Defaults to {@link HOST}.
+ * @param options - Options to construct the instance with. Omitted means the
+ * library's own default, which is the viewport mode; a case about native
+ * scrolling passes `{ view: { viewportMode: 'native' } }`.
  */
-async function open(document_: unknown, host = HOST): Promise<void> {
+async function open(
+    document_: unknown,
+    host = HOST,
+    options?: Record<string, unknown>
+): Promise<void> {
     await browser.setContent(
         `<div id="container" style="width:${host.width}px;height:${host.height}px"></div>`
     );
@@ -180,7 +215,9 @@ async function open(document_: unknown, host = HOST): Promise<void> {
         `
         (async () => {
             const container = document.getElementById('container');
-            const jm = await jsMind.create(container);
+            const jm = await jsMind.create(container${
+                options === undefined ? '' : `, ${JSON.stringify(options)}`
+            });
             const mind = jsMind.Serializer.create('json').deserialize(${JSON.stringify(document_)});
             await jm.open(mind);
             await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -190,6 +227,29 @@ async function open(document_: unknown, host = HOST): Promise<void> {
         `,
         true
     );
+}
+
+/**
+ * Resizes the open instance's container, the way a responsive page would.
+ *
+ * @remarks
+ * The container, not the window: the view measures its own box when a command
+ * or `getViewport()` asks, so a box that changes under a map is what tells the
+ * two apart. Nothing re-renders here - the transform a pan wrote stays where it
+ * was, which is the point of the case that uses this.
+ *
+ * @param size - New size of the container, in CSS pixels.
+ */
+async function resizeHost(size: { width: number; height: number }): Promise<void> {
+    await browser.evaluate(
+        `(() => {
+            const host = document.getElementById('container');
+            host.style.width = '${size.width}px';
+            host.style.height = '${size.height}px';
+            return true;
+        })()`
+    );
+    await browser.settle();
 }
 
 /**
@@ -406,21 +466,228 @@ after(async () => {
     await browser.close();
 });
 
-test('ui viewport - a view nobody zooms keeps native scrolling', async () => {
-    await open(fixture());
+test('ui viewport - an instance created without options takes the box over by default', async () => {
+    // No second argument to `create`: the library's own default. It is the
+    // viewport mode, which is the difference between v2 and v1 - a page gets
+    // the transform viewport unless it asks for scrollbars.
+    await open(fixture(10, 6), SMALL);
     const state = await snapshot();
 
-    // The playground and every other caller that never touches the viewport API
-    // must keep the layout it had before zoom existed: no transform, and the
-    // inner box still reaches its content with a scrollbar.
-    assert.strictEqual(state.inner.transform, '', 'no transform until a viewport API is called');
+    assert.strictEqual(state.viewport.mode, 'viewport', 'the default instance reports the viewport');
+    assert.strictEqual(state.inner.overflow, 'visible', 'the transform is in charge from the start');
+    // The identity is written rather than left empty: `none` is the map at its
+    // own size and origin, which is what the exported page's opening state pins.
+    assert.strictEqual(state.inner.transform, 'none', 'the map opens at the identity');
+    assert.deepStrictEqual(origin(state), { x: 0, y: 0, scale: 1 }, 'the map opens at its own origin');
+    assert.strictEqual(state.viewport.canPan, true, 'the library can pan a box it owns');
+});
+
+test('ui viewport - an instance created with viewportMode native keeps native scrolling', async () => {
+    // Native has to be asked for now. The playground, the demo and every other
+    // caller without its own gesture code passes this literal and keeps the
+    // layout it had before the viewport existed.
+    await open(fixture(10, 6), SMALL, { view: { viewportMode: 'native' } });
+    const state = await snapshot();
+
+    assert.strictEqual(state.viewport.mode, 'native', 'an explicit native instance reports native scrolling');
+    assert.strictEqual(state.inner.transform, '', 'no transform without the viewport');
     assert.strictEqual(state.inner.overflow, 'auto', 'native scrolling stays in charge');
     assert.deepStrictEqual(
         { x: state.viewport.x, y: state.viewport.y, scale: state.viewport.scale },
         { x: 0, y: 0, scale: 1 },
-        'an untouched view reports the identity, not a guess'
+        'a native instance reports the identity: the browser owns the scroll, not the viewport'
     );
+    assert.strictEqual(state.viewport.canPan, false, 'the library cannot pan a box the browser scrolls');
     assertPaintMatchesViewport(state);
+
+    // Native scrolling really is in charge, which is the half `offsetWidth -
+    // clientWidth` cannot show: this harness runs Chromium with
+    // `--hide-scrollbars`, so a box with `overflow: auto` still reports no gap.
+    // Writing an offset and reading it back is what tells the two states apart.
+    const offset = await scrollInnerTo(120, 60);
+    assert.deepStrictEqual(offset, [120, 60], 'a native box scrolls to where it was sent');
+});
+
+/**
+ * Scrolls the inner box the way a browser in native mode would, and reports the
+ * offset it kept.
+ *
+ * @remarks
+ * The offset that comes back is the assertion: a box the transform owns keeps
+ * nothing, so this reads `[0, 0]` there and the requested numbers here.
+ *
+ * @param left - Offset to ask for, in CSS pixels.
+ * @param top - Offset to ask for, in CSS pixels.
+ * @returns The offset the box actually has.
+ */
+async function scrollInnerTo(left: number, top: number): Promise<number[]> {
+    return await browser.evaluate<number[]>(`(() => {
+        const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
+        inner.scrollLeft = ${left};
+        inner.scrollTop = ${top};
+        return [inner.scrollLeft, inner.scrollTop];
+    })()`);
+}
+
+/** What one refused viewport command reports back from the page. */
+interface Refusal {
+    threw: boolean;
+    isMindError: boolean;
+    isTypeError: boolean;
+    message: string;
+    transform: string;
+    overflow: string;
+    scrolled: number[];
+}
+
+/**
+ * Calls one viewport command on the open native instance and reports what it did.
+ *
+ * @remarks
+ * The box is scrolled first, because a refused command has to leave the
+ * browser's offset alone: that displacement is the browser's, and a command
+ * that folded it into an origin on its way to failing would move the picture.
+ *
+ * The error class is compared against another error from the same bundle
+ * rather than between `JsMindError` by name: rollup renames the class, so the
+ * name means nothing here.
+ *
+ * @param body - JavaScript calling `jm`.
+ * @returns Whether it threw, and the state it left the box in.
+ */
+async function refusedCommand(body: string): Promise<Refusal> {
+    return await browser.evaluate<Refusal>(`(() => {
+        const jm = window.__jm;
+        const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
+        inner.scrollLeft = 120;
+        inner.scrollTop = 60;
+        const reference = (() => {
+            try {
+                jsMind.Serializer.create('no-such-format');
+                return null;
+            } catch (error) {
+                return error;
+            }
+        })();
+        const read = () => ({
+            transform: inner.style.transform,
+            overflow: getComputedStyle(inner).overflow,
+            scrolled: [inner.scrollLeft, inner.scrollTop],
+        });
+        try {
+            ${body};
+            return { threw: false, isMindError: false, isTypeError: false, message: '', ...read() };
+        } catch (error) {
+            return {
+                threw: true,
+                isMindError: reference !== null && error instanceof reference.constructor,
+                isTypeError: error instanceof TypeError,
+                message: error && error.message ? error.message : '',
+                ...read(),
+            };
+        }
+    })()`);
+}
+
+/**
+ * The five commands that need the transform viewport, as the page calls them.
+ *
+ * @remarks
+ * One case per command rather than one case looping five times: an
+ * implementation that put the guard on four of them would leave the fifth
+ * silently doing nothing, and a loop that reports its first failure cannot say
+ * which command that was.
+ */
+const VIEWPORT_COMMANDS = [
+    { action: 'zoomTo', call: 'jm.commands.zoomTo(1.5)' },
+    { action: 'panTo', call: 'jm.commands.panTo(100, 80)' },
+    { action: 'panBy', call: 'jm.commands.panBy(60, 40)' },
+    { action: 'centerOn', call: 'jm.commands.centerOn(\'root\')' },
+    { action: 'fitToView', call: 'jm.commands.fitToView("shrink")' },
+];
+
+for (const { action, call } of VIEWPORT_COMMANDS) {
+    test(`ui viewport - ${action} is refused on an instance that scrolls natively`, async () => {
+        // A box smaller than the fixture, so the reader really could scroll it
+        // and "the command changed nothing" is measured against a live offset.
+        await open(fixture(10, 6), SMALL, { view: { viewportMode: 'native' } });
+        const refusal = await refusedCommand(call);
+
+        assert.strictEqual(refusal.threw, true, `${action} should be refused, not silently ignored`);
+        assert.strictEqual(refusal.isMindError, true, `${action} did not throw a JsMindError`);
+        assert.strictEqual(refusal.isTypeError, false, `${action} threw a TypeError`);
+        assert.ok(
+            refusal.message.includes(action),
+            `the message should name the command that was refused, it said "${refusal.message}"`
+        );
+        assert.ok(
+            refusal.message.includes('viewportMode'),
+            `the message should name the option that fixes it, it said "${refusal.message}"`
+        );
+
+        // A refused call leaves everything where it was: no transform written,
+        // the box still scrolling, and the reader's offset untouched.
+        assert.strictEqual(refusal.transform, '', `${action} wrote a transform on its way out`);
+        assert.strictEqual(refusal.overflow, 'auto', `${action} took the box over`);
+        assert.deepStrictEqual(refusal.scrolled, [120, 60], `${action} moved the native scroll offset`);
+    });
+}
+
+test('ui viewport - a viewport instance takes the box over when the map is opened', async () => {
+    await open(fixture(10, 6), SMALL);
+    const opened = await snapshot();
+
+    assert.strictEqual(opened.viewport.mode, 'viewport', 'the default mode is the viewport');
+    assert.strictEqual(opened.inner.overflow, 'visible', 'the transform is in charge from the start');
+    // The identity is written rather than left empty: `none` is the map at its
+    // own size and origin, which is what the exported page's opening state pins.
+    assert.strictEqual(opened.inner.transform, 'none', 'the map opens at the identity');
+    assert.deepStrictEqual(origin(opened), { x: 0, y: 0, scale: 1 }, 'the map opens at its own origin');
+
+    // No command had to arrive first, and that is the point of the mode: a map
+    // larger than its box used to open with a scrollbar on each axis and lose
+    // them - fifteen pixels a side - at the reader's first gesture. The box it
+    // opens in is the box every later measurement reads.
+    const offset = await scrollInnerTo(120, 60);
+    assert.deepStrictEqual(offset, [0, 0], 'a taken-over box does not scroll');
+
+    // And a command still writes on top of the identity.
+    await command('jm.commands.zoomTo(2)');
+    assert.match((await snapshot()).inner.transform, /scale\(2\)/, 'a zoom is written as a transform');
+});
+
+test('ui viewport - opening a second map keeps the mode and starts the map at the identity', async () => {
+    // One instance, two maps: the mode belongs to the instance, and the origin
+    // to the open call. Leaving the first map's corner behind would show the
+    // second one from somewhere the reader never chose - the defect that made
+    // the old latch leak across maps.
+    await open(fixture(10, 6), SMALL);
+    await command('jm.commands.zoomTo(2, { x: 40, y: 40 })');
+    await command('jm.commands.panTo(120, 90)');
+    const first = await snapshot();
+    assert.deepStrictEqual(origin(first), { x: 120, y: 90, scale: 2 }, 'the first map is left somewhere else');
+
+    await browser.evaluate(
+        `
+        (async () => {
+            const mind = jsMind.Serializer.create('json').deserialize(${JSON.stringify(fixture())});
+            await window.__jm.open(mind);
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            return true;
+        })()
+        `,
+        true
+    );
+    const second = await snapshot();
+
+    assert.strictEqual(second.viewport.mode, 'viewport', 'the mode is the instance\'s, not the map\'s');
+    assert.strictEqual(second.inner.overflow, 'visible', 'the box stays the viewport\'s');
+    assert.deepStrictEqual(origin(second), { x: 0, y: 0, scale: 1 }, 'the second map starts at the identity');
+    assert.strictEqual(second.inner.transform, 'none', 'and the identity is what is painted');
+    // The painted map is the new one, described by the new viewport: an origin
+    // inherited from the first map would show here as boxes off their layout
+    // positions.
+    assertPaintMatchesViewport(second);
 });
 
 test('ui viewport - getViewport describes the painted map', async () => {
@@ -551,19 +818,6 @@ test('ui viewport - the zoom factor stops at the range limits', async () => {
     assertPaintMatchesViewport(await snapshot());
 });
 
-test('ui viewport - the inner box stops scrolling once the zoom takes it over', async () => {
-    await open(fixture());
-    assert.strictEqual((await snapshot()).inner.overflow, 'auto');
-
-    await command('jm.commands.zoomTo(2)');
-    const zoomed = await snapshot();
-    // Not `hidden`: the inner box is only as big as the view, and clipping there
-    // would cut a zoomed-out map at the box's own edges (see the clipping test).
-    // `visible` does not scroll either, so native scrolling is still gone.
-    assert.strictEqual(zoomed.inner.overflow, 'visible', 'the transform is in charge now');
-    assert.match(zoomed.inner.transform, /scale\(2\)/, 'the zoom is written as a transform');
-});
-
 test('ui viewport - a zoomed-out map is painted whole', async () => {
     // The box the transform is written on is only as big as the view, and an
     // `overflow` that clips cuts in the element's own coordinate space - so a
@@ -682,7 +936,9 @@ test('ui viewport - a node added while zoomed is laid out at its layout size', a
             const document_ = ${JSON.stringify(fixture())};
             const setup = async id => {
                 const container = document.getElementById(id);
-                const jm = await jsMind.create(container);
+                // Both instances take the box over: one is zoomed below, and the
+                // comparison is about measurement, not about the mode.
+                const jm = await jsMind.create(container, { view: { viewportMode: 'viewport' } });
                 const mind = jsMind.Serializer.create('json').deserialize(document_);
                 await jm.open(mind);
                 await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -730,59 +986,6 @@ test('ui viewport - a node added while zoomed is laid out at its layout size', a
     }
 });
 
-test('ui viewport - a zoom takes over the scroll the reader had already made', async () => {
-    // A map bigger than its box, so the inner box really scrolls natively
-    // before any zoom arrives. The box is deliberately small: the fixture is
-    // only wide where a chain of nodes stacks, and a scroll offset on one axis
-    // alone would leave half of the handover untested.
-    await open(fixture(10, 6), { width: 420, height: 300 });
-    const ready = await browser.evaluate<{ scrollable: boolean }>(
-        `(() => {
-            const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
-            return { scrollable: inner.scrollWidth > inner.clientWidth && inner.scrollHeight > inner.clientHeight };
-        })()`
-    );
-    assert.ok(ready.scrollable, 'the fixture should overflow its box, otherwise the scroll being taken over proves nothing');
-
-    await command(`
-        const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
-        inner.scrollLeft = 120;
-        inner.scrollTop = 60;
-    `);
-    const scrolled = await snapshot();
-
-    // Until a command arrives the box is still natively scrolled, and the
-    // accessor has to describe that rather than report the map at its origin.
-    assert.strictEqual(scrolled.inner.overflow, 'auto', 'nothing has taken the box over yet');
-    assert.strictEqual(scrolled.inner.transform, '', 'still no transform');
-    assert.deepStrictEqual(
-        { x: scrolled.viewport.x, y: scrolled.viewport.y, scale: scrolled.viewport.scale },
-        { x: 120, y: 60, scale: 1 },
-        'the viewport reports the scroll the reader is looking at'
-    );
-    assertPaintMatchesViewport(scrolled);
-
-    // A zoom folds that displacement into the origin: the map point under the
-    // anchor before the command is still under it after, which is exactly what
-    // a silently dropped scroll offset would break.
-    const anchor = { x: 400, y: 300 };
-    const focus = { x: scrolled.viewport.x + anchor.x, y: scrolled.viewport.y + anchor.y };
-    await command(`jm.commands.zoomTo(1.5, { x: ${anchor.x}, y: ${anchor.y} })`);
-    const zoomed = await snapshot();
-
-    assert.strictEqual(zoomed.inner.overflow, 'visible', 'the transform is in charge now');
-    assert.strictEqual(zoomed.viewport.scale, 1.5);
-    assert.ok(
-        Math.abs(zoomed.viewport.x + anchor.x / 1.5 - focus.x) < 1e-6,
-        `the anchored map point drifted horizontally: ${zoomed.viewport.x}`
-    );
-    assert.ok(
-        Math.abs(zoomed.viewport.y + anchor.y / 1.5 - focus.y) < 1e-6,
-        `the anchored map point drifted vertically: ${zoomed.viewport.y}`
-    );
-    assertPaintMatchesViewport(zoomed);
-});
-
 test('ui viewport - a pan writes the origin it was given, and the map follows it', async () => {
     await open(fixture(10, 6), TIGHT);
     const limits = await panLimits();
@@ -798,7 +1001,7 @@ test('ui viewport - a pan writes the origin it was given, and the map follows it
     // `panTo` names a map point to show at the corner, in the same space
     // `getViewport()` reports - so a caller can read, keep and restore it.
     assert.deepStrictEqual(origin(panned), { x: target.x, y: target.y, scale: 1 });
-    assert.strictEqual(panned.inner.overflow, 'visible', 'a pan takes the box over from native scrolling');
+    assert.strictEqual(panned.inner.overflow, 'visible', 'the box stays the viewport\'s, as the open left it');
     assert.strictEqual(
         panned.inner.transform,
         `translate(${-target.x}px, ${-target.y}px) scale(1)`,
@@ -947,45 +1150,6 @@ test('ui viewport - a zoomed map can be dragged into every corner and stops at t
     assert.deepStrictEqual(origin(roundTrip), origin(topLeft), 'a round trip must land on the origin it started from');
 });
 
-test('ui viewport - a pan takes over the scroll the reader had already made', async () => {
-    // The first pan arrives while native scrolling is still in charge, and the
-    // scroll offset is the same displacement the origin describes. Folding one
-    // into the other is what keeps the picture from jumping at the handover.
-    await open(fixture(10, 6), TIGHT);
-    await installDragCaller();
-
-    // Half-way through the native scroll range: an offset the box really has,
-    // whatever size the fonts made the content.
-    const scrolled = await browser.evaluate<{ scrollLeft: number; scrollTop: number }>(
-        `(() => {
-            const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
-            inner.scrollLeft = Math.round((inner.scrollWidth - inner.clientWidth) / 2);
-            inner.scrollTop = Math.round((inner.scrollHeight - inner.clientHeight) / 2);
-            return { scrollLeft: inner.scrollLeft, scrollTop: inner.scrollTop };
-        })()`
-    );
-    assert.ok(scrolled.scrollLeft > 50, `the box should really be scrolled: ${scrolled.scrollLeft}`);
-
-    const before_ = await snapshot();
-    assert.strictEqual(before_.viewport.x, scrolled.scrollLeft, 'the accessor reports the scroll the reader is looking at');
-    assert.strictEqual(before_.inner.overflow, 'auto', 'nothing has taken the box over yet');
-
-    // Dragging the map left raises the origin: the whole range above the scroll
-    // offset is room for it, so this cannot be clamped.
-    await browser.dragBy({ x: 100, y: 100 }, -100, 0);
-    const panned = await snapshot();
-
-    // The scroll folded into the origin, then the drag applied: the origin is
-    // the scroll offset plus the travel, not the travel on its own.
-    assert.deepStrictEqual(origin(panned), {
-        x: scrolled.scrollLeft + 100,
-        y: scrolled.scrollTop,
-        scale: 1,
-    });
-    assert.strictEqual(panned.inner.overflow, 'visible');
-    assertPaintMatchesViewport(panned);
-});
-
 test('ui viewport - a map that already fits the box cannot be dragged', async () => {
     await open(fixture(), TIGHT);
     await installDragCaller();
@@ -1125,8 +1289,8 @@ test('ui viewport - capture does not depend on the pan', async () => {
             true
         );
 
-    // At rest: no transform, the box still on native scrolling. This has to be
-    // taken before any command, because the first one hands the box over.
+    // At rest: the identity transform, on the box the open already took over. This
+    // is taken before anything moves the map, which is what it is compared with.
     const atRest = await capture();
 
     const limits = await panLimits();
@@ -1242,7 +1406,7 @@ test('ui viewport - centerOn puts a node in the middle of the box, at 1x and at 
 
     const atRest = await snapshot();
     assert.strictEqual(atRest.viewport.scale, 1, 'the page opens at 1x');
-    assert.strictEqual(atRest.inner.overflow, 'auto', 'nothing has taken the box over yet');
+    assert.strictEqual(atRest.inner.overflow, 'visible', 'the box is the viewport\'s from the open');
 
     await command(CENTRE_ROOT);
     const atOne = await snapshot();
@@ -1250,9 +1414,7 @@ test('ui viewport - centerOn puts a node in the middle of the box, at 1x and at 
 
     // The zoom is not the command's business: centring is a move.
     assert.strictEqual(atOne.viewport.scale, atRest.viewport.scale, 'centerOn leaves the zoom alone');
-    // Same handover a pan makes: without it the origin would be written on top
-    // of the native scroll offset and the picture would jump.
-    assert.strictEqual(atOne.inner.overflow, 'visible', 'centerOn takes the box over, as a pan does');
+    assert.strictEqual(atOne.inner.overflow, 'visible', 'and leaves the box with the viewport');
     assertPaintMatchesViewport(atOne);
     t.diagnostic(
         `1x: node centre ${one.centre.x.toFixed(2)}/${one.centre.y.toFixed(2)}, ` +
@@ -1285,48 +1447,32 @@ test('ui viewport - centerOn puts a node in the middle of the box, at 1x and at 
     );
 });
 
-test('ui viewport - centerOn after a native scroll lands where it does without one', async () => {
+test('ui viewport - centerOn answers the same wherever the view was left', async () => {
     const document_ = fixture(10, 6);
 
-    // The reference: the same page, the same command, no scroll in the way.
+    // The reference: the same page, the same zoom, the same command, run from
+    // the view that zoom left behind.
     await open(document_, TIGHT);
+    await command('jm.commands.zoomTo(1.4)');
     await command(CENTRE_ROOT);
     const straight = await snapshot();
 
-    // A fresh page, so the first command is still the one that has to fold the
-    // scroll in - the handover a pan makes, done once.
+    // A fresh page at the same zoom, with the origin first sent to a corner: a
+    // centring that folded in where the view already was would answer
+    // differently here, and every call would drift a little further.
     await open(document_, TIGHT);
-    const scrolled = await browser.evaluate<{ scrollLeft: number; scrollTop: number }>(
-        `(() => {
-            const inner = document.getElementById('container').shadowRoot.querySelector('.jsmind-inner');
-            inner.scrollLeft = Math.round((inner.scrollWidth - inner.clientWidth) / 2);
-            inner.scrollTop = Math.round((inner.scrollHeight - inner.clientHeight) / 2);
-            return { scrollLeft: inner.scrollLeft, scrollTop: inner.scrollTop };
-        })()`
-    );
-    assert.ok(
-        scrolled.scrollLeft > 40 && scrolled.scrollTop > 40,
-        `the box should really be scrolled: ${scrolled.scrollLeft}/${scrolled.scrollTop}`
-    );
-    const before_ = await snapshot();
-    assert.strictEqual(before_.inner.overflow, 'auto', 'nothing has taken the box over yet');
-    assert.strictEqual(before_.viewport.x, scrolled.scrollLeft, 'the accessor reports the scroll the reader is looking at');
+    await command('jm.commands.zoomTo(1.4)');
+    const limits = await panLimits();
+    await command(`jm.commands.panTo(${limits.far.x}, ${limits.far.y})`);
+    const moved = await snapshot();
+    assert.notDeepStrictEqual(origin(moved), origin(straight), 'the view has to start somewhere else');
 
     await command(CENTRE_ROOT);
     const after_ = await snapshot();
 
-    // The scroll is folded into the origin once, at the handover - and the
-    // origin `centerOn` writes does not depend on where the view was, so it has
-    // to be the same one a page that never scrolled ends on. Eating the offset
-    // twice would move it by exactly the scroll, which is what this compares.
-    assert.ok(
-        Math.abs(after_.viewport.x - straight.viewport.x) < 0.01,
-        `the origin drifted by ${(after_.viewport.x - straight.viewport.x).toFixed(2)}px horizontally`
-    );
-    assert.ok(
-        Math.abs(after_.viewport.y - straight.viewport.y) < 0.01,
-        `the origin drifted by ${(after_.viewport.y - straight.viewport.y).toFixed(2)}px vertically`
-    );
+    // The same origin, field for field: it is a function of the node, the zoom
+    // and the box, and of nothing about where the view happened to be.
+    assert.deepStrictEqual(origin(after_), origin(straight), 'the origin does not depend on where the view was');
     assertCentred(after_, ROOT_TEXT);
     assertPaintMatchesViewport(after_);
 });
@@ -1414,7 +1560,7 @@ test('ui viewport - centerOn refuses an id that is not a node of the map', async
 
     const state = await snapshot();
     assert.deepStrictEqual(origin(state), { x: 0, y: 0, scale: 1 }, 'a refused command does not move the view');
-    assert.strictEqual(state.inner.overflow, 'auto', 'and does not take the box over either');
+    assert.strictEqual(state.inner.overflow, 'visible', 'and leaves the box with the viewport it was opened in');
 });
 
 test('ui viewport - fitToView shows the whole map, centred, in one command', async () => {
@@ -1424,14 +1570,14 @@ test('ui viewport - fitToView shows the whole map, centred, in one command', asy
 
     const atRest = await snapshot();
     assert.strictEqual(atRest.viewport.scale, 1, 'the page opens at 1x');
-    assert.strictEqual(atRest.inner.overflow, 'auto', 'nothing has taken the box over yet');
+    assert.strictEqual(atRest.inner.overflow, 'visible', 'the box is the viewport\'s from the open');
     assert.strictEqual(atRest.viewport.canPan, true, 'at 1x the map overflows the box');
 
     await command('jm.commands.fitToView("shrink")');
     const fitted = await snapshot();
 
     assert.ok(fitted.viewport.scale < 1, `a map larger than the box has to be shrunk, got ${fitted.viewport.scale}`);
-    assert.strictEqual(fitted.inner.overflow, 'visible', 'the fit takes the box over, as a zoom does');
+    assert.strictEqual(fitted.inner.overflow, 'visible', 'the fit leaves the box with the viewport');
     // The written origin has to be the one the browser painted: an origin
     // computed without the clamp, from the layout, is exactly the kind of
     // number that could disagree with the picture.
@@ -1649,6 +1795,53 @@ test('ui viewport - a zoom leaves a map that fits centred, never in a corner', a
     assertPaintMatchesViewport(whole);
 });
 
+test('ui viewport - fitToView is the way back from a corner the clamp cannot leave', async () => {
+    // The state this closes: an origin at a far corner, in a box the map now
+    // fits. A zoom cannot build it (#279 centres a fitting axis), but the box
+    // can grow around a map that was panned while it overflowed. The band the
+    // pan was clamped into is then gone, so `canPan` turns false and neither a
+    // drag nor `centerOn` can move the map. The fit is the exit, and this is the
+    // case an implementation built on `zoomTo` + `centerOn` fails: both would
+    // leave the map where it was.
+    await open(fixture(), SMALL);
+
+    const limits = await panLimits();
+    await command(`jm.commands.panTo(${limits.far.x}, ${limits.far.y})`);
+    assert.strictEqual((await snapshot()).viewport.canPan, true, 'the map overflows the small box, so it can be panned');
+
+    // The box grows around the map: it now fits, the band is empty, and the
+    // origin the pan left is still the far corner.
+    await resizeHost(ROOMY);
+    const corner = await snapshot();
+    assert.strictEqual(corner.viewport.canPan, false, 'now the whole map fits, so nothing can move');
+
+    await command('jm.commands.panBy(-400, -300)');
+    await command(CENTRE_ROOT);
+    assert.deepStrictEqual(origin(await snapshot()), origin(corner), 'neither a drag nor a centring leaves the corner');
+
+    const before_ = paintedExtent(corner);
+    const beforeCentre = { x: (before_.left + before_.right) / 2, y: (before_.top + before_.bottom) / 2 };
+    const middle = middleOfBox(corner);
+    assert.ok(
+        Math.abs(beforeCentre.x - middle.x) > 5 || Math.abs(beforeCentre.y - middle.y) > 5,
+        `the map should start off-centre: ${beforeCentre.x.toFixed(1)}/${beforeCentre.y.toFixed(1)} against ${middle.x}/${middle.y}`
+    );
+
+    await command('jm.commands.fitToView("expand")');
+    const fitted = await snapshot();
+    const extent = paintedExtent(fitted);
+    assert.ok(
+        extent.left >= -0.5 && extent.top >= -0.5 && extent.right <= ROOMY.width + 0.5 && extent.bottom <= ROOMY.height + 0.5,
+        `the map comes back inside the box: ${extent.left}..${extent.right} x ${extent.top}..${extent.bottom}`
+    );
+    assert.ok(
+        Math.abs((extent.left + extent.right) / 2 - ROOMY.width / 2) <= 2 &&
+            Math.abs((extent.top + extent.bottom) / 2 - ROOMY.height / 2) <= 2,
+        `and back to the middle: ${((extent.left + extent.right) / 2).toFixed(2)}/${((extent.top + extent.bottom) / 2).toFixed(2)}`
+    );
+    assertPaintMatchesViewport(fitted);
+});
+
 test('ui viewport - fitting twice gives the same viewport, and canPan follows the zoom', async () => {
     await open(fixture(10, 6), SMALL);
 
@@ -1698,6 +1891,11 @@ test('ui viewport - fitToView refuses before a map has been shown', async () => 
     // the first map opened afterwards - so the command is refused rather than
     // silently guessed, the way `capture` and `centerOn` already are.
     //
+    // The instance does ask for the viewport, so the refusal here is about the
+    // missing map rather than about the mode: without the option this call would
+    // stop at the other guard, and this case would pass without ever reaching
+    // the one it is about.
+    //
     // The bundle renames the error class on the way through rollup, so the
     // comparison is against another error from the same bundle rather than
     // against `JsMindError` by name.
@@ -1710,7 +1908,7 @@ test('ui viewport - fitToView refuses before a map has been shown', async () => 
         overflow: string;
     }>(`(async () => {
         const host = document.getElementById('empty');
-        const jm = await jsMind.create(host);
+        const jm = await jsMind.create(host, { view: { viewportMode: 'viewport' } });
         const reference = (() => {
             try {
                 jsMind.Serializer.create('no-such-format');
@@ -1740,15 +1938,15 @@ test('ui viewport - fitToView refuses before a map has been shown', async () => 
     assert.strictEqual(probe.isTypeError, false, 'not with a TypeError');
     assert.match(probe.message, /no mind map/i, `the message should say what is missing, it said "${probe.message}"`);
     assert.strictEqual(probe.transform, '', 'a refused command writes no transform');
-    assert.strictEqual(probe.overflow, 'auto', 'and does not take the box over either');
+    assert.strictEqual(probe.overflow, 'auto', 'and the box is still the browser\'s: no map was opened, so the mode has not been applied');
 });
 
 test('ui viewport - fitToView refuses a mode it does not know, and leaves the view alone', async () => {
     // The mode is the whole request, so a caller that got it wrong - a typo in
     // plain JavaScript, or a value from an older API - has to be told rather
     // than quietly given the shrinking behaviour and a map that moves for no
-    // reason they can see. Refused before the box is taken over, so a failed
-    // call changes nothing at all.
+    // reason they can see. Refused before anything is measured or written, so a
+    // failed call changes nothing: the map stays where the open put it.
     await open(fixture(10, 6), SMALL);
     const atRest = await snapshot();
 
@@ -1790,7 +1988,7 @@ test('ui viewport - fitToView refuses a mode it does not know, and leaves the vi
     assert.strictEqual(probe.isMindError, true, 'and refused with the error class the library raises');
     assert.match(probe.message, /grow/, `the message should quote what was passed, it said "${probe.message}"`);
     assert.match(probe.message, /shrink.*expand/, `and name the modes that exist, it said "${probe.message}"`);
-    assert.strictEqual(probe.transform, '', 'a refused command writes no transform');
-    assert.strictEqual(probe.overflow, 'auto', 'and does not take the box over either');
+    assert.strictEqual(probe.transform, 'none', 'a refused command writes no transform of its own');
+    assert.strictEqual(probe.overflow, 'visible', 'and leaves the box where the open put it');
     assert.deepStrictEqual((await snapshot()).viewport, atRest.viewport, 'the view is exactly where it was');
 });

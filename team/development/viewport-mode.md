@@ -2,14 +2,14 @@
 
 这篇记的是一个决定：**一个 `JsMind` 实例从一开始就选定「谁管滚动」，之后不再变。** 它来自 2026-11-28 的一次讨论，起因是 `#278` 里一行看着很怪的 `jm.commands.zoomTo(1)`。
 
-## 今天的样子
+## 换掉之前的样子（行号是当时的 master）
 
 画布里的内容能被移动，浏览器有两条互斥的路：原生滚动（`overflow: auto` + `scrollLeft/scrollTop`）和 CSS transform（`overflow: visible` + `translate scale`）。同一个盒子上不能两个人同时管。
 
-库里今天用一次**懒激活**来换轨：`JmView` 上挂一个单向布尔，五个公开命令的第一个会把它翻过去。
+库里当时用一次**懒激活**来换轨：`JmView` 上挂一个单向布尔，五个公开命令的第一个会把它翻过去。
 
 ```
-private viewportActive = false;        src/view/index.ts:65
+private <mode latch> = false;          src/view/index.ts:65
 _activateViewport()                    src/view/index.ts:596（只有一处置 true，没有一处置回 false）
 
 zoomTo     :409     panTo   :456     panBy  :467
@@ -29,8 +29,11 @@ centerOn   :509     fitToView :566
 **一、模式在构造时定，实例活多久就是多久。**
 
 ```ts
-const jm = new JsMind(container, { takeOverViewport: true });
+const jm = await jsMind.create(container);                                        // 默认：视口模式
+const other = await jsMind.create(container, { view: { viewportMode: 'native' } }); // 要原生滚动才显式传
 ```
+
+构造函数是私有的，公开入口只有 `static async create(container, options?)`，所以选项落在 `ViewOptions`（`DEFAULT_OPTIONS.view` 里显式写 `'viewport'`），由 `create()` 透传给视图，而不是写进 `new JsMind(...)`。放在 `view` 分组而不是 `JsMindOptions` 顶层：视口模式属于视图层，且与 `view.padding` 同组有内在联系（padding 决定内容尺寸，夹取依赖内容尺寸）。
 
 `open(mind)` 不加参数。模式不是「每张图的决定」，是这个实例的决定。运行期不再存在「模式变错」这件事，所以也就不需要「请重新打开」这类补救说明。
 
@@ -38,10 +41,10 @@ const jm = new JsMind(container, { takeOverViewport: true });
 
 ```ts
 private _requireViewport(action: string): void {
-    if (!this.takeOverViewport) {
+    if (this.viewportMode !== 'viewport') {
         throw new JsMindError(
             `${action} needs the transform viewport, but this JsMind uses native scrolling; ` +
-            `construct it with { takeOverViewport: true }`
+            `construct it with { view: { viewportMode: 'viewport' } }`
         );
     }
 }
@@ -63,24 +66,28 @@ interface JmViewport { x, y, scale, canPan, mode: 'native' | 'viewport' }
 
 **四、接管改成每次 `open()` 幂等应用。**
 
-`viewportActive` 那个单向 latch 删掉，换成「`open()` 在 `await coordinator.onMindMapOpened(mind)` 之后确定性地应用一次接管」。这样 reopened 另一张图不需要任何特判，也不会继承上一张图的模式。
+那个单向 latch 删掉，换成「`open()` 在 `await coordinator.onMindMapOpened(mind)` 之后确定性地应用一次接管」。这样 reopened 另一张图不需要任何特判，也不会继承上一张图的模式。
 
-## 为什么默认是 `false`
+## 为什么默认是 `'viewport'`
 
-**库不接管浏览器事件。** 手势（滚轮、拖拽、双击）住在 `artifact/shell.js` 里，不在库里——这是既有边界，不是遗漏。
+**v1 与 v2 的分界就在这里。** owner 定这一条的原话是「它跟 v1 就是不一样」：v2 打开一张图，默认体验是 transform 视口，而不是 v1 的原生滚动条。
 
-所以「默认视口模式」的后果是：任何一个只做 `new JsMind(...).open(mind)` 的宿主，遇到比窗口大的图会得到一块**既不能原生滚动、也没有手势**的画布。内容被裁掉且移不动。
+代价必须一起认：**库不接管浏览器事件。** 手势（滚轮、拖拽、双击）住在 `artifact/shell.js` 里，不在库里——这是既有边界，不是遗漏。所以「默认视口模式」的后果是：任何一个只做 `jsMind.create(container)` 再 `open(mind)` 的宿主，遇到比窗口大的图会得到一块**既不能原生滚动、也没有手势**的画布。内容被裁掉且移不动。
 
-`true` 只能给那些自己实现了手势的宿主（今天只有产物壳）。因此默认 `false`，谁要谁开。
+这条决定因此带两个附带要求，缺一不可：
 
-（讨论中我先倾向过 `true`——「视口是 v2 的新能力」——这条被上面这个理由推翻：能力在壳里，不在库里。）
+1. **文档要把这件事写在最显眼的地方**：打开大图要先接手势，或者显式传 `viewportMode: 'native'`。
+2. **`getViewport().mode` 必须可读**，宿主能自检自己处在哪个模式。等库级手势 API 出现之前，这是唯一的自保手段。
+
+这条代价落在仓库自己的两个宿主上，所以两个例子页显式退回原生滚动：`example/playground.html` 与 `example/demo.html` 都没有手势代码、容器固定尺寸，大图在那里必须还能滚。产物壳有手势，走默认。
 
 ## 代价
 
 - **公开契约扩展一次**：构造参数多一个选项，五个命令多一种抛错。v2 未发布前做最便宜。
-- **测试迁移**：`__tests__` 里这五个命令共 56 次调用、3 个文件（`zoomTo` 24、`fitToView` 14、`panTo` 10、`panBy` 4、`centerOn` 4），凡是走视口的都要在构造时开选项。机械改动，但没有捷径。
-- **`artifact/shell.js` 删掉 `zoomTo(1)` 那一行**，改成构造时传选项。`#278` 是先合进去的过渡：在旧形状下它是对的（接管必须发生，而当时只有命令能触发），新形状落地时它会变成多余。
-- **默认 `false` 意味着「打开即原生滚动」仍然是默认体验**，产物页靠选项离开它。这条不会自己消失，是刻意的。
+- **测试迁移**：`__tests__` 里这五个命令的调用点，落地时实测 74 处、3 个文件（`ui/viewport.test.ts` 67、`commander.test.ts` 6、`jsmind.test.ts` 1；讨论时写的 56 是估算）。凡是经 `JsMind` 实例走视口的都要在 `create` 时给得起模式；`commander.test.ts` 那 6 处是转发层对假视图的调用，不经实例，只需要在假视图的 `JmViewport` 字面量里补上 `mode`。
+- **`artifact/shell.js` 删掉 `zoomTo(1)` 那一行**，构造改成不传选项——默认就是接管。`#278` 是先合进去的过渡：在旧形状下它是对的（接管必须发生，而当时只有命令能触发），新形状落地后它变成多余。
+- **默认 `'viewport'` 把代价推到没有手势的宿主上**：仓库自己的 playground 与 demo 要显式传 `'native'`，产物页则不再为模式传任何东西。前者是这一条默认值付出的实际改动，后者是它换来的简化。
+- **测试里有一批用例随懒激活一起消失**：`__tests__/ui/viewport.test.ts` 原先有「第一次缩放 / 第一次平移 / 第一次居中顺手把读者已经滚到的偏移折进原点」三例。接管现在发生在 `open()` 之后（`await coordinator.onMindMapOpened(mind)` 已经把图渲染出来），那时盒子**已经溢出**、内容就在里面——偏移为 0 是因为从构造到 `open()` 之间没有人滚过它，不是因为盒子里没有内容（`__tests__/ui/viewport.test.ts` 里那条 native 用例在 `open()` 之后就能把同一个盒子滚到 `120/60`）。所以「读者先滚、第一次命令把它折进原点」这个场景在浏览器里再也构造不出来：库不再等命令才接管。接管代码里折 `scrollLeft/scrollTop` 的那两行保留（幂等应用要清掉上一个状态）。「reopen 另一张图回到 identity」那条用例走的正是这条零偏移路径；非零的那一半没有用例覆盖，是防御代码。
 
 ## 没选的三个形状
 
@@ -88,8 +95,12 @@ interface JmViewport { x, y, scale, canPan, mode: 'native' | 'viewport' }
 2. **公开 `view.activateViewport()`。** 能让「翻开关」有名字，但把翻的时机还给了运行期——同一个页面里「有人看到滚动条、有人看不到」的可能原样保留，那 15px 也照样在某个时刻跳。名字解决了可读性，没解决时机。
 3. **非视口模式下静默不生效，提示用户重新打开。** 见决定二：晚、静，而且「重新打开」在编辑器场景意味着丢状态，库不该要求这种补救。
 
-## 还没定的
+## 落地后的收口
 
-- **选项名**：`takeOverViewport` 是讨论里用的名字，落地时再看要不要更短（`viewport: true`）。
-- **`x/y` 到底指什么**：现在两种模式下 `getViewport()` 都返回「贴左上角的地图点」（native 模式把 `scrollLeft/scale` 补进去）。加了 `mode` 之后这条要不要保留，取决于是否还有人要在 native 模式下读它。
-- **能不能回到 native**：目前打算不做。接管折掉了滚动量、改了 `overflow`，回退要还原这两样，且没有任何需求驱动它。
+讨论时留了三个待定项，落地时这样定：
+
+- **选项名与位置定成 `ViewOptions.viewportMode: 'native' | 'viewport'`，默认 `'viewport'`。** 讨论时倾向保留 `takeOverViewport`，那个理由只否掉了 `viewport: true` 这种名词形式，没有回答真正的问题：`takeOverViewport` 是动词，而这是个构造时定死、运行期不变的持续状态；boolean 也读不出另一个状态叫 `'native'`，而 `JmViewportMode` 这个类型已经有了。`JmViewportMode` 的定义因此搬到 `src/common/option.ts`（放 `src/view/handle.ts` 会让 `common` 反向依赖 `view`），`handle.ts` 改为从 common 引入并 re-export。方法名 `JmView.takeOverViewport()` 保留——它是幂等的接管动作，动词在那里是对的。
+- **native 模式下 `getViewport()` 的 `x/y` 删掉了滚动补偿。** 唯一读它的人是那批随懒激活一起消失的用例；而且把 `scrollLeft` 折进原点会让同一个 `x` 在两种模式下指两件事——一种是视口原点，一种是浏览器的滚动位置。现在 native 模式报恒等值，`mode: 'native'` 说明这是哪种情况，`canPan` 恒为 `false`（详见 `src/common/option.ts` 的 `JmViewportMode`）。
+- **不提供回到 native 的路径。** 理由与讨论时相同：接管折掉了滚动量、改了 `overflow`，回退要还原这两样，没有需求驱动。`_requireViewport` 的抛错消息直接点名选项，就是因为调用方只能重建实例，不能在这个实例上切回来。
+
+另外一处落地细节：接管成了 `JmView.takeOverViewport()`，由 `JsMind.open()` 在 `coordinator.onMindMapOpened()` 之后调用，每次 open 一次，先重置原点再折滚动偏移。那个单向 latch 与它的四处读者一起删掉；`_whileUnscaled()` 改读构造模式（`viewportMode === 'native'` 时不动 `transform`）。

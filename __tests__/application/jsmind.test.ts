@@ -248,6 +248,19 @@ describe('JsMind', async () => {
             'nodes from the previous map must not remain clickable');
     });
 
+    it('keeps native scrolling from the documented options literal', async () => {
+        // The literal the API reference and the refusal message print, written
+        // the way a caller would write it: a group whose fields are optional,
+        // no spread of the defaults. It has to compile as well as run - and the
+        // omitted padding and expander have to keep their defaults.
+        const jm = await JsMind.create(JSMIND_CONTAINER_ID, { view: { viewportMode: 'native' } });
+        await jm.open(TEST_MIND);
+        const inner = viewRoot().querySelector('.jsmind-inner') as HTMLElement;
+        assert.strictEqual(jm.commands.getViewport().mode, 'native');
+        assert.strictEqual(inner.style.overflow, '', 'a native instance writes no overflow of its own');
+        assert.strictEqual(inner.style.transform, '');
+    });
+
     it('repaints the node whose style changed while the map is open', async () => {
         const jm = await JsMind.create(JSMIND_CONTAINER_ID, DEFAULT_OPTIONS);
         const mind = buildMap('Styled');
@@ -397,7 +410,9 @@ describe('JsMind', async () => {
     });
 
     it('measures a restyled batch unscaled even while the map is zoomed', async () => {
-        const jm = await JsMind.create(JSMIND_CONTAINER_ID, DEFAULT_OPTIONS);
+        // The zoom is what this case is about, and it needs an instance that
+        // owns the box - which is the default mode.
+        const jm = await JsMind.create(JSMIND_CONTAINER_ID);
         const mind = new JmMind({ name: 'Zoomed' }, { rootNodeId: 'zoom_root' });
         const ids = ['zoom_a', 'zoom_b'];
         for (const id of ids) {
