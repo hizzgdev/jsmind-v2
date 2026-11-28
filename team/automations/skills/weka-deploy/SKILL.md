@@ -33,11 +33,14 @@ is answered by a hash: **does the live file equal master's file, yes or no.**
 | `team/automations/weka/SOUL.cody.md`, `SOUL.reed.md`, `SOUL.scout.md` | `~/.hermes/profiles/<p>/SOUL.md` | overwrite from master, verify hash |
 | `team/automations/skills/<name>/SKILL.md` | `~/.hermes/profiles/<p>/skills/<name>/SKILL.md` | overwrite from master, verify hash |
 | `team/automations/weka/github-webhook.py`, `github-webhook.service` | the clone the systemd user unit points at | restart the unit, verify it started now |
+| `hooks:` in `~/.hermes/profiles/<p>/config.yaml` + `<p>/shell-hooks-allowlist.json` | not in this repo | write the two hooks of step 8 verbatim, then `hooks doctor` three times |
 | `~/.hermes/config.yaml` → `kanban:` | not in this repo | out of scope — a human edits it, gateway restart |
 | `README.md`, other `*.md`, this file | nothing to install | — |
 
 Rows one to three have a live counterpart and are reset every run, whether or not they changed. The
-`README.md` row has none: a document nobody loads at runtime needs no deployment.
+`README.md` row has none: a document nobody loads at runtime needs no deployment. The `hooks:` row is
+the one that is neither: the file is host-side, so master cannot overwrite it, yet the content is
+desired state all the same — it is written from step 8 and verified there, every run.
 
 Live edits do not survive, and that is intentional. Hermes's skill curator patches installed skills in
 place, so a profile file can accumulate content the repo never saw. That content is treated as a draft
@@ -235,12 +238,83 @@ Do not edit `config.yaml` here and do not restart the gateway — the desired-st
 scope, and the gateway refuses to restart itself from inside its own process. A red deploy on a document that
 was changed but not yet brought live is the intended outcome, not a defect in this step.
 
-### 8. Report
+### 8. Profile hooks: one ledger, one fence
+
+Two `hooks:` entries are desired state too, and they live in a file none of the steps above touch:
+each profile's own `config.yaml`. Put both blocks in **cody, reed and scout** — the dispatcher hands any
+of the three a worker session, so a fence present on two of them is a fence with a door.
+
+```yaml
+hooks:
+  post_tool_call:
+    - command: ["/home/gg_hermes_go/.hermes/venvs/weka/bin/python", "/home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py", "--reconcile", "--once", "--from-hook"]
+      timeout: 5
+  pre_tool_call:
+    - matcher: "^kanban_create$"
+      command: ["/usr/bin/python3", "/home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/deny_card_create.py"]
+      timeout: 5
+      fail_closed: true
+```
+
+Four details in that block carry the meaning:
+
+- **The ledger hook has no `matcher`, on purpose.** `labels.py --from-hook` keeps a counter and, every
+  tenth call, reconciles the whole board; a matcher would just make the counter count a subset and let
+  the sweep fall further behind. It re-execs itself detached and returns immediately, so the cost per
+  tool call is a fork, not a reconcile.
+- **`fail_closed: true` only applies to `pre_tool_call`** (`agent/shell_hooks.py`'s
+  `_BLOCKING_EVENTS`), which is why the fence is the event that gets it. Drop the key and a deleted or
+  crashing `deny_card_create.py` fails *open*: `kanban_create` succeeds, and nothing says the fence moved.
+- **The matcher is anchored.** `^kanban_create$`, never a `kanban_` prefix — that one also swallows
+  `kanban_complete` / `kanban_block` / `kanban_comment`, and a worker that cannot hand off is worse than
+  one that can create a card.
+- **`/usr/bin/python3` is 3.6.8 on this host.** The fence script therefore has to stay inside 3.6's
+  stdlib, and a check has to use the interpreter the config actually names:
+  `/usr/bin/python3 -m py_compile team/automations/weka/deny_card_create.py`. Plain `python3 -m
+  py_compile` resolves to a newer interpreter on this box and passes a file the hook cannot import.
+
+Then consent, because `hooks_auto_accept` is `false` here. An unapproved hook is skipped (the ledger
+hook) or fails closed (the fence) — and the two are distinguishable only because the fence writes the
+deny log: **a block with no new line in `~/.hermes/state/weka-labels/deny.log` means the fail-closed
+path answered, not the script.** The allowlist is per Hermes home, which for a profile process is the
+profile directory (`get_hermes_home()`; `hermes -p <p>` sets it to `~/.hermes/profiles/<p>`), so it is
+`~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
+
+```json
+{"approvals": [
+  {"event": "post_tool_call", "command": "/home/gg_hermes_go/.hermes/venvs/weka/bin/python /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"},
+  {"event": "pre_tool_call", "command": "/usr/bin/python3 /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/deny_card_create.py"}
+]}
+```
+
+The `command` string must equal the config's `command` array joined by single spaces, byte for byte:
+that pair is the key the approval is looked up by, so a `~` or a different quoting on one side of the
+two files buys a permanently unapproved hook — silently, since a skipped hook only logs one warning.
+
+```bash
+for p in cody reed scout; do hermes -p "$p" hooks doctor; done
+```
+
+Three greens, or the step is not done. `doctor` fires each hook against a synthetic payload, so a green
+`pre_tool_call` line is also the cheap proof that the script parses under the interpreter the config
+names. What it cannot prove is the fence firing inside a worker — the tool layer has to be exercised:
+`kanban_create` in a worker session returns the fixed message, `SELECT count(*) FROM tasks` on the board
+does not move, and the deny log gains a line. Then `chmod 000` the script and repeat: still blocked, no
+card, and **no** new log line; put the mode back. A host where that second run creates a card has lost
+`fail_closed`.
+
+No restart is involved: the gateway re-syncs hooks from the live config when it opens a session
+(`gateway/session_policy.py` → `sync_from_config`), and a worker reads the config it was launched with.
+Adding a hook is therefore not a reason to bounce the webhook unit — and bouncing it is the one action
+here that can drop a delivery.
+
+### 9. Report
 
 `$OLD` and the new `HEAD`; what the step-2 range listed; that SOUL, profile skills and the webhook were reset
 to master, with the hash pairs and the restart's start time; the smoke evidence or why it did not apply; the
-two concurrency ceilings as step 7 found them (the file's numbers and the value the gateway booted with); and
-anything still outside this procedure (`config.yaml` → `kanban:`).
+two concurrency ceilings as step 7 found them (the file's numbers and the value the gateway booted with); the
+three `hooks doctor` verdicts and, for the fence, whether a worker call was actually refused; and anything
+still outside this procedure (`config.yaml` → `kanban:`).
 
 ## Stop and ask instead of guessing
 
@@ -252,6 +326,9 @@ anything still outside this procedure (`config.yaml` → `kanban:`).
   gateway boot, and the gateway refuses to restart itself from inside its own process.
 - The smoke test prints something other than the expected line: report it. Restarting again to "see if it
   clears" destroys the evidence.
+- A profile's `hooks doctor` is not fully green. Report which hook and which of the five answer lines is
+  red (exec, allowlist, mtime drift, JSON, timing); do not "fix" it by running a hook test interactively,
+  because the point of the allowlist entry written in step 8 is that nobody has to be at a prompt.
 
 ## Do not
 

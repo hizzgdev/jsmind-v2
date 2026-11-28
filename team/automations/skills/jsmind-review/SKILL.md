@@ -242,6 +242,14 @@ addition, so a body that counts it as new is off by one against its own parenthe
   `tool_input`, uuid in `extra.task_id`, `profile` set) and a resolution that can still name the card — under
   `kanban.max_in_progress_per_profile: 1`, "the one `running` card assigned to `payload["profile"]`" is the available
   signal.
+- **A hook-doc command with a missing required argument.** `hermes hooks revoke` takes the command string as a
+  positional and exits 2 (`the following arguments are required: command`) when a doc writes it bare;
+  `hermes --accept-hooks` is a root-level flag, not a `hooks` subcommand flag. The five answer lines doctor
+  prints are `hermes_cli/hooks.py:286-345`, the JSON smoke test is skipped entirely while the pair is not
+  allowlisted (`:316-319`), the allowlist is `{"approvals":[{event,command}]}` at
+  `get_hermes_home()/shell-hooks-allowlist.json` (so per profile), the synthetic payload does carry `profile`
+  (`agent/shell_hooks.py:100` → a doctor run really reconciles), and a hand-written allowlist entry approves
+  the pair but records no mtime, so doctor can never report drift on it.
 - **A recovery hint printed on failure.** Recovery instructions are deliverable code; replay them
   literally. A hint that restores from the index after the script already staged its changes undoes
   nothing.
