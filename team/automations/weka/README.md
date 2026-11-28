@@ -232,9 +232,11 @@ cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理
 | --- | --- | --- | --- |
 | `weka-queue` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡在 `ready` / `todo` / `scheduled` / `triage` / `review`） | 给人看：在排队——等 cody 开工、被退回等 cody、或者等 reed 领取。`review` 算排队，不是「正在审」 |
 | `weka-working` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `running` 且 assignee 是 cody） | 给人看：AI 正在干 |
-| `weka-reviewing` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `running` 且 assignee 是 reed） | 给人看：AI 正在审 |
+| `weka-reviewing` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `running` 且 assignee 是 reed；对象已带 `weka-reviewed` 时除外，见下） | 给人看：AI 正在审 |
 | `weka-blocked` | issue 卡同时打 issue 和它 branch 开出来的 PR；PR 卡打 PR | `labels.py`（卡 `blocked`） | 给人看：卡停住等人处理，不是崩了 |
 | `weka-reviewed` | 永远是 PR | `scripts/weka/pass-review.sh` | **唯一控制流程的标签**：只有它存在时，你在 PR 上的动作才会触发返工卡。它和 PR 转 ready 是同一刻发生的（ready 的唯一入口） |
+
+**`weka-reviewed` 压过 `weka-reviewing`。** 审批是一次事务：`pass-review.sh` 摘掉 `weka-reviewing`、加上 `weka-reviewed`、翻 ready。但那一刻 reed 的卡还是 `running`——它随后还要请求 reviewer、`kanban_complete`，每一次工具调用都会触发一次对账；只按 `(status, assignee)` 算的话，`running + reed` 每次都把 `weka-reviewing` 重新算回来，PR 就停在 ready + `weka-reviewing` + `weka-reviewed`。所以对账在写之前多读一条现状：**对象上已经有 `weka-reviewed` 时不再写 `weka-reviewing`**，已经在的话顺手摘掉。摘得掉的前提是对账这一轮读到了这个对象：卡还是 `running` 时（正好是 reed 那两次工具调用）PR 会被读，所以回写进去的标签下一轮就没了；一旦卡变 `done`，issue 卡不再读它 `branch_name` 开出来的 PR（`refs_for(include_pr=label is not None)`，done 的 `label` 是 `None`），落在 done 卡 PR 上的残留没有写入者，只能手工 `DELETE` 或等合并时 `strip_labels()`。`weka-reviewed` 本身仍只由 `pass-review.sh` 写，对账只读它。理由只有一条：`weka-reviewing` 的意思是“AI 正在审”，而 `weka-reviewed` 的意思是审完了，两者同时成立就是自相矛盾。其余三个过程标签不跟着让位——返工起手时 `weka-working` 和 `weka-reviewed` 会短暂共存（cody 确实在动手，标签还没摘），退回等 cody 时是 `weka-queue` 和它共存（返工门本身），那两对都是真的。
 
 `labels.py` 有四个入口：`--from-hook` 走钩子那条路（读 stdin 上的 payload，定好 scope 就 spawn 一个脱离进程、自己立刻退出，所以工具调用不会被钩子的 `timeout` 拖住——那个超时是 `hooks.<event>[].timeout`，默认 60s、上限 300）、`--full` 手动全量扫一遍、`--card <id>` 只对账一张卡、`--dry-run` 只打印差异、不发任何写请求。三个 profile 共用一个状态目录 `~/.hermes/state/weka-labels/`：`counter` 是触发计数（每第 10 次换成一次全量扫），`lock` + `dirty` 保证同一时刻只跑一轮（撞上了就把 scope 记进 `dirty`，等这一轮收尾再补一次），`log` 是钩子模式的全部输出——钩子没有 stdout，排障第一步就是看这个文件。
 
@@ -254,7 +256,7 @@ cody 手上的 PR 一律是 **draft**：开 PR 时 `--draft` 开出、返工起�
 
 为什么把翻转放在 `weka-reviewed` 而不是交接：draft 表达的是「还没到人该看的时候」。reed 审的时候 AI 的结论还没出来，这时把 PR 摆成 ready，人会被叫去终审一份还没过 AI 预检的东西。ready 的唯一入口就是 `weka-reviewed`，两者必须同时出现。
 
-验收按这两条核：**PR 是 draft 时挂着一个过程标签**（排队是 `weka-queue`，cody 手上是 `weka-working`，reed 手上是 `weka-reviewing`，且不能有 `weka-reviewed`）；**PR 是 ready 时 `weka-reviewed` 必须在，且 `weka-working` / `weka-reviewing` 都不能在**，不能只剩 `weka`。draft + `weka-reviewing` 是正常状态——reed 审的时候 PR 还没到人手上。
+验收按这两条核：**PR 是 draft 时挂着一个过程标签**（排队是 `weka-queue`，cody 手上是 `weka-working`，reed 手上是 `weka-reviewing`，且不能有 `weka-reviewed`）；**PR 是 ready 时 `weka-reviewed` 必须在，且 `weka-working` / `weka-reviewing` 都不能在**，不能只剩 `weka`。后半条现在由 `labels.py` 兜住——对象带 `weka-reviewed` 时它不再写 `weka-reviewing`，所以不用再指望 approve 之后没有对账落到 PR 上。draft + `weka-reviewing` 是正常状态——reed 审的时候 PR 还没到人手上。
 
 cody 若死在 draft，PR 就停在 draft + `weka-working`：合不了，但不需要谁来把它「救」成 ready——那等于替 cody 宣布审查通过。`weka-working` 挂着而板上没有卡在跑，就是「卡崩了」的可视信号（见上一节），人看到了可以直接处理。
 

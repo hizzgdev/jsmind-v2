@@ -5,7 +5,11 @@ The board says which phase a card is in; this script says which flow label its
 object should carry, reads what is there, and writes only the difference. It
 owns exactly four labels — `weka-queue` / `weka-working` / `weka-reviewing` /
 `weka-blocked` — and never adds or removes `weka` (a participation marker) or
-`weka-reviewed` (the rework gate, which belongs to `github-webhook.py`).
+`weka-reviewed` (the rework gate, which belongs to `github-webhook.py`). It does
+*read* `weka-reviewed`, for one decision: that label is the end of the review,
+so a reviewer card that is still `running` — it runs `pass-review.sh`
+mid-session, and every later tool call fires this sweep — must not put
+`weka-reviewing` back (see `yields_to_reviewed`).
 
 Why a script and not a step in the SOULs: a model that is told to label its
 object does it late, or not at all, and a label that is wrong on GitHub is
@@ -72,6 +76,10 @@ LABEL_REVIEWING = "weka-reviewing"
 LABEL_BLOCKED = "weka-blocked"
 FLOW_LABELS = (LABEL_QUEUE, LABEL_WORKING, LABEL_REVIEWING, LABEL_BLOCKED)
 
+# Read-only here: the approval script and the webhook own writing it. The one
+# decision it feeds is that `weka-reviewing` yields to it (see `yields_to_reviewed`).
+LABEL_REVIEWED = "weka-reviewed"
+
 # A module constant, not a config field: a sweep frequency is fixed behaviour,
 # not something an operator tunes (see `operating-notes.md`, semantic fields only).
 FULL_SWEEP_EVERY = 10
@@ -134,6 +142,36 @@ def phase(status: str, assignee: str | None, config: dict) -> str | None:
         if assignee and assignee == config.get("reviewer"):
             return LABEL_REVIEWING
     return None
+
+
+def yields_to_reviewed(label: str | None, present: set[str]) -> str | None:
+    """`weka-reviewing` gives way to `weka-reviewed`; every other label passes.
+
+    Approval is one transaction inside `pass-review.sh` (strip, add
+    `weka-reviewed`, flip to ready) but the reviewer's card is still `running`
+    afterwards — it asks for the human reviewer and then calls
+    `kanban_complete`, and each of those tool calls fires a sweep. The phase
+    alone says `running` + reed, so without this rule the sweep writes
+    `weka-reviewing` straight back onto a now-ready PR, which is the state the
+    flow is supposed to forbid: `weka-reviewing` means "an AI is reviewing
+    this", and `weka-reviewed` means the review is over.
+
+    Returning None also removes a pair that already exists (an approval from
+    before this rule, or a sweep that was in flight when the label landed).
+    That repair only reaches an object this sweep reads, though: while the card
+    is still `running` the PR is read and the stale label goes on the next
+    sweep, but a `done` issue card never looks its PR up, so a leftover written
+    before that point stays until a manual DELETE or the merge-time
+    `strip_labels()`.
+
+    Only `weka-reviewing` is suppressed: `weka-working` next to
+    `weka-reviewed` is the rework pickup (cody is editing again, the webhook
+    still owes the label strip), and `weka-queue` next to it is the rework gate
+    itself — both are true, not contradictory.
+    """
+    if label == LABEL_REVIEWING and LABEL_REVIEWED in present:
+        return None
+    return label
 
 
 @dataclass(frozen=True)
@@ -306,7 +344,9 @@ class Reconciler:
         on a first pass has no branch yet, and a finished card only ever has
         leftover labels stripped, so neither looks a PR up. A finished issue
         card therefore never touches its PR: `pass-review.sh` clears it at
-        approval and the webhook's close-time `strip_labels()` is the fallback.
+        approval, the reconciler will not put `weka-reviewing` back once
+        `weka-reviewed` is on it (`yields_to_reviewed`), and the webhook's
+        close-time `strip_labels()` is the fallback.
 
         Only those two shapes count. `branch_name` and a body URL are not enough
         on their own: a side card that quotes a URL in its first line (a
@@ -402,12 +442,17 @@ class Reconciler:
         # webhook's job, and re-adding a label to a merged PR would be a lie.
         if str(state.get("state") or "").lower() != "open":
             return
-        present = {item.get("name") for item in state.get("labels") or [] if isinstance(item, dict)}
+        names = {item.get("name") for item in state.get("labels") or [] if isinstance(item, dict)}
+        present = {name for name in names if isinstance(name, str)}
         flow = present & set(FLOW_LABELS)
-        want = {label} if label else set()
+        wanted = yields_to_reviewed(label, present)
+        want = {wanted} if wanted else set()
         add, remove = sorted(want - flow), sorted(flow - want)
         if not add and not remove:
             return
+        if wanted != label:
+            say(f"{card_id} #{ref.number} {ref.kind}: {LABEL_REVIEWED} is on it, "
+                f"so {label} yields to {LABEL_REVIEWED}")
         parts = [f"-{name}" for name in remove] + [f"+{name}" for name in add]
         report.changes.append(f"{card_id} #{ref.number} {ref.kind}: {' '.join(parts)}")
         if self.dry_run:
