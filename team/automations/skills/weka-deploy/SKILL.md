@@ -47,9 +47,9 @@ The default-home skill is the only live location that is a **symlink** into this
 so step 2 already reset it and step 4 only verifies it: overwriting is impossible (`cp` there exits 1 with
 `are the same file`), and comparing it with the working-tree file compares one inode with itself. Compare
 the live file with `git show master:team/automations/skills/weka-deploy/SKILL.md` instead. Without the row
-the run follows whichever version the link pointed at when the session started — the silent staleness this
-document opens with, and the reason a deploy can run every step green while the procedure it is running is
-older than master's.
+nothing checks that the link still resolves into this clone: point it at a stale checkout elsewhere and every
+other step stays green while the procedure the session is running is not master's. What that comparison
+cannot prove is spelled out at the end of step 4 — step 2 has already moved the clone it points into.
 
 The `README.md` row is the only one with nothing to install: a document nobody loads at runtime needs no
 deployment. `~/.hermes/config.yaml` → `kanban:` stays out of scope and stays a human's edit: it is the
@@ -142,8 +142,12 @@ Never `cp` into that path while it is a symlink: both names resolve to one inode
 so the two hashes are equal by construction and prove nothing. The comparison that means something is the
 live file against `git show master:`. Changing this file mid-run also changes nothing for the run in
 progress: those instructions were loaded before step 1, and the new bytes take effect on the next deploy.
-What the check catches is a run that started from an older file and then follows steps master had already
-replaced — nothing about that run looks wrong.
+That bounds what the check can prove, and it is less than it looks. Step 2 pulls this clone and the link
+resolves into it, so by the time these hashes print the live file equals master **by construction**: a run
+that started from an older copy of this document, and then followed steps master had already replaced, still
+prints two equal hashes, and nothing about that run looks wrong. What the comparison catches is a link
+resolving into a clone step 2 never updated, or a working tree altered after step 2. It cannot tell you which
+version this session loaded — that is fixed when the session starts, before step 1.
 
 ### 5. Restart the webhook
 
