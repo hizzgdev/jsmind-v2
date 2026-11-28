@@ -756,6 +756,110 @@ class EventCursorTests(unittest.TestCase):
         self.assertEqual(board.cursor(), 6)
 
 
+class DirtyMarkerTests(unittest.TestCase):
+    """A wake that loses the lock leaves work behind in a shape the holder reads.
+
+    `--card` and `--events` share one lock, so a completion hook regularly loses
+    it to a webhook `--card` child. The marker used to be the bare scope, which
+    made the two indistinguishable: the holder looked for a card called `events`,
+    found none, and dropped the whole event batch — and that was the batch nobody
+    re-sends, because the card it belonged to had just gone `done`.
+    """
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        original_dir = labels.STATE_DIR
+        setattr(labels, "STATE_DIR", Path(tmp.name))
+        self.addCleanup(setattr, labels, "STATE_DIR", original_dir)
+
+    def hold_the_lock(self):
+        holder = labels._lock(labels._path("lock"), blocking=False)
+        self.assertIsNotNone(holder, "the fixture lock must be free")
+        self._holder = holder
+        self.addCleanup(self.release)
+        return holder
+
+    def release(self):
+        holder = getattr(self, "_holder", None)
+        if holder is not None:
+            os.close(holder)
+            self._holder = None
+
+    def marker(self):
+        return labels._path("dirty").read_text(encoding="utf-8").strip()
+
+    def test_a_lost_event_wake_marks_events_not_a_card(self):
+        self.hold_the_lock()
+
+        self.assertEqual(labels.events_pass(CONFIG), 0)
+
+        self.assertEqual(self.marker(), labels.DIRTY_EVENTS,
+                         "`events` has to be recognisable as a scope, not a card id")
+
+    def test_a_lost_card_wake_is_encoded_as_a_card(self):
+        self.hold_the_lock()
+
+        self.assertEqual(labels.events_pass(CONFIG, named="t_301"), 0)
+        self.assertEqual(self.marker(), "card:t_301")
+
+    def test_a_lost_full_wake_stays_full(self):
+        self.hold_the_lock()
+
+        self.assertEqual(labels.reconcile_locked("full", CONFIG), 0)
+
+        self.assertEqual(self.marker(), labels.DIRTY_FULL)
+
+    def test_a_card_holder_that_finds_events_pending_runs_the_event_pass(self):
+        # The reported sequence: `kanban_task_completed` lost the lock to a
+        # webhook `--card` child, so the holder owed it one event batch.
+        holder = self.hold_the_lock()
+        labels.events_pass(CONFIG)
+        self.release()
+
+        ran = []
+        self.record(lambda: ran.append)
+
+        self.assertEqual(labels.reconcile_locked("t_301", CONFIG), 0)
+
+        self.assertEqual(ran, [("card", "t_301"), ("events", None)],
+                         "the pending marker was an event batch, not a card id")
+
+    def test_an_event_holder_that_finds_a_card_pending_reads_that_card(self):
+        holder = self.hold_the_lock()
+        labels.reconcile_locked("t_301", CONFIG)
+        self.release()
+
+        ran = []
+        self.record(lambda: ran.append)
+
+        self.assertEqual(labels.events_pass(CONFIG), 0)
+
+        self.assertIn(("events", "t_301"), ran,
+                      "the pending marker named a card, so the event pass owes it that card")
+
+    def record(self, sink):
+        """Replace the two scope runners with recorders; restore afterwards."""
+        original_reconciler, original_events = labels.Reconciler, labels._events_once
+
+        class RecordingReconciler:
+            def __init__(self, config, **kwargs):
+                pass
+
+            def run(self, scope):
+                sink()(("card", scope))
+                return labels.Report(0)
+
+        def recording_events_once(config, named, fallback, dry_run):
+            sink()(("events", named))
+            return 0
+
+        setattr(labels, "Reconciler", RecordingReconciler)
+        setattr(labels, "_events_once", recording_events_once)
+        self.addCleanup(setattr, labels, "Reconciler", original_reconciler)
+        self.addCleanup(setattr, labels, "_events_once", original_events)
+
+
 class HookTests(unittest.TestCase):
     def make(self, cards, objects, prs=None, events=None):
         fixture = Fixture(cards, objects, prs, events)

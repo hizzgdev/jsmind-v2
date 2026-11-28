@@ -428,6 +428,39 @@ def take_dirty() -> str | None:
     return scope or None
 
 
+DIRTY_EVENTS = "events"
+DIRTY_FULL = "full"
+
+
+def dirty_scope(scope: str) -> str:
+    """The dirty marker for a reconcile scope: `full`, `events` or `card:<id>`.
+
+    The marker used to hold the bare scope, which made the two kinds of wake
+    indistinguishable: a lost `--card` race wrote the card id, a lost event wake
+    wrote `events`, and `reconcile_locked` fed whichever it found to
+    `Reconciler.run()` as a card id. So a completion hook that lost the lock to
+    a webhook `--card` child handed the holder `events`, the holder looked for a
+    card by that name, found none, and dropped the whole batch the event wake had
+    already read — `card events is not on the board; nothing to reconcile`. That
+    card had just gone `done`, so nothing else was coming to fix its labels.
+    """
+    if scope in (DIRTY_FULL, DIRTY_EVENTS):
+        return scope
+    return f"card:{scope}"
+
+
+def dirty_target(marker: str) -> tuple[str, str | None]:
+    """`(kind, card id)` for a dirty marker; kind is `full`, `events` or `card`."""
+    if marker == DIRTY_FULL:
+        return (DIRTY_FULL, None)
+    if marker == DIRTY_EVENTS or not marker:
+        return (DIRTY_EVENTS, None)
+    if marker.startswith("card:"):
+        return ("card", marker[len("card:"):])
+    # A marker left by an older version is a bare card id; still means that card.
+    return ("card", marker)
+
+
 # ---- GitHub ----------------------------------------------------------------
 
 
@@ -707,7 +740,7 @@ def events_pass(config: dict, named: str | None = None, fallback: bool = False,
     """
     holder = _lock(_path("lock"), blocking=False)
     if holder is None:
-        mark_dirty(named or "events")
+        mark_dirty(dirty_scope(named) if named else DIRTY_EVENTS)
         where = f"events card {named}" if named else "events"
         say(f"{where}: a reconcile is already running; marked dirty")
         return 0
@@ -720,39 +753,85 @@ def events_pass(config: dict, named: str | None = None, fallback: bool = False,
                 return 1
             if status != 0:
                 return status
-            if take_dirty() is None:
+            pending = take_dirty()
+            if pending is None:
                 break
+            named, fallback = _follow_dirty(pending, config, dry_run)
     finally:
         os.close(holder)
     return 0
 
 
+def _follow_dirty(marker: str, config: dict, dry_run: bool) -> tuple[str | None, bool]:
+    """Turn a dirty marker into the next event-pass scope.
+
+    The holder has to honour the marker it was left, whichever kind of wake
+    wrote it: a `--card` or `--full` child losing the lock leaves a card id or
+    `full` behind, and only an event child leaves `events`.
+    """
+    kind, card_id = dirty_target(marker)
+    if kind == DIRTY_FULL:
+        say(f"events: a full sweep was pending too ({marker!r}); running it")
+        try:
+            review = Reconciler(config, dry_run=dry_run).run(DIRTY_FULL)
+        except BoardError as exc:
+            say(f"[ERROR] {exc}")
+            return (None, False)
+        say(review.line())
+        return (None, False)
+    if kind == DIRTY_EVENTS:
+        say("events: another wake asked for the same batch; re-reading it")
+        return (None, False)
+    say(f"events: a direct card wake was pending too ({card_id})")
+    return (card_id, False)
+
+
 def reconcile_locked(scope: str, config: dict, dry_run: bool = False) -> int:
-    """Run one reconcile under the board-wide lock, honouring a dirty marker."""
+    """Run one reconcile under the board-wide lock, honouring a dirty marker.
+
+    Two kinds of wake can lose this lock: another `--card` / `--full` run, and
+    an event child (a hook's detached `--events` pass). The marker says which;
+    `_events_once` is the only thing that consumes an event batch, so a holder
+    that finds `events` pending has to run it rather than look for a card by
+    that name.
+    """
     holder = _lock(_path("lock"), blocking=False)
     if holder is None:
         # Never sleep outside the lock: the holder already covers this run, so
         # record that one is wanted after it and get out of the way.
-        mark_dirty(scope)
+        mark_dirty(dirty_scope(scope))
         say(f"scope={scope}: a reconcile is already running; marked dirty")
         return 0
     try:
         current = scope
         for _ in range(5):
             try:
-                report = Reconciler(config, dry_run=dry_run).run(current)
+                if current == DIRTY_EVENTS:
+                    status = _events_once(config, None, False, dry_run)
+                else:
+                    status = 0
+                    say(Reconciler(config, dry_run=dry_run).run(current).line())
             except BoardError as exc:
                 say(f"[ERROR] {exc}")
                 return 1
-            say(report.line())
+            if status != 0:
+                return status
             pending = take_dirty()
             if pending is None:
                 break
-            if current == "full":
+            if current == DIRTY_FULL:
                 break           # a full sweep already covers whatever was asked for
             # Two pending cards collapse into the last one, which is the newest
-            # state anyone asked about.
-            current = "full" if pending == "full" else pending
+            # state anyone asked about. The special scopes keep their meaning.
+            kind, card_id = dirty_target(pending)
+            if kind == DIRTY_FULL:
+                current = DIRTY_FULL
+            elif kind == DIRTY_EVENTS:
+                current = DIRTY_EVENTS
+            elif card_id:
+                current = card_id
+            else:
+                break           # an empty marker: nothing left to honour
     finally:
         os.close(holder)
     return 0
