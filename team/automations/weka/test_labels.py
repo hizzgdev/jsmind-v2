@@ -484,15 +484,18 @@ class HookTests(unittest.TestCase):
         self.addCleanup(fixture.close)
         return fixture
 
-    def payload(self, task_id=None):
+    def payload(self, task_id=None, profile="cody", extra=None):
         return json.dumps({
             "hook_event_name": "post_tool_call",
             "tool_name": "kanban_show",
             "tool_input": {"task_id": task_id} if task_id else {},
             "session_id": "test-session",
             "cwd": "/tmp",
-            "profile": "cody",
-            "extra": {},
+            "profile": profile,
+            # A real payload's `extra.task_id` is `effective_task_id`:
+            # `task_id or str(uuid.uuid4())`. Here it is a uuid on purpose — the
+            # script must not mistake it for a card id.
+            "extra": extra if extra is not None else {"task_id": "34a45557-fc92-4fbe-9c98-abed2772bc54"},
         })
 
     def log(self, board):
@@ -562,11 +565,81 @@ class HookTests(unittest.TestCase):
         # The 10th call is the one that broadened out to the whole board.
         self.assertIn("trigger 10: scope=full", text)
 
-    def test_a_payload_without_a_task_id_falls_back_to_a_full_sweep(self):
+    def test_a_payload_without_a_task_id_or_a_profile_falls_back_to_a_full_sweep(self):
         board = self.make([card(301, "ready", assignee=None)], {"301": {"state": "open", "labels": []}})
+        result = board.run("--reconcile", "--once", "--from-hook", stdin=self.payload(profile=""))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(
+            self.wait_for_log(board, "scope=full (the payload names no card and no profile)"),
+            self.log(board),
+        )
+
+    def test_a_real_payload_resolves_the_profiles_only_running_card(self):
+        # Reed's must-fix: a real payload has `tool_input: {}` (the SOUL calls
+        # `kanban_show()` / `kanban_complete(summary=…)`, never a task id) and
+        # `extra.task_id` is a per-turn uuid. Without the profile lookup, 9 of
+        # every 10 triggers logged "card <uuid> is not on the board" and wrote
+        # nothing; only the 10th sweep and the webhook ever labelled anything.
+        board = self.make(
+            [card(262, "running", branch="jsmind-v2/t-262"), card(300, "ready")],
+            {"262": {"state": "open", "labels": ["weka"]},
+             "300": {"state": "open", "labels": []}},
+        )
         result = board.run("--reconcile", "--once", "--from-hook", stdin=self.payload())
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("scope=full (the payload carries no task_id)", self.log(board))
+        self.assertEqual(result.stdout, "", "hook mode must not print to stdout")
+        self.assertTrue(
+            self.wait_for_log(board, "t_262 #262 issue: +weka-working"),
+            f"the sweep never wrote the label: {self.log(board)}",
+        )
+        self.assertIn("profile cody: scope=card t_262 (its only running card)", self.log(board))
+        self.assertNotIn("is not on the board", self.log(board))
+        self.assertEqual(board.labels_of(262), ["weka", "weka-working"])
+        # Only that card was reconciled: the `ready` one is not read at all.
+        self.assertNotIn("300", " ".join(board.calls()))
+
+    def test_no_running_card_for_the_profile_widens_to_a_full_sweep(self):
+        # An interactive `-p cody` session, or a probe: nothing to pin the card
+        # to, so the sweep covers the whole window and says so.
+        board = self.make([card(301, "ready", assignee=None)],
+                          {"301": {"state": "open", "labels": []}})
+        result = board.run("--reconcile", "--once", "--from-hook", stdin=self.payload())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(
+            self.wait_for_log(board, "profile cody: 0 running cards; falling back to a full sweep"),
+            self.log(board),
+        )
+        self.assertTrue(self.wait_for_log(board, "t_301 #301 issue: +weka-queue"), self.log(board))
+
+    def test_two_running_cards_for_the_profile_widen_to_a_full_sweep(self):
+        # A second card for one profile means the board is not pinned to one
+        # card; picking either would be a guess.
+        board = self.make(
+            [card(262, "running"), card(263, "running")],
+            {"262": {"state": "open", "labels": []}, "263": {"state": "open", "labels": []}},
+        )
+        result = board.run("--reconcile", "--once", "--from-hook", stdin=self.payload())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(
+            self.wait_for_log(board, "profile cody: 2 running cards; falling back to a full sweep"),
+            self.log(board),
+        )
+        self.assertTrue(self.wait_for_log(board, "t_263 #263 issue: +weka-working"), self.log(board))
+
+    def test_an_explicit_task_id_beats_the_profile_lookup(self):
+        # `tool_input.task_id` is consulted first: when the model passed a card
+        # id, that is the card the call touched, whatever else is running.
+        board = self.make(
+            [card(262, "running"), card(263, "running")],
+            {"262": {"state": "open", "labels": []}, "263": {"state": "open", "labels": []}},
+        )
+        result = board.run("--reconcile", "--once", "--from-hook", stdin=self.payload("t_262"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(
+            self.wait_for_log(board, "t_262 #262 issue: +weka-working"), self.log(board)
+        )
+        self.assertNotIn("t_263", self.log(board))
+        self.assertEqual(board.labels_of(263), [])
 
     def test_the_hook_returns_before_the_sweep_finishes(self):
         # The hook's stdout must reach EOF immediately: `agent/shell_hooks.py`

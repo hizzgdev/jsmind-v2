@@ -16,7 +16,11 @@ Two event sources feed one reconcile function, and there is no timer:
 
 - `post_tool_call` (`--from-hook`): advances a counter under `flock`; every
   `FULL_SWEEP_EVERY`-th call reconciles the whole board, the others reconcile
-  only the card the tool call touched.
+  only the card the tool call touched. That card is the call's explicit
+  `task_id` when the model passed one, otherwise the only `running` card of the
+  profile that fired the hook: a real payload carries no card id at all
+  (`extra.task_id` is a per-turn uuid), and a profile is pinned to a single
+  in-progress card. When neither resolves, the call widens to a full sweep.
 - a card being created (`--once --card <id>`, spawned detached by
   `github-webhook.py`): `kanban create` is a CLI call, so no tool hook sees it,
   and the new card waits in `ready` without a session — that window is exactly
@@ -78,6 +82,12 @@ FULL_SWEEP_EVERY = 10
 # card went `done` (that transition fires the hook); the window only has to
 # catch a sweep that died mid-run.
 FULL_SWEEP_DONE_LIMIT = 10
+
+# The scope a hook passes when the payload has no card id: the detached child
+# resolves it against the board, because a workspace profile runs at most one
+# card (`kanban.max_in_progress_per_profile`). Resolved in the child, not in the
+# hook process: the hook itself is still fenced off the board (see `granted_env`).
+PROFILE_SCOPE = "profile:"
 
 # `review` is a queue, not a review in progress: the card waits there until reed
 # claims it, so at that instant nobody is touching the PR.
@@ -335,6 +345,20 @@ class Reconciler:
         cards = self.cards if self.cards is not None else read_board(self.config)
         if scope == "full":
             cards = sweep_window(cards)
+        elif scope.startswith(PROFILE_SCOPE):
+            name = scope[len(PROFILE_SCOPE):]
+            running = [card for card in cards
+                       if (card.get("status") or "") == "running" and card.get("assignee") == name]
+            if len(running) == 1:
+                # A hook payload names no card; a profile runs one card at a
+                # time, so this is the card the tool call came from.
+                say(f"profile {name}: scope=card {running[0].get('id')} (its only running card)")
+                cards = running
+            else:
+                # Zero: an interactive session, or a probe. More than one: the
+                # board is not pinned, so guessing one card would be wrong.
+                say(f"profile {name}: {len(running)} running cards; falling back to a full sweep")
+                cards = sweep_window(cards)
         else:
             cards = [card for card in cards if card.get("id") == scope]
             if not cards:
@@ -510,22 +534,32 @@ def granted_env() -> dict[str, str]:
 
 
 def hook_scope(payload: dict) -> str:
-    """`"full"` or a card id, from the counter and the tool call's arguments."""
+    """`"full"`, a card id, or `"profile:<name>"`, from the counter and the payload.
+
+    A real `post_tool_call` payload has `tool_input: {}` for `kanban_complete()` /
+    `kanban_show()` (the model passes no `task_id`), and its `extra.task_id` is
+    `effective_task_id` — `task_id or str(uuid.uuid4())` — so it is a per-turn
+    uuid, never a card id. The card is therefore the profile's only `running`
+    one, and that can only be resolved against the board, which the detached
+    child reads anyway. `extra.task_id` is deliberately not consulted.
+    """
     count = bump_counter()
     if count % FULL_SWEEP_EVERY == 0:
         say(f"trigger {count}: scope=full (every {FULL_SWEEP_EVERY}th call)")
         return "full"
     tool_input = payload.get("tool_input")
-    extra = payload.get("extra")
     task_id = (tool_input or {}).get("task_id") if isinstance(tool_input, dict) else None
-    if not task_id and isinstance(extra, dict):
-        task_id = extra.get("task_id")
-    if not task_id:
-        # An interactive `-p cody` session fires the matcher without a card.
-        say(f"trigger {count}: scope=full (the payload carries no task_id)")
-        return "full"
-    say(f"trigger {count}: scope=card {task_id}")
-    return str(task_id)
+    if task_id:
+        say(f"trigger {count}: scope=card {task_id}")
+        return str(task_id)
+    profile = payload.get("profile")
+    if isinstance(profile, str) and profile.strip():
+        name = profile.strip()
+        say(f"trigger {count}: scope=profile {name} (resolve against the board)")
+        return PROFILE_SCOPE + name
+    # An interactive session with no profile pinned and no card named.
+    say(f"trigger {count}: scope=full (the payload names no card and no profile)")
+    return "full"
 
 
 def detach(scope: str, log, config_path: str) -> None:
@@ -536,7 +570,12 @@ def detach(scope: str, log, config_path: str) -> None:
     hang until `timeout` and then kills the reconcile mid-run.
     """
     argv = [sys.executable, SCRIPT, "--reconcile", "--once", "--config", config_path]
-    argv += ["--full"] if scope == "full" else ["--card", scope]
+    if scope == "full":
+        argv.append("--full")
+    elif scope.startswith(PROFILE_SCOPE):
+        argv += ["--profile", scope[len(PROFILE_SCOPE):]]
+    else:
+        argv += ["--card", scope]
     subprocess.Popen(
         argv,
         stdin=subprocess.DEVNULL,
@@ -589,6 +628,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="hook mode: read the payload on stdin, spawn a worker, exit")
     parser.add_argument("--full", action="store_true", help="reconcile every card on the board")
     parser.add_argument("--card", metavar="ID", help="reconcile only this card")
+    parser.add_argument("--profile", metavar="NAME",
+                        help="hook mode: reconcile the only running card of this profile")
     parser.add_argument("--dry-run", action="store_true", help="print the difference, write nothing")
     parser.add_argument("--config", default=DEFAULT_CONFIG, help=f"config path (default {DEFAULT_CONFIG})")
     args = parser.parse_args(argv)
@@ -598,7 +639,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0                                  # not reached: run_hook exits
 
     config = load_config(args.config)
-    scope = args.card or "full"
+    if args.card and args.profile:
+        sys.exit("--card and --profile are mutually exclusive")
+    scope = args.card or (PROFILE_SCOPE + args.profile if args.profile else "full")
     return reconcile_locked(scope, config, dry_run=args.dry_run)
 
 

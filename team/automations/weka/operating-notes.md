@@ -160,15 +160,17 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   Check the bridge journal first (`[OK] … kanban … create #<n>` versus a `[GATE] … skipping` line that names
   the condition it refused), then the board (`hermes kanban --board jsmind-v2 list` shows `● running` with
   elapsed time), then the worktree (`.worktrees/<task>` on a branch that is not pushed yet). A worker can run
-  for ten minutes editing a dozen files with no branch, no PR and no label on GitHub — the label is a prose
-  step in SOUL, so its absence proves nothing about whether the worker started. Quote the timestamps back
+  for ten minutes editing a dozen files with no branch, no PR and no label on GitHub — the label is written
+  by a sweep that follows the board, so its absence means the sweep has not reached the card, not that the
+  worker never started. Quote the timestamps back
   instead of diagnosing the premise as given.
 
 - **The four process labels have one writer, and it is `labels.py`.** `weka-queue` / `weka-working` /
   `weka-reviewing` / `weka-blocked` are added and removed by
   `team/automations/weka/labels.py`, which reads the board and writes only the difference. The phase is
   a pure function of `(status, assignee)`; the two event sources are the `post_tool_call` hook (every
-  10th call reconciles the whole board, the rest only the card that tool call touched) and the webhook's
+  10th call reconciles the whole board, the rest only the card that tool call touched — the payload
+  names no card id, so the sweep takes the one `running` card of the profile that fired it) and the webhook's
   create path (right after `kanban create`, that one card — `kanban create` is a CLI call no tool hook
   sees, and the new card sits in `ready` with no session until the dispatcher claims it, which is the
   window `weka-queue` is for). No timer. "The whole board" means every unfinished card plus the ten most
@@ -180,8 +182,11 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   transition rather than a second owner — its ordering rule cannot be handed to an asynchronous sweep
   that may land seconds later — and a sweep that starts afterwards finds nothing left to write. A sweep
   already in flight when the card flips can still land after it and write `weka-reviewing` back onto a
-  now-ready PR; the window is seconds, the next sweep (the `kanban_complete` hook) erases it, and
-  `weka-reviewed` is untouched, so the label heals itself rather than being guaranteed correct.
+  now-ready PR; the window is seconds, and `weka-reviewed` is untouched. Whether that stale label heals
+  then depends on the card's shape. On a rework card the object *is* the PR, so the next sweep (the
+  `kanban_complete` hook) erases it. On an issue card the card is already `done`, and a finished card
+  only strips the issue its body names — the PR is not read at all — so the label stays on that PR until
+  the webhook's close-time `strip_labels()` clears it.
 - **The hook fires inside a worker, so the sweep is handed a fence-free env.** Hermes mints
   `HERMES_DELEGATED_CHILD_CONTEXT` into every subprocess of a worker, and under that fence
   `hermes kanban list` exits 1: `list` runs `recompute_ready()`, which is a write. `labels.py` drops the
