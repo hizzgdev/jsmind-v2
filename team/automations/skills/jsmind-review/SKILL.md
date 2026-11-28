@@ -39,11 +39,12 @@ below it is mechanical, and each rule exists because its absence was measured on
 - **A must-fix that has a line belongs on the diff.** Send it through the review-comment endpoint
   (`POST repos/{owner}/{repo}/pulls/<n>/comments`) instead of the summary; the summary keeps the
   cross-file and contract-level conclusions, and every review still posts one. The payload is
-  `{"body": …, "commit_id": "<head sha>", "path": "src/view/index.ts", "line": 409, "side": "RIGHT"}`,
-  written with `write_file` to a path outside the repo (the heredoc form above is rejected here too), then
-  `gh api -X POST repos/{owner}/{repo}/pulls/<n>/comments --input <file>`. `line` must fall inside the
-  diff's hunk — an added or changed line — or GitHub answers 422 `line must be part of the diff`, and
-  `commit_id` is the head sha that hunk belongs to. The language and length rules apply here as well.
+  `{"body": …, "commit_id": "<head sha>", "path": "src/view/index.ts", "line": 409, "side": "RIGHT"}`.
+  `--input` takes a file path and nothing else, so write the payload to a file under `$TMPDIR` with
+  `write_file` first, then `gh api -X POST repos/{owner}/{repo}/pulls/<n>/comments --input <file>`.
+  `line` must fall inside the diff's hunk — an added or changed line — or GitHub answers 422
+  `line must be part of the diff`, and `commit_id` is the head sha that hunk belongs to. The language
+  and length rules apply here as well.
 
 ## Project conventions
 
@@ -89,7 +90,7 @@ below it is mechanical, and each rule exists because its absence was measured on
   A "squash these N commits" request sends the implementer into a force push this flow has no permission
   for, and the card dies there — the ban and its reason are in
   `team/automations/weka/SOUL.reed.md` under 不要要求重写分支历史. What is reviewable is the diff; only
-  the PR title survives into the merge subject, which is why the title is.
+  the PR title survives into the merge subject, which is why the title is reviewed against the diff.
 - **A conclusion that hinges on an owner decision is not a verdict.** Post the PR comment first — fixed
   first line `## 需要 owner 决定：<one sentence>`, the options with their consequences, `@hizzgdev`, last
   line `请在本 PR 回复，我按你的回复继续。` — and only then block the card, with that comment's URL as
