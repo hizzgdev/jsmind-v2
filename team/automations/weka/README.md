@@ -89,9 +89,9 @@ GitHub Issue（weka 标签 + 指派 zzgbot）
 | issue 评论 → groom | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ assignees 里有 `hizzgdev`；⑤ 配置了 `groom_board` / `groom_assignee` | 在 `groom_board` 上建 scout 卡，指派给 `groom_assignee` |
 | issue 评论 → 实现 | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ assignees 里有 `zzgbot` | 建 `#<n>: Rework — …` 卡给 cody（与 PR 返工同一形状），正文带评论原文 |
 | issue 评论 → 没人接 | ① issue 带 `weka`；② 作者是 `hizzgdev`；③ 没有 open 卡；④ 两个 assignee 都不在 | 在 issue 上留一句说明，不建卡 |
-| PR 返工 | ① 该编号已有 open 卡 | 把评论正文追加到那张卡。**这一条不看标签、不看 PR 状态**：返工进行中的留言不能被任何标记挡住 |
+| PR 返工 | ① 这张 PR 已有 open 卡（认领按两种键取最新一张：标题 `#<PR号>:`，或 `branch_name` 等于这张 PR 的 head ref） | 把评论正文追加到那张卡。**这一条不看标签、不看 PR 状态**：返工进行中的留言不能被任何标记挡住 |
 | PR 返工 | ① 没有 open 卡；② PR 是 open；③ 这张 PR 最新的一张卡是 `done`；④ 入口是 `hizzgdev` 的提交 review（非 `approved`）或会话评论或行内评论 | 建返工卡，卡上带着评论原文 |
-| PR 返工 | ① 没有 open 卡；② 最新一张卡不存在或是 `archived` | 不建卡，在 PR 上留一句说明（见下一节） |
+| PR 返工 | ① 没有 open 卡；② 两种键都查不到卡，或最新一张是 `archived` | 不建卡，在 PR 上留一句说明（见下一节） |
 | PR 关闭 → groom | ① `pull_request.closed`，merged 与否都算（与 cleanup 同范围，不看标签） | 在 `groom_board` 上建 `#<PR 号>: Groom — …` 卡给 `groom_assignee`；板上已有 open 卡就把这次关闭追加成那张卡的 comment |
 
 `closed` 里只有 groom 这一支会建卡；它剩下的动作是标签兜底清理，见下文「关闭时的兜底清理」。
@@ -204,7 +204,7 @@ journal 只有运维能看，提要求的人只看得见 GitHub。所以保留�
 | --- | --- |
 | 建返工卡失败（`hermes kanban create` 非零退出） | 说明请求没有进队列，指向 journal 和 webhook 投递记录里的 redeliver |
 | 追加到已有卡的评论失败（`hermes kanban comment` 非零退出） | 同上 |
-| PR 没有卡，或最新一张卡不是 `done`（已归档） | 说明为什么没建卡：只有 AI 已经把这张 PR 交回来（最新一张卡 `done`）、等终审的阶段才接人的返工请求 |
+| PR 没有卡，或最新一张卡不是 `done`（已归档） | 说明为什么没建卡：只有 AI 已经把这张 PR 交回来（最新一张卡 `done`）、等终审的阶段才接人的返工请求；文案里写明认领用的两种键（标题 `#<PR号>:`、`branch_name` = PR head）和实际读到的分支 |
 | issue 评论没有进卡：issue 没指派给 `zzgbot` 也没指派给 `hizzgdev` | 说明两个指派各接哪条路，指派之后再留一次言 |
 | issue 评论没有进卡：指派给了 `hizzgdev`，但 `groom_board` / `groom_assignee` 没配 | 说明这一支现在是关的、配置补上后再留一次言 |
 | issue 上建 scout 卡 / 返工卡失败 | 同 PR 侧的建卡失败说明（两种情况文案分别写"groom 卡失败"和"返工卡失败"） |
@@ -240,7 +240,7 @@ cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理
 
 **删除是部署之后的一次性动作。** 代码合并、webhook 重启、三个 profile 的钩子都绿了之后，才 `gh label delete weka-reviewed --yes`（它会把所有 PR 上的这个标签一并去掉，不用逐个清）。顺序反过来的话，新闸门还没上线、旧闸门要的标签已经没了，这段时间里的返工请求会全部被拒。
 
-**对账读事件游标，不按 profile 猜卡。** 每次唤醒读 `~/.hermes/state/weka-labels/events-<board>` 里的 cursor，查 `task_events` 里 id 大于它、且 kind 属于状态转换（`created` / `promoted` / `claimed` / `review_requested` / `changes_requested` / `completed` / `blocked` / `unblocked` / `scheduled` / `archived`）的行，去重 task_id，逐张对账，最后才推进 cursor。几个钉死的点：
+**对账读事件游标，不按 profile 猜卡。** 每次唤醒读 `~/.hermes/state/weka-labels/events-<board>` 里的 cursor，查 `task_events` 里 id 大于它、且 kind 不在「不改状态」的黑名单里的行（过滤口径见下一条），去重 task_id，逐张对账，最后才推进 cursor。几个钉死的点：
 
 - **游标初始化成 `max(id)`，不是 0。** 这块板有几千条历史事件，从 0 重放是 `gh` 限流事故，不是修复。
 - **游标按板分开**：groom 板是另一个数据库、另一套 id 空间。
@@ -258,7 +258,7 @@ cody 与 reed 的 SOUL 只写「做什么、按什么顺序」，状态机的理
 
 没注册的表现很干净、也很误导人：标签只在 GitHub 事件到达时才动，也就是 webhook 建卡那一下；卡跑起来之后的 `weka-queue → weka-working → weka-queue → weka-reviewing` 一次都不会自己发生，而 `~/.hermes/state/weka-labels/` 里什么都不会多出来。如果将来跨进程桥接失效（升级后行为变了），退路是只留 `post_tool_call` + 事件游标：功能都在，代价是 `weka-working` 晚到——直到 worker 第一次调 `kanban_*` 工具才出现。
 
-规则只有一条：**人在 PR 上的动作（提交 review 或留言），只在看板上这张 PR 最新的一张卡是 `done` 时才建新卡**。有 open 卡时走「追加到那张卡」，不看标签；没有卡或最新一张是 `archived`，说明这张 PR 不在本流程里，留一句说明。
+规则只有一条：**人在 PR 上的动作（提交 review 或留言），只在看板上这张 PR 最新的一张卡是 `done` 时才建新卡**。有 open 卡时走「追加到那张卡」，不看标签；没有卡或最新一张是 `archived`，说明这张 PR 不在本流程里，留一句说明。卡归属于哪张 PR 按两种键认：标题以 `#<PR号>:` 开头（返工卡），或 `branch_name` 等于这张 PR 的 head ref（开出这张 PR 的 issue 卡——它的标题用的是 *issue* 编号，只查标题永远找不到它）。两种命中按 `created_at` 取最新的一张。`issue_comment` 的 payload 里没有 `head`，这条路会多一次 `gh api repos/<slug>/pulls/<n>` 读分支。
 
 副产品：`weka-working` 挂在对象上、但板上没有对应的卡在跑，就是"卡崩了"的可视信号——排查先看标签，比翻看板快。
 
@@ -535,7 +535,7 @@ gh label create weka-blocked   --description "weka: stopped, waiting on a human 
 
 名字必须逐字一致（`weka-queue`，不是 `weka-queued` 之类）：`labels.py` 按字符串比对，建错的表现是对账每次都认为这个标签缺失、每次都想去补，而 `gh` 加一个不存在的 label 每次都回 422——GitHub 上看起来只是标签不动。建完 `gh label list | grep weka` 对一遍，五个一并列出来才算建齐。
 
-`weka` 在 issue 上是开工信号（必须配指派才生效），在 PR 上只是"这个 PR 归 weka 管"的归属标记、不参与任何判断。返工闸门也不在标签上：它问看板「这张 PR 最新的一张卡是不是 `done`」（见上文「标签与人工审核门」）。
+`weka` 在 issue 上是开工信号（必须配指派才生效），在 PR 上只是"这个 PR 归 weka 管"的归属标记、不参与任何判断。返工闸门也不在标签上：它问看板「这张 PR 最新的一张卡是不是 `done`」，而「哪张卡属于这张 PR」按标题 `#<PR号>:` 或 `branch_name` = PR head ref 两种键取最新（见上文「标签与人工审核门」）。
 
 再配 webhook：Settings → Webhooks → Add webhook：
 

@@ -14,6 +14,8 @@ assertion here is about a side effect, never about a log line.
 """
 import importlib.util
 import os
+import sqlite3
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -162,6 +164,7 @@ class FakeWeka(weka_webhook.Weka):
         self.board_calls = []                 # (args, board) for every kanban call
         self.object_comments = []             # (number, body) visible on GitHub
         self.reconciled = []                  # card ids handed to labels.py
+        self.lookups = []                     # ("open"|"latest", number, branch) asked
 
     def reconcile_card(self, card_id):
         # The real one spawns a subprocess; here the card id is the side effect.
@@ -172,13 +175,15 @@ class FakeWeka(weka_webhook.Weka):
         self.board_calls.append((args, board))
         return self.kanban_ok
 
-    def open_card_for(self, number, board=None):
+    def open_card_for(self, number, board=None, branch=None):
         # Any board argument is the groom board here; None is the flow's own.
+        self.lookups.append(("open", number, branch))
         pool = self.groom_cards if board else self.cards
         return pool[0] if pool else None
 
-    def latest_card_for(self, number, board=None):
+    def latest_card_for(self, number, board=None, branch=None):
         # The rework gate: `(card_id, status)` of the newest card for the number.
+        self.lookups.append(("latest", number, branch))
         return self.latest[0] if self.latest else None
 
     def open_groom_card(self):
@@ -192,7 +197,7 @@ class FakeWeka(weka_webhook.Weka):
         self.object_comments.append((number, body))
         return True
 
-    def _run(self, cmd):
+    def _run(self, cmd) -> tuple[int, str]:
         # A subprocess here means a test run would post to GitHub or touch git:
         # every method that reaches out has to be intercepted explicitly.
         raise AssertionError(f"FakeWeka must not run a subprocess: {cmd}")
@@ -223,6 +228,62 @@ class FakeWeka(weka_webhook.Weka):
             ref_url=f"https://github.com/hizzgdev/jsmind-v2/pull/{PR_NUMBER}#issuecomment-1",
             idem_key="gh-pr-151-comment-1",
         )
+
+
+class RealBoardWeka(FakeWeka):
+    """A `FakeWeka` whose two card lookups are the real SQL, on a real board.
+
+    `FakeWeka` stubs both of them, which is how a title-only query on `#<pr>:`
+    passed the whole suite while answering None on the live board for the card
+    that owned the PR. Only the side effects are faked here.
+    """
+
+    open_card_for = weka_webhook.Weka.open_card_for
+    latest_card_for = weka_webhook.Weka.latest_card_for
+
+    def __init__(self, db_path, **kwargs):
+        self._test_db = str(db_path)
+        super().__init__(**kwargs)
+
+    def _board_db(self, board=None):
+        return self._test_db
+
+
+BOARD_SCHEMA = """
+CREATE TABLE tasks (
+    id          TEXT PRIMARY KEY,
+    title       TEXT NOT NULL,
+    body        TEXT,
+    assignee    TEXT,
+    status      TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    branch_name TEXT
+);
+"""
+
+
+def make_board(rows):
+    """A temp kanban.db holding just the columns the gate reads.
+
+    `rows` are `(id, title, status, created_at, branch_name)`.
+    """
+    tmp = tempfile.TemporaryDirectory()
+    path = os.path.join(tmp.name, "kanban.db")
+    db = sqlite3.connect(path)
+    try:
+        db.executescript(BOARD_SCHEMA)
+        for row in rows:
+            db.execute(
+                "INSERT INTO tasks (id, title, status, created_at, branch_name) "
+                "VALUES (?,?,?,?,?)", row,
+            )
+        db.commit()
+    finally:
+        db.close()
+    return tmp, path
+
+
+HEAD_REF = "fix/arranger-cousin-spacing"
 
 
 class ARunningCardElsewhereTests(unittest.TestCase):
@@ -334,6 +395,140 @@ class RefusalsAreVisibleTests(unittest.TestCase):
 
         self.assertEqual(weka.creates(), [])
         self.assertEqual(weka.object_comments, [], "a merged PR has nothing left to rework")
+
+
+class TheGateFindsTheCardThatOpenedThePrTests(unittest.TestCase):
+    """The gate on a real SQLite board: the PR number is not the card's number.
+
+    Cards are titled with the issue they were opened for (`#304: …`), so PR #151
+    has no card whose title starts `#151:` until a rework card exists. The branch
+    is the second key, and the title-only query that shipped first answered None
+    for the card that owned the PR — so every PR's first human rework request was
+    refused as "this PR has no card", and only a PR reworked once before could be
+    reworked again.
+    """
+
+    def weka(self, rows, **kwargs):
+        tmp, path = make_board(rows)
+        self.addCleanup(tmp.cleanup)
+        return RealBoardWeka(path, **kwargs)
+
+    def test_the_running_card_that_opened_the_pr_absorbs_the_comment(self):
+        weka = self.weka(
+            [("t_304", "#304: fix(weka): flow labels", "running", 1000, HEAD_REF)],
+            latest=[],
+        )
+
+        weka.trigger()
+
+        self.assertEqual(weka.creates(), [], "the card that opened this PR is still open")
+        self.assertEqual([call[1] for call in weka.card_comments()], ["t_304"])
+        self.assertEqual(weka.object_comments, [])
+
+    def test_a_done_card_that_opened_the_pr_opens_the_gate(self):
+        weka = self.weka([("t_304", "#304: fix(weka): flow labels", "done", 1000, HEAD_REF)])
+
+        weka.trigger()
+
+        creates = weka.creates()
+        self.assertEqual(len(creates), 1, weka.kanban_calls)
+        self.assertTrue(creates[0][1].startswith(f"#{PR_NUMBER}: Rework — "), creates[0][1])
+
+    def test_an_archived_card_is_explained_on_the_pr(self):
+        weka = self.weka(
+            [("t_304", "#304: fix(weka): flow labels", "archived", 1000, HEAD_REF)],
+            latest=[],
+        )
+
+        weka.trigger()
+
+        self.assertEqual(weka.creates(), [])
+        self.assertEqual(len(weka.object_comments), 1)
+        self.assertIn("不是 `done`", weka.object_comments[0][1])
+
+    def test_no_card_at_all_is_explained_on_the_pr(self):
+        weka = self.weka([])
+
+        weka.trigger()
+
+        self.assertEqual(weka.creates(), [])
+        self.assertIn("没有卡", weka.object_comments[0][1])
+
+    def test_a_rework_card_still_wins_by_its_title(self):
+        # The union is read newest-first, so the newer rework card beats the
+        # older issue card that opened the PR.
+        weka = self.weka([
+            ("t_304", "#304: fix(weka): flow labels", "done", 1000, HEAD_REF),
+            ("t_rework", f"#{PR_NUMBER}: Rework — fix(arranger)", "ready", 2000, ""),
+        ])
+
+        weka.trigger()
+
+        self.assertEqual(weka.creates(), [], "one open card per number")
+        self.assertEqual([call[1] for call in weka.card_comments()], ["t_rework"])
+
+    def test_a_card_on_another_branch_is_not_claimed(self):
+        # The branch key must not turn every card into an owner: this one is on
+        # `#304`, and its branch is not PR #151's head ref.
+        weka = self.weka(
+            [("t_304", "#304: fix(weka): flow labels", "done", 1000, "jsmind-v2/t_304-other")],
+            latest=[],
+        )
+
+        weka.trigger()
+
+        self.assertEqual(weka.creates(), [])
+        self.assertIn("没有卡", weka.object_comments[0][1])
+
+
+class TheHeadRefLookupTests(unittest.TestCase):
+    """`issue_comment` on a PR carries the issue object, which has no `head`."""
+
+    class GhWeka(RealBoardWeka):
+        def __init__(self, db_path, rc=0, head_ref=HEAD_REF, **kwargs):
+            self.rc, self.head_ref, self.commands = rc, head_ref, []
+            super().__init__(db_path, **kwargs)
+
+        def repo_slug(self):
+            return "hizzgdev/jsmind-v2"
+
+        def _run(self, cmd):
+            self.commands.append(list(cmd))
+            return self.rc, self.head_ref
+
+    def make(self, **kwargs):
+        tmp, path = make_board([("t_304", "#304: fix(weka): flow labels", "done", 1000, HEAD_REF)])
+        self.addCleanup(tmp.cleanup)
+        return self.GhWeka(path, **kwargs)
+
+    def trigger_without_head(self, weka):
+        payload = comment_payload("please rework this")
+        # A real `issue_comment` payload carries the *issue* object at the top
+        # level; the PR fields live under `issue` and there is no `head` there.
+        del payload["pull_request"]
+        del payload["issue"]["head"]
+        weka.handle_issue_comment(payload)
+
+    def test_the_branch_is_read_when_the_payload_does_not_carry_it(self):
+        weka = self.make()
+
+        self.trigger_without_head(weka)
+
+        self.assertEqual(len(weka.commands), 1, weka.commands)
+        self.assertEqual(
+            weka.commands[0][2:],
+            [f"repos/hizzgdev/jsmind-v2/pulls/{PR_NUMBER}", "-q", ".head.ref"],
+            "one gh read, and it asks for the head ref rather than the whole PR",
+        )
+        self.assertEqual(len(weka.creates()), 1, weka.kanban_calls)
+
+    def test_a_failed_read_falls_back_to_the_title_key(self):
+        weka = self.make(rc=1, head_ref="HTTP 404: Not Found")
+
+        self.trigger_without_head(weka)
+
+        self.assertEqual(weka.creates(), [], "no branch, so the title is the only key")
+        self.assertIn("没有卡", weka.object_comments[0][1])
 
 
 class AnOpenCardAbsorbsTheCommentTests(unittest.TestCase):
@@ -741,10 +936,10 @@ class CreatedCardReconcileTests(unittest.TestCase):
     class LateCardWeka(FakeWeka):
         """`open_card_for` answers None until the create has landed."""
 
-        def open_card_for(self, number, board=None):
+        def open_card_for(self, number, board=None, branch=None):
             if not self.creates():
                 return None
-            return super().open_card_for(number, board)
+            return super().open_card_for(number, board, branch)
 
     def test_a_created_card_is_reconciled_by_its_own_card_id(self):
         weka = self.LateCardWeka(cards=[("t_9f2c", "ready")])

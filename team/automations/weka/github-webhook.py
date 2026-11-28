@@ -195,53 +195,91 @@ class Weka:
         finally:
             db.close()
 
-    def open_card_for(self, number: int | None, board: str | None = None) -> tuple[str, str] | None:
-        """`(task_id, status)` of the open card keyed on this number, else None.
+    def _owner_card(self, number: int | None, board: str | None, branch: str | None,
+                    *, open_only: bool) -> tuple[str, str] | None:
+        """`(task_id, status)` of the newest card that owns this PR, else None.
 
-        The key is the title prefix `#<number>:` — prefix-anchored so that a card
-        mentioning `#86:` mid-title never shadows the card that owns the number.
+        Two keys, unioned and read newest-first:
+
+        - the title prefix `#<number>:` — prefix-anchored so that a card
+          mentioning `#86:` mid-title never shadows the card that owns the number;
+        - `branch_name` equal to the PR's head ref.
+
+        The second key is not decoration. Cards are titled with the **issue**
+        number they were opened for (`#304: fix(weka)…`); the PR number only ever
+        appears on a rework card (`#305: Rework — …`). A title-only lookup
+        therefore answers None for the card that opened the PR, and on the live
+        board it did: `latest_card_for(305)` returned None while PR #305's owner
+        card was `running`. Every PR's *first* human rework request would have
+        been refused as "this PR has no card", and only a PR that had already
+        been reworked once could ever be reworked again.
+
+        `branch` empty falls back to the title key alone — the old behaviour,
+        and the right one when the payload and `gh` both cannot name a branch.
+        """
+        if number is None:
+            return None
+        clauses = ["title LIKE ?"]
+        params: list = [f"#{number}:%"]
+        if branch:
+            clauses.append("branch_name = ?")
+            params.append(branch)
+        sql = f"SELECT id, status FROM tasks WHERE ({' OR '.join(clauses)})"
+        if open_only:
+            sql += " AND status NOT IN ('done', 'archived')"
+        sql += " ORDER BY created_at DESC LIMIT 1"
+        try:
+            rows = self._query(sql, tuple(params), board=board)
+        except Exception as exc:
+            what = "card" if open_only else "latest card"
+            print(f"[WARN] {what} lookup failed for #{number}: {exc}", file=sys.stderr)
+            return None
+        return (rows[0][0], rows[0][1]) if rows else None
+
+    def open_card_for(self, number: int | None, board: str | None = None,
+                      branch: str | None = None) -> tuple[str, str] | None:
+        """`(task_id, status)` of the open card that owns this number, else None.
 
         `board` selects the board to search; None is this flow's own, so every
         existing caller keeps looking exactly where it did. The groom card lives
         on its own board, and a number can be open there as well.
         """
-        if number is None:
-            return None
-        try:
-            rows = self._query(
-                "SELECT id, status FROM tasks WHERE title LIKE ? "
-                "AND status NOT IN ('done', 'archived') "
-                "ORDER BY created_at DESC LIMIT 1",
-                (f"#{number}:%",),
-                board=board,
-            )
-        except Exception as exc:
-            print(f"[WARN] card lookup failed for #{number}: {exc}", file=sys.stderr)
-            return None
-        return (rows[0][0], rows[0][1]) if rows else None
+        return self._owner_card(number, board, branch, open_only=True)
 
-    def latest_card_for(self, number: int | None, board: str | None = None) -> tuple[str, str] | None:
-        """`(task_id, status)` of the newest card keyed on this number, any state.
+    def latest_card_for(self, number: int | None, board: str | None = None,
+                        branch: str | None = None) -> tuple[str, str] | None:
+        """`(task_id, status)` of the newest card that owns this number, any state.
 
         The rework gate reads this instead of a label. Board order is the truth:
-        the newest card for a number is the one that most recently represented
-        it, so its status says whether the AI has delivered (`done`), is still
+        the newest owning card is the one that most recently represented the PR,
+        so its status says whether the AI has delivered (`done`), is still
         working (`running`/`review`/`ready`, which `open_card_for` has already
         absorbed), or gave up on it (`archived`).
         """
-        if number is None:
-            return None
-        try:
-            rows = self._query(
-                "SELECT id, status FROM tasks WHERE title LIKE ? "
-                "ORDER BY created_at DESC LIMIT 1",
-                (f"#{number}:%",),
-                board=board,
-            )
-        except Exception as exc:
-            print(f"[WARN] latest card lookup failed for #{number}: {exc}", file=sys.stderr)
-            return None
-        return (rows[0][0], rows[0][1]) if rows else None
+        return self._owner_card(number, board, branch, open_only=False)
+
+    def pr_head_ref(self, number: int | None, pr: dict) -> str:
+        """A PR's head branch, from the payload or one `gh api` read.
+
+        `pull_request.*` payloads carry `head.ref`. An `issue_comment` on a PR
+        carries the plain **issue** object instead — no `head` — and the gate
+        needs the branch to find the card that opened the PR (cards are titled
+        with the issue number). Best effort throughout: no branch just means the
+        title key is the only one.
+        """
+        ref = ((pr.get("head") or {}).get("ref")) or ""
+        if ref or number is None:
+            return ref
+        slug = self.repo_slug()
+        if slug is None or not self.gh:
+            return ""
+        rc, out = self._run([
+            self.gh, "api", f"repos/{slug}/pulls/{number}", "-q", ".head.ref",
+        ])
+        if rc != 0:
+            print(f"[WARN] cannot read the head ref of PR #{number}: {out}", file=sys.stderr)
+            return ""
+        return (out.splitlines() or [""])[-1].strip()
 
     def open_groom_card(self) -> tuple[str, str] | None:
         """`(task_id, status)` of the one open card on the groom board, else None.
@@ -895,10 +933,14 @@ class Weka:
         pr = payload.get("pull_request") or (payload.get("issue") or {})
         number = pr.get("number")
         labels = [lbl.get("name", "") for lbl in (pr.get("labels") or [])]
+        # The gate's second key: cards are titled with the issue number, so the
+        # branch is how the card that opened this PR is recognised. An
+        # `issue_comment` payload has no `head`; that path pays one `gh api`.
+        branch = self.pr_head_ref(number, pr)
 
         # Checked before the gate on purpose: while a card still owns this
         # number, the human's words belong on that card whatever its state.
-        existing = self.open_card_for(number)
+        existing = self.open_card_for(number, branch=branch)
         if existing:
             self._append_to_card(existing, number=number, event=event, actor=actor, text=text)
             return
@@ -915,20 +957,24 @@ class Weka:
         # writers and no invariant: a label sweep could add it back after
         # `pass-review.sh` removed it, and only cody remembered to strip it on a
         # rework. The board records the same fact without anyone maintaining it:
-        # the newest card for this number is `done` exactly when the AI delivered
-        # it and nobody has picked the PR up again.
-        latest = self.latest_card_for(number)
+        # the newest card owning this PR — by `#<pr>:` title *or* by the branch
+        # that opened it — is `done` exactly when the AI delivered it and nobody
+        # has picked the PR up again.
+        latest = self.latest_card_for(number, branch=branch)
         if latest is None or latest[1] != "done":
             print(
                 f"[GATE] PR #{number}: latest card is {latest[1] if latest else 'missing'} "
-                f"(labels: {', '.join(labels) or 'none'}): human event ignored",
+                f"(branch: {branch or '-'}; labels: {', '.join(labels) or 'none'}): "
+                "human event ignored",
                 file=sys.stderr,
             )
             self._explain_refusal(
                 pr,
                 labels,
                 "这条评论没有触发返工：看板上这张 PR 没有卡，或者它最新的一张卡不是 "
-                "`done`（可能是已归档）。weka 只在 AI 已经把 PR 交回来之后接人的返工请求；"
+                "`done`（可能是已归档）。认领按两种键取最新的一张：标题以 `#"
+                f"{number}:` 开头，或分支名等于这张 PR 的 head"
+                f"（`{branch or '未知'}`）。weka 只在 AI 已经把 PR 交回来之后接人的返工请求；"
                 "让这张 PR 先走完 cody → reed 的流程，再留一次言即可。",
             )
             return
@@ -945,7 +991,8 @@ class Weka:
                 file=sys.stderr,
             )
 
-        branch = ((pr.get("head") or {}).get("ref")) or ""
+        # `branch` came from the gate above; it is also the card body's record of
+        # which branch this rework was filed against.
         pr_url = pr.get("html_url") or ""
         pr_title = pr.get("title") or ""
         body = (
