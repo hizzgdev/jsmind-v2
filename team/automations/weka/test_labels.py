@@ -643,7 +643,8 @@ class HookTests(unittest.TestCase):
 
     def test_the_hook_returns_before_the_sweep_finishes(self):
         # The hook's stdout must reach EOF immediately: `agent/shell_hooks.py`
-        # drains it to EOF with `timeout: 5` and then kills the process group, so
+        # drains it to EOF for up to the hook's own `timeout` (default 60s) and then
+        # kills the process group, so
         # a hook that waits for the reconcile loses the reconcile *and* delays
         # every tool call. A 2s `gh` makes the difference measurable.
         board = self.make(

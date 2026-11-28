@@ -279,8 +279,8 @@ Diff lines are not the only output. Skip and progress lines print too, and they 
 
 | line | why it prints |
 |---|---|
-| `<id>: title does not start with '#<number>:'` | a side card that merely quotes an object URL — a follow-up card pointing at the PR it follows — is deliberately not keyed to that object |
-| `<id>: body does not start with a GitHub object URL` | the card names no object, so there is nothing to label |
+| ``<id>: title does not start with `#<number>:`; skipping`` | a side card that merely quotes an object URL — a follow-up card pointing at the PR it follows — is deliberately not keyed to that object |
+| `<id>: body does not start with a GitHub object URL; skipping` | the card names no object, so there is nothing to label |
 | `<id>: status=<status> assignee=<who> is not in the phase table; skipping` | that pairing maps to no flow label in `phase()` |
 | `profile <p>: N running cards; falling back to a full sweep` | a hook payload names no card; N=1 resolves to that card, anything else sweeps |
 

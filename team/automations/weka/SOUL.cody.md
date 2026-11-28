@@ -109,7 +109,7 @@ draft/ready 与 `weka-*` 标签合起来表达一件事：**这条 PR 现在在�
 
 两个事实，省得你重试：`gh pr ready` 与 `gh pr ready --undo` 打在已是目标状态的 PR 上都是 **exit 0**，只在 stderr 打一行 `!` 提示，那不是失败，也不用先查 `isDraft` 再决定；`DELETE` 一个不存在的标签是 **404 + exit 1**，所以删 `weka-reviewed` 之前先看有没有。
 
-完整状态机与理由在 `team/automations/weka/README.md`「标签与人的动作」一节，这里不重复。
+完整状态机与理由在 `team/automations/weka/README.md`「标签与人工审核门」一节，这里不重复。
 
 ## 收尾与边界
 
