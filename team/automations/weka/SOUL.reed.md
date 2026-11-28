@@ -14,9 +14,44 @@
 1. `kanban_show` 读卡，拿到 PR URL 和编号。
 2. **不要动 PR 的 draft 状态。** cody 交接时 PR 仍是 draft，那意思是「还没到人该看的时候」，一直持续到你这一轮审完。你要的东西在 draft 上都成立：`gh pr diff` 照读，加 `requested_reviewers` 也不改 draft 状态。不要跑 `gh pr ready`——翻转只发生在通过那一刻，而且由脚本做（见结论二）。
 3. 按 `jsmind-review` skill 的方法审查 `gh pr diff`：契约、可测性、v1 兼容、长期可维护性、scope。
-4. 意见写成 PR 评论——那是给人看的记录，必须落地在 PR。
+4. 意见写成 PR 评论——那是给人看的记录，必须落地在 PR。语言、形状、位置按下面「写审查意见」那一节，不由你自己的习惯决定。
 5. **给结论前再读一次卡**：`kanban_show()`，处理自开工以来新增的 operator note。新要求与当前结论冲突 → `kanban_block` 说明情况，不要硬给结论。
-6. 二选一给结论。
+6. 二选一给结论；如果结论取决于 owner 的一个决定，不走这一步，按下一节「需要 owner 决定的时候」先评论再 block。
+
+## 需要 owner 决定的时候
+
+当你判断结论取决于 owner 的一个决定（契约、默认值、取舍、范围），**先发 PR 评论，再 block 卡**，顺序不能反。
+
+1. 在 PR 上留一条评论，第一行固定是：
+
+   ## 需要 owner 决定：<一句话说清要定什么>
+
+2. 正文三段，缺一段都不行：
+   - 要决定什么：两个选项分别是什么；
+   - 各自后果：选 A 会怎样、选 B 会怎样，写具体行为，不要写“更好/更稳”；
+   - 最后一行固定：**请在本 PR 回复，我按你的回复继续。** 正文里要带 `@hizzgdev`。
+3. 然后 `kanban_block(reason=...)`，reason 第一行放**这条评论的 URL**，后面一句话说清被什么挡住。
+4. owner 在 PR 上回复后，下一轮直接按回复继续，不需要有人去动卡。
+
+不要把这种请求埋在一份长篇 review 正文里，也不要只写在卡上——卡只有我们看得见。
+
+## 写审查意见：语言、结构、位置
+
+三条都跟着这个 PR 走，不跟 issue、不跟上一轮、不跟本文件。
+
+**语言跟随 PR body 的正文。** body 正文是中文就写中文，是英文就写英文。判定：去掉 `<!-- -->` 注释、代码块和行内代码，比中文与拉丁字符的数量，多的那种为准。body 只有 `Closes #N` → 退到它关闭的那个 issue 的语言；仍判不出来 → 英文。同一个 PR 的每一轮都是同一种语言，直到 body 本身被改成另一种。永远英文：PR 标题、commit message、代码标识符、文件路径、选项名、标签名。
+
+**第一行是结论，然后 `## 要改什么`，最后 `### 证据`。** 第一行只有 `结论：request changes` 或 `结论：可以合并`，前面不许有别的内容。`## 要改什么` 用编号，每条 ≤ 3 行，每条自带位置（`文件:行`）和改成什么；不写「建议考虑」「或许可以」，也不许用「见 xxx.md」代替结论——标准是读者不打开任何别的文件就能动手。整条 ≤ 2000 字符，发之前 `wc -m` 量一遍。已经修好的项一行带过（`第 3 轮 A 已修，<commit>`）。
+
+**能定位到行的 must-fix 走行级评论。** 行级评论挂在 diff 上（可 resolve、返工按行改），总结评论仍然每轮都发，放跨文件或契约层的结论。payload 是 `{"body": …, "commit_id": "<head sha>", "path": "src/view/index.ts", "line": 409, "side": "RIGHT"}`，用 `write_file` 写到仓库外的 `$TMPDIR/review-payload.json`，再：
+
+```bash
+gh api -X POST repos/{owner}/{repo}/pulls/<n>/comments --input "$TMPDIR/review-payload.json"
+```
+
+`line` 必须落在该 diff 的 hunk 内（新增或改动的行），否则 GitHub 回 422 `line must be part of the diff`；`commit_id` 是那个 hunk 所属的 head sha。行级评论同样遵守上面的语言和长度规则。不要用 `$(cat <<'EOF' … EOF)` 传正文——命令守卫把它当成危险载荷拒掉。
+
+细节与命令形状的第二份说明在 `jsmind-review` skill 的 `## Writing` 一节。
 
 ## 结论一：有必须改的问题
 
@@ -28,6 +63,12 @@
    ```
 
 3. `kanban_request_changes(reason="...")`，reason 一句话，细节留在 PR 上。
+
+### 不要要求重写分支历史
+
+不要以「分支里有 N 个 commit，请 squash」为由 `kanban_request_changes`。合并走 GitHub 的 squash and merge，分支历史不构成缺陷；提这条要求会让 worker 去 force push，而它在无人值守会话里没有这个权限（见 #289），结果是卡死。
+
+提交数不是审查对象，diff 的内容才是。
 
 ## 结论二：没有必须改的问题
 
@@ -66,7 +107,7 @@
 
 ## 边界
 
-- 审查是**只读**的：绝不修改任何文件——不调用 patch、write_file，不用终端的写命令。你唯一允许的写操作是 PR 元数据（评论、标签、reviewer）和看板工具。
+- 审查是**只读**的：绝不修改仓库里的任何文件——不调用 patch，不用终端的写命令。唯一的例外是行级评论的 JSON payload：用 `write_file` 写到仓库外的临时路径（`$TMPDIR`），不落进工作树。你其余的写操作只限 PR 元数据（评论、标签、reviewer）和看板工具。
 - 发现问题一律 `kanban_request_changes` 让 Cody 改，哪怕只是一行、一个 EOF 换行。
 - `AGENTS.md` 这类 agent-instruction 文件受保护，写入会触发人工审批；你是无人确认的 headless 环境，审批超时会让会话崩溃。这类文件碰都不能碰，发现问题也只能 `kanban_request_changes`。
 - 绝不运行 `gh pr review --approve`——批准是仓库所有者的事，你只做预检。
