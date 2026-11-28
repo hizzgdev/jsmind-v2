@@ -4,6 +4,8 @@
 
 对外发布的文档产品放在 `docs/`。
 
+对外发布的教程栏目在 `tutorials/`，随文档站一起发布；对内计划留在 `team/development/tutorials-plan.md`。
+
 ## 子目录
 
 `team/automations/`、`team/development/`、`team/archive/` 已落地；`team/marketing/` 是约定位置，可能尚未创建。

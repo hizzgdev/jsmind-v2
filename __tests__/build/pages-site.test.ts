@@ -825,10 +825,25 @@ describe('landing page', () => {
         // a reordered list cannot satisfy; "the post appears somewhere" could.
         const recentItems = /<ul class="recent-list"[^>]*>([\s\S]*?)<\/ul>/.exec(page)?.[1] ?? '';
         assert.notStrictEqual(recentItems, '', 'the page should carry a recent-tutorials list');
+        // ...at the addresses the build computed, in both languages. The
+        // language switcher rewrites `href` from `data-href-en` /
+        // `data-href-zh` on every element carrying them, this list included,
+        // so a wrong attribute is a 404 for a reader who switched language.
+        // Each expectation walks the same fallback chain as
+        // `renderRecentTutorialItems()`, not a tidied version of it.
+        const recentAnchors = (recentItems.match(/<a\b[^>]*>/gi) ?? []).map(tagAttrs);
         assert.deepStrictEqual(
-            anchorHrefs(recentItems).map(tutorialSlugFromHref),
-            recentTutorialPosts(listTutorialPosts(ROOT)).map((post) => post.slug),
-            'the recent-tutorials list should render the posts in the order the build computed'
+            recentAnchors.map((attrs) => ({
+                href: attrs.get('href'),
+                en: attrs.get('data-href-en'),
+                zh: attrs.get('data-href-zh'),
+            })),
+            recentTutorialPosts(listTutorialPosts(ROOT)).map((post) => ({
+                href: post.hrefs.en ?? post.hrefs.zh ?? '#',
+                en: post.hrefs.en ?? post.hrefs.zh ?? '#',
+                zh: post.hrefs.zh ?? post.hrefs.en ?? '#',
+            })),
+            'the recent-tutorials list should render the posts the build computed, at the addresses and language targets it computed'
         );
         assert.ok(
             !page.includes('class="recent-empty"'),
@@ -1574,8 +1589,9 @@ describe('pages site assembly', () => {
                 // sequence of slugs. The expectation comes from `scripts/`,
                 // which computes the order independently of the column's own
                 // `toTutorialList()`, so a direction flip in either shows here.
-                // Both sides break same-date ties by a different key (title
-                // there, slug here); no two posts share a date today.
+                // Both sides break a same-date tie by the post's path — the
+                // column by `url`, this expectation by slug, and every url in
+                // one locale shares its prefix — so the two agree.
                 assert.deepStrictEqual(
                     postHrefs.map(tutorialSlugFromHref),
                     listTutorialPosts(ROOT)
