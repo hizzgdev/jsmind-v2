@@ -183,7 +183,7 @@ The output path is optional. Without it the page takes the input's name with an 
 
 The map is kept in the page as text, in a `<script type="application/json">` block, so anything that can read the file can read the map back out of it — an agent does not need a browser to see what the page contains. Nothing in the file points anywhere else: no stylesheet, no script, no image, no CDN.
 
-A map larger than the window scrolls; it is not cropped to the viewport. Pan, zoom and a toolbar come with a later step, and until then the page scrolls and stays still.
+A map larger than the window opens at the size its text was written for, so part of it is off the edge; the page itself never scrolls. Dragging, the wheel and a double-click on the canvas move the map's own viewport, and the double-click also fits the whole map into the window. A toolbar comes with a later step.
 
 | Option | Meaning | Version |
 | --- | --- | --- |

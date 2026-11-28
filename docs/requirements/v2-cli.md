@@ -382,7 +382,7 @@ jsmind export html <file> [out.html] [--title <text>] [--json]
 
 **需要 Chromium**，找不到会明确报错而不是导出空白图。
 
-**`html` 是另一类产物：一个能离线打开的单文件页面**（`Since: 2.3.0`）。它不启动浏览器，产物旁边不产生任何伴生文件，页面里也没有指向外部的 `src=` / `href=` —— 渲染器内联，不引 CDN。导图以 JSON 文本放在 `<script type="application/json" id="jsmind-data">` 里，agent 能静态读回；塞进脚本块时 `</script>`、`<!--` 和 U+2028 / U+2029 必须转义，标题进 `<title>` 前按 HTML 转义 `&` `<` `>`。模板不是 `src/` 里的单个文件，而是与 `site/` 平级的 `artifact/` 目录（`page.html` / `shell.css` / `shell.js`），由 `scripts/assemble-artifact.ts` 在构建期装配成随包发布的 `dist/artifact.html`；CLI 运行时只做两次字符串替换，不重新打包。比视口大的导图靠原生滚动看全，不裁剪。
+**`html` 是另一类产物：一个能离线打开的单文件页面**（`Since: 2.3.0`）。它不启动浏览器，产物旁边不产生任何伴生文件，页面里也没有指向外部的 `src=` / `href=` —— 渲染器内联，不引 CDN。导图以 JSON 文本放在 `<script type="application/json" id="jsmind-data">` 里，agent 能静态读回；塞进脚本块时 `</script>`、`<!--` 和 U+2028 / U+2029 必须转义，标题进 `<title>` 前按 HTML 转义 `&` `<` `>`。模板不是 `src/` 里的单个文件，而是与 `site/` 平级的 `artifact/` 目录（`page.html` / `shell.css` / `shell.js`），由 `scripts/assemble-artifact.ts` 在构建期装配成随包发布的 `dist/artifact.html`；CLI 运行时只做两次字符串替换，不重新打包。比视口大的导图按文字尺寸打开，窗口之外的部分由 `:host` 裁掉；页面与盒子都不滚动，拖动、滚轮与双击移动导图自己的视口，双击把整图缩进窗口。
 
 **实现细节见[导出图片](https://hizzgdev.github.io/jsmind-v2/docs/zh/reference/image-export)。**
 

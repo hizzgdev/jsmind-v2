@@ -410,8 +410,8 @@ test('ui - a drag pans the map on an exported page', async () => {
             await harness.navigate(pathToFileURL(output).href);
 
             // Zoomed in so there is room to pan in the first place. The page
-            // opens at 1x and writes no transform, so the factor to reach is a
-            // constant and the wheel delta follows from it.
+            // opens at 1x and writes the identity transform, so the factor to
+            // reach is a constant and the wheel delta follows from it.
             const targetScale = 3;
             await harness.wheelAt(600, 400, -Math.log(targetScale) / ZOOM_PER_WHEEL_PIXEL);
             await harness.settle();
@@ -494,7 +494,11 @@ test('ui - the map claims touch drags only while a pan has room', async (t: Test
             await harness.setViewport(1200, 800);
             await harness.navigate(pathToFileURL(output).href);
 
-            assert.strictEqual(await innerTransform(harness), '', 'the page opens at 1x, with no fit applied');
+            assert.strictEqual(
+                await innerTransform(harness),
+                'none',
+                'the page opens at 1x with no fit applied, and the box has been taken over'
+            );
             assert.strictEqual(await touchActionOf(harness), 'none', 'overflowing at 1x, a finger drag belongs to the map');
 
             // Out until the whole map is inside the window: the band closes and
@@ -586,9 +590,11 @@ test('ui - the map claims touch drags only while a pan has room', async (t: Test
  * @remarks
  * Everything the case is about, in one round trip: how many nodes the document
  * has, where the page's own scroll limits are, how big the map's host is, what
- * transform the view has written (empty means nothing has moved the map yet),
- * how many nodes are past the window's edge, how many the window actually
- * shows, and where the painted map's centre sits.
+ * transform the view has written (`none` means nothing has moved the map yet),
+ * what the inner box's `overflow` says, how much of its width and height a
+ * scrollbar has taken from it, and what a written scroll offset does to it, how
+ * many nodes are past the window's edge, how many the window actually shows, and
+ * where the painted map's centre sits.
  *
  * `getBoundingClientRect` ignores clipping, so the count of painted nodes is
  * taken through an `IntersectionObserver` against the window instead: a node
@@ -603,6 +609,9 @@ async function measurePage(harness: BrowserHarness): Promise<{
     window: [number, number];
     host: [number, number];
     transform: string;
+    overflow: string;
+    gap: [number, number];
+    scrolled: [number, number];
     outside: number;
     centre: [number, number];
     painted: number;
@@ -613,6 +622,9 @@ async function measurePage(harness: BrowserHarness): Promise<{
         window: [number, number];
         host: [number, number];
         transform: string;
+        overflow: string;
+        gap: [number, number];
+        scrolled: [number, number];
         outside: number;
         centre: [number, number];
         painted: number;
@@ -621,6 +633,7 @@ async function measurePage(harness: BrowserHarness): Promise<{
         const root = host.shadowRoot;
         const nodes = [...root.querySelectorAll('.jsmind-node')];
         const rects = nodes.map(node => node.getBoundingClientRect());
+        const inner = root.querySelector('.jsmind-inner');
 
         const seen = new Set();
         const observer = new IntersectionObserver(entries => {
@@ -635,12 +648,23 @@ async function measurePage(harness: BrowserHarness): Promise<{
         observer.disconnect();
 
         const page = document.scrollingElement;
+        // What this box does with a scroll offset, then put the offset back:
+        // while native scrolling is in charge the write moves the map, and once
+        // the viewport has taken the box over it moves nothing.
+        inner.scrollLeft = 999;
+        inner.scrollTop = 999;
+        const scrolled = [inner.scrollLeft, inner.scrollTop];
+        inner.scrollLeft = 0;
+        inner.scrollTop = 0;
         return {
             nodes: nodes.length,
             page: [page.scrollWidth, page.scrollHeight],
             window: [window.innerWidth, window.innerHeight],
             host: [host.clientWidth, host.clientHeight],
-            transform: root.querySelector('.jsmind-inner').style.transform,
+            transform: inner.style.transform,
+            overflow: getComputedStyle(inner).overflow,
+            gap: [inner.offsetWidth - inner.clientWidth, inner.offsetHeight - inner.clientHeight],
+            scrolled,
             outside: rects.filter(rect =>
                 rect.left < -1 || rect.top < -1 || rect.right > window.innerWidth + 1 || rect.bottom > window.innerHeight + 1
             ).length,
@@ -679,7 +703,29 @@ test('ui - an exported page opens unfitted, and a double-click fits the whole ma
             assert.strictEqual(opened.nodes, nodeCount, 'the whole document is rendered');
             assert.deepStrictEqual(opened.page, opened.window, 'the page itself has nothing to scroll');
             assert.deepStrictEqual(opened.host, opened.window, 'the host stayed the size of the window');
-            assert.strictEqual(opened.transform, '', 'nothing has moved the map: the page opens it at 1x');
+            assert.strictEqual(opened.transform, 'none', 'nothing has moved the map: the page opens it at 1x, unfitted');
+            assert.strictEqual(
+                opened.overflow,
+                'visible',
+                'the box is taken over at open: nothing the reader does later can make it start scrolling'
+            );
+            assert.deepStrictEqual(
+                opened.gap,
+                [0, 0],
+                'no scrollbar has taken width or height from the box, so taking it over reveals the whole canvas instead of growing it'
+            );
+            // The gap above is the measurement a browser with visible
+            // scrollbars gives; this harness runs Chromium with
+            // `--hide-scrollbars`, so it reports `[0, 0]` for a box that still
+            // scrolls and cannot tell the two states apart (measured: `auto`
+            // and a gap of `[0, 0]` with the takeover removed). The offset that
+            // box accepts is what can be observed here, and taking the box over
+            // takes it away.
+            assert.deepStrictEqual(
+                opened.scrolled,
+                [0, 0],
+                'the box does not scroll: a scroll offset written at open leaves it where it was'
+            );
             assert.ok(
                 opened.outside > 0,
                 `a map larger than the window is cropped at 1x, so some node is past the edge, but all ${nodeCount} are inside`
@@ -692,7 +738,7 @@ test('ui - an exported page opens unfitted, and a double-click fits the whole ma
             // The reader asks for the whole map. `'shrink'` is the mode the page
             // uses, so the map is scaled down until it fits and centred; a page
             // that opened already fitted would land on these same numbers, which
-            // is why the transform before this line had to be empty.
+            // is why the transform before this line had to be the identity.
             await harness.doubleClickAt(600, 400);
             const fitted = await measurePage(harness);
 
