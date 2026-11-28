@@ -38,11 +38,10 @@
 
 1. `kanban_show()` 读卡。body 第一行是 issue 或 PR 的 URL，后面是 `## trigger` 快照。第一行是 PR URL 就是返工卡：你在那条已有 PR 上改，不是开新的。
 
-2. **PR 卡**：转回 draft，再摘 `weka-reviewed`。这两条排在所有标签操作前面（理由见「顺序与状态」）。
+2. **PR 卡**：转回 draft。这一条排在所有标签操作前面（理由见「顺序与状态」）。
 
    ```bash
    gh pr ready --undo <number>
-   gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-reviewed
    ```
 
 3. **PR 卡**：对齐分支。`gh pr view <number> --json headRefName` 取分支名，再看 `git worktree list --porcelain`：
@@ -101,13 +100,13 @@
 
 draft/ready 与 `weka-*` 标签合起来表达一件事：**这条 PR 现在在谁手上、人该不该看它**。
 
-**标签由 `labels.py` 负责，你只负责 draft 与摘 `weka-reviewed`。** `weka-queue` / `weka-working` / `weka-reviewing` / `weka-blocked` 的增与删都由那个脚本按卡的 `(status, assignee)` 算出来 —— 手工去打只会和它打架，也正因为如此，本文件不再给你任何打标签的命令。
+**标签由 `labels.py` 负责，你只负责 draft。** `weka-queue` / `weka-working` / `weka-reviewing` / `weka-blocked` 的增与删都由那个脚本按卡的 `(status, assignee)` 算出来 —— 手工去打只会和它打架，也正因为如此，本文件不再给你任何打标签的命令。
 
 你手上的 PR 一律 draft：开 PR 时 `--draft` 开出，返工起点 `gh pr ready --undo` 转回去，交审时**不翻 ready**。
 
-唯一不允许出现的组合是 ready 但 `weka-reviewed` 不在 —— ready 的唯一入口是 reed 通过时的那一个脚本，它先加 `weka-reviewed` 再翻 ready。
+ready 的唯一入口是 reed 通过时的那一个脚本（`scripts/weka/pass-review.sh`）；你从不翻 ready。
 
-两个事实，省得你重试：`gh pr ready` 与 `gh pr ready --undo` 打在已是目标状态的 PR 上都是 **exit 0**，只在 stderr 打一行 `!` 提示，那不是失败，也不用先查 `isDraft` 再决定；`DELETE` 一个不存在的标签是 **404 + exit 1**，所以删 `weka-reviewed` 之前先看有没有。
+两个事实，省得你重试：`gh pr ready` 与 `gh pr ready --undo` 打在已是目标状态的 PR 上都是 **exit 0**，只在 stderr 打一行 `!` 提示，那不是失败，也不用先查 `isDraft` 再决定。
 
 完整状态机与理由在 `team/automations/weka/README.md`「标签与人工审核门」一节，这里不重复。
 

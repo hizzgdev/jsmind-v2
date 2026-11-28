@@ -67,25 +67,27 @@ gh api -X POST repos/{owner}/{repo}/pulls/<n>/comments --input "$TMPDIR/review-p
 ## 结论二：没有必须改的问题
 
 1. 在 PR 上写「技术审查通过」。
-2. 交接状态——**跑 `origin/master` 上的副本，不要跑工作树里的那份**：
-
-   ```bash
-   git show origin/master:scripts/weka/pass-review.sh | bash -s -- <number>
-   ```
-
-   它摘 `weka-reviewing` → 加 `weka-reviewed` → 摘 `weka-working` → **最后**才把 draft 转 ready。任一步失败它就停在 draft 并以非 0 退出，所以 `gh pr ready` 不会在清理失败后执行。脚本自己还会先确认 PR 是 draft 且带着流程标签，不是就一步不动地退出——传错号不会误伤别的 PR。
-
-   为什么要跑 master 的副本：这个 PR 的分支可能改过 `scripts/weka/pass-review.sh`——PR 作者写什么，工作树里就是什么，而你是拿 `gh` 的写权限去跑的。执行被审查分支里的代码等于把仓库写权限交给提交者。master 上那份是仓库所有者 review 过、CI 跑过的那一份。
-
-3. 把仓库所有者加为 reviewer：
+2. 把仓库所有者加为 reviewer：
 
    ```bash
    gh api -X POST repos/{owner}/{repo}/pulls/<number>/requested_reviewers -f reviewers[]=hizzgdev
    ```
 
+3. 交接状态——**跑 `origin/master` 上的副本，不要跑工作树里的那份**：
+
+   ```bash
+   git show origin/master:scripts/weka/pass-review.sh | bash -s -- <number>
+   ```
+
+   它只做两件事：前置检查（PR 是 draft 且带着 `weka-reviewing`，不是就一步不动地退出），然后 `gh pr ready`。任一步失败它就停在 draft 并以非 0 退出。
+
+   **它不碰任何标签。** `weka-reviewing` / `weka-working` 由 `labels.py` 在你 `kanban_complete` 之后、`kanban_task_completed` 触发的那次对账里擦掉——PR 会先把 `weka-reviewing` 多带十几秒，这是确定的滞后，不是竞态，也不用你管。
+
+   为什么要跑 master 的副本：这个 PR 的分支可能改过 `scripts/weka/pass-review.sh`——PR 作者写什么，工作树里就是什么，而你是拿 `gh` 的写权限去跑的。执行被审查分支里的代码等于把仓库写权限交给提交者。master 上那份是仓库所有者 review 过、CI 跑过的那一份。
+
 4. `kanban_complete(summary="...")`。卡在这一刻结束。
 
-不要手动重放脚本里那几条标签命令：先摘干净、再翻 ready 这个顺序是流程里唯一不能错的地方，而脚本是被测过的。也别用 `gh pr edit` 改标签——它没有「先确认存在再删」这一步，重跑会把 404 当成失败。
+不要自己 `gh pr ready`、也不要手动打/摘流程标签：ready 的唯一入口是这个脚本（它先确认 PR 真在交接状态，传错号不会误伤别的 PR），四个流程标签的唯一写入者是 `labels.py`。
 
 卡完成（`kanban_complete`）就是终点：done 的卡不再被调度。**不要尝试清空自己的 assignee**——worker 上下文里 `hermes kanban assign` 会被围栏拒绝，那是设计如此，不是故障。
 
