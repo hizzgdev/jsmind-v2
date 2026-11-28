@@ -33,11 +33,16 @@ is answered by a hash: **does the live file equal master's file, yes or no.**
 | `team/automations/weka/SOUL.cody.md`, `SOUL.reed.md`, `SOUL.scout.md` | `~/.hermes/profiles/<p>/SOUL.md` | overwrite from master, verify hash |
 | `team/automations/skills/<name>/SKILL.md` | `~/.hermes/profiles/<p>/skills/<name>/SKILL.md` | overwrite from master, verify hash |
 | `team/automations/weka/github-webhook.py`, `github-webhook.service` | the clone the systemd user unit points at | restart the unit, verify it started now |
+| the `hooks:` block in each worker profile that runs `team/automations/weka/labels.py` on `post_tool_call` | `~/.hermes/profiles/<p>/config.yaml` (cody, reed, scout) | write the block (step 6), approve it, then `hermes -p <p> hooks doctor` green on all three |
 | `~/.hermes/config.yaml` → `kanban:` | not in this repo | out of scope — a human edits it, gateway restart |
 | `README.md`, other `*.md`, this file | nothing to install | — |
 
-Rows one to three have a live counterpart and are reset every run, whether or not they changed. The
-`README.md` row has none: a document nobody loads at runtime needs no deployment.
+Rows one to four have a live counterpart and are reset every run, whether or not they changed. The hooks
+row is the one that is **written, not copied** — no file in this repo holds it, so a profile missing the
+block is a failed deploy rather than a skipped step. The `README.md` row has none: a document nobody loads
+at runtime needs no deployment. `~/.hermes/config.yaml` → `kanban:` stays out of scope and stays a human's
+edit: it is the host's config, not a profile's. The hooks row is per-profile, which is exactly why it is in
+scope while that one is not.
 
 Live edits do not survive, and that is intentional. Hermes's skill curator patches installed skills in
 place, so a profile file can accumulate content the repo never saw. That content is treated as a draft
@@ -181,6 +186,111 @@ A real event is the one thing here that is not a reset step: it writes to GitHub
 is gated on the step-2 diff — run it when that list contained `github-webhook.py` or
 `github-webhook.service`, otherwise write "no executable change, smoke test not applicable". Quote the
 journal line; "restarted and it is active" is not a smoke test.
+
+#### The label hook: registered is not the same as configured
+
+The flow labels (`weka-queue` / `weka-working` / `weka-reviewing` / `weka-blocked`) have no writer inside a
+worker any more — `labels.py` derives them from the board, and the only thing that makes it run while a card is
+in progress is a `post_tool_call` hook in that worker's profile. This check is **not** gated on the step-2
+diff: the block lives outside the repo, so no diff can announce that it is missing.
+
+In each of `~/.hermes/profiles/{cody,reed,scout}/config.yaml`:
+
+```yaml
+hooks:
+  post_tool_call:
+    - command: /home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook
+```
+
+Absolute path, and the string is matched **verbatim**: consent is keyed on `(event, command)`, so a different
+path or a dropped flag is a different hook that has never been approved.
+
+Consent is per profile, in `~/.hermes/profiles/<p>/shell-hooks-allowlist.json`:
+
+```json
+{
+  "approvals": [
+    {
+      "event": "post_tool_call",
+      "command": "/home/gg_hermes_go/repos/jsmind-v2/team/automations/weka/labels.py --reconcile --once --from-hook"
+    }
+  ]
+}
+```
+
+The command must equal the one in `config.yaml` character for character. Approving through the first-use prompt
+(a foreground `hermes -p <p> chat`) or `--accept-hooks` also records `approved_at` and the script's mtime, which
+is what lets doctor report drift; an entry written by hand approves the pair but cannot be checked for drift.
+
+```bash
+for p in cody reed scout; do hermes -p $p hooks doctor; done
+```
+
+Three runs, three times `All shell hooks look healthy.` A profile that answers "No shell hooks configured —
+nothing to check." is a **failure**, not a pass: that profile leaves its cards' objects on whatever label they
+already carry, and the only writes left are the webhook's two (card created, object closed).
+
+The lines doctor prints, per hook, in this order — and doctor skips the smoke test entirely while the pair is
+not allowlisted, which is the one ordering that matters here:
+
+| line | meaning |
+|---|---|
+| `✓ script exists and is executable` | the path resolves and the file can be spawned — a typo'd path shows up here and nowhere else |
+| `✓ allowlisted (approved <ts>)` | the `(event, command)` pair has consent; without this line the hook is registered but never runs |
+| `✓ script unchanged since approval` | the script's mtime still matches the one recorded at approval, so nobody edited it since |
+| `⚠ script modified since approval` | `labels.py` was edited after it was approved — the command string still matches, so the hook still fires; read the diff, and if the edit is master's own version, refresh the baseline: `hermes -p <p> hooks revoke '<the command string from config.yaml>'` then re-approve. That string is `revoke`'s one positional argument — the bare `hermes -p <p> hooks revoke` exits 2 |
+| `✓ ran clean with empty stdout (exit=0, <t>s) — hook is observer-only` | the synthetic payload ran and the hook exited 0 with nothing on stdout, which is what `labels.py` promises: it detaches and returns at once, so a tool call is never held up |
+
+Driving doctor is itself a reconcile — the synthetic payload names the firing profile — so a green run may have
+written labels on GitHub. That is the steady state, not a side effect to avoid.
+
+No gateway restart is needed. A worker is a new process that reads its profile's `config.yaml` when the card is
+claimed, and a gateway picks up a change to a profile's `hooks:` block or allowlist within about 30 seconds
+without any session opening.
+
+#### Read-only check of the sweep itself
+
+```bash
+cd ~/repos/jsmind-v2
+~/.hermes/venvs/weka/bin/python team/automations/weka/labels.py --dry-run --full
+```
+
+Use that interpreter, not the bare `python3` this section's older commands use: on this host `python3` is the
+system 3.6.8, which dies on `labels.py`'s `from __future__ import annotations` with a `SyntaxError` before any
+card is read (`README.md` →「主机侧准备」 says the same about the system Python). The weka venv is the same
+interpreter the unittest above runs on.
+
+From the clone that holds the real, gitignored `team/automations/weka/config.json` — a worktree does not, and
+answers `config not found`. Run it at a plain host shell: inside a worker, `hermes kanban list` exits 1 under
+the delegate fence and the sweep can only log `[ERROR] … delegate_task child contexts cannot mutate`.
+
+`no change (n cards)` is the expected line on a quiet host, `n` being the cards the sweep window covers. Anything
+else is one line per card whose labels would move, as `-old +new`. `--dry-run` sends no write request at all —
+it is the only way to see what the sweep thinks without writing to GitHub.
+
+Diff lines are not the only output. Skip and progress lines print too, and they are information, not failures:
+
+| line | why it prints |
+|---|---|
+| `<id>: title does not start with '#<number>:'` | a side card that merely quotes an object URL — a follow-up card pointing at the PR it follows — is deliberately not keyed to that object |
+| `<id>: body does not start with a GitHub object URL` | the card names no object, so there is nothing to label |
+| `<id>: status=<status> assignee=<who> is not in the phase table; skipping` | that pairing maps to no flow label in `phase()` |
+| `profile <p>: N running cards; falling back to a full sweep` | a hook payload names no card; N=1 resolves to that card, anything else sweeps |
+
+One of those skip lines deserves its own reading. `phase()` recognizes the reviewer as `config.get("reviewer")`,
+and nothing validates the key — `load_config()` only checks that the file exists, so a missing key degrades
+silently instead of failing: a **`running` card assigned to reed printing `is not in the phase table; skipping`
+means the gitignored `config.json` on this host has no `"reviewer": "reed"`**. `config.example.json` carries it,
+a host copy written before that line existed is a plain miss, and until the key is added no card ever reaches
+`weka-reviewing` — while `hooks doctor` stays green, because doctor proves the hook is registered, not that the
+config gives the phase table a reviewer. Read the current value before trusting the sweep:
+
+```bash
+~/.hermes/venvs/weka/bin/python -c 'import json; print(json.load(open("team/automations/weka/config.json")).get("reviewer"))'
+```
+
+`reed` is correct; `None` means adding the key, which is a host edit to a gitignored deploy file (like
+`~/.hermes/config.yaml` → `kanban:`), not a change to this repo.
 
 ### 7. Concurrency ceilings: 3 and 1
 
