@@ -249,7 +249,16 @@ addition, so a body that counts it as new is off by one against its own parenthe
   not allowlisted (`:316-319`), the allowlist is `{"approvals":[{event,command}]}` at
   `get_hermes_home()/shell-hooks-allowlist.json` (so per profile), the synthetic payload does carry `profile`
   (`agent/shell_hooks.py:100` → a doctor run really reconciles), and a hand-written allowlist entry approves
-  the pair but records no mtime, so doctor can never report drift on it.
+  the pair but records no mtime, so doctor can never report drift on it. Check the **interpreter** the block
+  names, not only the script: a bare `python3` on this host is `/usr/bin/python3` 3.6.8 (`~/.local/bin` holds
+  only `python3.10`/`python3.11`, `.bashrc` adds none), so `python3 team/automations/weka/labels.py` dies with
+  `SyntaxError: future feature annotations is not defined`, while the section's unittest line correctly uses
+  `~/.hermes/venvs/weka/bin/python` (3.11.13). A worker shell hides this: its `python3` is Hermes's own 3.14
+  venv, which is why such a block reads fine to whoever ran it there. The same trap hides behind
+  `hermes -p <p> hooks doctor`: `✓ ran clean with empty stdout (exit=N, …)` prints for *any* exit code
+  (`hermes_cli/hooks.py:333-335` checks only that stdout is empty), so a hook whose `#!/usr/bin/env python3`
+  resolves to the host's 3.6.8 stays green — and `All shell hooks look healthy.` prints — while nothing runs.
+  Read the `exit=` value, and treat doctor-green as registration plus spawn, never as proof the script parses.
 - **A recovery hint printed on failure.** Recovery instructions are deliverable code; replay them
   literally. A hint that restores from the index after the script already staged its changes undoes
   nothing.

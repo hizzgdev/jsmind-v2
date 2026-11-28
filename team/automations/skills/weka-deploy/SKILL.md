@@ -309,9 +309,15 @@ two files buys a permanently unapproved hook — silently, since a skipped hook 
 for p in cody reed scout; do hermes -p "$p" hooks doctor; done
 ```
 
-Three greens, or the step is not done. `doctor` fires each hook against a synthetic payload, so a green
-`pre_tool_call` line is also the cheap proof that the script parses under the interpreter the config
-names. What it cannot prove is the fence firing inside a worker — the tool layer has to be exercised:
+Three greens, or the step is not done — but read what a green line proves. `doctor` fires each hook
+against a synthetic payload, so it answers three questions only: the command is executable, the pair is
+allowlisted, and the script can be spawned. It does **not** prove the script parses: `_doctor_one`
+prints `✓ ran clean with empty stdout (exit=N, …)` for *any* exit code as long as stdout is empty
+(`hermes_cli/hooks.py:333-335`), so a `deny_card_create.py` written in 3.10 syntax — SyntaxError under
+`/usr/bin/python3` 3.6.8, empty stdout, `exit=1` — still shows a green `pre_tool_call` line. Read the
+`(exit=N)` value on every line; parsing is proven by the `-m py_compile` above, run with the same
+interpreter, not by doctor.
+What doctor also cannot prove is the fence firing inside a worker — the tool layer has to be exercised:
 `kanban_create` in a worker session returns the fixed message, `SELECT count(*) FROM tasks` on the board
 does not move, and the deny log gains a line. Then `chmod 000` the script and repeat: still blocked, no
 card, and **no** new log line; put the mode back. A host where that second run creates a card has lost
