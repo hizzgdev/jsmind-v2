@@ -183,13 +183,13 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
   GitHub any more. The one exception is `scripts/weka/pass-review.sh`: at approval it still strips
   `weka-reviewing`/`weka-working` before adding `weka-reviewed` and flipping to ready. That is the same
   transition rather than a second owner — its ordering rule cannot be handed to an asynchronous sweep
-  that may land seconds later — and a sweep that starts afterwards finds nothing left to write. A sweep
-  already in flight when the card flips can still land after it and write `weka-reviewing` back onto a
-  now-ready PR; the window is seconds, and `weka-reviewed` is untouched. Whether that stale label heals
-  then depends on the card's shape. On a rework card the object *is* the PR, so the next sweep (the
-  `kanban_complete` hook) erases it. On an issue card the card is already `done`, and a finished card
-  only strips the issue its body names — the PR is not read at all — so the label stays on that PR until
-  the webhook's close-time `strip_labels()` clears it.
+  that may land seconds later. A sweep that lands afterwards still sees `running` + reed, though (the
+  card finishes with `kanban_complete`, itself a tool call, after the reviewer request), so the phase
+  alone would write `weka-reviewing` back onto a now-ready PR. The reconciler therefore treats
+  `weka-reviewed` as the end of the review: it never applies `weka-reviewing` to an object that carries
+  it, and strips one that is already there — so the ready + `weka-reviewing` + `weka-reviewed`
+  combination heals on the next sweep instead of waiting for the close-time `strip_labels()`.
+  `weka-reviewed` itself is still never written here.
 - **The hook fires inside a worker, so the sweep is handed a fence-free env.** Hermes mints
   `HERMES_DELEGATED_CHILD_CONTEXT` into every subprocess of a worker, and under that fence
   `hermes kanban list` exits 1: `list` runs `recompute_ready()`, which is a write. `labels.py` drops the
@@ -203,7 +203,8 @@ not expressible in current Hermes. That needs a Hermes worktree-root config
 - **`weka-reviewed` and `weka` stay outside the reconciler.** `pass-review.sh` adds `weka-reviewed`, the
   webhook strips it on close, and `weka` is a participation marker nobody mutates. A sweep must never add
   or remove either one: the rework gate reads `weka-reviewed`, so a script that touched it could
-  manufacture rework cards.
+  manufacture rework cards. Reading it is a different matter and is load-bearing — it is what keeps
+  `weka-reviewing` from being written back after an approval (see the previous bullet).
 - **`done` strips and never adds.** A card in `done`/`archived` has no phase, so the sweep only removes
   leftover process labels, and sends no write at all when none are left. What it strips is the object the
   card's body names: a rework card's PR, or an issue card's issue. A finished **issue** card does not

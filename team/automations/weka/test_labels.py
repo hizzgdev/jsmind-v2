@@ -231,6 +231,34 @@ class PhaseTests(unittest.TestCase):
         self.assertIsNone(labels.phase("running", None, CONFIG))
 
 
+class YieldsToReviewedTests(unittest.TestCase):
+    """`weka-reviewed` is the end of the review; `weka-reviewing` yields to it."""
+
+    def test_reviewing_yields_once_reviewed_is_on_the_object(self):
+        # reed's card is still `running` when `pass-review.sh` has already
+        # flipped the PR: both the reviewer request and `kanban_complete` come
+        # after it, and each fires a sweep.
+        self.assertIsNone(
+            labels.yields_to_reviewed(labels.LABEL_REVIEWING, {"weka", labels.LABEL_REVIEWED})
+        )
+
+    def test_reviewing_is_kept_while_the_approval_has_not_happened(self):
+        self.assertEqual(
+            labels.yields_to_reviewed(labels.LABEL_REVIEWING, {"weka"}), labels.LABEL_REVIEWING
+        )
+
+    def test_the_other_flow_labels_are_not_suppressed(self):
+        # cody's rework pickup carries `weka-working` next to `weka-reviewed`
+        # until cody strips the gate label; the rework gate itself is
+        # `weka-queue` next to it. Both are true statements, so neither yields.
+        for name in (labels.LABEL_WORKING, labels.LABEL_QUEUE, labels.LABEL_BLOCKED):
+            with self.subTest(label=name):
+                self.assertEqual(
+                    labels.yields_to_reviewed(name, {labels.LABEL_REVIEWED}), name
+                )
+        self.assertIsNone(labels.yields_to_reviewed(None, {labels.LABEL_REVIEWED}))
+
+
 class SweepWindowTests(unittest.TestCase):
     """What one full sweep looks at, and in which order it applies it."""
 
@@ -396,6 +424,66 @@ class ReconcileTests(unittest.TestCase):
         self.assertEqual(board.labels_of(264), ["weka", "weka-working"],
                          "a finished issue card never touches its PR")
         self.assertEqual([call for call in board.calls() if call.startswith("pr list")], [])
+
+    def test_a_running_reviewer_does_not_restore_reviewing_on_a_reviewed_pr(self):
+        # The approval is one transaction inside `pass-review.sh` (strip
+        # `weka-reviewing`, add `weka-reviewed`, flip to ready), but reed's card
+        # is still `running` afterwards: it asks for the human reviewer and then
+        # calls `kanban_complete`, and each tool call fires a sweep. Without the
+        # yield rule the phase alone writes `weka-reviewing` back onto the
+        # now-ready PR — ready + `weka-reviewing` + `weka-reviewed` was the state
+        # #297 and #299 were left in.
+        board = self.make(
+            [card(298, "running", assignee="reed", branch="jsmind-v2/t-298")],
+            {
+                "298": {"state": "open", "labels": ["weka"]},
+                "299": {"state": "open", "labels": ["weka", "weka-reviewed"]},
+            },
+            prs={"jsmind-v2/t-298": 299},
+        )
+        result = board.run("--reconcile", "--once", "--full")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(board.labels_of(299), ["weka", "weka-reviewed"],
+                         "an approved PR must not regain weka-reviewing")
+        self.assertEqual([call for call in board.writes() if "issues/299" in call], [])
+        # The PR is approved, the issue is not — `weka-reviewed` lives on the PR
+        # — so the card still marks the review on the issue.
+        self.assertEqual(board.labels_of(298), ["weka", "weka-reviewing"])
+
+    def test_a_running_reviewer_still_marks_an_unapproved_pr(self):
+        # The yield only applies to an approved object: while reed is actually
+        # reviewing, the PR is a draft and carries `weka-reviewing`.
+        board = self.make(
+            [card(298, "running", assignee="reed", branch="jsmind-v2/t-298")],
+            {
+                "298": {"state": "open", "labels": ["weka"]},
+                "299": {"state": "open", "labels": ["weka"]},
+            },
+            prs={"jsmind-v2/t-298": 299},
+        )
+        result = board.run("--reconcile", "--once", "--full")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("t_298 #299 pr: +weka-reviewing", result.stdout)
+        self.assertEqual(board.labels_of(299), ["weka", "weka-reviewing"])
+
+    def test_a_stale_reviewing_on_a_reviewed_pr_is_removed(self):
+        # The state an approval used to leave behind: a sweep that ran after
+        # `pass-review.sh` put `weka-reviewing` back. The next sweep repairs it
+        # instead of waiting for the close-time `strip_labels()`.
+        board = self.make(
+            [card(298, "running", assignee="reed", branch="jsmind-v2/t-298")],
+            {
+                "298": {"state": "open", "labels": ["weka"]},
+                "299": {"state": "open",
+                        "labels": ["weka", "weka-reviewing", "weka-reviewed"]},
+            },
+            prs={"jsmind-v2/t-298": 299},
+        )
+        result = board.run("--reconcile", "--once", "--full")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("t_298 #299 pr: -weka-reviewing", result.stdout)
+        self.assertIn("weka-reviewed is on it", result.stdout)
+        self.assertEqual(board.labels_of(299), ["weka", "weka-reviewed"])
 
     def test_a_full_sweep_does_not_read_finished_cards_outside_the_window(self):
         finished = [card(n, "done", created_at=1000 + n, completed_at=2000 + n)
