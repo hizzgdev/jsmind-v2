@@ -359,6 +359,26 @@ addition, so a body that counts it as new is off by one against its own parenthe
   that keys two objects and count the `gh` reads, not the asserted labels: a test that seeds only the issue
   stays green on the gap.
 
+- **A label-owner table whose "where" column was written for the manual era.** When a doc PR moves the
+  writer of flow labels from the bots to a reconciler, the "where it lands" cells usually stay as they were
+  and go false: `labels.py`'s `refs_for(include_pr=label is not None)` puts an issue card's phase on the
+  issue *and* the PR its `branch_name` opened, so `weka-reviewing` is no longer "always a PR" (reed's run is
+  on the issue card). Do not argue from the table: import `labels.py` in a probe, feed it the real card
+  shape (title `#<n>: …`, body starting with the issue URL, `branch_name` set) and print
+  `Reconciler.run("full")` per (status, assignee) - the reported target list is the answer.
+
+- **A deploy doc's read-only command nobody ran.** `python3 team/automations/weka/labels.py --dry-run --full`
+  from the clone (the worktree has no `config.json`) is safe and read-only; run it rather than trusting the
+  prose. It prints skip/progress lines (`… is not in the phase table; skipping`, `title does not start with
+  '#<number>:'`, `profile <p>: N running cards; falling back to a full sweep`) alongside `-old +new`, so
+  "anything else is a diff line" is wrong. It also exposes config drift prose cannot: the host's
+  `config.json` has no `reviewer` key (while `config.example.json` does), so every `running` + reed card is
+  skipped and `weka-reviewing` is never written - and `hooks doctor` stays green through it. In a worker
+  shell the same command only prints the delegate-fence error; drop
+  `HERMES_DELEGATED_CHILD_CONTEXT`/`HERMES_KANBAN_TASK`/`HERMES_KANBAN_RUN_ID`/`HERMES_KANBAN_CLAIM_LOCK` for
+  the real read. Hook timeouts are `hooks.<event>[].timeout`, default 60 s (`agent/shell_hooks.py:37`), not
+  the 5 s a doc may claim.
+
 - **A master regression test replaced by a differently-scoped new one.** A rework round that has to touch a UI suite
   can drop a case that a *different* issue landed (here: `ui viewport - a zoom leaves a map that fits centred, never in a
   corner`, landed for #274/#279, replaced by a `fitToView is the way back…` case) and justify it from the buggy
