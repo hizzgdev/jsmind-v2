@@ -300,7 +300,7 @@ cody 若死在 draft，PR 就停在 draft + `weka-working`：合不了，但不�
 
 `weka` 标签只表示归属，不在清理范围内：它没有连字符，匹配不上 `weka-` 前缀。对象关掉之后留着它没有意义，但它也是人筛"哪些是 weka 管的"的依据，脚本不动它。
 
-兜底只覆盖**部署之后**的 close 事件：在这份代码上线前就关掉的对象不会再收到 `close`，它们身上残留的标签不会自己消失。`labels.py` 也不碰已经 closed 的对象——给一个已合并的 PR 补标签等于宣告一件没人能推进的事——所以这类一次性残留只能手工清：用 `gh issue list --state closed --label weka-working` 找出来，对每个编号 `gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/weka-working`。
+兜底只覆盖**部署之后**的 close 事件：在这份代码上线前就关掉的对象不会再收到 `close`，它们身上残留的标签不会自己消失。`labels.py` 也不碰已经 closed 的对象——给一个已合并的 PR 补标签等于宣告一件没人能推进的事——所以这类一次性残留只能手工清，按标签逐个查：`gh issue list --state closed --label weka-working`、`gh issue list --state closed --label weka-queue`、`gh pr list --state merged --label weka-blocked`（`weka-reviewing` 同理），再对每个编号 `gh api -X DELETE repos/{owner}/{repo}/issues/<number>/labels/<label>` 删掉同名的那一个。
 
 名单不是枚举出来的，而是按前缀认的：`strip_labels()` 删的是 payload 里所有以 `weka-` 开头的标签。早先的实现写死 `weka-working` / `weka-reviewing` 两个，`weka-queue` 与 `weka-blocked` 因此从来不会被这块兜底拿走（#306）——判前缀之后，标签表再长也不用回来改这里。
 
